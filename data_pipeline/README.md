@@ -303,3 +303,7 @@ touched, so the trained models, the dataset and Lean backtests are unaffected.
 - `finra_short_volume.py` — daily short ratios from 2018-08.
 - `factor_library.py` — French's and AQR's daily factors, reported beside a result and never blocking.
 - `net_retry.py` — only the server's own answer means a file is absent.
+
+## V6.6.1: quarterly fundamentals
+
+`edgar_facts.extended_rows` adds trailing-twelve-month net income and operating cash flow (a filing's cash-flow figures are year to date, so standalone quarters can't simply be summed: last year + this year to date - last year to date, usable from the latest filing among its parts), quarterly assets, cash, short-term debt, capex and R&D. `scripts/build_wide_info.py --parts extended` writes them to their own file, `data_wide/reference/edgar_fundamentals_ext.csv.gz`, so the file every earlier trial read stays byte-identical.

@@ -33,14 +33,12 @@ from pathlib import Path
 # tests/test_packaging_modules.py, which fails when this drifts).
 SHIPPED_PACKAGES = (
     "risk", "execution", "data_pipeline", "evaluation", "portfolio", "features", "audit", "inference",
-    "analyzer", "monitoring", "topology", "liquidity", "experience", "aether_quant",
+    "analyzer", "monitoring", "topology", "liquidity", "experience", "aether_quant", "moe", "regime", "retraining", "notifications", "experts", "performance",
 )
 SHIPPED_MODULES = (
     "aq_cli", "generate_backtest_report", "generate_evaluation_report", "json_safety", "performance_probe", "risk_controls",
 )
-FIRST_PARTY = set(SHIPPED_PACKAGES) | set(SHIPPED_MODULES) | {
-    "main", "train", "risk_controls", "moe", "regime", "retraining", "notifications", "analyzer",
-}
+FIRST_PARTY = set(SHIPPED_PACKAGES) | set(SHIPPED_MODULES) | {"main", "train", "risk_controls"}
 
 
 def _iter_module_names() -> list[str]:
@@ -104,7 +102,21 @@ def check_library() -> list[str]:
                                                        sector_max_net_weight=0.1)[0] == {},
         "risk": lambda m: m.cap_target_weight(0.1, 0.0, 1.0) == (0.1, False),
         "io": lambda m: m.sanitize_json_finite([float("nan")]) == [None],
-        "formal": lambda m: len(m.targets()) == 11 and bool(m.load_cases("order_gate")["cases"]),
+        "formal": lambda m: len(m.targets()) == 13 and bool(m.load_cases("order_gate")["cases"]),
+        "cycle": lambda m: m.update_generation_shares({"a": 1.0, "b": 0.0}, {"a": "active", "b": "ramping"}, {}, {}, m.GlidePolicy())["b"] == 0.3,
+        "training": lambda m: m.purge_label_overlap(["train", "train", "validation"], 1) == ["train", "purged", "validation"],
+        "regime": lambda m: callable(m.build_market_regime_vector),
+        "topology": lambda m: callable(m.build_market_topology),
+        "moe": lambda m: callable(m.build_gating_decision),
+        "liquidity": lambda m: m.estimate_high_low_spread.__name__ == "estimate_high_low_spread",
+        "analyzer": lambda m: bool(m.__all__),
+        "performance": lambda m: bool(m.__all__),
+        "experts": lambda m: bool(m.__all__),
+        "retraining": lambda m: callable(m.evaluate_validation_gate),
+        "notifications": lambda m: bool(m.__all__),
+        "monitoring": lambda m: bool(m.__all__),
+        "experience": lambda m: callable(m.compute_observation_summary),
+        "data": lambda m: m.first_filings_annual({}, "Assets") == [],
         "research": lambda m: m.block_bootstrap_mean_ci([0.1, 0.2, 0.3], block=1, draws=20) is not None,
         "evaluation": lambda m: m.newey_west_t_stat([0.1, 0.2, 0.3], lags=1) != 0.0,
         "features": lambda m: m.cross_sectional_rank.__name__ == "cross_sectional_rank",

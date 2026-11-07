@@ -707,6 +707,8 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         "test_sleeve_guard.py", "test_class_sleeve.py",
         # V6.4.4 - portfolio/trend_sleeve.py.
         "test_trend_sleeve.py",
+        # V6.6.1 - portfolio/signal_construction.py, portfolio/generation_blend.py.
+        "test_signal_construction.py", "test_generation_blend.py",
     ],
     "features": [
         "test_bond_features.py", "test_derivatives_macro_features.py", "test_macro_features.py",
@@ -790,6 +792,9 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         "test_main_wiring.py", "test_main_ensure_ready_smoke.py",
     ],
     "evaluation": [
+        # V6.6.1 - the third round's tools, and generations that hand over.
+        "test_model_audit.py", "test_walk_forward_linear.py", "test_research_round.py", "test_alpha_decay.py", "test_generation_registry.py", "test_generation_ledger.py",
+        "test_glide_calibration.py", "test_cycle_daily.py", "test_research_cycle.py", "test_cycle_retrain.py", "test_aq_cycle_cli.py", "test_cycle_lean.py",
         "test_v660_fixes.py", "test_power_analysis.py", "test_research_cells.py", "test_wide_signals.py", "test_v660_research.py", "test_v660_round2.py",
         "test_target_weights_engine.py", "test_trial_ledger.py", "test_premia_research.py", "test_v650_lean.py", "test_v650_scripts.py",
         # V6.4.3 - the research and audit tools.
@@ -886,7 +891,7 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         "test_formal_differential_risk_controls.py", "test_formal_differential_kill_switch.py",
         "test_formal_differential_position_sizing.py", "test_formal_differential_cost_model.py",
         "test_formal_differential_reconciliation.py", "test_formal_differential_sleeve_guard.py",
-        "test_formal_differential_json_safety.py", "test_v643_formal_findings.py",
+        "test_formal_differential_json_safety.py", "test_v643_formal_findings.py", "test_formal_differential_generation_blend.py", "test_formal_differential_generation_glide.py",
     ],
     "meta": [
         "test_ci_workflows.py", "test_aq_test_ruff_flag.py", "test_packaging_modules.py", "test_docs_links.py",
@@ -1143,6 +1148,224 @@ def cmd_research(args: argparse.Namespace) -> int:
                       f"HAC t {row['hac_t']:.2f}  CI {row['ci95']}")
     print(f"wrote {out}")
     return 0
+
+
+def _cycle_research(args: argparse.Namespace) -> int:
+    """`aq cycle research <stage>`: one stage of a pre-registered round (evaluation/research_round.py). Selection reads free cells only."""
+    from evaluation import research_round as rounds
+
+    stage = args.stage
+    if stage == "rules":
+        payload = json.loads(Path(args.draft).read_text(encoding="utf-8"))
+        print(rounds.write_rules(payload, Path(args.round)))
+        return 0
+    spec = rounds.load_round(Path(args.round), root=ROOT_DIR)
+    score_dir = spec.out_dir / "scores"
+    holdout_ledger = ROOT_DIR / rounds.HOLDOUT_LEDGER
+    if stage in ("score", "placebo"):
+        cell = rounds._load_selection_cell(spec, ROOT_DIR)
+        if stage == "score":
+            rounds.stage_score(spec, cell=cell, score_dir=score_dir, only=tuple(args.only or ()), force=args.force, emit=lambda line: print(line, flush=True))
+        else:
+            rounds.stage_placebo(spec, cell=cell, score_dir=score_dir, draws=args.draws, force=args.force, emit=lambda line: print(line, flush=True))
+        return 0
+    if stage == "gate":
+        print(json.dumps(rounds.stage_gate(spec), indent=1))
+    elif stage == "pbo":
+        print(json.dumps(rounds.stage_pbo(spec, root=ROOT_DIR), indent=1))
+    elif stage == "report":
+        print(json.dumps({key: value for key, value in rounds.stage_report(spec, alpha_fn=_round_alpha_fn()).items() if key != "trials"}, indent=1))
+    elif stage == "freeze":
+        if not args.trial:
+            print("freeze needs --trial", file=sys.stderr)
+            return 2
+        path, digest = rounds.stage_freeze(spec, {"trial": args.trial}, holdout_ledger=holdout_ledger)
+        print(f"{path} {digest}")
+    elif stage == "hold":
+        if not args.trial or not args.digest:
+            print("hold needs --trial and --digest", file=sys.stderr)
+            return 2
+        import datetime as _datetime
+
+        created = _datetime.datetime.now(_datetime.timezone.utc).replace(microsecond=0).isoformat()
+        verdict = rounds.stage_hold(
+            spec, args.trial, root=ROOT_DIR, freeze_path=spec.out_dir / f"freeze_{args.trial}.json", digest=args.digest, holdout_ledger=holdout_ledger,
+            created_at=created, score_dir=score_dir, alpha_fn=_round_alpha_fn(),
+        )
+        print(json.dumps(verdict, indent=1, default=str))
+    return 0
+
+
+def _round_alpha_fn():
+    """Alpha of a sleeve's daily series against SPY, AGG and BTC on the wide root, on a session basis."""
+    from evaluation.alpha_proof import alpha_regression, benchmark_daily_returns, to_sessions
+
+    assets = {"phase1": {"universe": {"assets": [
+        {"ticker": "SPY", "security_type": "equity", "data_path": "data/equity/usa/daily/spy.zip"},
+        {"ticker": "AGG", "security_type": "equity", "data_path": "data/equity/usa/daily/agg.zip"},
+        {"ticker": "BTCUSD", "security_type": "crypto", "data_path": "data/crypto/coinbase/daily/btcusd_trade.zip"},
+    ]}}}
+
+    def alpha(series):
+        bench = benchmark_daily_returns(ROOT_DIR, assets, ("SPY", "AGG", "BTCUSD"), start=str(series.index.min()), end=str(series.index.max()), data_dir="data_wide", required=False)
+        return alpha_regression(to_sessions(series, bench.index), bench)
+
+    return alpha
+
+
+def _generations_dir() -> Path:
+    return ML_DIR / "generations"
+
+
+def _cycle_ledger_rows(args: argparse.Namespace) -> list[dict]:
+    """The generations' ledger from `--ledger-file`, or from the branch the scheduled Action writes. No branch yet reads as empty."""
+    from evaluation.forward_ledger import read_ledger
+
+    if getattr(args, "ledger_file", None):
+        return read_ledger(Path(args.ledger_file))
+    result = subprocess.run(["git", "show", "forward-ledger:forward/generations.jsonl"], cwd=ROOT_DIR, capture_output=True, text=True, encoding="utf-8")
+    return [json.loads(line) for line in result.stdout.splitlines() if line.strip()] if result.returncode == 0 else []
+
+
+def _cycle_status(args: argparse.Namespace, *, write: bool = True) -> dict:
+    from dataclasses import asdict
+
+    from evaluation.generation_ledger import judge_generations
+    from evaluation.generation_registry import load_registry
+    from evaluation.research_cycle import due_actions, read_json_or, sessions_since_retrain, status_view
+
+    registry = load_registry(_generations_dir() / "registry.json")
+    policy = read_json_or(_generations_dir() / "policy.json", {})
+    rows = _cycle_ledger_rows(args)
+    judged = judge_generations(rows)
+    entries = {name: asdict(entry) for name, entry in registry.items()}
+    session = rows[-1]["payload"].get("session") if rows else None
+    lean = read_json_or(ROOT_DIR / "lean.json", {})
+    keys = bool(str(lean.get("ib-account") or "").strip()) and bool(str(lean.get("coinbase-api-key") or "").strip())
+    sessions = sorted({row["payload"].get("session") for row in rows if row["payload"].get("session")})
+    behind = 0
+    if session:
+        import datetime as _datetime
+
+        import numpy as np
+
+        behind = int(np.busday_count(session, _datetime.datetime.now(_datetime.timezone.utc).date().isoformat()))
+    actions = due_actions(
+        entries, judged, session=session, sessions_behind=behind, sessions_since_retrain=sessions_since_retrain(ML_DIR / "cycle", sessions), broker_keys=keys, policy_enabled=bool(policy.get("enabled")),
+    )
+    view = status_view(entries, judged, actions, session=session, policy=policy)
+    if write:
+        (_generations_dir() / "status.json").write_text(json.dumps(view, indent=1, sort_keys=True) + "\n", encoding="utf-8", newline="\n")
+    return view
+
+
+def _cycle_promote(args: argparse.Namespace) -> int:
+    """A change of stage, by rule. It refuses anything R-ADMIT1 doesn't allow, and it never touches a broker setting or a live flag."""
+    from dataclasses import replace
+
+    from evaluation.generation_ledger import evidence_for, generation_state, judge_generations, rows_for
+    from evaluation.generation_registry import append_lifecycle, lifecycle_is_intact, load_registry, next_stage, save_registry
+
+    registry_path = _generations_dir() / "registry.json"
+    registry = load_registry(registry_path)
+    if args.generation not in registry:
+        print(f"{args.generation} is not in the registry", file=sys.stderr)
+        return 2
+    generation = registry[args.generation]
+    rows = _cycle_ledger_rows(args)
+    judged = judge_generations(rows)
+    if judged["chain_valid"] is False:
+        print("the generations' chain is broken: no stage moves on it", file=sys.stderr)
+        return 1
+    mine = rows_for(rows, args.generation)
+    state = generation_state(generation, mine)
+    returns = {row["session"]: float(row["session_return"]) for row in mine if row.get("status") == "ok" and row.get("session_return") is not None}
+    allocations = judged.get("latest_allocation") or {}
+    shares = allocations.get("shares") or {}
+    others = {name: value for name, value in shares.items() if name != args.generation}
+    incumbent = max(others, key=lambda name: others[name]) if others else None
+    theirs = {row["session"]: float(row["session_return"]) for row in rows_for(rows, incumbent) if row.get("status") == "ok" and row.get("session_return") is not None} if incumbent else None
+    evidence = evidence_for(generation, (judged.get("generations") or {}).get(args.generation, {}), incumbent_returns=theirs, own_returns=returns, holdouts_spent=(_generations_dir() / "holdout_ledger.jsonl").exists(), state=state)
+    allowed = next_stage(generation, evidence)
+    full_book = args.to == "active" and generation.stage == "ramping" and float(shares.get(args.generation, 0.0)) >= 1.0
+    # A generation with no capital left may retire by hand: that takes risk off.
+    retiring = args.to == "retired" and generation.stage in ("active", "fading", "winding_down", "ramping")
+    if args.to != allowed and not full_book and not retiring:
+        print(f"refused: {args.generation} is {generation.stage}, and the rule allows {allowed}, not {args.to}", file=sys.stderr)
+        return 2
+    import datetime as _datetime
+
+    created = _datetime.datetime.now(_datetime.timezone.utc).replace(microsecond=0).isoformat()
+    registry[args.generation] = replace(generation, stage=args.to)
+    save_registry(registry_path, registry)
+    lifecycle = _generations_dir() / "lifecycle.jsonl"
+    append_lifecycle(lifecycle, event="stage", payload={"generation": args.generation, "from": generation.stage, "to": args.to, "share": float(shares.get(args.generation, 0.0))}, created_at=created)
+    print(f"{args.generation}: {generation.stage} -> {args.to}; lifecycle intact: {lifecycle_is_intact(lifecycle)[0]}")
+    return 0
+
+
+def _cycle_schedule(args: argparse.Namespace) -> int:
+    """Renders the weekly job. `install` registers it only on a machine that passes the RAM preflight, and never in a dry run."""
+    from evaluation.research_cycle import install_command, ram_preflight, render_schedule
+
+    platform = args.platform or ("windows" if sys.platform == "win32" else "linux")
+    text = render_schedule(platform, repo=ROOT_DIR, host=args.host)
+    print(text)
+    if args.schedule_command == "show" or args.dry_run:
+        return 0
+    preflight = ram_preflight(args.host)
+    if not preflight["ok"]:
+        print(f"refusing to schedule a retrain here: {preflight['reason']}", file=sys.stderr)
+        return 2
+    task = ML_DIR / "cycle" / ("schedule.xml" if platform == "windows" else "schedule.cron")
+    task.parent.mkdir(parents=True, exist_ok=True)
+    task.write_text(text, encoding="utf-16" if platform == "windows" else "utf-8", newline="\n")
+    return subprocess.run(install_command(platform, task_file=task), cwd=ROOT_DIR).returncode
+
+
+def _cycle_retrain(args: argparse.Namespace) -> int:
+    command = [sys.executable, str(ROOT_DIR / "scripts" / "cycle_retrain.py"), "--host", args.host]
+    if args.if_due:
+        view = _cycle_status(args, write=False)
+        if not any(str(item.get("action", "")).startswith("aq cycle retrain") for item in view["due"]):
+            print("no retrain due")
+            return 0
+    if args.procedure:
+        command += ["--procedure", args.procedure]
+    elif not args.smoke:
+        print("name a --procedure, or run --smoke", file=sys.stderr)
+        return 2
+    if args.smoke:
+        command.append("--smoke")
+    if args.dry_run:
+        command.append("--dry-run")
+    return subprocess.run(command, cwd=ROOT_DIR).returncode
+
+
+def cmd_cycle(args: argparse.Namespace) -> int:
+    """`aq cycle`: the research cycle, research round to retirement of a generation."""
+    command = args.cycle_command
+    if command == "research":
+        return _cycle_research(args)
+    if command == "status":
+        view = _cycle_status(args)
+        print(json.dumps(view, indent=1, default=str))
+        return 0 if view["chain_valid"] is not False else 1
+    if command == "daily":
+        extra = ["--dry-run"] if args.dry_run else []
+        ledger = args.ledger_file or str(ML_DIR / "cycle" / "generations.jsonl")
+        return subprocess.run([sys.executable, str(ROOT_DIR / "scripts" / "cycle_daily.py"), "--ledger", ledger, *extra], cwd=ROOT_DIR).returncode
+    if command == "decide":
+        return subprocess.run(
+            [sys.executable, str(ROOT_DIR / "scripts" / "cycle_decide.py"), "--generation", args.generation, "--weights", args.weights, "--ledger", args.ledger_file, "--session", args.session], cwd=ROOT_DIR,
+        ).returncode
+    if command == "retrain":
+        return _cycle_retrain(args)
+    if command == "promote":
+        return _cycle_promote(args)
+    if command == "schedule":
+        return _cycle_schedule(args)
+    raise SystemExit(f"unknown cycle command {command}")
 
 
 def _formal_sorry_hits() -> list[str]:
@@ -4373,6 +4596,45 @@ def build_parser() -> argparse.ArgumentParser:
     prove_parser.add_argument("--check-sorry", action="store_true",
                               help="Only scan formal/AetherFormal/*.lean for sorry/admit (no Lean needed)")
     prove_parser.set_defaults(func=cmd_prove)
+
+    cycle_parser = subparsers.add_parser("cycle", help="The research cycle: rounds, generations, retraining, handover")
+    cycle_subparsers = cycle_parser.add_subparsers(dest="cycle_command", required=True)
+    cycle_research_parser = cycle_subparsers.add_parser("research", help="One stage of a pre-registered research round")
+    cycle_research_parser.add_argument("stage", choices=["rules", "score", "placebo", "gate", "pbo", "freeze", "hold", "report"])
+    cycle_research_parser.add_argument("--round", required=True, help="The round's rule file (written once, hash checked at every stage)")
+    cycle_research_parser.add_argument("--draft", default=None, help="rules only: the JSON to write as the round's rule file")
+    cycle_research_parser.add_argument("--only", nargs="*", default=None, help="score only: these trials")
+    cycle_research_parser.add_argument("--draws", type=int, default=100, help="placebo only: draws per null (default: 100)")
+    cycle_research_parser.add_argument("--force", action="store_true", help="Rescore a trial already scored")
+    cycle_research_parser.add_argument("--trial", default=None, help="freeze / hold: the candidate")
+    cycle_research_parser.add_argument("--digest", default=None, help="hold: the freeze's digest")
+    cycle_status_parser = cycle_subparsers.add_parser("status", help="Generations, shares, decay, and what is due (writes ml/generations/status.json)")
+    cycle_status_parser.add_argument("--ledger-file", default=None, help="Read this generations.jsonl instead of the forward-ledger branch")
+    cycle_daily_parser = cycle_subparsers.add_parser("daily", help="Today's row for each generation, and the allocation (the scheduled Action's job)")
+    cycle_daily_parser.add_argument("--ledger-file", default=None, help="The generations.jsonl to append to (default: ml/cycle/generations.jsonl)")
+    cycle_daily_parser.add_argument("--dry-run", action="store_true", help="Compute on a temporary copy of the ledger")
+    cycle_decide_parser = cycle_subparsers.add_parser("decide", help="A host's dated decision for a generation that can't decide on a bare runner")
+    cycle_decide_parser.add_argument("--generation", required=True)
+    cycle_decide_parser.add_argument("--weights", required=True, help="CSV of ticker,weight")
+    cycle_decide_parser.add_argument("--ledger-file", required=True, help="forward/decisions.jsonl in a worktree of the branch")
+    cycle_decide_parser.add_argument("--session", required=True)
+    cycle_retrain_parser = cycle_subparsers.add_parser("retrain", help="Retrain on this machine or the training Codespace, resumable (RAM preflight; --smoke proves the plumbing anywhere)")
+    cycle_retrain_parser.add_argument("--host", choices=["local", "codespace"], required=True)
+    cycle_retrain_parser.add_argument("--procedure", default=None, help="A procedure in scripts/cycle_retrain.py, e.g. k06")
+    cycle_retrain_parser.add_argument("--smoke", action="store_true", help="Every stage on a tiny synthetic panel")
+    cycle_retrain_parser.add_argument("--dry-run", action="store_true", help="Print the stages and the preflight, and stop")
+    cycle_retrain_parser.add_argument("--if-due", action="store_true", help="Do nothing unless `aq cycle status` says a retrain is due")
+    cycle_retrain_parser.add_argument("--ledger-file", default=None, help=argparse.SUPPRESS)
+    cycle_promote_parser = cycle_subparsers.add_parser("promote", help="Change a generation's stage, by rule R-ADMIT1 (never touches broker settings)")
+    cycle_promote_parser.add_argument("--generation", required=True)
+    cycle_promote_parser.add_argument("--to", required=True, choices=["shadow", "ramping", "active", "fading", "winding_down", "retired", "rejected"])
+    cycle_promote_parser.add_argument("--ledger-file", default=None, help="Read this generations.jsonl instead of the forward-ledger branch")
+    cycle_schedule_parser = cycle_subparsers.add_parser("schedule", help="Show or install a weekly retrain-if-due job on a machine with the RAM")
+    cycle_schedule_parser.add_argument("schedule_command", choices=["show", "install"])
+    cycle_schedule_parser.add_argument("--platform", choices=["windows", "linux"], default=None)
+    cycle_schedule_parser.add_argument("--host", choices=["local", "codespace"], default="local")
+    cycle_schedule_parser.add_argument("--dry-run", action="store_true", help="install: print the job and register nothing")
+    cycle_parser.set_defaults(func=cmd_cycle)
 
     api_parser = subparsers.add_parser("api", help="Start the FastAPI monitoring server on :8001")
     api_parser.set_defaults(func=cmd_api)

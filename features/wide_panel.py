@@ -149,6 +149,7 @@ def info_features(
         "book_to_market": _ratio(equity, market_cap),
         "earnings_yield": _ratio(net_income, market_cap),
         "days_since_filing": days_since_filing(fundamentals, sessions, columns),
+        "market_cap": market_cap,
     }
     if eps is not None and not eps.empty:
         features["sue"] = surprise_table(split_adjusted_eps(eps, splits), sessions, columns, hold_sessions=60)
@@ -164,6 +165,25 @@ def info_features(
     else:
         features["short_ratio_20"] = pd.DataFrame(np.nan, index=sessions, columns=columns, dtype=float)
     return features
+
+
+def extended_info_features(sessions: list[str], columns: list[str], *, extended: pd.DataFrame, fundamentals: pd.DataFrame) -> dict[str, pd.DataFrame]:
+    """V6.6.1: accruals on trailing twelve months, net operating assets (Hirshleifer et al. 2004) and capex growth. A filing shows a session
+    after its date. Missing short-term debt counts as none, since many filers report no such line; missing cash leaves the ratio unknown."""
+    from data_pipeline.edgar_facts import fundamentals_table
+
+    def ext(name: str) -> pd.DataFrame:
+        return fundamentals_table(extended, sessions, columns, name)
+
+    def base(name: str) -> pd.DataFrame:
+        return fundamentals_table(fundamentals, sessions, columns, name)
+
+    operating = base("equity") + base("long_term_debt").fillna(0.0) + ext("short_term_debt").fillna(0.0) - ext("cash")
+    return {
+        "accruals_ttm": _ratio(ext("ttm_net_income") - ext("ttm_operating_cash_flow"), ext("assets_q")),
+        "noa": _ratio(operating, base("assets")),
+        "capex_growth": fundamentals_table(growth_rows(extended, "capex", "capex_growth"), sessions, columns, "capex_growth"),
+    }
 
 
 def wide_label(bars: WideBars, sector: Mapping[str, str], *, horizon: int = 21, market: str = MARKET) -> pd.DataFrame:

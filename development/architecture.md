@@ -1704,6 +1704,14 @@ dates). A residual non-limit contributor is documented in #153.
 - **`simulate_rank_book(member_pass_resizes=)`** (default True = live): a research option of R-CAL5, False is not a live behaviour.
 - **Per-run model artifacts** (`ml/evaluation/run_artifacts/<run>/`) change what a DinD Lean run loads from `ml/`, never the code.
 
+### V6.6.1 contracts
+
+- **Generations blend upstream of the shared file.** `portfolio/generation_blend.py` turns each generation's target weights into one blended row of the file the target-weights path already reads, so `main.py`, `evaluation/target_weights_engine.py` and Lean consume one file and no generation has a code path of its own. There is no live-only logic to justify, and `main.py` did not change. A blend at share 1.0 of the installed file hashes to the same bytes (R-BLEND1). Convexity keeps every per-generation cap in the book (`formal/AetherFormal/GenerationBlend.lean`).
+- **The dynamic glide adds no path either.** `dynamic_generation_shares` only changes which shares `blend_generation_rows` receives. A step is a blend of two allocations, so shares stay non-negative, sum to at most one and stay under a cap for any number of generations (`formal/AetherFormal/GenerationGlide.lean`).
+- **`ml/generations/policy.json` is not `config.json`:** nothing in Lean reads it, so the config hash and the README pin don't move. `enabled` defaults to false, which leaves `retraining/orchestrator.py::promote` on its single slot.
+- **Two forward files.** `forward/ledger.jsonl` keeps its chain and its timing (Problems #313). `forward/generations.jsonl` lags each class to its real fill and tracks the engine at a daily correlation of 0.993; compare generations only inside it. A generation's return is its own, at its own costs; the blended book's return comes from the engine or Lean, never from a sum.
+- **`POOLED` books** (`portfolio/premia_signals.py`) keep ranks centred within a class, so knowing a name's group earns nothing (#259), and only drop the per-class normalisation. Research only: nothing live reads it.
+
 ### Diagnostics contract (all default off in code)
 
 `phase_v2.diagnostics.timing_probe` (one `timing-probe:` line at shutdown, no

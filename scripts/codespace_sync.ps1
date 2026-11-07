@@ -176,11 +176,13 @@ Write-Host "codespace=$Codespace host=$($ssh.Host) repo=$repo"
 
 switch ($Mode) {
     'push' {
-        $archive = Join-Path $Scratch 'push.tgz'
+        # one archive per Codespace: two pushes at once (training + Lean DinD) would otherwise overwrite each other's, and extract garbage
+        $archive = Join-Path $Scratch "push_$Codespace.tgz"
         $excludes = @('.git', '.venv', 'node_modules', 'backtests', 'build', '__pycache__', '.pytest_cache', '.ruff_cache',
             '.matplotlib_cache', '.claude', '.av', '.coverage', '*.egg-info', 'ml/versions', 'ml/_backup_*', 'data_wide/_cache', 'Aether-quant-Obsidian-Vault', 'visualization', 'data_v580_staging', 'data_v6_staging', 'data_backups', 'backtests_invalid')
         if (-not $IncludeDatasets) { $excludes += @('ml/datasets', 'ml/expert_datasets') }
-        if ($CodeOnly) { $excludes += @('ml', 'data', 'data_wide', 'data_crypto_wide') }
+        # Anchored with ^: a bare `data`, or `./data`, also drops tests/data, which left the API snapshot and fixtures stale on the Codespace.
+        if ($CodeOnly) { $excludes += @('^./ml', '^./data', '^./data_wide', '^./data_crypto_wide') }
         $tarArgs = @('-czf', $archive) + ($excludes | ForEach-Object { "--exclude=$_" }) + @('-C', $Root, '.')
         Write-Host "building $archive (excluding: $($excludes -join ', '))"
         tar @tarArgs

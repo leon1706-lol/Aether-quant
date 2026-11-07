@@ -89,6 +89,55 @@ def _ic(frame: pd.DataFrame, scores: np.ndarray) -> float:
     ]))
 
 
+def _monotone_frame(seed: int = 1) -> pd.DataFrame:
+    rng = np.random.default_rng(seed)
+    rows = 4000
+    frame = pd.DataFrame({
+        "date": [f"2012-01-{(index % 28) + 1:02d}" for index in range(rows)], "ticker": [f"T{index % 100}" for index in range(rows)], "_class": "tech",
+        "accruals": rng.uniform(-0.5, 0.5, rows).astype("float32"), "gp_assets": rng.uniform(-0.5, 0.5, rows).astype("float32"),
+    })
+    frame["_label"] = (0.5 * frame["gp_assets"] + 0.1 * rng.normal(size=rows)).astype("float32")
+    return frame
+
+
+def test_monotone_gbm_respects_the_published_sign_even_against_the_data():
+    train = _monotone_frame()
+    train["_label"] = (0.5 * train["accruals"]).astype("float32")  # the data says high accruals earn; the published sign says they don't
+    test = _monotone_frame(2)
+    test["accruals"] = np.linspace(-0.5, 0.5, len(test)).astype("float32")
+    test["gp_assets"] = 0.0
+    scores = module.fit_predict_monotone_gbm(train, test, ["accruals", "gp_assets"], "a", 1)
+    assert np.all(np.diff(scores) <= 1e-12), "the model may not learn a premium backward"
+
+
+def test_monotone_gbm_learns_a_premium_with_the_published_sign():
+    train, test = _monotone_frame(), _monotone_frame(2)
+    scores = module.fit_predict_monotone_gbm(train, test, ["accruals", "gp_assets"], "a", 1)
+    assert np.corrcoef(scores, test["_label"])[0, 1] > 0.6
+
+
+def test_a_fundamental_panel_with_a_missing_feature_stops(tmp_path):
+    pytest.importorskip("pyarrow")
+    frame = pd.DataFrame({"date": ["2012-01-03"], "ticker": ["A"], "sector": ["tech"], "target_wide_20d": [0.1], "accruals": [0.0]})
+    path = tmp_path / "panel.parquet"
+    frame.to_parquet(path)
+    with pytest.raises(ValueError):
+        module.load_panel_frame(path, feature_set="fundamental", target="target_wide_20d")
+
+
+def test_train_start_drops_earlier_rows(tmp_path):
+    pytest.importorskip("pyarrow")
+    frame = pd.DataFrame({
+        "date": ["2009-01-02", "2012-01-03", "2012-01-03"], "ticker": ["A", "A", "B"], "sector": ["tech"] * 3, "target_wide_20d": [0.1, 0.1, -0.1],
+        **{name: [0.0, 1.0, 2.0] for name in module.FUNDAMENTAL_SIGNS},
+    })
+    path = tmp_path / "panel.parquet"
+    frame.to_parquet(path)
+    out, features = module.load_panel_frame(path, feature_set="fundamental", target="target_wide_20d", train_start="2011-07-01")
+    assert sorted(features) == sorted(module.FUNDAMENTAL_SIGNS)
+    assert set(out["date"]) == {"2012-01-03"}
+
+
 def test_gbm_learns_a_planted_signal():
     frame, features = _frame(dates=200)
     train, test = frame[frame["date"] < "2017-08-01"], frame[frame["date"] >= "2017-08-01"].reset_index(drop=True)

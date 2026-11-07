@@ -24,6 +24,7 @@ pip install -e .          # register `aq` CLI from source (pyproject.toml)
 aq test                   # full suite, refreshes badge   (aq test --risk etc. = subsystem only)
 #                         # no --parallel on a low-memory machine: each xdist worker imports torch (OOM-killed a run)
 aq evaluate               # offline rank evaluation
+aq cycle status           # the research cycle: generations, shares, decay, what is due (RUNBOOK "Research cycle")
 aq backtest               # real Lean backtest (Docker, ~1hr+) — owner runs this, never agents
 ruff check .              # must be clean before commit
 ```
@@ -90,7 +91,9 @@ ruff check .              # must be clean before commit
 | `risk/` · `portfolio/` · `execution/` | Sizing, kill switch · book construction, HRP, options · order gate, cost model, reconciliation |
 | `features/` · `inference/` · `moe/` | Pure feature functions · model loading/batch inference · gating/routing |
 | `train.py` · `train_*.py` | Core training loop · specialized trainers |
-| `evaluation/` · `retraining/` | Offline eval, Monte Carlo · candidate promotion gates, artifact versioning |
+| `evaluation/` · `retraining/` | Offline eval, Monte Carlo, research rounds, the generations' registry and ledger · candidate promotion gates, artifact versioning |
+| `ml/generations/` | Which generations exist, the glide's policy, their lifecycle log, the once-only holdout ledger (tracked; nothing in Lean reads it) |
+| `aether_quant/` | The library: a facade over the pure functions of every subsystem, pinned by `tests/data/aether_quant_api.json` |
 | `experience/` · `audit/` · `monitoring/` · `notifications/` | Redis/Postgres pipeline · hash-chained audit log · FastAPI + dashboards · Telegram |
 | `data_pipeline/` · `regime/` · `topology/` | Backfills, bar synthesis · regime detection · topology overlay |
 | `json_safety.py` · `performance_probe.py` · `aq_cli.py` | Finite-safe JSON helpers · opt-in timing/teardown probes (stdlib-only) · CLI entry point + subsystem test routing |
@@ -121,9 +124,10 @@ ruff check .              # must be clean before commit
 
 ## Model training
 
-Always train on the Codespace `aq-Training-Ground-Fixed` via the CLI, never locally.
-Sync the full local project first (including gitignored files); keep the codespace OFF
-when idle (rule 13: `gh codespace stop` as soon as the job's results are pulled);
+Train on the Codespace `aq-Training-Ground-Fixed` via the CLI, or locally only on a host that
+passes `aq cycle retrain`'s RAM preflight (14 GB; the dev PC's 4 GB refuses, and `--smoke` proves
+the plumbing anywhere). Sync the full local project first (including gitignored files); keep the
+codespace OFF when idle (rule 13: `gh codespace stop` as soon as the job's results are pulled);
 afterwards bring model, data, and extra files back locally for testing.
 
 Lean backtests run on a temporary Docker-in-Docker Codespace
@@ -132,7 +136,7 @@ the dev PC cannot start Docker Desktop reliably. Delete that Codespace when its 
 
 ## CI
 
-`.github/workflows/ci.yml` (Python 3.11): `python-tests` (ubuntu + windows, 80% coverage
+`forward-ledger.yml` and `research-cycle.yml` run each session on free runners and write only to branch `forward-ledger`. `.github/workflows/ci.yml` (Python 3.11): `python-tests` (ubuntu + windows, 80% coverage
 gate), `python-lint` (ruff, `py_compile main.py`), `dependency-audit` (pip-audit),
 `webui-tests`, `cli-smoke`, `workflows-lint` (actionlint), plus the V5.5.0 guard jobs
 (fast-guards — which also runs the docs-link check —, subsystem-matrix, wheel-smoke, python-compat,
@@ -144,7 +148,8 @@ Docker rebuild is required before any paper/live deploy once material code chang
 
 After every code change: tests added → `aq test` + ruff green → docs updated (see
 Conventions) → vault regenerated. Before handing over a commit, also run
-`scripts/clean_checkout_test.ps1` (CI's checkout has no gitignored files):
+`scripts/clean_checkout_test.ps1` (CI's checkout has no gitignored files), or on the 4 GB dev PC
+`scripts/codespace_verify.ps1 -Start`, which runs every CI job on a Codespace:
 
 ```powershell
 cd Aether-quant-Obsidian-Vault

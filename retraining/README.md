@@ -153,6 +153,10 @@ torn or incomplete file means the window reruns). The ranking promotion gate
 clears it — the shipped list is the book's own heads (`rank_5d`, `rank_20d`), not the demoted
 `residual_rank_20d` that rejected every candidate.
 
+## V6.6.1: generations
+
+`promote` fills one slot. With `enabled: true` in `ml/generations/policy.json` it refuses instead (`generations_enabled_use_aq_cycle`) and copies nothing: a model then reaches the book through a share of it, by rule (`aq cycle`, `evaluation/generation_registry.py`). With the shipped `enabled: false` it behaves as before. New pure code for the cycle lives under `evaluation/`, since this package's `__init__` imports its workers.
+
 ## V6.5.0: the vault for real
 
 No candidate had ever reached the vault. The client now reads `av --output json` and stores the full hash; `vault_preflight` runs before training, so a worker without `av` fails in seconds, not after a training run; rollback restores only the candidate's folder with `av restore`, never a repo-wide `av checkout`; a push queued because the server is unreachable is a safe outcome unless `vault.require_push` is on. `tests/test_vault_contract.py` runs the real `av` when one is installed (`AQ_AV_BINARY`). The fixes this needs in Aether-Vault are in that repo's working tree, uncommitted, so the Docker image has no pinned `av` yet.

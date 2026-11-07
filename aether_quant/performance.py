@@ -1,0 +1,46 @@
+"""Performance triggers and the rank-IC monitor (the Postgres writer stays out)."""
+
+from performance.rank_ic_monitor import compute_production_rank_ic, compute_realized_rank_ic_observations
+from performance.triggers import (
+    cluster_drift_trigger,
+    confidence_decay_trigger,
+    drawdown_trigger,
+    evaluate_all_triggers,
+    executed_trade_count_trigger,
+    liquidity_warning_trigger,
+    live_order_permission_blocked_trigger,
+    model_topology_disagreement_trigger,
+    observation_count_trigger,
+    rank_ic_decay_trigger,
+    regime_shift_trigger,
+    risk_lock_trigger,
+    sharpe_degradation_trigger,
+    sustained_drawdown_trigger,
+    topology_regime_mismatch_trigger,
+    topology_uncertainty_trigger,
+    trigger_frequency_spike,
+    win_rate_trigger,
+)
+
+__all__ = [
+    "cluster_drift_trigger",
+    "compute_production_rank_ic",
+    "compute_realized_rank_ic_observations",
+    "confidence_decay_trigger",
+    "drawdown_trigger",
+    "evaluate_all_triggers",
+    "executed_trade_count_trigger",
+    "liquidity_warning_trigger",
+    "live_order_permission_blocked_trigger",
+    "model_topology_disagreement_trigger",
+    "observation_count_trigger",
+    "rank_ic_decay_trigger",
+    "regime_shift_trigger",
+    "risk_lock_trigger",
+    "sharpe_degradation_trigger",
+    "sustained_drawdown_trigger",
+    "topology_regime_mismatch_trigger",
+    "topology_uncertainty_trigger",
+    "trigger_frequency_spike",
+    "win_rate_trigger",
+]

@@ -1,0 +1,22 @@
+{
+ "blended_path": "ml/generations/blended_weights.csv",
+ "enabled": false,
+ "glide": {
+  "accelerate_on_decaying": 1.0,
+  "blend_every": 21,
+  "entry_share": 0.3,
+  "glide_sessions": 252,
+  "half_life_sessions": 126,
+  "hold_on_watch": false,
+  "max_generations": 4,
+  "mode": "dynamic",
+  "prior_sessions": 504.0,
+  "retire_share": 0.05,
+  "score_floor": 0.0,
+  "tier2_paper_cap": 0.3
+ },
+ "glide_policy": "dynamic_h126_p504_f00_b21",
+ "guard_max_drawdown": 0.15,
+ "min_local_ram_gb": 14,
+ "note": "Nothing in Lean reads this file. `enabled` true makes `aq cycle` write the blended file and bridges retraining's promote to the registry; pointing a paper run at that file is a separate owner decision."
+}

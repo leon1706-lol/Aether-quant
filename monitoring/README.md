@@ -21,3 +21,7 @@ Current behavior:
 - displays annualized volatility, volatility regime, target position weight and leverage factor per asset
 - works with Lean backtests and observation mode before broker API keys are available
 - run with `uvicorn monitoring.api_server:app --port 8001 --reload`
+
+## V6.6.1
+
+`GET /api/generations` serves `ml/generations/status.json` (`aq cycle status`) through `evaluation_state.build_generations_state`. A fresh checkout has no status yet, which is an empty view rather than an error. The Operations page shows it in the Generations panel.

@@ -1,5 +1,6 @@
 import type { RuntimeState } from '../types/state'
-import { useAssetsStatus, useAuditLog } from '../api/hooks'
+import { useAssetsStatus, useAuditLog, useGenerations } from '../api/hooks'
+import { GenerationsPanel } from '../components/monitoring/GenerationsPanel'
 import { MonitoringFeeds } from '../components/monitoring/MonitoringFeeds'
 import { PerformanceTriggersPanel } from '../components/monitoring/PerformanceTriggersPanel'
 import { RetrainingStatusPanel } from '../components/monitoring/RetrainingStatusPanel'
@@ -13,6 +14,7 @@ import { ReconciliationPanel } from '../components/monitoring/ReconciliationPane
 export function OperationsPage({ state }: { state: RuntimeState | undefined }) {
   const { data: assetsStatus } = useAssetsStatus()
   const { data: auditLog } = useAuditLog()
+  const { data: generations } = useGenerations()
 
   return (
     <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
@@ -22,6 +24,7 @@ export function OperationsPage({ state }: { state: RuntimeState | undefined }) {
             monitoring feeds below. */}
         <KillSwitchPanel decision={state?.kill_switch} />
         <ReconciliationPanel report={state?.reconciliation} />
+        <GenerationsPanel status={generations} />
         <PerformanceTriggersPanel report={state?.performance_triggers} />
         <RetrainingStatusPanel status={state?.retraining_status} />
         <PaperReadinessPanel status={state?.paper_readiness} />

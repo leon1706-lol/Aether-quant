@@ -5,6 +5,7 @@ import {
   fetchAuditLog,
   fetchEquityCurves,
   fetchEvaluation,
+  fetchGenerations,
   fetchMetricsSnapshot,
   fetchNeuralNetwork,
   fetchObservationEquityCurve,
@@ -46,6 +47,14 @@ export function useNeuralNetwork() {
     queryKey: ['neural-network'],
     queryFn: fetchNeuralNetwork,
     refetchInterval: REFRESH_MS,
+  })
+}
+
+export function useGenerations() {
+  return useQuery({
+    queryKey: ['generations'],
+    queryFn: fetchGenerations,
+    refetchInterval: TRACING_REFRESH_MS,
   })
 }
 

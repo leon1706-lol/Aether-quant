@@ -44,6 +44,108 @@ def _facts():
     }}
 
 
+def _flow_facts():
+    """A calendar-year filer's cash flow: year-to-date in each 10-Q, with last year's comparative, and a standalone quarter that must not count."""
+    def entry(start, end, filed, form, value):
+        return {"start": start, "end": end, "filed": filed, "form": form, "val": value}
+
+    return {"facts": {"us-gaap": {
+        "NetCashProvidedByUsedInOperatingActivities": {"units": {"USD": [
+            entry("2018-01-01", "2018-12-31", "2019-02-20", "10-K", 120.0),
+            entry("2018-01-01", "2018-06-30", "2018-08-01", "10-Q", 50.0),
+            entry("2019-01-01", "2019-06-30", "2019-08-01", "10-Q", 80.0),
+            entry("2018-01-01", "2018-06-30", "2019-08-01", "10-Q", 55.0),  # a restated comparative, filed later: the first filing stands
+            entry("2019-04-01", "2019-06-30", "2019-08-01", "10-Q", 41.0),  # standalone second quarter
+        ]}},
+        "NetIncomeLoss": {"units": {"USD": [
+            entry("2018-01-01", "2018-12-31", "2019-02-20", "10-K", 100.0),
+            entry("2018-01-01", "2018-06-30", "2018-08-01", "10-Q", 40.0),
+            entry("2019-01-01", "2019-06-30", "2019-08-01", "10-Q", 70.0),
+        ]}},
+        "Assets": {"units": {"USD": [
+            {"end": "2018-12-31", "filed": "2019-02-20", "form": "10-K", "val": 1000.0},
+            {"end": "2019-06-30", "filed": "2019-08-01", "form": "10-Q", "val": 1100.0},
+            {"end": "2019-06-30", "filed": "2020-08-01", "form": "10-Q", "val": 9999.0},
+        ]}},
+        "PaymentsToAcquirePropertyPlantAndEquipment": {"units": {"USD": [
+            entry("2018-01-01", "2018-12-31", "2019-02-20", "10-K", 30.0),
+        ]}},
+        "CashAndCashEquivalentsAtCarryingValue": {"units": {"USD": [
+            {"end": "2018-12-31", "filed": "2019-02-20", "form": "10-K", "val": 200.0},
+        ]}},
+    }}}
+
+
+def _by_field(rows, field):
+    return {row["period_end"]: row for row in rows if row["field"] == field}
+
+
+def test_ttm_is_last_year_plus_this_ytd_less_the_comparative():
+    rows = _by_field(edgar_facts.quarterly_ttm_rows(_flow_facts()), "ttm_operating_cash_flow")
+    assert rows["2019-06-30"]["value"] == pytest.approx(120.0 + 80.0 - 50.0)
+    assert rows["2018-12-31"]["value"] == pytest.approx(120.0)
+
+
+def test_ttm_is_usable_only_from_its_latest_part():
+    rows = _by_field(edgar_facts.quarterly_ttm_rows(_flow_facts()), "ttm_net_income")
+    assert rows["2019-06-30"]["filed"] == "2019-08-01"
+    assert rows["2019-06-30"]["value"] == pytest.approx(100.0 + 70.0 - 40.0)
+
+
+def test_a_standalone_quarter_never_makes_a_ttm():
+    durations = edgar_facts._first_filed_durations(_flow_facts(), "NetCashProvidedByUsedInOperatingActivities")
+    alone = {key: row for key, row in durations.items() if key == ("2019-04-01", "2019-06-30")}
+    assert edgar_facts._ttm_rows(alone) == []
+
+
+def test_later_restatements_do_not_change_what_was_public():
+    rows = _by_field(edgar_facts.quarterly_ttm_rows(_flow_facts()), "assets_q")
+    assert rows["2019-06-30"]["value"] == 1100.0 and rows["2019-06-30"]["filed"] == "2019-08-01"
+    cut = _flow_facts()
+    cut["facts"]["us-gaap"]["Assets"]["units"]["USD"].pop()
+    assert _by_field(edgar_facts.quarterly_ttm_rows(cut), "assets_q") == rows
+
+
+def test_extended_rows_add_the_annual_fields():
+    rows = edgar_facts.extended_rows(_flow_facts())
+    assert _by_field(rows, "capex")["2018-12-31"]["value"] == 30.0
+    assert _by_field(rows, "cash")["2018-12-31"]["value"] == 200.0
+    assert not _by_field(rows, "rd_expense")
+
+
+def test_fetch_extended_reports_names_sec_has_not_and_resumes(tmp_path):
+    calls = []
+
+    def get_json(url):
+        calls.append(url)
+        if url == edgar_facts.TICKERS_URL:
+            return {"0": {"ticker": "AAA", "cik_str": 1}}
+        return _flow_facts()
+
+    rows, missing = edgar_facts.fetch_extended(["AAA", "GONE"], get_json, pause_seconds=0.0, cache_dir=tmp_path)
+    assert missing == ["GONE"] and {row["ticker"] for row in rows} == {"AAA"}
+    calls.clear()
+    again, _ = edgar_facts.fetch_extended(["AAA"], get_json, pause_seconds=0.0, cache_dir=tmp_path)
+    assert calls == [edgar_facts.TICKERS_URL] and again == rows
+
+
+def test_extended_features_read_only_what_was_filed_by_then():
+    from features.wide_panel import extended_info_features
+
+    rows = pd.DataFrame([{"ticker": "AAA", **row} for row in edgar_facts.extended_rows(_flow_facts())])
+    base = pd.DataFrame([{"ticker": "AAA", **row} for row in edgar_facts.fundamentals_rows({"facts": {"us-gaap": {
+        "Assets": {"units": {"USD": [{"end": "2018-12-31", "filed": "2019-02-20", "form": "10-K", "val": 1000.0}]}},
+        "StockholdersEquity": {"units": {"USD": [{"end": "2018-12-31", "filed": "2019-02-20", "form": "10-K", "val": 600.0}]}},
+        "LongTermDebt": {"units": {"USD": [{"end": "2018-12-31", "filed": "2019-02-20", "form": "10-K", "val": 300.0}]}},
+    }}})])
+    out = extended_info_features(SESSIONS, ["AAA"], extended=rows, fundamentals=base)
+    assert np.isnan(out["accruals_ttm"].loc["2019-02-20", "AAA"]), "a filing shows a session after its date"
+    assert out["accruals_ttm"].loc["2019-02-21", "AAA"] == pytest.approx((100.0 - 120.0) / 1000.0)
+    assert out["accruals_ttm"].loc["2019-08-02", "AAA"] == pytest.approx((130.0 - 150.0) / 1100.0)
+    assert out["noa"].loc["2019-02-21", "AAA"] == pytest.approx((600.0 + 300.0 - 200.0) / 1000.0)
+    assert out["capex_growth"]["AAA"].isna().all(), "one year of capex has no growth"
+
+
 def test_annual_first_filing_keeps_what_was_public_then():
     rows = edgar_facts.first_filings_annual(_facts(), "Assets")
     assert rows == [{"period_end": "2018-12-31", "filed": "2019-03-01", "form": "10-K", "value": 100.0}]

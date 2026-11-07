@@ -13,7 +13,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SNAPSHOT = ROOT / "tests" / "data" / "aether_quant_api.json"
-MODULES = ("audit", "evaluation", "execution", "features", "formal", "inference", "io", "portfolio", "research", "risk")
+MODULES = (
+    "analyzer", "audit", "cycle", "data", "evaluation", "execution", "experience", "experts", "features", "formal", "inference", "io", "liquidity", "moe", "monitoring", "notifications", "performance",
+    "portfolio", "regime", "research", "retraining", "risk", "topology", "training",
+)
 HEAVY = ("torch", "AlgorithmImports", "redis", "psycopg", "psycopg2", "fastapi", "uvicorn", "sklearn")
 
 
@@ -41,6 +44,38 @@ def test_facade_re_exports_the_same_objects():
     assert risk.evaluate_kill_switch is kill_switch.evaluate_kill_switch
     assert audit.verify_chain is hash_chain.verify_chain
     assert research.probability_of_backtest_overfitting is pbo.probability_of_backtest_overfitting
+
+
+def test_the_new_modules_re_export_the_same_objects():
+    from aether_quant import cycle, moe, regime, retraining, topology, training
+    from evaluation import alpha_decay, generation_registry
+    from features import training_splits
+    from moe import gating
+    from portfolio import generation_blend
+    from regime import market_regime
+    from retraining import validation_gate
+    from topology import market_topology
+
+    assert cycle.update_generation_shares is generation_blend.update_generation_shares
+    assert cycle.decay_state is alpha_decay.decay_state
+    assert cycle.next_stage is generation_registry.next_stage
+    assert training.purged_embargoed_folds is training_splits.purged_embargoed_folds
+    assert moe.build_gating_decision is gating.build_gating_decision
+    assert regime.build_market_regime_vector is market_regime.build_market_regime_vector
+    assert retraining.evaluate_validation_gate is validation_gate.evaluate_validation_gate
+    assert topology.build_market_topology is market_topology.build_market_topology
+
+
+def test_the_trainers_import_the_moved_helpers_rather_than_keep_copies():
+    import ast
+
+    from features import training_splits
+
+    moved = {"purge_label_overlap", "purge_label_overlap_calendar", "assign_split", "assign_split_series", "purged_embargoed_folds", "annual_windows", "rank_inputs", "centred_label"}
+    assert moved <= set(dir(training_splits))
+    for name in ("train.py", "train_cross_sectional.py"):
+        tree = ast.parse((ROOT / name).read_text(encoding="utf-8"))
+        assert not moved & {node.name for node in tree.body if isinstance(node, ast.FunctionDef)}, name
 
 
 def test_importing_the_library_stays_light():

@@ -208,6 +208,9 @@ backtests_invalid/
 ml/_backup_*/
 ml/_candidate_*/
 ml/nohup_*.out
+ml/cycle/
+ml/generations/status.json
+ml/generations/blended_weights.csv
 ml/variant_configs_*/
 ml/rl_forex_config.json
 

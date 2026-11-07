@@ -836,6 +836,30 @@ export interface SleeveStatus {
   learned_topology: boolean
 }
 
+// V6.6.1 - `aq cycle status`'s view (GET /api/generations).
+export interface GenerationRow {
+  id: string
+  stage: string
+  tier: string
+  kind?: string
+  share: number
+  state: string | null
+  sessions: number | null
+  sharpe: number | null
+  alpha_t: number | null
+  note?: string
+}
+
+export interface GenerationsState {
+  available?: boolean
+  enabled?: boolean
+  chain_valid?: boolean
+  session?: string | null
+  tbills?: number | null
+  generations: GenerationRow[]
+  due: { action: string; why: string; urgency?: string }[]
+}
+
 export interface AssetsStatus {
   ib_status: 'disabled' | 'enabled_but_lean_credentials_missing' | 'ready' | string
   futures_risk_enabled: boolean

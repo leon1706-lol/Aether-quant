@@ -19,7 +19,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from json_safety import load_json_lenient
 from monitoring.assets_status import build_assets_status_from_disk
-from monitoring.evaluation_state import build_evaluation_state
+from monitoring.evaluation_state import build_evaluation_state, build_generations_state
 from monitoring.neural_network_state import build_neural_network_state
 from monitoring.strategy_catalog import build_strategy_catalog
 
@@ -102,6 +102,12 @@ def get_evaluation() -> dict:
     monitoring/evaluation_state.py::build_evaluation_state() for the
     per-section not_evaluated degrade contract."""
     return build_evaluation_state()
+
+
+@app.get("/api/generations")
+def get_generations() -> dict:
+    """V6.6.1 - the model generations sharing the book, their decay state and what is due (`aq cycle status`)."""
+    return build_generations_state()
 
 
 @app.get("/api/assets-status")

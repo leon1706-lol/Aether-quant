@@ -1,0 +1,260 @@
+{
+ "adopted": true,
+ "baseline": "fixed_252",
+ "baseline_row": {
+  "mean_holders": 1.8695581810165143,
+  "median_regret": 0.15245435438734506,
+  "parameters": 1,
+  "paths": 1980,
+  "turnover_per_year": 1.643035213243546,
+  "zero_alpha_majority_share": 0.5409772326438992
+ },
+ "best_dynamic": "dynamic_h126_p504_f00_b21",
+ "best_dynamic_row": {
+  "mean_holders": 3.418311838624339,
+  "median_regret": 0.14578421688938512,
+  "parameters": 4,
+  "paths": 1980,
+  "turnover_per_year": 0.7532179418902077,
+  "zero_alpha_majority_share": 0.25822761343594675
+ },
+ "eligible": [
+  "dynamic_h126_p126_f00_b21",
+  "dynamic_h126_p126_f00_b5",
+  "dynamic_h126_p126_f20_b21",
+  "dynamic_h126_p126_f20_b5",
+  "dynamic_h126_p252_f00_b21",
+  "dynamic_h126_p252_f00_b5",
+  "dynamic_h126_p252_f20_b21",
+  "dynamic_h126_p252_f20_b5",
+  "dynamic_h126_p504_f00_b21",
+  "dynamic_h126_p504_f00_b5",
+  "dynamic_h126_p504_f20_b21",
+  "dynamic_h126_p504_f20_b5",
+  "dynamic_h63_p126_f00_b21",
+  "dynamic_h63_p126_f00_b5",
+  "dynamic_h63_p126_f20_b21",
+  "dynamic_h63_p126_f20_b5",
+  "dynamic_h63_p252_f00_b21",
+  "dynamic_h63_p252_f00_b5",
+  "dynamic_h63_p252_f20_b21",
+  "dynamic_h63_p252_f20_b5",
+  "dynamic_h63_p504_f00_b21",
+  "dynamic_h63_p504_f00_b5",
+  "dynamic_h63_p504_f20_b21",
+  "dynamic_h63_p504_f20_b5"
+ ],
+ "meets_r_glide1_limit": [],
+ "policy": "dynamic_h126_p504_f00_b21",
+ "reason": "no worse than the ladder on both counts",
+ "results": {
+  "dynamic_h126_p126_f00_b21": {
+   "mean_holders": 3.178155814093314,
+   "median_regret": 0.1545783874115512,
+   "parameters": 4,
+   "paths": 1980,
+   "turnover_per_year": 0.8071241556442299,
+   "zero_alpha_majority_share": 0.22553486251402918
+  },
+  "dynamic_h126_p126_f00_b5": {
+   "mean_holders": 3.1938589766714767,
+   "median_regret": 0.15357018425509517,
+   "parameters": 4,
+   "paths": 1980,
+   "turnover_per_year": 0.878011559803453,
+   "zero_alpha_majority_share": 0.2268483445566779
+  },
+  "dynamic_h126_p126_f20_b21": {
+   "mean_holders": 2.964737904842072,
+   "median_regret": 0.16660280005339168,
+   "parameters": 4,
+   "paths": 1980,
+   "turnover_per_year": 0.843705563903766,
+   "zero_alpha_majority_share": 0.20051782708032706
+  },
+  "dynamic_h126_p126_f20_b5": {
+   "mean_holders": 2.979325747554914,
+   "median_regret": 0.16585560686613915,
+   "parameters": 4,
+   "paths": 1980,
+   "turnover_per_year": 0.9234727332441944,
+   "zero_alpha_majority_share": 0.20188291646624978
+  },
+  "dynamic_h126_p252_f00_b21": {
+   "mean_holders": 3.2715936648228316,
+   "median_regret": 0.15005380303626586,
+   "parameters": 4,
+   "paths": 1980,
+   "turnover_per_year": 0.7886120590844296,
+   "zero_alpha_majority_share": 0.23728480238896907
+  },
+  "dynamic_h126_p252_f00_b5": {
+   "mean_holders": 3.28743436347603,
+   "median_regret": 0.15147887060569848,
+   "parameters": 4,
+   "paths": 1980,
+   "turnover_per_year": 0.8505729147278062,
+   "zero_alpha_majority_share": 0.2390003707712041
+  },
+  "dynamic_h126_p252_f20_b21": {
+   "mean_holders": 3.0083709114959114,
+   "median_regret": 0.16632999081169386,
+   "parameters": 4,
+   "paths": 1980,
+   "turnover_per_year": 0.8346214704041091,
+   "zero_alpha_majority_share": 0.20586069023569023
+  },
+  "dynamic_h126_p252_f20_b5": {
+   "mean_holders": 3.0232824274490944,
+   "median_regret": 0.16594298277839756,
+   "parameters": 4,
+   "paths": 1980,
+   "turnover_per_year": 0.9101574175405228,
+   "zero_alpha_majority_share": 0.20730268959435627
+  },
+  "dynamic_h126_p504_f00_b21": {
+   "mean_holders": 3.418311838624339,
+   "median_regret": 0.14578421688938512,
+   "parameters": 4,
+   "paths": 1980,
+   "turnover_per_year": 0.7532179418902077,
+   "zero_alpha_majority_share": 0.25822761343594675
+  },
+  "dynamic_h126_p504_f00_b5": {
+   "mean_holders": 3.4349386724386726,
+   "median_regret": 0.1443199039793186,
+   "parameters": 4,
+   "paths": 1980,
+   "turnover_per_year": 0.8044184123801782,
+   "zero_alpha_majority_share": 0.2598630150713484
+  },
+  "dynamic_h126_p504_f20_b21": {
+   "mean_holders": 3.0931194384319385,
+   "median_regret": 0.1600795413421389,
+   "parameters": 4,
+   "paths": 1980,
+   "turnover_per_year": 0.8213018947856957,
+   "zero_alpha_majority_share": 0.2178238235529902
+  },
+  "dynamic_h126_p504_f20_b5": {
+   "mean_holders": 3.1081376763668436,
+   "median_regret": 0.16054182598364858,
+   "parameters": 4,
+   "paths": 1980,
+   "turnover_per_year": 0.8897997904612204,
+   "zero_alpha_majority_share": 0.21930540524290526
+  },
+  "dynamic_h63_p126_f00_b21": {
+   "mean_holders": 2.9905708874458874,
+   "median_regret": 0.16394286907341354,
+   "parameters": 4,
+   "paths": 1980,
+   "turnover_per_year": 1.268741046517457,
+   "zero_alpha_majority_share": 0.2671842432259099
+  },
+  "dynamic_h63_p126_f00_b5": {
+   "mean_holders": 3.005778519320186,
+   "median_regret": 0.1630724709647034,
+   "parameters": 4,
+   "paths": 1980,
+   "turnover_per_year": 1.4014944136580552,
+   "zero_alpha_majority_share": 0.2688629850088183
+  },
+  "dynamic_h63_p126_f20_b21": {
+   "mean_holders": 2.744779140612474,
+   "median_regret": 0.17509107960333997,
+   "parameters": 4,
+   "paths": 1980,
+   "turnover_per_year": 1.333785262112022,
+   "zero_alpha_majority_share": 0.24377329846079843
+  },
+  "dynamic_h63_p126_f20_b5": {
+   "mean_holders": 2.760837542087542,
+   "median_regret": 0.17657388072202085,
+   "parameters": 4,
+   "paths": 1980,
+   "turnover_per_year": 1.4828444772643998,
+   "zero_alpha_majority_share": 0.24525763588263588
+  },
+  "dynamic_h63_p252_f00_b21": {
+   "mean_holders": 3.084395041686708,
+   "median_regret": 0.155933110090821,
+   "parameters": 4,
+   "paths": 1980,
+   "turnover_per_year": 1.2291426508858914,
+   "zero_alpha_majority_share": 0.2784534331409331
+  },
+  "dynamic_h63_p252_f00_b5": {
+   "mean_holders": 3.098945055715889,
+   "median_regret": 0.15984006257187294,
+   "parameters": 4,
+   "paths": 1980,
+   "turnover_per_year": 1.348690823086348,
+   "zero_alpha_majority_share": 0.28017250881834216
+  },
+  "dynamic_h63_p252_f20_b21": {
+   "mean_holders": 2.7911984427609426,
+   "median_regret": 0.17253773652290477,
+   "parameters": 4,
+   "paths": 1980,
+   "turnover_per_year": 1.315229960028638,
+   "zero_alpha_majority_share": 0.24753487253487252
+  },
+  "dynamic_h63_p252_f20_b5": {
+   "mean_holders": 2.8073197250280586,
+   "median_regret": 0.176380646312985,
+   "parameters": 4,
+   "paths": 1980,
+   "turnover_per_year": 1.4583689965897468,
+   "zero_alpha_majority_share": 0.2491109006734007
+  },
+  "dynamic_h63_p504_f00_b21": {
+   "mean_holders": 3.232189704585538,
+   "median_regret": 0.14817607985821343,
+   "parameters": 4,
+   "paths": 1980,
+   "turnover_per_year": 1.1570191852399931,
+   "zero_alpha_majority_share": 0.2989202541285874
+  },
+  "dynamic_h63_p504_f00_b5": {
+   "mean_holders": 3.2471818883277215,
+   "median_regret": 0.14582587801153407,
+   "parameters": 4,
+   "paths": 1980,
+   "turnover_per_year": 1.2586721009295005,
+   "zero_alpha_majority_share": 0.3006571168029501
+  },
+  "dynamic_h63_p504_f20_b21": {
+   "mean_holders": 2.882578262786596,
+   "median_regret": 0.16759860307875696,
+   "parameters": 4,
+   "paths": 1980,
+   "turnover_per_year": 1.2860602957844314,
+   "zero_alpha_majority_share": 0.25906786115119446
+  },
+  "dynamic_h63_p504_f20_b5": {
+   "mean_holders": 2.8980532006573676,
+   "median_regret": 0.16849511275661505,
+   "parameters": 4,
+   "paths": 1980,
+   "turnover_per_year": 1.4180513045991558,
+   "zero_alpha_majority_share": 0.2605466871091871
+  },
+  "equal": {
+   "mean_holders": 4.245768197851532,
+   "median_regret": 0.13403621561519075,
+   "parameters": 0,
+   "paths": 1980,
+   "turnover_per_year": 0.4898277417027417,
+   "zero_alpha_majority_share": 0.3654456269039602
+  },
+  "fixed_252": {
+   "mean_holders": 1.8695581810165143,
+   "median_regret": 0.15245435438734506,
+   "parameters": 1,
+   "paths": 1980,
+   "turnover_per_year": 1.643035213243546,
+   "zero_alpha_majority_share": 0.5409772326438992
+  }
+ }
+}

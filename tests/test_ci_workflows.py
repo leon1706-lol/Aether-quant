@@ -30,6 +30,22 @@ def _load(path: Path) -> dict:
     return yaml.safe_load(path.read_text(encoding="utf-8"))
 
 
+def test_research_cycle_runs_daily_shares_the_ledgers_lock_and_writes_only_its_own_file():
+    workflow = _load(ROOT / ".github" / "workflows" / "research-cycle.yml")
+    forward = _load(ROOT / ".github" / "workflows" / "forward-ledger.yml")
+    on = workflow["on"] if "on" in workflow else workflow[True]
+    assert on["schedule"][0]["cron"] == "45 22 * * 1-5" and "workflow_dispatch" in on
+    assert workflow["concurrency"]["group"] == forward["concurrency"]["group"], "two writers of one branch must not race"
+    assert workflow["permissions"] == {"contents": "write"}
+    job = workflow["jobs"]["cycle"]
+    assert job["timeout-minutes"] == 15
+    text = "\n".join(str(step.get("run", "")) for step in job["steps"])
+    assert "scripts/cycle_daily.py" in text and "git add forward/generations.jsonl" in text
+    assert "forward/ledger.jsonl" not in text, "the older chain belongs to forward-ledger.yml"
+    assert (ROOT / "scripts" / "cycle_daily.py").exists()
+    assert "secrets." not in (ROOT / ".github" / "workflows" / "research-cycle.yml").read_text(encoding="utf-8")
+
+
 def test_ci_triggers_on_main_push_and_prs():
     ci = _load(CI)
     on = ci["on"] if "on" in ci else ci[True]  # PyYAML parses bare `on` as True

@@ -112,6 +112,145 @@ def fundamentals_rows(facts: dict) -> list[dict]:
     return rows
 
 
+# V6.6.1: annual fields for net operating assets and capital spending, and the quarterly figures behind trailing-twelve-month accruals.
+EXTENDED_ANNUAL_TAGS = {
+    "cash": (("us-gaap", "CashAndCashEquivalentsAtCarryingValue"), ("us-gaap", "CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents")),
+    "short_term_debt": (("us-gaap", "DebtCurrent"), ("us-gaap", "LongTermDebtCurrent"), ("us-gaap", "ShortTermBorrowings")),
+    "capex": (("us-gaap", "PaymentsToAcquirePropertyPlantAndEquipment"), ("us-gaap", "PaymentsToAcquireProductiveAssets")),
+    "rd_expense": (("us-gaap", "ResearchAndDevelopmentExpense"),),
+}
+TTM_TAGS = {"ttm_net_income": ("NetIncomeLoss",), "ttm_operating_cash_flow": ("NetCashProvidedByUsedInOperatingActivities",)}
+QUARTERLY_FORMS = ("10-Q", "10-Q/A", *ANNUAL_FORMS)
+COMPARATIVE_TOLERANCE_DAYS = 7
+
+
+def _first_filed_durations(facts: dict, tag: str, *, taxonomy: str = "us-gaap") -> dict[tuple[str, str], dict]:
+    """{(start, end): first filing} of a flow figure, across annual and quarterly forms."""
+    concept = ((facts or {}).get("facts") or {}).get(taxonomy, {}).get(tag) or {}
+    first: dict[tuple[str, str], dict] = {}
+    for entries in (concept.get("units") or {}).values():
+        for entry in entries:
+            start, end, filed, value, form = entry.get("start"), entry.get("end"), entry.get("filed"), entry.get("val"), entry.get("form")
+            if not start or not end or not filed or value is None or form not in QUARTERLY_FORMS:
+                continue
+            key = (start, end)
+            if key not in first or filed < first[key]["filed"]:
+                first[key] = {"filed": filed, "form": form, "value": float(value)}
+    return first
+
+
+def _days_between(first: str, second: str) -> int:
+    return (date.fromisoformat(second) - date.fromisoformat(first)).days
+
+
+def _ttm_rows(durations: dict[tuple[str, str], dict]) -> list[dict]:
+    """A trailing twelve months per period end: a full year as filed, else last year + this year to date - last year to date. A filing's
+    cash-flow figures are year to date, so standalone quarters can't simply be summed. Usable from the latest filing among its parts."""
+    annual = {end: row for (start, end), row in durations.items() if YEAR_MIN_DAYS <= _days_between(start, end) <= YEAR_MAX_DAYS}
+    best: dict[str, dict] = {}
+
+    def offer(end: str, row: dict) -> None:
+        if end not in best or row["filed"] < best[end]["filed"]:
+            best[end] = {"period_end": end, **row}
+
+    for end, row in annual.items():
+        offer(end, row)
+    ytd_spans = [(start, end, row) for (start, end), row in durations.items() if _days_between(start, end) < YEAR_MIN_DAYS]
+    for start, end, row in ytd_spans:
+        # A year-to-date figure starts the day after a fiscal year ended; a standalone second quarter doesn't, so it finds no year here.
+        year = next((annual[candidate] for candidate in annual if abs(_days_between(candidate, start) - 1) <= COMPARATIVE_TOLERANCE_DAYS), None)
+        if year is None:
+            continue
+        comparative = next(
+            (
+                other for other_start, other_end, other in ytd_spans
+                if abs(_days_between(other_start, start) - 365) <= COMPARATIVE_TOLERANCE_DAYS and abs(_days_between(other_end, end) - 365) <= COMPARATIVE_TOLERANCE_DAYS
+            ),
+            None,
+        )
+        if comparative is None:
+            continue
+        offer(end, {
+            "filed": max(row["filed"], year["filed"], comparative["filed"]), "form": row["form"],
+            "value": year["value"] + row["value"] - comparative["value"],
+        })
+    return sorted(best.values(), key=lambda item: item["period_end"])
+
+
+def _first_filed_instants(facts: dict, tag: str, *, taxonomy: str = "us-gaap") -> list[dict]:
+    """A balance-sheet figure per period end, first filing only, from annual and quarterly forms."""
+    concept = ((facts or {}).get("facts") or {}).get(taxonomy, {}).get(tag) or {}
+    first: dict[str, dict] = {}
+    for entries in (concept.get("units") or {}).values():
+        for entry in entries:
+            end, filed, value, form = entry.get("end"), entry.get("filed"), entry.get("val"), entry.get("form")
+            if not end or not filed or value is None or form not in QUARTERLY_FORMS:
+                continue
+            if end not in first or filed < first[end]["filed"]:
+                first[end] = {"period_end": end, "filed": filed, "form": form, "value": float(value)}
+    return sorted(first.values(), key=lambda row: row["period_end"])
+
+
+def quarterly_ttm_rows(facts: dict) -> list[dict]:
+    """`ttm_net_income`, `ttm_operating_cash_flow` and `assets_q`, in FUNDAMENTALS_COLUMNS' shape without the ticker."""
+    rows: list[dict] = []
+    for field, tags in TTM_TAGS.items():
+        by_period: dict[str, dict] = {}
+        for tag in tags:
+            for row in _ttm_rows(_first_filed_durations(facts, tag)):
+                by_period.setdefault(row["period_end"], row)
+        rows.extend({"field": field, **row} for _, row in sorted(by_period.items()))
+    rows.extend({"field": "assets_q", **row} for row in _first_filed_instants(facts, "Assets"))
+    return rows
+
+
+def extended_rows(facts: dict) -> list[dict]:
+    """Every V6.6.1 field. For a field with several tags, an earlier tag wins a fiscal year, as in `fundamentals_rows`."""
+    rows = list(quarterly_ttm_rows(facts))
+    for field, tags in EXTENDED_ANNUAL_TAGS.items():
+        by_period: dict[str, dict] = {}
+        for taxonomy, tag in tags:
+            for row in first_filings_annual(facts, tag, taxonomy=taxonomy):
+                by_period.setdefault(row["period_end"], row)
+        rows.extend({"field": field, **row} for _, row in sorted(by_period.items()))
+    return rows
+
+
+def fetch_extended(
+    tickers: Iterable[str], get_json: Callable[[str], dict] | None = None, pause_seconds: float = 0.15, cache_dir: Path | None = None,
+) -> tuple[list[dict], list[str]]:
+    """(rows with a `ticker`, tickers with nothing). Each company's parsed body is dropped once its rows are read, and a run with `cache_dir` resumes."""
+    get_json = get_json or _get_json
+    directory = get_json(TICKERS_URL)
+    cik_by_ticker = {str(item["ticker"]).upper().replace("-", "."): int(item["cik_str"]) for item in directory.values()}
+    rows: list[dict] = []
+    missing: list[str] = []
+    for ticker in tickers:
+        cached = Path(cache_dir) / f"{ticker.lower()}.json" if cache_dir else None
+        if cached is not None and cached.exists():
+            saved = json.loads(cached.read_text(encoding="utf-8"))
+        else:
+            cik = cik_by_ticker.get(str(ticker).upper())
+            if cik is None:
+                missing.append(ticker)
+                continue
+            try:
+                saved = extended_rows(get_json(FACTS_URL.format(cik=cik)))
+            except Exception as error:  # one failed company must not lose the others
+                print(f"{ticker}: {type(error).__name__}", flush=True)
+                missing.append(ticker)
+                continue
+            if cached is not None:
+                cached.parent.mkdir(parents=True, exist_ok=True)
+                cached.write_text(json.dumps(saved, separators=(",", ":")), encoding="utf-8", newline="\n")
+            if pause_seconds:
+                _time.sleep(pause_seconds)
+        if not saved:
+            missing.append(ticker)
+        rows.extend({"ticker": ticker, **row} for row in saved)
+    return rows, missing
+
+
 def sector_for_sic(sic) -> str:
     """A sector label from a SEC SIC code, in the GICS sector names. Coarse, and today's code rather than the code at each date: it
     only sets which names are ranked together. A company with no code is `unknown`, which is never traded."""

@@ -20,6 +20,7 @@ from evaluation.target_weights_engine import MarketPanel, load_market_panel, sim
 from portfolio.financing import load_rate_series
 from portfolio.premia_signals import (
     DIRECT,
+    POOLED,
     TS,
     XS,
     ResearchPanel,
@@ -68,7 +69,7 @@ def phase_offsets(rebalance_every: int, phases: int = PHASES) -> list[int]:
 
 def nulls_for(spec: SleeveSpec) -> tuple[str, ...]:
     """A ranking can be relabelled across assets; a direction or a timing rule has no cross-section to relabel."""
-    return ("asset_block", "time_shift") if spec.kind == XS else ("sign_block", "time_shift")
+    return ("asset_block", "time_shift") if spec.kind in (XS, POOLED) else ("sign_block", "time_shift")
 
 
 @dataclass

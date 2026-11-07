@@ -608,6 +608,10 @@ the Codespace** (`gh codespace stop`) whenever it isn't actively
 training — every core-hour and GB of storage bills the owner's monthly
 budget (AGENTS.md rule 13).
 
+**V6.6.1: `aq cycle retrain`** runs the same resumable stages here or on this Codespace, and is the way in for anything new: `--host codespace` waits for a settled machine, pushes the code, runs over ssh, reads the state back and stops it in a `finally`; `--host local` needs 14 GB of RAM (RUNBOOK "Local retraining"). Two details it had to learn: `gh codespace ... -c` wants the generated name, not the display name, and `gh codespace cp` quotes a remote path, which Windows' own scp reads literally. `codespace_sync.ps1` now builds one archive per Codespace, so a push to each at once can't corrupt the other's. Launch these from PowerShell: under Git Bash, `ssh` resolves differently and the sync reports "no repo".
+
+**Heavy verification belongs here, not on the PC.** `.\scripts\codespace_verify.ps1 -Start` runs every CI job against the working tree in a clean checkout of `origin/main` plus its changes, and the suite again in the tree that holds the data; `-Status` reads the stages, `-Stop` stops the machine. `scripts/codespace_prove.sh` builds the Lean proofs and regenerates their differential cases from Mathlib's cache.
+
 **One-time setup** — `.devcontainer/devcontainer.json` at the repo root:
 
 ```json

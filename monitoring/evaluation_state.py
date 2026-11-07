@@ -31,6 +31,14 @@ def _load_json(path: Path) -> dict | list | None:
         return None
 
 
+def build_generations_state(ml_dir: Path | None = None) -> dict:
+    """V6.6.1 - what `aq cycle status` wrote: the generations, their shares and what is due. A fresh checkout has no status yet, which is not an error."""
+    payload = _load_json((ml_dir or DEFAULT_ML_DIR) / "generations" / "status.json")
+    if not isinstance(payload, dict):
+        return {"available": False, "generations": [], "due": [], "hint": "run `aq cycle status`"}
+    return {"available": True, **payload}
+
+
 def _not_evaluated(hint: str) -> dict:
     return {"status": "not_evaluated", "hint": hint}
 

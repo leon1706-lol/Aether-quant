@@ -130,6 +130,22 @@ def test_promote_requires_vault_commit():
     promote_mock.assert_not_called()
 
 
+def test_with_generations_on_promote_copies_nothing_and_says_where_to_go():
+    conn_mock, _ = _make_conn_mock()
+    candidate = {"model_version_id": "v1", "status": "candidate", "aether_vault_commit": "abc"}
+    with patch("retraining.orchestrator.fetch_model_version", return_value=candidate), patch("retraining.orchestrator._generations_enabled", return_value=True), patch(
+        "retraining.orchestrator.copy_candidate_to_active"
+    ) as copy_mock, patch("retraining.orchestrator.promote_model_version") as promote_mock:
+        result = orchestrator.promote(conn_mock, "v1")
+    assert result == {"ok": False, "error": "generations_enabled_use_aq_cycle", "version_id": "v1"}
+    copy_mock.assert_not_called()
+    promote_mock.assert_not_called()
+
+
+def test_the_shipped_policy_leaves_the_single_slot_path_as_it_was():
+    assert orchestrator._generations_enabled() is False
+
+
 def test_promote_requires_candidate_status():
     conn_mock, _ = _make_conn_mock()
     already_active = {"model_version_id": "v1", "status": "active", "aether_vault_commit": "abc123"}

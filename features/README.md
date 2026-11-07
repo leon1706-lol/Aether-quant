@@ -109,3 +109,7 @@ from the FRED OECD interbank series (`aq backfill fred --group fx`) and the dail
 ## V6.6.0 additions
 
 - `wide_panel.py` — the wide universe's price and information features and its label, each known at that session's close; the label's market is SPY, never a market built from the panel's names.
+
+## V6.6.1
+
+`training_splits.py`: the split walls, label purges, purged folds, yearly windows and ranked inputs, moved unchanged from `train.py` and `train_cross_sectional.py` so the library can offer them without torch or sklearn. `wide_panel.extended_info_features`: accruals on trailing twelve months, net operating assets and capex growth.

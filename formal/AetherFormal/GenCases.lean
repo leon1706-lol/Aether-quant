@@ -9,6 +9,8 @@ import AetherFormal.CostModel
 import AetherFormal.Reconciliation
 import AetherFormal.SleeveGuard
 import AetherFormal.JsonSafety
+import AetherFormal.GenerationBlend
+import AetherFormal.GenerationGlide
 import Mathlib.Algebra.Order.Field.Rat
 import Lean.Data.Json
 
@@ -403,6 +405,50 @@ def sleeveGuard : Gen Json := do
       ("expected", Json.mkObj [("drawdown", qj (trailingDrawdown xs lb))])]]
   return file "sleeve_guard" ["AetherFormal/SleeveGuard.lean"] cases
 
+/-! ### generation_blend -/
+
+open GenerationBlend in
+def generationBlend : Gen Json := do
+  let mut cases : List Json := []
+  for _ in [0:300] do
+    let total ← randQ 2 100 100
+    let split ← randQ 0 100 100
+    let new : ℚ := if (← randBool) then 0 else total * split / 100 / 100
+    let old : ℚ := max 0 (total / 100 - new)
+    let cap : ℚ := if (← randBool) then 1 else 3 / 10
+    let entry ← randQ 0 1 20
+    let glide := (← nextNat 500) + 1
+    let limitPercent ← nextNat 11
+    let limit : ℚ := (limitPercent : ℚ) / 100
+    let step : ℚ := (1 - entry) / (glide : ℚ)
+    let newBelowCap : ℚ := min new cap
+    let result := update old newBelowCap cap entry step limit
+    cases := cases ++ [Json.mkObj [
+      ("input", Json.mkObj [("old", qj old), ("new", qj newBelowCap), ("cap", qj cap), ("entry_share", qj entry), ("glide_sessions", glide), ("retire_share", qj limit)]),
+      ("expected", Json.mkObj [("old", qj result.1), ("new", qj result.2)])]]
+  return file "generation_blend" ["AetherFormal/GenerationBlend.lean"] cases
+
+/-! ### generation_glide -/
+
+open GenerationGlide in
+def generationGlide : Gen Json := do
+  let mut cases : List Json := []
+  for _ in [0:300] do
+    let s ← randQ 0 1 100
+    let t ← randQ 0 1 100
+    let fraction ← randQ 0 1 100
+    let limitPercent ← nextNat 11
+    let limit : ℚ := (limitPercent : ℚ) / 100
+    let target : ℚ := if (← randBool) then 0 else t
+    let count ← nextNat 2000
+    let priorCount := (← nextNat 1000) + 1
+    let obs ← randQ (-3) 3 100
+    let prior ← randQ (-1) 2 100
+    cases := cases ++ [Json.mkObj [
+      ("input", Json.mkObj [("share", qj s), ("target", qj target), ("fraction", qj fraction), ("retire_share", qj limit), ("sessions", count), ("prior_sessions", priorCount), ("observed", qj obs), ("prior", qj prior)]),
+      ("expected", Json.mkObj [("share", qj (retireIfHeadedOut (step s target fraction) target limit)), ("score", qj (shrunk (count : ℚ) obs prior (priorCount : ℚ)))])]]
+  return file "generation_glide" ["AetherFormal/GenerationGlide.lean"] cases
+
 /-! ### json_safety -/
 
 open JsonSafety in
@@ -461,7 +507,7 @@ def all : List (String × Gen Json) :=
   [("order_gate", orderGate), ("hash_chain", hashChain), ("book_neutrality", bookNeutrality),
    ("book_construction", bookConstruction), ("risk_controls", riskControls), ("kill_switch", killSwitch),
    ("position_sizing", positionSizing), ("cost_model", costModel), ("reconciliation", reconciliation),
-   ("sleeve_guard", sleeveGuard), ("json_safety", jsonSafety)]
+   ("sleeve_guard", sleeveGuard), ("json_safety", jsonSafety), ("generation_blend", generationBlend), ("generation_glide", generationGlide)]
 
 end AetherFormal.GenCases
 

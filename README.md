@@ -58,6 +58,7 @@ deeper still.
 
 Bonds are fully real; futures and options are wired end to end but **data-empty until an Interactive Brokers key is connected** (`phase_v2.ib.enabled`, `aq ib status`).
 
+- **V6.6.1's third round found no verified alpha either, and built the research cycle.** Ten more pre-registered trials on cell S (pooled books, composites less known exposures, models held to published signs, quarterly accruals) gave zero survivors, against an unmoved bar, so the holdouts stay unread (#315). The nearest were 0.58 (second half 0.29) and 0.47 (needs 0.50). Up to four model generations can now share the book, each one's share computed from its record and moving smoothly, proved in Lean with three at once (#319, #323), and anyone can retrain with `aq cycle retrain` (#321). A calibration found that no handover keeps capital off a generation with no alpha to the 20% limit it set, though the dynamic glide halves that time against a fixed ladder: admission does the rest (#318, #323). `aq cycle status` says what is due.
 - **V6.6.0 tested for alpha on data no rule had read, and found none.** All 28 pre-registered trials (fundamentals, insiders, short volume, funding, the model retrained on S&P 500 point-in-time members, a wide crypto universe) failed selection, so verification was not reached and nothing was installed. The installed crypto rule itself scored Sharpe -0.06 on never-read coins (2024 on: -0.45, alpha t -1.94); on the same dates the 12 chosen coins score 0.33, so most of its record came before 2018. What the selection windows can't exclude: an alpha Sharpe below about 0.6 to 1.0 in a rule sleeve. The models' bound is about 0. A second round of eight trials, run before this was committed, also found nothing (best Sharpe 0.57; #310). The owner's decision of 2026-11-06 is to keep trading the sleeve on paper only. Coinbase has delisted EOS, which the sleeve's universe still lists (#311). Details: `development/Problems.md` #300, #301. The equity survivorship checks sit in the verification stage this search never reached, so they did not run; Yahoo still lacks delisted names.
 - **Improved, not verified: no demonstrated edge.** V6.5.0's strict bar (Lean Sharpe >= 1, alpha t >= 3, deflated Sharpe >= 0.95, Lean placebos, unread pre-2013 data) was not met, and could not be: overfitting probability over all 38 selection trials is 0.53, above the 0.5 limit, which ended verification before it began. By the pre-registered fallback R-LEAN19, V6.5.0 ships **a long-only crypto trend sleeve** (`t3_crypto_trend_blend`) in place of the model book: Lean Sharpe 0.63 on 2023-07..2026-11-02 (median of 5 rebalance phases, 0.51-0.77), against -0.20 for V6.4.4's book.
   - **It is mostly crypto exposure, not alpha.** Against SPY / AGG / BTC the alpha is +0.4%/yr (Newey-West t 0.13), and over 2014-12..2026-11 +1.3%/yr (t 0.83). Without its T-bill carry and a risk-free rate its Sharpe is 1.15 in 2023-07..2025-06 and 0.06 in 2025-07..2026-11: nearly all of the result is the earlier period. The deflated Sharpe is 12% over the 124 configurations tested.
@@ -387,7 +388,7 @@ and how it's wired in, this table is the index.
 
 | Module | What it owns | Docs |
 |---|---|---|
-| `aether_quant/` | The library (V6.4.3): one importable facade over the pure risk, book, execution, feature, evaluation and research functions, plus the Lean-computed test cases (`pip install -e .[research]`, `examples/aether_quant_quickstart.py`) | [README](aether_quant/README.md) |
+| `aether_quant/` | The library (V6.4.3, whole project since V6.6.1): one importable facade over the pure functions of every subsystem, the research cycle and the Lean-computed test cases (`pip install -e .[research]`, `examples/aether_quant_quickstart.py`, `examples/aether_quant_cycle.py`) | [README](aether_quant/README.md) |
 | `formal/` | Lean 4 + Mathlib proofs of the shared safety-critical functions and the differential-case generator (`aq prove`) | [README](formal/README.md) |
 | `analyzer/` | Central market analyzer, the final per-asset action categorization layer | [README](analyzer/README.md) |
 | `audit/` | Tamper-evident hash-chained audit log (credential loads, live-mode transitions, order path), Redis + PostgreSQL | [README](audit/README.md) |
@@ -414,7 +415,7 @@ and how it's wired in, this table is the index.
 | `risk/` | Dynamic position sizing, leverage caps, drawdown-aware sizing | [README](risk/README.md) |
 | `scripts/` | Standalone dev tooling (e.g. the inference-hot-path profiler) | [README](scripts/README.md) |
 | `storage/` | Reserved placeholder for future persistent artifact storage | [README](storage/README.md) |
-| `tests/` | Pytest suite conventions (<!-- AQ:TEST_COUNT_START -->4476<!-- AQ:TEST_COUNT_END --> tests) | [README](tests/README.md) |
+| `tests/` | Pytest suite conventions (<!-- AQ:TEST_COUNT_START -->4785<!-- AQ:TEST_COUNT_END --> tests) | [README](tests/README.md) |
 | `topology/` | 3D market topology, deterministic SMACOF embedding + learned overlay | [README](topology/README.md) |
 | `visualization/` | Shared runtime-state JSON/CSV exports | [README](visualization/README.md) |
 | `webui/` | React/Vite dashboard (Overview, Operations, Risk, Options & Strategy, Topology, Neural Network, Tracing) | [README](webui/README.md) |
@@ -642,7 +643,7 @@ average of all generated runs; faint lines are individual resampled histories.
 | Max drawdown | 5.035976% | 11.016698% | 19.812691% |
 | P(negative total return): **0.877** |||
 
-_Source: the offline idealized rank book, model `sequence`, head `rank_20d`, split `backtest`, computed 2026-11-03 17:27 UTC (rendered 2026-11-06 00:43 UTC) (a simulation at the configured book cadence, not the engine)._
+_Source: the offline idealized rank book, model `sequence`, head `rank_20d`, split `backtest`, computed 2026-11-03 17:27 UTC (rendered 2026-11-06 19:46 UTC) (a simulation at the configured book cadence, not the engine)._
 
 **The Lean run's own equity curve** (`2026-11-04_18-10-49`, 2023-07-01 .. 2026-11-02, 1222 daily returns, same bootstrap; the run itself returned 33.85%):
 
@@ -701,7 +702,7 @@ _The full pipeline retrained on expanding/rolling windows, each scored on data i
 | residual_rank_20d_ic | 0.0240 | [0.0071, 0.0410] | yes |
 | net_sharpe (per-window) | -0.158 | — | 4/12 windows positive |
 
-12 expanding/rolling windows, run `walk-forward-633816f4-8736-4724-9c4f-b69b3ccc0a61`, computed 2026-10-13 09:53 UTC (rendered 2026-11-06 00:43 UTC) (auto-generated by `aq train --walk-forward`; a retrain refreshes it, a re-render does not).
+12 expanding/rolling windows, run `walk-forward-633816f4-8736-4724-9c4f-b69b3ccc0a61`, computed 2026-10-13 09:53 UTC (rendered 2026-11-06 19:46 UTC) (auto-generated by `aq train --walk-forward`; a retrain refreshes it, a re-render does not).
 <!-- AQ:WALKFORWARD_END -->
 
 <details>
@@ -753,7 +754,7 @@ _The cost-aware rank-book simulator on the backtest split with the installed mod
 | Cost drag (bps/yr) | 37.6 | 110.9 |
 | Capacity (USD) | 8,767,271 | 95,382 |
 
-_Backtest split, full history. Data computed 2026-11-03 17:37 UTC (rendered 2026-11-06 00:43 UTC) (auto-generated by `aq evaluate --all`)._
+_Backtest split, full history. Data computed 2026-11-03 17:37 UTC (rendered 2026-11-06 19:46 UTC) (auto-generated by `aq evaluate --all`)._
 <!-- AQ:EVAL_END -->
 
 <details>
@@ -857,7 +858,7 @@ _Naive baselines and public benchmarks on the same window and Sharpe formula as 
 | sp500 | 0.882 | 23.52% | public benchmark |
 | 60_40 | 0.895 | 18.06% | public benchmark |
 
-_Same dataset window/split (`backtest`) as the rank-book simulation above; Sharpe formula identical across every row. Data computed 2026-11-03 17:28 UTC (rendered 2026-11-06 00:43 UTC) (auto-generated by `aq evaluate --benchmarks`)._
+_Same dataset window/split (`backtest`) as the rank-book simulation above; Sharpe formula identical across every row. Data computed 2026-11-03 17:28 UTC (rendered 2026-11-06 19:46 UTC) (auto-generated by `aq evaluate --benchmarks`)._
 <!-- AQ:BENCHMARK_END -->
 
 #### Cross-Checks
@@ -902,7 +903,7 @@ Book-member decision outcomes (1140 total, real Lean run):
 | Real Lean backtest (2023-07-01 to 2026-11-02) | _not measurable from a standalone backtest (see Disclaimer)_ | — |
 | Offline replay (approximation, see Disclaimer) | 224 | 87.7% |
 
-_Data computed 2026-11-03 17:44 UTC (rendered 2026-11-06 00:43 UTC) (auto-generated by `aq evaluate`)._
+_Data computed 2026-11-03 17:44 UTC (rendered 2026-11-06 19:46 UTC) (auto-generated by `aq evaluate`)._
 <!-- AQ:OTHER_METRICS_END -->
 
 ### Research and Audit
@@ -1032,7 +1033,7 @@ Bar (+0.02 IC and +0.15 Sharpe on both splits): **the gate hides weakness, not p
 
 ## Test Suite
 
-<!-- AQ:TEST_COUNT_START -->4476<!-- AQ:TEST_COUNT_END --> tests, one file per source module, run via:
+<!-- AQ:TEST_COUNT_START -->4785<!-- AQ:TEST_COUNT_END --> tests, one file per source module, run via:
 
 ```powershell
 aq test
@@ -1124,6 +1125,18 @@ aq report <backtest-folder> <result-id>
 ```
 Generates Lean's own HTML backtest report (trade blotter, standard Lean
 charts) at `backtests/<backtest-folder>/report.html`.
+
+#### `aq cycle`
+```text
+aq cycle status [--ledger-file F]
+aq cycle research {rules|score|placebo|gate|pbo|freeze|hold|report} --round R [--draft D] [--only T...] [--draws N] [--force] [--trial T] [--digest H]
+aq cycle daily [--ledger-file F] [--dry-run]
+aq cycle decide --generation G --weights W --ledger-file F --session D
+aq cycle retrain --host {local,codespace} [--procedure P] [--smoke] [--dry-run] [--if-due]
+aq cycle promote --generation G --to {shadow,ramping,active,fading,winding_down,retired,rejected} [--ledger-file F]
+aq cycle schedule {show|install} [--platform {windows,linux}] [--host {local,codespace}] [--dry-run]
+```
+The research cycle (V6.6.1): pre-registered rounds, model generations sharing the book, their decay, retraining on this machine or the training Codespace. `status` says what is due today. `retrain --host local` refuses a machine under 14 GB of RAM, and `--smoke` proves the plumbing anywhere. `promote` follows the admission rule R-ADMIT1 and never touches a broker setting. See RUNBOOK "Research cycle".
 
 #### `aq api`
 ```text

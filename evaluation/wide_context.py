@@ -26,7 +26,7 @@ from evaluation.research_cells import (
     window_rows,
 )
 from evaluation.target_weights_engine import MarketPanel, load_market_panel
-from features.wide_panel import WideBars, info_features, price_features, wide_label
+from features.wide_panel import WideBars, extended_info_features, info_features, price_features, wide_label
 from portfolio.financing import load_rate_series
 from portfolio.premia_signals import ResearchPanel, WeightSettings, known_closes
 from portfolio.target_weights import TargetWeightsConfig, resolve_target_weights_config
@@ -117,6 +117,7 @@ def read_info(root: Path, *, data_dir: str) -> dict[str, pd.DataFrame | None]:
         "splits": optional("equity_splits.csv", lambda path: pd.read_csv(path, dtype={"ticker": str, "date": str})),
         "insiders": optional("insider_trades.csv.gz", lambda path: pd.read_csv(path, dtype=str).assign(value=lambda frame: pd.to_numeric(frame["value"]))),
         "short": optional("short_ratio.parquet", pd.read_parquet),
+        "extended": optional("edgar_fundamentals_ext.csv.gz", read_fundamentals),
     }
 
 
@@ -199,6 +200,8 @@ def equity_cell(
                 sessions, tickers, fundamentals=info["fundamentals"], splits=splits, raw_close=raw_close, eps=info["eps"],
                 insider_trades=info["insiders"], short_ratios=info["short"],
             ))
+            if info.get("extended") is not None:
+                out.features.update(extended_info_features(sessions, tickers, extended=info["extended"], fundamentals=info["fundamentals"]))
     out.tables = wide_tables(out.features, member)
     out.label = wide_label(bars, labels)
     panel.extras = dict(out.tables)

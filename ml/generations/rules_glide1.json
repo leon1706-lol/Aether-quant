@@ -1,0 +1,271 @@
+{
+ "rule": "R-GLIDE1",
+ "text": "Monte Carlo, 2,000 fixed-seed paths: a new generation each year, Sharpe {0.5, 1.0}, alpha half-life {1, 2, 3} years, return correlation {0, 0.3, 0.6}, probability a new generation has zero alpha {0.5, 0.8}, costs and the 0.002 deadband on. Policies: instant switch, equal weight, fixed glide {126, 252, 504}, ladder with evidence multiplier {none, hold on watch, accelerate on decaying}. Pick the lowest median regret against the oracle among policies whose time above 50% of capital on a zero-alpha generation is <= 20%. Ties go to fewer parameters. Replay on real score files is report-only, because ml/versions holds no real vintages. No policy qualifying: fixed 252.",
+ "configs": [
+  {
+   "sharpe": 0.5,
+   "half_life_years": 1.0,
+   "correlation": 0.0,
+   "zero_alpha_probability": 0.5
+  },
+  {
+   "sharpe": 0.5,
+   "half_life_years": 1.0,
+   "correlation": 0.0,
+   "zero_alpha_probability": 0.8
+  },
+  {
+   "sharpe": 0.5,
+   "half_life_years": 1.0,
+   "correlation": 0.3,
+   "zero_alpha_probability": 0.5
+  },
+  {
+   "sharpe": 0.5,
+   "half_life_years": 1.0,
+   "correlation": 0.3,
+   "zero_alpha_probability": 0.8
+  },
+  {
+   "sharpe": 0.5,
+   "half_life_years": 1.0,
+   "correlation": 0.6,
+   "zero_alpha_probability": 0.5
+  },
+  {
+   "sharpe": 0.5,
+   "half_life_years": 1.0,
+   "correlation": 0.6,
+   "zero_alpha_probability": 0.8
+  },
+  {
+   "sharpe": 0.5,
+   "half_life_years": 2.0,
+   "correlation": 0.0,
+   "zero_alpha_probability": 0.5
+  },
+  {
+   "sharpe": 0.5,
+   "half_life_years": 2.0,
+   "correlation": 0.0,
+   "zero_alpha_probability": 0.8
+  },
+  {
+   "sharpe": 0.5,
+   "half_life_years": 2.0,
+   "correlation": 0.3,
+   "zero_alpha_probability": 0.5
+  },
+  {
+   "sharpe": 0.5,
+   "half_life_years": 2.0,
+   "correlation": 0.3,
+   "zero_alpha_probability": 0.8
+  },
+  {
+   "sharpe": 0.5,
+   "half_life_years": 2.0,
+   "correlation": 0.6,
+   "zero_alpha_probability": 0.5
+  },
+  {
+   "sharpe": 0.5,
+   "half_life_years": 2.0,
+   "correlation": 0.6,
+   "zero_alpha_probability": 0.8
+  },
+  {
+   "sharpe": 0.5,
+   "half_life_years": 3.0,
+   "correlation": 0.0,
+   "zero_alpha_probability": 0.5
+  },
+  {
+   "sharpe": 0.5,
+   "half_life_years": 3.0,
+   "correlation": 0.0,
+   "zero_alpha_probability": 0.8
+  },
+  {
+   "sharpe": 0.5,
+   "half_life_years": 3.0,
+   "correlation": 0.3,
+   "zero_alpha_probability": 0.5
+  },
+  {
+   "sharpe": 0.5,
+   "half_life_years": 3.0,
+   "correlation": 0.3,
+   "zero_alpha_probability": 0.8
+  },
+  {
+   "sharpe": 0.5,
+   "half_life_years": 3.0,
+   "correlation": 0.6,
+   "zero_alpha_probability": 0.5
+  },
+  {
+   "sharpe": 0.5,
+   "half_life_years": 3.0,
+   "correlation": 0.6,
+   "zero_alpha_probability": 0.8
+  },
+  {
+   "sharpe": 1.0,
+   "half_life_years": 1.0,
+   "correlation": 0.0,
+   "zero_alpha_probability": 0.5
+  },
+  {
+   "sharpe": 1.0,
+   "half_life_years": 1.0,
+   "correlation": 0.0,
+   "zero_alpha_probability": 0.8
+  },
+  {
+   "sharpe": 1.0,
+   "half_life_years": 1.0,
+   "correlation": 0.3,
+   "zero_alpha_probability": 0.5
+  },
+  {
+   "sharpe": 1.0,
+   "half_life_years": 1.0,
+   "correlation": 0.3,
+   "zero_alpha_probability": 0.8
+  },
+  {
+   "sharpe": 1.0,
+   "half_life_years": 1.0,
+   "correlation": 0.6,
+   "zero_alpha_probability": 0.5
+  },
+  {
+   "sharpe": 1.0,
+   "half_life_years": 1.0,
+   "correlation": 0.6,
+   "zero_alpha_probability": 0.8
+  },
+  {
+   "sharpe": 1.0,
+   "half_life_years": 2.0,
+   "correlation": 0.0,
+   "zero_alpha_probability": 0.5
+  },
+  {
+   "sharpe": 1.0,
+   "half_life_years": 2.0,
+   "correlation": 0.0,
+   "zero_alpha_probability": 0.8
+  },
+  {
+   "sharpe": 1.0,
+   "half_life_years": 2.0,
+   "correlation": 0.3,
+   "zero_alpha_probability": 0.5
+  },
+  {
+   "sharpe": 1.0,
+   "half_life_years": 2.0,
+   "correlation": 0.3,
+   "zero_alpha_probability": 0.8
+  },
+  {
+   "sharpe": 1.0,
+   "half_life_years": 2.0,
+   "correlation": 0.6,
+   "zero_alpha_probability": 0.5
+  },
+  {
+   "sharpe": 1.0,
+   "half_life_years": 2.0,
+   "correlation": 0.6,
+   "zero_alpha_probability": 0.8
+  },
+  {
+   "sharpe": 1.0,
+   "half_life_years": 3.0,
+   "correlation": 0.0,
+   "zero_alpha_probability": 0.5
+  },
+  {
+   "sharpe": 1.0,
+   "half_life_years": 3.0,
+   "correlation": 0.0,
+   "zero_alpha_probability": 0.8
+  },
+  {
+   "sharpe": 1.0,
+   "half_life_years": 3.0,
+   "correlation": 0.3,
+   "zero_alpha_probability": 0.5
+  },
+  {
+   "sharpe": 1.0,
+   "half_life_years": 3.0,
+   "correlation": 0.3,
+   "zero_alpha_probability": 0.8
+  },
+  {
+   "sharpe": 1.0,
+   "half_life_years": 3.0,
+   "correlation": 0.6,
+   "zero_alpha_probability": 0.5
+  },
+  {
+   "sharpe": 1.0,
+   "half_life_years": 3.0,
+   "correlation": 0.6,
+   "zero_alpha_probability": 0.8
+  }
+ ],
+ "policies": [
+  {
+   "name": "instant",
+   "kind": "instant"
+  },
+  {
+   "name": "equal",
+   "kind": "equal"
+  },
+  {
+   "name": "fixed_126",
+   "kind": "glide",
+   "glide_sessions": 126
+  },
+  {
+   "name": "fixed_252",
+   "kind": "glide",
+   "glide_sessions": 252
+  },
+  {
+   "name": "fixed_504",
+   "kind": "glide",
+   "glide_sessions": 504
+  },
+  {
+   "name": "fixed_252_hold_on_watch",
+   "kind": "glide",
+   "glide_sessions": 252,
+   "hold_on_watch": true
+  },
+  {
+   "name": "fixed_252_accelerate",
+   "kind": "glide",
+   "glide_sessions": 252,
+   "accelerate_on_decaying": 2.0
+  },
+  {
+   "name": "fixed_252_hold_and_accelerate",
+   "kind": "glide",
+   "glide_sessions": 252,
+   "hold_on_watch": true,
+   "accelerate_on_decaying": 2.0
+  }
+ ],
+ "seed": 1,
+ "paths": 2000,
+ "years": 8,
+ "tie": 0.005,
+ "max_zero_alpha_share": 0.2
+}

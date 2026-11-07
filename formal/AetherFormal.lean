@@ -9,5 +9,7 @@ import AetherFormal.CostModel
 import AetherFormal.Reconciliation
 import AetherFormal.SleeveGuard
 import AetherFormal.JsonSafety
+import AetherFormal.GenerationBlend
+import AetherFormal.GenerationGlide
 import AetherFormal.Real
 import AetherFormal.GenCases

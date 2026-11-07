@@ -521,3 +521,7 @@ keeps a resize worth less than IB's minimum commission from trading. Shared by `
 - `target_weights.py` — `live_reload` and its sidecar, `next_unapplied_row`, and `no_bar_exit` for a held name whose bars stop. All default off.
 - `premia_signals.py` — `align_score_table`.
 - `options_arbitrage_detector.py` — parity with dividends: `pv_dividends_to_expiry`, `dividend_payments`.
+
+## V6.6.1: generations and pooled books
+
+`generation_blend.py` (stdlib only, like `target_weights.py`): `update_generation_shares`, the linear ladder that moves capital from old generations to the ramping one; `dynamic_generation_shares`, where up to `max_generations` hold capital in proportion to their shrunk records (`shrunk_sharpe`, `dynamic_targets`) and shares move a fixed fraction of the way to their targets (`step_toward`), so nothing jumps; `blend_generation_rows`, the book from their weights; `blend_due`, when a row is written. Proved in `formal/AetherFormal/GenerationBlend.lean` and `GenerationGlide.lean`, including that a cap every generation keeps holds for the book, and that a step keeps shares summing to at most one for any number of generations. `signal_construction.py`: `build_table` builds a trial's table from a recipe in its round file, and `residualise_signal` takes out exposures per date. `premia_signals.POOLED` is a book whose ranks stay centred within a class, with no per-class normalisation.

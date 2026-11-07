@@ -1,0 +1,53 @@
+name: Research cycle
+
+# Each generation's return and state, and the capital they share, in one hash-chained file on the orphan branch `forward-ledger` (evaluation/generation_ledger.py). The rows of forward/ledger.jsonl
+# are left to forward-ledger.yml. Same concurrency group, so the two never race for the branch.
+on:
+  schedule:
+    - cron: "45 22 * * 1-5"
+  workflow_dispatch:
+    inputs:
+      session:
+        description: "The session to write (default: today, UTC)"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+concurrency:
+  group: forward-ledger
+  cancel-in-progress: false
+
+jobs:
+  cycle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: code
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+      - name: Install the few packages the rule needs
+        run: pip install numpy pandas requests
+      - name: Check out the ledger branch, creating it the first time
+        working-directory: code
+        run: |
+          git config user.name "research-cycle"
+          git config user.email "research-cycle@users.noreply.github.com"
+          git fetch origin forward-ledger:forward-ledger || git branch forward-ledger "$(git commit-tree "$(git hash-object -t tree /dev/null)" -m 'Forward ledger')"
+          git worktree add ../ledger forward-ledger
+      - name: Append today's rows and the allocation
+        working-directory: code
+        env:
+          SESSION: ${{ inputs.session }}
+        run: python scripts/cycle_daily.py --ledger ../ledger/forward/generations.jsonl --decisions ../ledger/forward/decisions.jsonl ${SESSION:+--session "$SESSION"}
+      - name: Commit and push the ledger
+        working-directory: ledger
+        run: |
+          git add forward/generations.jsonl || exit 0
+          git diff --cached --quiet && exit 0
+          git -c user.name="research-cycle" -c user.email="research-cycle@users.noreply.github.com" commit -m "research cycle $(date -u +%F)"
+          git push origin forward-ledger || { git pull --rebase origin forward-ledger && git push origin forward-ledger; }

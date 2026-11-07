@@ -100,6 +100,20 @@ def test_get_retraining_status_passes_through_auto_rollback(tmp_path, monkeypatc
 # ---------------------------------------------------------------------------
 
 
+def test_generations_read_the_status_file_and_a_fresh_checkout_gets_an_empty_view(tmp_path):
+    assert evaluation_state.build_generations_state(tmp_path) == {"available": False, "generations": [], "due": [], "hint": "run `aq cycle status`"}
+    (tmp_path / "generations").mkdir()
+    (tmp_path / "generations" / "status.json").write_text(json.dumps({"generations": [{"id": "g1", "share": 1.0}], "due": []}), encoding="utf-8")
+    view = evaluation_state.build_generations_state(tmp_path)
+    assert view["available"] is True and view["generations"][0]["id"] == "g1"
+    (tmp_path / "generations" / "status.json").write_text("{torn", encoding="utf-8")
+    assert evaluation_state.build_generations_state(tmp_path)["available"] is False
+
+
+def test_the_generations_route_is_mounted():
+    assert _get("/api/generations") == 200
+
+
 def _get(path: str):
     """Minimal ASGI GET driver - keeps this file's no-TestClient/no-httpx
     convention (see this module's docstring) while still exercising the
@@ -107,9 +121,14 @@ def _get(path: str):
     import asyncio
 
     messages = []
+    delivered = []
 
     async def receive():
-        return {"type": "http.request", "body": b"", "more_body": False}
+        # Once the request is delivered, a client just stays connected. Answering again at once never yields, and Starlette's disconnect listener spins forever on a file response.
+        if not delivered:
+            delivered.append(True)
+            return {"type": "http.request", "body": b"", "more_body": False}
+        await asyncio.Event().wait()
 
     async def send(message):
         messages.append(message)

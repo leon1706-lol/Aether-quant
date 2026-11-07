@@ -1,0 +1,453 @@
+{
+ "rule": "R-GLIDE2",
+ "text": "The worlds, seeds, costs and deadband of R-GLIDE1. Policies: fixed_252 (the installed result of R-GLIDE1), equal weight, and the dynamic mode over half life {63, 126}, prior sessions {126, 252, 504}, score floor {0, 0.2}, blend row every {5, 21} sessions, at most 4 generations holding capital. Among dynamic policies no worse than fixed_252 on time above 50% of capital on a zero-alpha generation, take the lowest median regret, ties within 0.005 to less turnover. It replaces fixed_252 if its regret is no worse than fixed_252's, within 0.005: the owner asked for this form on 2026-11-06, so no worse is enough. Otherwise fixed_252 stays and the dynamic mode remains an option the owner can select, with these numbers. R-GLIDE1's limit of 20% is reported, not moved. Every generation is judged against the same claim, its selection Sharpe halved.",
+ "configs": [
+  {
+   "sharpe": 0.5,
+   "half_life_years": 1.0,
+   "correlation": 0.0,
+   "zero_alpha_probability": 0.5
+  },
+  {
+   "sharpe": 0.5,
+   "half_life_years": 1.0,
+   "correlation": 0.0,
+   "zero_alpha_probability": 0.8
+  },
+  {
+   "sharpe": 0.5,
+   "half_life_years": 1.0,
+   "correlation": 0.3,
+   "zero_alpha_probability": 0.5
+  },
+  {
+   "sharpe": 0.5,
+   "half_life_years": 1.0,
+   "correlation": 0.3,
+   "zero_alpha_probability": 0.8
+  },
+  {
+   "sharpe": 0.5,
+   "half_life_years": 1.0,
+   "correlation": 0.6,
+   "zero_alpha_probability": 0.5
+  },
+  {
+   "sharpe": 0.5,
+   "half_life_years": 1.0,
+   "correlation": 0.6,
+   "zero_alpha_probability": 0.8
+  },
+  {
+   "sharpe": 0.5,
+   "half_life_years": 2.0,
+   "correlation": 0.0,
+   "zero_alpha_probability": 0.5
+  },
+  {
+   "sharpe": 0.5,
+   "half_life_years": 2.0,
+   "correlation": 0.0,
+   "zero_alpha_probability": 0.8
+  },
+  {
+   "sharpe": 0.5,
+   "half_life_years": 2.0,
+   "correlation": 0.3,
+   "zero_alpha_probability": 0.5
+  },
+  {
+   "sharpe": 0.5,
+   "half_life_years": 2.0,
+   "correlation": 0.3,
+   "zero_alpha_probability": 0.8
+  },
+  {
+   "sharpe": 0.5,
+   "half_life_years": 2.0,
+   "correlation": 0.6,
+   "zero_alpha_probability": 0.5
+  },
+  {
+   "sharpe": 0.5,
+   "half_life_years": 2.0,
+   "correlation": 0.6,
+   "zero_alpha_probability": 0.8
+  },
+  {
+   "sharpe": 0.5,
+   "half_life_years": 3.0,
+   "correlation": 0.0,
+   "zero_alpha_probability": 0.5
+  },
+  {
+   "sharpe": 0.5,
+   "half_life_years": 3.0,
+   "correlation": 0.0,
+   "zero_alpha_probability": 0.8
+  },
+  {
+   "sharpe": 0.5,
+   "half_life_years": 3.0,
+   "correlation": 0.3,
+   "zero_alpha_probability": 0.5
+  },
+  {
+   "sharpe": 0.5,
+   "half_life_years": 3.0,
+   "correlation": 0.3,
+   "zero_alpha_probability": 0.8
+  },
+  {
+   "sharpe": 0.5,
+   "half_life_years": 3.0,
+   "correlation": 0.6,
+   "zero_alpha_probability": 0.5
+  },
+  {
+   "sharpe": 0.5,
+   "half_life_years": 3.0,
+   "correlation": 0.6,
+   "zero_alpha_probability": 0.8
+  },
+  {
+   "sharpe": 1.0,
+   "half_life_years": 1.0,
+   "correlation": 0.0,
+   "zero_alpha_probability": 0.5
+  },
+  {
+   "sharpe": 1.0,
+   "half_life_years": 1.0,
+   "correlation": 0.0,
+   "zero_alpha_probability": 0.8
+  },
+  {
+   "sharpe": 1.0,
+   "half_life_years": 1.0,
+   "correlation": 0.3,
+   "zero_alpha_probability": 0.5
+  },
+  {
+   "sharpe": 1.0,
+   "half_life_years": 1.0,
+   "correlation": 0.3,
+   "zero_alpha_probability": 0.8
+  },
+  {
+   "sharpe": 1.0,
+   "half_life_years": 1.0,
+   "correlation": 0.6,
+   "zero_alpha_probability": 0.5
+  },
+  {
+   "sharpe": 1.0,
+   "half_life_years": 1.0,
+   "correlation": 0.6,
+   "zero_alpha_probability": 0.8
+  },
+  {
+   "sharpe": 1.0,
+   "half_life_years": 2.0,
+   "correlation": 0.0,
+   "zero_alpha_probability": 0.5
+  },
+  {
+   "sharpe": 1.0,
+   "half_life_years": 2.0,
+   "correlation": 0.0,
+   "zero_alpha_probability": 0.8
+  },
+  {
+   "sharpe": 1.0,
+   "half_life_years": 2.0,
+   "correlation": 0.3,
+   "zero_alpha_probability": 0.5
+  },
+  {
+   "sharpe": 1.0,
+   "half_life_years": 2.0,
+   "correlation": 0.3,
+   "zero_alpha_probability": 0.8
+  },
+  {
+   "sharpe": 1.0,
+   "half_life_years": 2.0,
+   "correlation": 0.6,
+   "zero_alpha_probability": 0.5
+  },
+  {
+   "sharpe": 1.0,
+   "half_life_years": 2.0,
+   "correlation": 0.6,
+   "zero_alpha_probability": 0.8
+  },
+  {
+   "sharpe": 1.0,
+   "half_life_years": 3.0,
+   "correlation": 0.0,
+   "zero_alpha_probability": 0.5
+  },
+  {
+   "sharpe": 1.0,
+   "half_life_years": 3.0,
+   "correlation": 0.0,
+   "zero_alpha_probability": 0.8
+  },
+  {
+   "sharpe": 1.0,
+   "half_life_years": 3.0,
+   "correlation": 0.3,
+   "zero_alpha_probability": 0.5
+  },
+  {
+   "sharpe": 1.0,
+   "half_life_years": 3.0,
+   "correlation": 0.3,
+   "zero_alpha_probability": 0.8
+  },
+  {
+   "sharpe": 1.0,
+   "half_life_years": 3.0,
+   "correlation": 0.6,
+   "zero_alpha_probability": 0.5
+  },
+  {
+   "sharpe": 1.0,
+   "half_life_years": 3.0,
+   "correlation": 0.6,
+   "zero_alpha_probability": 0.8
+  }
+ ],
+ "policies": [
+  {
+   "name": "fixed_252",
+   "kind": "glide",
+   "glide_sessions": 252
+  },
+  {
+   "name": "equal",
+   "kind": "equal"
+  },
+  {
+   "name": "dynamic_h63_p126_f00_b5",
+   "kind": "dynamic",
+   "half_life_sessions": 63,
+   "prior_sessions": 126.0,
+   "score_floor": 0.0,
+   "blend_every": 5,
+   "max_generations": 4
+  },
+  {
+   "name": "dynamic_h63_p126_f00_b21",
+   "kind": "dynamic",
+   "half_life_sessions": 63,
+   "prior_sessions": 126.0,
+   "score_floor": 0.0,
+   "blend_every": 21,
+   "max_generations": 4
+  },
+  {
+   "name": "dynamic_h63_p126_f20_b5",
+   "kind": "dynamic",
+   "half_life_sessions": 63,
+   "prior_sessions": 126.0,
+   "score_floor": 0.2,
+   "blend_every": 5,
+   "max_generations": 4
+  },
+  {
+   "name": "dynamic_h63_p126_f20_b21",
+   "kind": "dynamic",
+   "half_life_sessions": 63,
+   "prior_sessions": 126.0,
+   "score_floor": 0.2,
+   "blend_every": 21,
+   "max_generations": 4
+  },
+  {
+   "name": "dynamic_h63_p252_f00_b5",
+   "kind": "dynamic",
+   "half_life_sessions": 63,
+   "prior_sessions": 252.0,
+   "score_floor": 0.0,
+   "blend_every": 5,
+   "max_generations": 4
+  },
+  {
+   "name": "dynamic_h63_p252_f00_b21",
+   "kind": "dynamic",
+   "half_life_sessions": 63,
+   "prior_sessions": 252.0,
+   "score_floor": 0.0,
+   "blend_every": 21,
+   "max_generations": 4
+  },
+  {
+   "name": "dynamic_h63_p252_f20_b5",
+   "kind": "dynamic",
+   "half_life_sessions": 63,
+   "prior_sessions": 252.0,
+   "score_floor": 0.2,
+   "blend_every": 5,
+   "max_generations": 4
+  },
+  {
+   "name": "dynamic_h63_p252_f20_b21",
+   "kind": "dynamic",
+   "half_life_sessions": 63,
+   "prior_sessions": 252.0,
+   "score_floor": 0.2,
+   "blend_every": 21,
+   "max_generations": 4
+  },
+  {
+   "name": "dynamic_h63_p504_f00_b5",
+   "kind": "dynamic",
+   "half_life_sessions": 63,
+   "prior_sessions": 504.0,
+   "score_floor": 0.0,
+   "blend_every": 5,
+   "max_generations": 4
+  },
+  {
+   "name": "dynamic_h63_p504_f00_b21",
+   "kind": "dynamic",
+   "half_life_sessions": 63,
+   "prior_sessions": 504.0,
+   "score_floor": 0.0,
+   "blend_every": 21,
+   "max_generations": 4
+  },
+  {
+   "name": "dynamic_h63_p504_f20_b5",
+   "kind": "dynamic",
+   "half_life_sessions": 63,
+   "prior_sessions": 504.0,
+   "score_floor": 0.2,
+   "blend_every": 5,
+   "max_generations": 4
+  },
+  {
+   "name": "dynamic_h63_p504_f20_b21",
+   "kind": "dynamic",
+   "half_life_sessions": 63,
+   "prior_sessions": 504.0,
+   "score_floor": 0.2,
+   "blend_every": 21,
+   "max_generations": 4
+  },
+  {
+   "name": "dynamic_h126_p126_f00_b5",
+   "kind": "dynamic",
+   "half_life_sessions": 126,
+   "prior_sessions": 126.0,
+   "score_floor": 0.0,
+   "blend_every": 5,
+   "max_generations": 4
+  },
+  {
+   "name": "dynamic_h126_p126_f00_b21",
+   "kind": "dynamic",
+   "half_life_sessions": 126,
+   "prior_sessions": 126.0,
+   "score_floor": 0.0,
+   "blend_every": 21,
+   "max_generations": 4
+  },
+  {
+   "name": "dynamic_h126_p126_f20_b5",
+   "kind": "dynamic",
+   "half_life_sessions": 126,
+   "prior_sessions": 126.0,
+   "score_floor": 0.2,
+   "blend_every": 5,
+   "max_generations": 4
+  },
+  {
+   "name": "dynamic_h126_p126_f20_b21",
+   "kind": "dynamic",
+   "half_life_sessions": 126,
+   "prior_sessions": 126.0,
+   "score_floor": 0.2,
+   "blend_every": 21,
+   "max_generations": 4
+  },
+  {
+   "name": "dynamic_h126_p252_f00_b5",
+   "kind": "dynamic",
+   "half_life_sessions": 126,
+   "prior_sessions": 252.0,
+   "score_floor": 0.0,
+   "blend_every": 5,
+   "max_generations": 4
+  },
+  {
+   "name": "dynamic_h126_p252_f00_b21",
+   "kind": "dynamic",
+   "half_life_sessions": 126,
+   "prior_sessions": 252.0,
+   "score_floor": 0.0,
+   "blend_every": 21,
+   "max_generations": 4
+  },
+  {
+   "name": "dynamic_h126_p252_f20_b5",
+   "kind": "dynamic",
+   "half_life_sessions": 126,
+   "prior_sessions": 252.0,
+   "score_floor": 0.2,
+   "blend_every": 5,
+   "max_generations": 4
+  },
+  {
+   "name": "dynamic_h126_p252_f20_b21",
+   "kind": "dynamic",
+   "half_life_sessions": 126,
+   "prior_sessions": 252.0,
+   "score_floor": 0.2,
+   "blend_every": 21,
+   "max_generations": 4
+  },
+  {
+   "name": "dynamic_h126_p504_f00_b5",
+   "kind": "dynamic",
+   "half_life_sessions": 126,
+   "prior_sessions": 504.0,
+   "score_floor": 0.0,
+   "blend_every": 5,
+   "max_generations": 4
+  },
+  {
+   "name": "dynamic_h126_p504_f00_b21",
+   "kind": "dynamic",
+   "half_life_sessions": 126,
+   "prior_sessions": 504.0,
+   "score_floor": 0.0,
+   "blend_every": 21,
+   "max_generations": 4
+  },
+  {
+   "name": "dynamic_h126_p504_f20_b5",
+   "kind": "dynamic",
+   "half_life_sessions": 126,
+   "prior_sessions": 504.0,
+   "score_floor": 0.2,
+   "blend_every": 5,
+   "max_generations": 4
+  },
+  {
+   "name": "dynamic_h126_p504_f20_b21",
+   "kind": "dynamic",
+   "half_life_sessions": 126,
+   "prior_sessions": 504.0,
+   "score_floor": 0.2,
+   "blend_every": 21,
+   "max_generations": 4
+  }
+ ],
+ "seed": 2,
+ "paths": 2000,
+ "years": 8,
+ "tie": 0.005
+}

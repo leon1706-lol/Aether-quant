@@ -97,6 +97,55 @@ A new config restarts this clock. A rerun is not a paper run: it proves the sign
 - **Changing a rule starts a new record:** every row carries the rule's `definition_sha256`. Never edit a candidate in place.
 - **What it publishes:** the frozen sleeves' daily weights, on a public branch.
 
+## Research cycle (V6.6.1)
+
+The project's loop: research a pre-registered round -> freeze one candidate -> read the holdouts once -> shadow on the forward ledger -> ramp on the paper book -> decay -> retire. Evidence moves a generation; nothing else does. `aq cycle status` says what is due today.
+
+| Step | How | Where |
+|---|---|---|
+| Every session | `.github/workflows/research-cycle.yml` appends each generation's return and state and the capital they share to `forward/generations.jsonl` on branch `forward-ledger` | GitHub, free |
+| A generation that needs fundamentals or a model | `aq cycle decide --generation G --weights <csv> --ledger-file <worktree>/forward/decisions.jsonl --session D`, then push the branch before the next open | a host with the data |
+| Weekly | `aq cycle status` (writes `ml/generations/status.json`, read by `GET /api/generations` and the Operations page) | anywhere |
+| A new idea | Write a round file, `aq cycle research rules --round <file> --draft <json>`, record it with `scripts/vault_record.py`, then `score`, `placebo`, `gate`, `pbo`, `report`. A survivor: `freeze`, `hold`, then R-LEAN21 and R-EDGE2 | the training Codespace, or a machine with the RAM |
+| Retrain | `aq cycle retrain --host codespace --procedure k06`. A refit of a frozen procedure is a new vintage of its generation; a new procedure goes through a round | see below |
+| Stage change | `aq cycle promote --generation G --to ramping`. It refuses anything R-ADMIT1 doesn't allow, and retiring is always allowed | anywhere |
+| Blended file for a paper run | `python scripts/daily_target_weights.py --generations <worktree>/forward/generations.jsonl --out ml/generations/blended_weights.csv` before each open | the paper host |
+
+**R-ADMIT1 (owner, 2026-11-06).** A full R-EDGE2 pass ramps at once. Selection plus one R-HOLD1 pass, or once the holdouts are spent selection plus 252 forward sessions, goes to shadow, and may hold up to 30% of the paper book after 60 ok forward sessions without losing to the incumbent. A zero-alpha candidate passes that test about half the time; only the cap bounds a false pass, so it lifts only on forward alpha t >= 2 at 252, 504 or 756 sessions. Anything less holds nothing. Real money is only ever the owner's manual action.
+
+**Two ways to move capital** (`glide.mode` in `ml/generations/policy.json`; which one is set is R-GLIDE2's result, `ml/generations/glide2_policy.json`).
+
+- **`ladder`:** a ramping generation enters at `entry_share` and gains capital at a fixed rate; older ones give it up in proportion to what they hold: 70/30, 64/36, ... 0/100. One gains at a time.
+- **`dynamic`:** each generation's share comes from its own record, and up to `max_generations` hold capital at once. Its score is its exponentially weighted Sharpe shrunk toward its claim at admission, `(n x record + prior_sessions x claim) / (n + prior_sessions)`; its target is proportional to its score above `score_floor`; shares move a fixed fraction of the way to their targets each session (`half_life_sessions`), so nothing jumps, not even a new generation's entry. A short record barely moves the claim, an old generation still earning keeps a share, and one that stops fades out. With no positive score and no record yet, shares hold; with a record and no positive score, the book glides into T-bills.
+
+**Stages on the book:** `ramping` (gaining; `active` after 252 ok sessions), `active`, `fading` (short of its claim, or its score has fallen to nothing, while it keeps whatever share its score earns), `winding_down` (aims for no share, comes back if the record recovers), `retired`. `aq cycle promote` moves one step at a time, by rule.
+
+**In both modes:** a blended row is written on a generation's decision day, every `blend_every` sessions, or on a guard trip, never daily, since a row retargets every name. A guard trip (15% drawdown) or a `dead` state takes capital off at once. Capital no generation may hold sits in T-bills.
+
+**Don't read a generation's Sharpe from `forward/ledger.jsonl`:** that older file credits a crypto decision one bar it never earns (Problems #313). Compare generations in `forward/generations.jsonl` only.
+
+### Local retraining
+
+Anyone can retrain. A fresh checkout builds its own data, from public sources and your own SEC contact.
+
+1. `pip install -e .[train]`, then `aq cycle retrain --host local --smoke`: every stage on a tiny synthetic panel, on any machine, in about a minute.
+2. A real run needs 14 GB of RAM (`aq cycle retrain --host local --procedure k06 --dry-run` says what this machine has). Set `AQ_SEC_CONTACT` to your own address if `data_wide/` is absent: it is used for that process only and never stored.
+3. `aq cycle retrain --host local --procedure k06`. Stages resume after a reboot (`ml/cycle/retrain_<id>/state.json`).
+4. `aq cycle schedule install` registers a weekly retrain-if-due job (Task Scheduler or cron) on a machine that passes the RAM check. `aq cycle schedule show` prints it first. It refuses a smaller machine.
+
+`--host codespace` drives the training Codespace from any machine, and stops it however the run ends. It bills the owner's budget, so no schedule uses it unless asked: `aq cycle schedule install --host codespace` is a deliberate choice.
+
+### When the keys arrive
+
+Everything up to the broker is built and proved without an account. Once the owner has the IB and Coinbase API keys, in order, each step an owner decision:
+
+1. Keys in `lean.json` on the host only, never in a repo file; `aq secrets-check`.
+2. Check the Coinbase account really offers the sleeve's USD pairs (`todo.md`); drop EOS (#311).
+3. `aq docker build` on the deploy host.
+4. In a paper config only: `phase_v2.target_weights.live_reload: true`, `weights_path: ml/generations/blended_weights.csv`, `weights_sha256: ""`. Set `enabled: true` in `ml/generations/policy.json`.
+5. `aq paper-readiness`, then the paper run under the protocol below: `aq evaluate --paper-check --backtest-dir <paper run> --reference-dir backtests/2026-11-04_18-10-49`.
+6. Live capital is a separate decision, after the forward ledger and the paper verdict.
+
 ## Paper period protocol (V6.4.0, lead L12, Problems #228)
 
 The paper period is the only out-of-sample test left. Its success is **not** "make money": a fixed-config run is inside the

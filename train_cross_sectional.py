@@ -26,37 +26,12 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from features.training_splits import FIRST_TEST_YEAR, PURGE_DAYS, TARGET, annual_windows, centred_label, rank_inputs  # noqa: F401
+
 LOGGER = logging.getLogger("train_cross_sectional")
-TARGET = "target_sector_neutral_rank_20d"
-PURGE_DAYS = 20
 EARLY_STOP_GAP_SESSIONS = 22
-FIRST_TEST_YEAR = 2019
 SET_TRANSFORMER_VARIANTS = {"a": {"d": 32, "layers": 2, "heads": 2, "dropout": 0.3}, "b": {"d": 64, "layers": 2, "heads": 4, "dropout": 0.4}}
 GBM_VARIANTS = {"a": {"max_depth": 3, "learning_rate": 0.03, "max_iter": 300}, "b": {"max_depth": 5, "learning_rate": 0.02, "max_iter": 400}}
-
-
-def annual_windows(dates: list[str], *, first_test_year: int = FIRST_TEST_YEAR, purge_days: int = PURGE_DAYS) -> list[dict]:
-    """Expanding windows: each test year is scored by a model trained on everything up to `purge_days` before it, since a
-    20-day label of a row closer than that is still open on the test year's first day."""
-    last_year = int(max(dates)[:4])
-    windows = []
-    for year in range(first_test_year, last_year + 1):
-        test_start = f"{year}-01-01"
-        train_end = (pd.Timestamp(test_start) - pd.Timedelta(days=purge_days + 1)).strftime("%Y-%m-%d")
-        if any(date <= train_end for date in dates):
-            windows.append({"train_end": train_end, "test_start": test_start, "test_end": f"{year}-12-31"})
-    return windows
-
-
-def rank_inputs(frame: pd.DataFrame, features: list[str]) -> pd.DataFrame:
-    """Within-(date, class) percentile rank minus one half; a missing value reads as the middle of its group."""
-    grouped = frame.groupby(["date", "_class"], sort=False)
-    ranked = grouped[features].rank(pct=True) - 0.5
-    return ranked.fillna(0.0).astype("float32")
-
-
-def centred_label(frame: pd.DataFrame, target: str = TARGET) -> pd.Series:
-    return (frame[target] - frame.groupby(["date", "_class"], sort=False)[target].transform("mean")).astype("float32")
 
 
 def load_frame(dataset: Path, config: dict, schema: dict) -> tuple[pd.DataFrame, list[str]]:
@@ -82,6 +57,26 @@ def fit_predict_gbm(train: pd.DataFrame, test: pd.DataFrame, features: list[str]
         min_samples_leaf=200, l2_regularization=1.0, random_state=seed, **GBM_VARIANTS[variant],
     )
     return predict_scores(model, test[features].to_numpy(np.float64))
+
+
+# V6.6.1: the fundamentals era. Signs are the published ones (`portfolio/wide_signals.py`), fixed before any score.
+FUNDAMENTAL_SIGNS = {
+    "gp_assets": 1.0, "net_issuance": -1.0, "asset_growth": -1.0, "accruals": -1.0, "earnings_yield": 1.0, "book_to_market": 1.0, "leverage": -1.0, "cfo_assets": 1.0,
+    "resmom_252": 1.0, "overnight_ret_252": 1.0, "dist_52w_high": 1.0, "beta_252": -1.0,
+}
+
+
+def fit_predict_monotone_gbm(train: pd.DataFrame, test: pd.DataFrame, features: list[str], variant: str, seed: int) -> np.ndarray:
+    """A small tree model held to each feature's published sign, so it can't learn a premium backward from a few years of data."""
+    from sklearn.ensemble import HistGradientBoostingRegressor
+
+    usable = train[train["_label"].notna()]
+    model = HistGradientBoostingRegressor(
+        max_depth=3, learning_rate=0.05, max_iter=200, min_samples_leaf=500, l2_regularization=1.0, random_state=seed,
+        monotonic_cst=[int(np.sign(FUNDAMENTAL_SIGNS.get(name, 0.0))) for name in features],
+    )
+    model.fit(usable[features].to_numpy(np.float32), usable["_label"].to_numpy(np.float64))
+    return model.predict(test[features].to_numpy(np.float64))
 
 
 def _set_ranker(num_features: int, num_classes: int, spec: dict):
@@ -255,15 +250,22 @@ def fit_predict_mlp_multitask(
         return rank_scores(torch.from_numpy(test[features].to_numpy(np.float32))).numpy().astype(np.float64)
 
 
-FITTERS = {"gbm": fit_predict_gbm, "set_transformer": fit_predict_set_transformer, "mlp_multitask": fit_predict_mlp_multitask}
+FITTERS = {"gbm": fit_predict_gbm, "set_transformer": fit_predict_set_transformer, "mlp_multitask": fit_predict_mlp_multitask, "gbm_monotone": fit_predict_monotone_gbm}
 
 
-def load_panel_frame(panel: Path, *, feature_set: str, target: str) -> tuple[pd.DataFrame, list[str]]:
-    """One side's parquet. Ranks and labels are computed on what the file holds, so a file of one side's names can't leak the other."""
+def load_panel_frame(panel: Path, *, feature_set: str, target: str, train_start: str | None = None) -> tuple[pd.DataFrame, list[str]]:
+    """One side's parquet. Ranks and labels are computed on what the file holds, so a file of one side's names can't leak the other. `train_start`
+    drops earlier rows, for a model that should only learn from years that hold its features (filings: 19 names in 2009, 466 in 2011)."""
     from features.wide_panel import INFO_FEATURES, PRICE_FEATURES
 
-    wanted = list(PRICE_FEATURES) if feature_set == "price" else [*PRICE_FEATURES, *INFO_FEATURES]
+    wanted = {"price": list(PRICE_FEATURES), "fundamental": list(FUNDAMENTAL_SIGNS)}.get(feature_set, [*PRICE_FEATURES, *INFO_FEATURES])
     frame = pd.read_parquet(panel)
+    if feature_set == "fundamental":
+        missing = [name for name in wanted if name not in frame.columns]
+        if missing:
+            raise ValueError(f"the panel has no {missing}: a missing feature must not silently change the model")
+    if train_start:
+        frame = frame[frame["date"].astype(str).str[:10] >= train_start]
     features = [name for name in wanted if name in frame.columns]
     frame = frame.rename(columns={"sector": "_class"})
     frame["date"] = frame["date"].astype(str).str[:10]
@@ -309,7 +311,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--score-end", default=None)
     parser.add_argument("--panel", default=None, help="a side's parquet from scripts/v660_build_panel.py, instead of --dataset")
     parser.add_argument("--score-panel", default=None, help="score this panel's rows with the same yearly models")
-    parser.add_argument("--feature-set", choices=["price", "all"], default="all")
+    parser.add_argument("--feature-set", choices=["price", "all", "fundamental"], default="all")
+    parser.add_argument("--train-start", default=None, help="drop panel rows before this date from training")
     parser.add_argument("--target", default="target_wide_20d")
     parser.add_argument("--first-test-year", type=int, default=FIRST_TEST_YEAR)
     parser.add_argument("--purge-days", type=int, default=PURGE_DAYS)
@@ -317,7 +320,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     seeds = [int(seed) for seed in args.seeds.split(",")]
     if args.panel:
-        frame, features = load_panel_frame(Path(args.panel), feature_set=args.feature_set, target=args.target)
+        frame, features = load_panel_frame(Path(args.panel), feature_set=args.feature_set, target=args.target, train_start=args.train_start)
         score_frame = load_panel_frame(Path(args.score_panel), feature_set=args.feature_set, target=args.target)[0] if args.score_panel else None
         scores = walk_forward_scores(
             frame, features, args.model, args.variant, seeds, score_end=args.score_end, first_test_year=args.first_test_year, purge_days=args.purge_days,

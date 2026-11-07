@@ -3,7 +3,7 @@
 Runs on the PC only. SEC refuses a client with no contact, and the contact comes from AQ_SEC_CONTACT for this process alone: it is never
 written anywhere, and the run ends by checking that. Each part resumes or skips if its output exists.
 
-    AQ_SEC_CONTACT=... python scripts/build_wide_info.py [--parts fundamentals splits insiders short factors]
+    AQ_SEC_CONTACT=... python scripts/build_wide_info.py [--parts fundamentals splits insiders short factors extended]
 """
 
 from __future__ import annotations
@@ -27,7 +27,8 @@ from data_pipeline.edgar_facts import CONTACT_ENV  # noqa: E402
 WIDE = ROOT / "data_wide"
 REFERENCE = WIDE / "reference"
 CACHE = WIDE / "_cache"
-ALL_PARTS = ("fundamentals", "splits", "insiders", "short", "factors")
+ALL_PARTS = ("fundamentals", "splits", "insiders", "short", "factors", "extended")
+DEFAULT_PARTS = ("fundamentals", "splits", "insiders", "short", "factors")
 
 
 def member_tickers(root: Path = WIDE) -> list[str]:
@@ -49,6 +50,13 @@ def build_fundamentals(tickers: list[str]) -> dict:
     eps = edgar_facts.collect_cached_eps(tickers, CACHE / "edgar")
     pd.DataFrame(eps, columns=["ticker", "period_start", "period_end", "filed", "eps"]).to_csv(REFERENCE / "edgar_eps.csv.gz", index=False, lineterminator="\n", compression="gzip")
     return {"fundamental_rows": len(rows), "tickers_with_sector": len(sectors), "no_sec_data": sorted(missing)}
+
+
+def build_extended(tickers: list[str]) -> dict:
+    """V6.6.1's quarterly figures and new fields, in their own file, so the file every earlier trial read stays byte-identical."""
+    rows, missing = edgar_facts.fetch_extended(tickers, cache_dir=CACHE / "edgar_ext")
+    edgar_facts.write_fundamentals(rows, REFERENCE / "edgar_fundamentals_ext.csv.gz")
+    return {"extended_rows": len(rows), "no_sec_data": sorted(missing)}
 
 
 def build_splits(tickers: list[str]) -> dict:
@@ -162,7 +170,7 @@ def contact_leaks(root: Path, contact: str) -> list[str]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--parts", nargs="+", default=list(ALL_PARTS), choices=ALL_PARTS)
+    parser.add_argument("--parts", nargs="+", default=list(DEFAULT_PARTS), choices=ALL_PARTS)
     args = parser.parse_args()
     REFERENCE.mkdir(parents=True, exist_ok=True)
     tickers = member_tickers()
@@ -170,7 +178,7 @@ def main() -> int:
     report = json.loads(report_path.read_text(encoding="utf-8")) if report_path.exists() else {}
     builders = {
         "fundamentals": lambda: build_fundamentals(tickers), "splits": lambda: build_splits(tickers), "insiders": lambda: build_insiders(tickers),
-        "short": lambda: build_short(tickers), "factors": build_factors,
+        "short": lambda: build_short(tickers), "factors": build_factors, "extended": lambda: build_extended(tickers),
     }
     for part in args.parts:
         try:

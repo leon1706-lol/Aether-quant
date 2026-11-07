@@ -3164,3 +3164,143 @@ Every entry follows **Problem** → **Fix** → **Verification** (~1-2 sentences
 **Fix:** IB can, with limits: its API serves crypto (`CRYPTO` / `PAXOS`) with historical bars and no data subscription, but Lean's IB brokerage can't route it, 8 of the 12 coins are on its reported lists, and the 2026 additions are reported as not available to IB Ireland clients. TradeStation's API documents no crypto at all, and its crypto is a separate US product. Without an account the sleeve's history comes from public sources: Binance's archive (everything since listing), Coinbase (300 daily bars a call) and Kraken (the newest 720). Full detail and sources are in `venue_study.json`.
 
 **Verification:** `ml/evaluation/v660/venue_study.json` (`research_2026_11_06`), `venue_data_coverage.json`, `scripts/v660_venue_coverage.py`. Installed sleeve, report only: on the 8 IB coins and IB's fee schedule Sharpe is 1.08 over 2014-12..2026-11 and 0.72 over 2023-07..2026-11, against 0.95 and 0.65 on all 12 at Coinbase's; from 2025-07 on every variant is at or below zero, so the decline in #301 does not depend on the venue. **Revised later the same day: the owner assumes Coinbase works and will bring a Coinbase Advanced Trade API key together with the IB key; the project may then need a rebuild (see `todo.md`). Kraken remains the fallback. Earlier decision (superseded):** Kraken through Lean's own brokerage as a separate crypto-only deployment, IB keeping everything else. On Kraken's 11 coins at a 0.40% taker the rule scores 1.06 over 2014-12..2026-11, 0.79 over 2023-07..2026-11 and 0.12 from 2025-07; at 0.80% it is 0.96, 0.66 and -0.02 (`kraken_subset.json`; hindsight coins, so a cost check, not evidence). Not switched yet: every run config still trades Coinbase's market, and moving means Kraken data folders, a Kraken fee model, EOS out of the universe and the owner's own Kraken account.
+
+### 313. The forward ledger credits a crypto decision one bar the book never earns (V6.6.1)
+
+**Severity:** 7/10 · **Status:** 🟡 `partial` (the older chain is kept as it is; the new file is right, and runs from the owner's first push)
+
+**Problem:** A decision at session D's close reads the mark from D's midnight, and its order fills at bar D's close. `scripts/forward_ledger.py` lets those weights earn from that same midnight, one bar too early. Replayed over 2023-07..2026-11, a series at that timing has a daily correlation of 0.04 with the offline engine, so `forward/ledger.jsonl` does not track the book it records, and its 60-session judgement would not read the book's returns.
+
+**Fix:** `forward/generations.jsonl` (`evaluation/generation_ledger.py`) lags each class to its real fill. The old chain is untouched, since a change there would start a new record. Compare generations only inside the new file.
+
+**Verification:** `ml/evaluation/v661/replay_check.json`: daily correlation 0.993 with the engine over 838 sessions, 5.1% a year against 5.5%; `tests/test_generation_ledger.py`. The new workflow has not run on GitHub: it starts with the owner's push.
+
+### 314. Why the models behaved like price models: their fundamentals were nearly empty when training began (V6.6.1)
+
+**Severity:** n/a (research) · **Status:** 🔴 `closed` (no model track survives; see #315)
+
+**Problem:** V6.6.0's m2-m4 trained from 2004 with `rank_inputs` filling missing values with the middle of their group. Fundamental coverage of member rows is 1.4% in 2009, 51% in 2010 and 77% in 2011, so in their early windows those inputs were near-constant, and the models were close to price models whatever their feature list said.
+
+**Fix:** `--train-start` and `--feature-set fundamental` let a model read only years holding its inputs. This was the audit's one actionable finding, and it did not rescue the models.
+
+**Verification:** `ml/evaluation/v661/model_audit.json`: 18 fixed group x horizon looks on cell S, each counted in N. No group's IC is meaningful at the 21-session horizon the book trades (best |non-overlap t| 1.13).
+
+### 315. Round 3: breadth, residuals, walk-forward models and quarterly accruals, none survived (V6.6.1)
+
+**Severity:** n/a (phase result) · **Status:** 🔴 `closed`; the equity holdouts stay unread
+
+**Problem:** The owner's first objective: more, verified alpha. `round3.json` (hash `34a4c3ac…`, vault `96c6171e`, before any score) fixed ten trials on cell S under the unchanged R-SLEEVE3 and PBO: pooled books that give a sector gross by its breadth, a composite less known exposures, a slower book, Fama-MacBeth slopes held to published signs, a monotone tree, the installed network on the fundamentals era, and quarterly accruals from a new EDGAR download.
+
+**Fix:** Zero survived, so nothing was frozen, the holdouts stayed unread and nothing was installed. Sharpe (first half, second half), IC t: k04 0.58 (0.84, 0.29), 1.97; k02 0.55 (0.76, 0.32), 1.97; k03 0.55 (0.91, 0.13), 2.36; k01 0.47 (0.40, 0.61), 1.98; k09 0.45 (0.49, 0.36), 2.60; k10 0.14; k06 -0.46; k08 -0.57; k05 -0.58. k05's mean IC of -0.003 closed the model track on evidence, so k07 didn't run, and it still counts. Best alpha t 1.93 (k03). PBO 0.36 did not end it. N is 192. These are near misses on data read by 46 trials, and a near miss earns no rerun.
+
+**Verification:** `ml/evaluation/v661/r_round3.json`, `selection_gate_round3.json`, `selection_pbo_round3.json`, `sanity_pooled.json`: the pooled path can see an edge (oracle 20.5, reversed -8.6, random -1.5 from costs alone). `tests/test_research_round.py` recomputes round 2's stored gate and PBO exactly.
+
+### 316. A second freeze could have reopened a held-out cell (V6.6.1)
+
+**Severity:** 6/10 · **Status:** 🟢 `fixed`
+
+**Problem:** `write_freeze` refuses only its own path, so a second freeze under another name would have opened V1-V3 again, and nothing recorded a read.
+
+**Fix:** `record_holdout_read` writes a once-only ledger, before the read, at `ml/generations/holdout_ledger.jsonl` (tracked, since `ml/evaluation/` is not), and `stage_freeze` refuses once any holdout is spent. Later candidates reach shadow through 252 forward sessions instead.
+
+**Verification:** `tests/test_research_round.py`.
+
+### 317. `forward_ledger.decide` drops `top_k` and any score table (V6.6.1)
+
+**Severity:** 5/10 · **Status:** 🟢 `fixed` for new records (no installed rule uses either)
+
+**Problem:** It passes empty extras and no `top_k`, so a cross-sectional or model rule would fail, or silently become a different rule, on the forward record.
+
+**Fix:** `generation_ledger.decide_generation` passes both. For the installed rule it returns the same weights, so `forward_ledger.decide` stays as it is.
+
+**Verification:** `tests/test_generation_ledger.py`.
+
+### 318. R-GLIDE1: no handover schedule keeps capital off a generation with no alpha (V6.6.1)
+
+**Severity:** n/a (research) · **Status:** 🔴 `closed` (fixed 252 by rule)
+
+**Problem:** Which policy should move capital between generations? R-GLIDE1 (`rules_glide1.json`, hashed first) ran the live allocator over 2,000 fixed-seed worlds where a new generation arrives yearly and has no alpha 50-80% of the time, and required at most 20% of time mostly on such a generation.
+
+**Fix:** None qualified, so the rule's fallback stands: a 252-session ladder. Equal weight came closest (regret 0.130, 36% of time on a zero-alpha generation); the ladders spend 51-55%, and instant switching 57%. Evidence helped little: holding a ramp on a watch signal made regret worse (0.18 against 0.15). So the schedule can't protect capital, and admission (R-ADMIT1) is what does.
+
+**Verification:** `ml/generations/glide_policy.json`; `tests/test_glide_calibration.py`. Replay on real vintages was not possible (`ml/versions` holds none), as the rule says. A flaw caught before any run: zero-alpha generations were judged against an expected Sharpe of 0, which gave away their nature; each now claims the same selection Sharpe, as a real one would.
+
+### 319. Generations that share a book and hand over (V6.6.1)
+
+**Severity:** n/a (new capability) · **Status:** 🟡 `partial` (proved in Lean and on the ledger; a paper period waits for the broker keys)
+
+**Problem:** The owner wants several model generations live at once, sharing capital as an old one's alpha decays (70/30, 60/40, ... 0/100). The system had one active slot: `promote` copies a model over `ml/`.
+
+**Fix:** Weights blend upstream of the file the target-weights path already reads (`portfolio/generation_blend.py`), so `main.py` is untouched and Lean, the engine and the live path read one file. `evaluation/generation_registry.py` holds the owner's admission rule R-ADMIT1, `evaluation/alpha_decay.py` a CUSUM, `aq cycle` the verbs, `research-cycle.yml` the daily record. The first threshold of 8 alarmed on healthy returns; a test caught it, and 26 gives a median false alarm of about 1,040 sessions, at the price of about 380 to see a fall from Sharpe 1 to 0. `policy.enabled` stays false until the owner flips it.
+
+**Verification:** R-BLEND1 passes (`ml/evaluation/v661/r_blend1.json`). BL1, a two-generation handover in Lean over 2015-01-02..2018-12-31 (`backtests/2026-11-06_16-52-44-1`), against the engine: daily correlation 0.99999, annual gap 0.004 bps, fees $2,656 against $2,656; it traded crypto in 2015-16, equities from 2016, and handed over fully by early 2017. BL2, a blend at share 1.0 (`backtests/2026-11-06_16-52-44`): file sha `57240be0…`, equal to the pin on all 1,012 fills. Both are plumbing and read free cells only. `aq prove` builds `GenerationBlend.lean` with no `sorry`; 300 differential cases match. `scripts/codespace_engine_check.sh`: ENGINE_OK. The daily path ran on real public prices on a scratch ledger; the workflow has not run on GitHub, since that needs the owner's push.
+
+### 320. Two Codespace pushes at once corrupted each other's archive (V6.6.1)
+
+**Severity:** 5/10 · **Status:** 🟢 `fixed`
+
+**Problem:** `codespace_sync.ps1` built `push.tgz` in one shared folder, so a push to the training Codespace overwrote the archive a DinD upload was still reading: tar reported trailing garbage.
+
+**Fix:** One archive per Codespace.
+
+**Verification:** Re-run with both Codespaces up: both pushes verified.
+
+### 321. Anyone can retrain, on any machine with the RAM (V6.6.1)
+
+**Severity:** n/a (new capability) · **Status:** 🟡 `partial` (every stage proved on a synthetic panel on this PC and on the Codespace; a real local retrain waits for a machine with the RAM)
+
+**Problem:** Training was documented as Codespace-only, and each phase hand-drove its session scripts. The owner gets a powerful laptop soon, and wants anyone able to retrain locally and automatically.
+
+**Fix:** `aq cycle retrain --host local|codespace`: the same resumable stages on both, a RAM preflight that refuses under 14 GB with the numbers, a `bootstrap_data` stage for a fresh checkout, `--smoke` to prove the plumbing anywhere, and `aq cycle schedule install` for a weekly retrain-if-due job, which refuses a smaller machine and was not installed on this PC. The Codespace host stops the Codespace however the run ends.
+
+**Verification:** `aq cycle retrain --host local` refuses this PC with its 3.9 GB; `--smoke` passes on it. `--host codespace --smoke` ran every stage on the real Codespace and stopped it. That proof found four bugs a fake runner couldn't: `gh` wants the generated name, not the display name (so the safety stop itself would have failed); Windows' scp reads neither `/c/...` nor a quoted remote path; and a Codespace stopped a moment ago answers nothing. All fixed, and a failed stop is now loud. `tests/test_cycle_retrain.py`, `tests/test_research_cycle.py`.
+
+### 322. The library covers the whole project (V6.6.1)
+
+**Severity:** n/a (new capability) · **Status:** 🟢 `fixed`
+
+**Problem:** `aether_quant` covered 11 modules. `moe`, `regime`, `retraining`, `notifications`, `experts` and `performance` weren't even in the wheel, and the trainers' split helpers could only be reached with torch loaded.
+
+**Fix:** 24 facade modules over every subsystem, with the helpers moved unchanged to `features/training_splits.py` and re-imported by the trainers. `main.py`, workers, `api_server` and fetchers stay out, on purpose (`aether_quant/README.md`).
+
+**Verification:** `scripts/wheel_smoke.py` from a built wheel outside the checkout: 0 import and 0 help failures across 27 subcommands, a real call into each module, every shipped package imported. Importing all 24 modules loads none of torch, sklearn, Redis, Postgres, fastapi or Lean. The public surface is pinned in `tests/data/aether_quant_api.json`.
+
+### 323. A dynamic glide: three or more generations, smooth, with shares from each one's record (V6.6.1 addendum)
+
+**Severity:** n/a (new capability) · **Status:** 🟡 `partial` (proved in Lean; a paper period waits for the broker keys, and `policy.enabled` stays false)
+
+**Problem:** The owner asked for a smoother handover, for three or more generations at once while an old one is still somewhat profitable, for more stages in between, and for a dynamic calculation of each one's share. The ladder held one gainer and jumped 30% on entry.
+
+**Fix:** `dynamic_generation_shares`: a generation's score is its exponentially weighted Sharpe shrunk toward its claim at admission, its target is proportional to its score above a floor, up to four hold capital, and shares move a fixed fraction of the way to their targets each session, so nothing jumps. New stages `fading` and `winding_down` replace `decaying`: falling short of its claim isn't the end while a generation still earns. R-GLIDE2 (`rules_glide2.json`, hash `3defd0f4…`, written before any run, recorded in the vault minutes after the run started and before any result was read) adopted `dynamic_h126_p504_f00_b21`: half life 126 sessions, prior 504, floor 0, a row every 21 sessions. Against the ladder: median regret 0.146 against 0.152, time mostly on a zero-alpha generation 26% against 54%, 3.4 generations holding capital against 1.9, turnover 0.75 a year against 1.64. Equal weight still has the lowest regret (0.134) but spends 37% of its time on a zero-alpha generation. No policy meets R-GLIDE1's 20% limit (lowest 20%), which stays reported and unmoved. The regret gap to the ladder is small: the clear gains are less time on a generation with no alpha and less turnover, and part of the first comes from spreading capital, which any policy holding several generations would do. The first score of an unproved generation is its claim, so this helps only as far as admission's claims are honest.
+
+**Verification:** R-BLEND2 in Lean (`ml/evaluation/v661/r_blend2.json`): three generations under the adopted policy over 2015-01-02..2018-12-31, 94 blended rows with three holding capital. Against the engine: daily correlation 1.00000, annual gap 0.082 bps, fees $2,807 against $2,791. That run's Sharpe of 1.07 is plumbing on read data, with crypto's 2017 in it: no evidence of alpha. It traded all three to its last session (`backtests/2026-11-06_19-41-49`). A blend at share 1.0 again equals the pin on all 1,012 fills (`backtests/2026-11-06_19-41-45`). `formal/AetherFormal/GenerationGlide.lean`: a step keeps shares non-negative, summing to at most one and under a cap for any number of generations, and a score stays between a record and its claim; 300 differential cases match. `tests/test_generation_blend.py`, `tests/test_generation_registry.py`.
+
+### 324. The Lean proofs and the full verification now run on a Codespace (V6.6.1 addendum)
+
+**Severity:** 3/10 · **Status:** 🟢 `fixed`
+
+**Problem:** The PC's low-memory guard stopped both the full `aq test` and the proof-case regeneration, so V6.6.1's first hand-over left the full suite unverified.
+
+**Fix:** `scripts/codespace_prove.sh` builds the proofs and regenerates their cases from Mathlib's cache. `scripts/codespace_verify.ps1` and `.sh` run every CI job on a Codespace against the working tree in a clean checkout, before a commit.
+
+**Verification:** The 11 older case files regenerated on Linux are identical in content to the committed ones. every CI job on a Codespace (Python 3.11) against the final tree, in a clean checkout of `origin/main` plus its changes (`scripts/codespace_verify.ps1`): the suite 4,751 passed, 34 skipped, 0 failed, coverage 85.75% against the 80% gate; all 15 `aq test` buckets; ruff 0.16.4; the guard tests; actionlint 1.7.7 with 0 errors in 4 files, the new workflow included; the web UI's `tsc`, oxlint, vitest and build; the CLI smoke; the wheel outside the checkout, 0 failures across 27 subcommands; the Python 3.10 byte-compile; the parity job; gitleaks, no leaks; pip-audit, no known vulnerabilities; hadolint; the test count at 4,785. The suite again in the tree holding the data: 4,781 passed, 4 skipped, 0 failed. AetherVault: 54 tests against the real `av` 1.7.1 with none skipped, on the PC and on Linux, the preflight ready. Docker on the DinD: both compose configs, the web UI stage, `ENGINE_OK`, and a real `av` init, add and commit inside the engine image. `aq prove` on Linux from Mathlib's cache: no `sorry`, 13 case files, the 11 older ones identical in content. The new workflow has still never run on GitHub: that needs the owner's push.
+
+### 325. What only a run against the real tree could find: a hanging test driver and a push that dropped `tests/data` (V6.6.1 addendum)
+
+**Severity:** 4/10 · **Status:** 🟢 `fixed`
+
+**Problem:** With a built `webui/dist` present, `tests/test_api_server.py`'s SPA tests hung forever on Python 3.11: the test's fake ASGI client answered `receive` at once every time, so Starlette's disconnect listener never yielded. CI has no `dist`, so they had only ever skipped there. Separately, `codespace_sync.ps1 -CodeOnly` excluded every folder named `data`, `tests/data` included, so the Codespace's API snapshot stayed stale. A first version of the verification's vault stage also passed with `av` off PATH, its real-CLI tests skipped.
+
+**Fix:** The client now delivers the request once and then stays connected. Windows tar's excludes are anchored with `^`. The vault stage fails if `av` is absent or a contract test skips.
+
+**Verification:** The suite in the tree holding the data, which stalled at 93% for 55 minutes, now finishes in about a minute with 0 failures.
+
+### 326. `evaluation/lean_statistics.py` can't import on Python 3.10, which the package claims to support (V6.6.1 addendum)
+
+**Severity:** 2/10 · **Status:** 🔴 `closed` (reported, not changed: nothing runs 3.10, and it predates this phase)
+
+**Problem:** `from datetime import UTC` needs Python 3.11, while `requires-python` says `>=3.10`. CI's 3.10 job only byte-compiles, which can't see it. A stricter check found it during this phase's verification.
+
+**Fix:** None applied. Either `timezone.utc` there, or `requires-python >=3.11`, is the owner's call.
+
+**Verification:** `vermin -t=3.10-` names the one file among the first-party sources it read.

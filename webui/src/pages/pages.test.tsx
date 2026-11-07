@@ -26,6 +26,8 @@ const OPERATIONS_PANELS = [
   // V5.1 Phase 6 (production safety)
   'Kill Switch',
   'Reconciliation',
+  // V6.6.1
+  'Generations',
   'Performance Triggers',
   'Retraining Status',
   'Paper Trading Readiness',

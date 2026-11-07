@@ -308,3 +308,15 @@ compressed dispersion in a way IC is not.
 - `alpha_proof.py` — `data_dir`, a required benchmark, BTC at 0 before its first bar, sessions rather than calendar rows for the fresh period.
 - `premia_research.py` — scores on `strategy_excess`, with `annual_sharpe(sessions=)`.
 - `trial_ledger.py` — `legacy_trials` keeps a ledger's trials from counting twice.
+
+## V6.6.1: the research cycle
+
+- `research_round.py`: one pre-registered round from a hashed rule file (`rules`, `score`, `placebo`, `gate`, `pbo`, `freeze`, `hold`, `report`), what each phase used to hand-write in `scripts/v6xx_*.py`. `gate_report` and `pbo_report` are pure, and recompute round 2's stored verdict exactly.
+- `model_audit.py`: rank IC of six fixed feature groups at three horizons, and fundamental coverage by year, each look counted in N.
+- `walk_forward_linear.py`: `fama_macbeth_ridge`, monthly slopes held to a sign fixed in advance.
+- `alpha_decay.py`: a one-sided CUSUM against what a generation was expected to earn, with hysteresis. At the default threshold the median false alarm is about 1,040 sessions and the median detection of a fall from Sharpe 1 to 0 about 380, which is why it never drives capital alone.
+- `generation_registry.py`: the registry, the owner's admission rule R-ADMIT1 (`next_stage`, `share_cap`), a hash-chained lifecycle log.
+- `generation_ledger.py`: each generation's forward return at its real fill lag, the allocation row in either mode, `replay_handover`, `replay_dynamic`.
+- `glide_calibration.py`: R-GLIDE1 and R-GLIDE2, the handover policies over fixed-seed worlds, using the running allocator.
+- `research_cycle.py`: `ram_preflight`, `retrain_stages`, `due_actions`, `render_schedule`: what `aq cycle` asks and answers. Pure, stdlib only.
+- `research_cells.py` gains `record_holdout_read`: a once-only ledger at `ml/generations/holdout_ledger.jsonl`, since `write_freeze` only refuses its own path.

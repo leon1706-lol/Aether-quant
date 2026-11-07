@@ -1,0 +1,12009 @@
+{
+ "target": "generation_glide",
+ "spec_files": [
+  "AetherFormal/GenerationGlide.lean"
+ ],
+ "cases": [
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 9,
+     "den": 100
+    },
+    "sessions": 238,
+    "retire_share": {
+     "num": 1,
+     "den": 25
+    },
+    "prior_sessions": 337,
+    "prior": {
+     "num": -27,
+     "den": 50
+    },
+    "observed": {
+     "num": 47,
+     "den": 25
+    },
+    "fraction": {
+     "num": 11,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 801,
+     "den": 10000
+    },
+    "score": {
+     "num": 13273,
+     "den": 28750
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 3,
+     "den": 10
+    },
+    "share": {
+     "num": 18,
+     "den": 25
+    },
+    "sessions": 1879,
+    "retire_share": {
+     "num": 0,
+     "den": 1
+    },
+    "prior_sessions": 957,
+    "prior": {
+     "num": -12,
+     "den": 25
+    },
+    "observed": {
+     "num": -19,
+     "den": 25
+    },
+    "fraction": {
+     "num": 11,
+     "den": 50
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 1569,
+     "den": 2500
+    },
+    "score": {
+     "num": -9437,
+     "den": 14180
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 49,
+     "den": 50
+    },
+    "share": {
+     "num": 9,
+     "den": 100
+    },
+    "sessions": 699,
+    "retire_share": {
+     "num": 2,
+     "den": 25
+    },
+    "prior_sessions": 269,
+    "prior": {
+     "num": -17,
+     "den": 100
+    },
+    "observed": {
+     "num": 119,
+     "den": 50
+    },
+    "fraction": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 107,
+     "den": 200
+    },
+    "score": {
+     "num": 161789,
+     "den": 96800
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 21,
+     "den": 25
+    },
+    "sessions": 1038,
+    "retire_share": {
+     "num": 7,
+     "den": 100
+    },
+    "prior_sessions": 703,
+    "prior": {
+     "num": 39,
+     "den": 20
+    },
+    "observed": {
+     "num": 1,
+     "den": 20
+    },
+    "fraction": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 147,
+     "den": 250
+    },
+    "score": {
+     "num": 5691,
+     "den": 6964
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 14,
+     "den": 25
+    },
+    "sessions": 1969,
+    "retire_share": {
+     "num": 3,
+     "den": 100
+    },
+    "prior_sessions": 463,
+    "prior": {
+     "num": 177,
+     "den": 100
+    },
+    "observed": {
+     "num": -7,
+     "den": 4
+    },
+    "fraction": {
+     "num": 22,
+     "den": 25
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 42,
+     "den": 625
+    },
+    "score": {
+     "num": -8207,
+     "den": 7600
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 9,
+     "den": 10
+    },
+    "share": {
+     "num": 13,
+     "den": 25
+    },
+    "sessions": 1063,
+    "retire_share": {
+     "num": 3,
+     "den": 50
+    },
+    "prior_sessions": 683,
+    "prior": {
+     "num": -19,
+     "den": 20
+    },
+    "observed": {
+     "num": 31,
+     "den": 25
+    },
+    "fraction": {
+     "num": 91,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 4329,
+     "den": 5000
+    },
+    "score": {
+     "num": 22309,
+     "den": 58200
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 61,
+     "den": 100
+    },
+    "sessions": 95,
+    "retire_share": {
+     "num": 3,
+     "den": 100
+    },
+    "prior_sessions": 627,
+    "prior": {
+     "num": 17,
+     "den": 100
+    },
+    "observed": {
+     "num": -33,
+     "den": 100
+    },
+    "fraction": {
+     "num": 23,
+     "den": 50
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 1647,
+     "den": 5000
+    },
+    "score": {
+     "num": 99,
+     "den": 950
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 81,
+     "den": 100
+    },
+    "share": {
+     "num": 19,
+     "den": 25
+    },
+    "sessions": 1244,
+    "retire_share": {
+     "num": 0,
+     "den": 1
+    },
+    "prior_sessions": 11,
+    "prior": {
+     "num": 23,
+     "den": 25
+    },
+    "observed": {
+     "num": 5,
+     "den": 2
+    },
+    "fraction": {
+     "num": 81,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 1601,
+     "den": 2000
+    },
+    "score": {
+     "num": 78003,
+     "den": 31375
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 31,
+     "den": 100
+    },
+    "sessions": 834,
+    "retire_share": {
+     "num": 0,
+     "den": 1
+    },
+    "prior_sessions": 52,
+    "prior": {
+     "num": -27,
+     "den": 50
+    },
+    "observed": {
+     "num": 61,
+     "den": 50
+    },
+    "fraction": {
+     "num": 77,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 713,
+     "den": 10000
+    },
+    "score": {
+     "num": 4947,
+     "den": 4430
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 17,
+     "den": 50
+    },
+    "share": {
+     "num": 2,
+     "den": 25
+    },
+    "sessions": 710,
+    "retire_share": {
+     "num": 2,
+     "den": 25
+    },
+    "prior_sessions": 197,
+    "prior": {
+     "num": 159,
+     "den": 100
+    },
+    "observed": {
+     "num": -29,
+     "den": 10
+    },
+    "fraction": {
+     "num": 21,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 673,
+     "den": 5000
+    },
+    "score": {
+     "num": -174577,
+     "den": 90700
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 29,
+     "den": 100
+    },
+    "sessions": 1734,
+    "retire_share": {
+     "num": 1,
+     "den": 50
+    },
+    "prior_sessions": 517,
+    "prior": {
+     "num": 99,
+     "den": 100
+    },
+    "observed": {
+     "num": 271,
+     "den": 100
+    },
+    "fraction": {
+     "num": 3,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 2813,
+     "den": 10000
+    },
+    "score": {
+     "num": 521097,
+     "den": 225100
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 81,
+     "den": 100
+    },
+    "sessions": 1185,
+    "retire_share": {
+     "num": 7,
+     "den": 100
+    },
+    "prior_sessions": 705,
+    "prior": {
+     "num": 11,
+     "den": 25
+    },
+    "observed": {
+     "num": -42,
+     "den": 25
+    },
+    "fraction": {
+     "num": 17,
+     "den": 50
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 2673,
+     "den": 5000
+    },
+    "score": {
+     "num": -2801,
+     "den": 3150
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 13,
+     "den": 100
+    },
+    "sessions": 1502,
+    "retire_share": {
+     "num": 1,
+     "den": 25
+    },
+    "prior_sessions": 202,
+    "prior": {
+     "num": -21,
+     "den": 25
+    },
+    "observed": {
+     "num": 9,
+     "den": 5
+    },
+    "fraction": {
+     "num": 97,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 0,
+     "den": 1
+    },
+    "score": {
+     "num": 5279,
+     "den": 3550
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 27,
+     "den": 100
+    },
+    "sessions": 614,
+    "retire_share": {
+     "num": 0,
+     "den": 1
+    },
+    "prior_sessions": 107,
+    "prior": {
+     "num": -27,
+     "den": 50
+    },
+    "observed": {
+     "num": -1,
+     "den": 25
+    },
+    "fraction": {
+     "num": 23,
+     "den": 50
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 729,
+     "den": 5000
+    },
+    "score": {
+     "num": -4117,
+     "den": 36050
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 37,
+     "den": 100
+    },
+    "sessions": 543,
+    "retire_share": {
+     "num": 7,
+     "den": 100
+    },
+    "prior_sessions": 185,
+    "prior": {
+     "num": -3,
+     "den": 100
+    },
+    "observed": {
+     "num": -1,
+     "den": 1
+    },
+    "fraction": {
+     "num": 4,
+     "den": 25
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 777,
+     "den": 2500
+    },
+    "score": {
+     "num": -10971,
+     "den": 14560
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 4,
+     "den": 5
+    },
+    "share": {
+     "num": 17,
+     "den": 25
+    },
+    "sessions": 1195,
+    "retire_share": {
+     "num": 2,
+     "den": 25
+    },
+    "prior_sessions": 824,
+    "prior": {
+     "num": 33,
+     "den": 20
+    },
+    "observed": {
+     "num": 1,
+     "den": 100
+    },
+    "fraction": {
+     "num": 31,
+     "den": 50
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 943,
+     "den": 1250
+    },
+    "score": {
+     "num": 27431,
+     "den": 40380
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 43,
+     "den": 100
+    },
+    "share": {
+     "num": 71,
+     "den": 100
+    },
+    "sessions": 1811,
+    "retire_share": {
+     "num": 1,
+     "den": 50
+    },
+    "prior_sessions": 869,
+    "prior": {
+     "num": -13,
+     "den": 20
+    },
+    "observed": {
+     "num": 209,
+     "den": 100
+    },
+    "fraction": {
+     "num": 19,
+     "den": 50
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 1509,
+     "den": 2500
+    },
+    "score": {
+     "num": 161007,
+     "den": 134000
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 69,
+     "den": 100
+    },
+    "share": {
+     "num": 39,
+     "den": 100
+    },
+    "sessions": 578,
+    "retire_share": {
+     "num": 9,
+     "den": 100
+    },
+    "prior_sessions": 677,
+    "prior": {
+     "num": -93,
+     "den": 100
+    },
+    "observed": {
+     "num": 239,
+     "den": 100
+    },
+    "fraction": {
+     "num": 13,
+     "den": 20
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 117,
+     "den": 200
+    },
+    "score": {
+     "num": 75181,
+     "den": 125500
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 9,
+     "den": 100
+    },
+    "sessions": 1008,
+    "retire_share": {
+     "num": 1,
+     "den": 50
+    },
+    "prior_sessions": 136,
+    "prior": {
+     "num": 57,
+     "den": 100
+    },
+    "observed": {
+     "num": -113,
+     "den": 50
+    },
+    "fraction": {
+     "num": 16,
+     "den": 25
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 81,
+     "den": 2500
+    },
+    "score": {
+     "num": -27507,
+     "den": 14300
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 51,
+     "den": 100
+    },
+    "sessions": 1111,
+    "retire_share": {
+     "num": 7,
+     "den": 100
+    },
+    "prior_sessions": 939,
+    "prior": {
+     "num": 93,
+     "den": 50
+    },
+    "observed": {
+     "num": 17,
+     "den": 50
+    },
+    "fraction": {
+     "num": 11,
+     "den": 50
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 1989,
+     "den": 5000
+    },
+    "score": {
+     "num": 53107,
+     "den": 51250
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 16,
+     "den": 25
+    },
+    "share": {
+     "num": 63,
+     "den": 100
+    },
+    "sessions": 1390,
+    "retire_share": {
+     "num": 2,
+     "den": 25
+    },
+    "prior_sessions": 473,
+    "prior": {
+     "num": -43,
+     "den": 100
+    },
+    "observed": {
+     "num": 53,
+     "den": 25
+    },
+    "fraction": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 317,
+     "den": 500
+    },
+    "score": {
+     "num": 91447,
+     "den": 62100
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 1,
+     "den": 20
+    },
+    "share": {
+     "num": 77,
+     "den": 100
+    },
+    "sessions": 1751,
+    "retire_share": {
+     "num": 7,
+     "den": 100
+    },
+    "prior_sessions": 136,
+    "prior": {
+     "num": -33,
+     "den": 100
+    },
+    "observed": {
+     "num": -53,
+     "den": 50
+    },
+    "fraction": {
+     "num": 1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 59,
+     "den": 100
+    },
+    "score": {
+     "num": -5591,
+     "den": 5550
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 81,
+     "den": 100
+    },
+    "sessions": 1508,
+    "retire_share": {
+     "num": 7,
+     "den": 100
+    },
+    "prior_sessions": 435,
+    "prior": {
+     "num": 197,
+     "den": 100
+    },
+    "observed": {
+     "num": -57,
+     "den": 50
+    },
+    "fraction": {
+     "num": 4,
+     "den": 5
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 81,
+     "den": 500
+    },
+    "score": {
+     "num": -2973,
+     "den": 6700
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 18,
+     "den": 25
+    },
+    "share": {
+     "num": 73,
+     "den": 100
+    },
+    "sessions": 875,
+    "retire_share": {
+     "num": 1,
+     "den": 20
+    },
+    "prior_sessions": 932,
+    "prior": {
+     "num": 44,
+     "den": 25
+    },
+    "observed": {
+     "num": -241,
+     "den": 100
+    },
+    "fraction": {
+     "num": 9,
+     "den": 10
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 721,
+     "den": 1000
+    },
+    "score": {
+     "num": -337,
+     "den": 1300
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 67,
+     "den": 100
+    },
+    "sessions": 1590,
+    "retire_share": {
+     "num": 9,
+     "den": 100
+    },
+    "prior_sessions": 584,
+    "prior": {
+     "num": 7,
+     "den": 10
+    },
+    "observed": {
+     "num": -26,
+     "den": 25
+    },
+    "fraction": {
+     "num": 41,
+     "den": 50
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 603,
+     "den": 5000
+    },
+    "score": {
+     "num": -3112,
+     "den": 5435
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 37,
+     "den": 50
+    },
+    "sessions": 596,
+    "retire_share": {
+     "num": 1,
+     "den": 100
+    },
+    "prior_sessions": 155,
+    "prior": {
+     "num": 187,
+     "den": 100
+    },
+    "observed": {
+     "num": -19,
+     "den": 25
+    },
+    "fraction": {
+     "num": 31,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 2553,
+     "den": 5000
+    },
+    "score": {
+     "num": -16311,
+     "den": 75100
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 4,
+     "den": 5
+    },
+    "sessions": 1987,
+    "retire_share": {
+     "num": 1,
+     "den": 10
+    },
+    "prior_sessions": 649,
+    "prior": {
+     "num": -93,
+     "den": 100
+    },
+    "observed": {
+     "num": -293,
+     "den": 100
+    },
+    "fraction": {
+     "num": 33,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 67,
+     "den": 125
+    },
+    "score": {
+     "num": -160637,
+     "den": 65900
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 93,
+     "den": 100
+    },
+    "sessions": 38,
+    "retire_share": {
+     "num": 1,
+     "den": 50
+    },
+    "prior_sessions": 334,
+    "prior": {
+     "num": 42,
+     "den": 25
+    },
+    "observed": {
+     "num": -59,
+     "den": 50
+    },
+    "fraction": {
+     "num": 7,
+     "den": 25
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 837,
+     "den": 1250
+    },
+    "score": {
+     "num": 12907,
+     "den": 9300
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 63,
+     "den": 100
+    },
+    "sessions": 190,
+    "retire_share": {
+     "num": 0,
+     "den": 1
+    },
+    "prior_sessions": 52,
+    "prior": {
+     "num": -53,
+     "den": 100
+    },
+    "observed": {
+     "num": -71,
+     "den": 100
+    },
+    "fraction": {
+     "num": 1,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 6237,
+     "den": 10000
+    },
+    "score": {
+     "num": -8123,
+     "den": 12100
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 3,
+     "den": 5
+    },
+    "share": {
+     "num": 4,
+     "den": 25
+    },
+    "sessions": 152,
+    "retire_share": {
+     "num": 2,
+     "den": 25
+    },
+    "prior_sessions": 872,
+    "prior": {
+     "num": 7,
+     "den": 25
+    },
+    "observed": {
+     "num": -269,
+     "den": 100
+    },
+    "fraction": {
+     "num": 97,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 1467,
+     "den": 2500
+    },
+    "score": {
+     "num": -2059,
+     "den": 12800
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 11,
+     "den": 100
+    },
+    "share": {
+     "num": 3,
+     "den": 50
+    },
+    "sessions": 158,
+    "retire_share": {
+     "num": 1,
+     "den": 10
+    },
+    "prior_sessions": 577,
+    "prior": {
+     "num": 53,
+     "den": 50
+    },
+    "observed": {
+     "num": 219,
+     "den": 100
+    },
+    "fraction": {
+     "num": 6,
+     "den": 25
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 9,
+     "den": 125
+    },
+    "score": {
+     "num": 23941,
+     "den": 18375
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 1,
+     "den": 25
+    },
+    "share": {
+     "num": 47,
+     "den": 50
+    },
+    "sessions": 341,
+    "retire_share": {
+     "num": 1,
+     "den": 10
+    },
+    "prior_sessions": 373,
+    "prior": {
+     "num": 11,
+     "den": 50
+    },
+    "observed": {
+     "num": 243,
+     "den": 100
+    },
+    "fraction": {
+     "num": 4,
+     "den": 5
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 11,
+     "den": 50
+    },
+    "score": {
+     "num": 5357,
+     "den": 4200
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 14,
+     "den": 25
+    },
+    "sessions": 126,
+    "retire_share": {
+     "num": 7,
+     "den": 100
+    },
+    "prior_sessions": 959,
+    "prior": {
+     "num": 27,
+     "den": 20
+    },
+    "observed": {
+     "num": -129,
+     "den": 50
+    },
+    "fraction": {
+     "num": 49,
+     "den": 50
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 0,
+     "den": 1
+    },
+    "score": {
+     "num": 13851,
+     "den": 15500
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 73,
+     "den": 100
+    },
+    "share": {
+     "num": 7,
+     "den": 25
+    },
+    "sessions": 1160,
+    "retire_share": {
+     "num": 3,
+     "den": 50
+    },
+    "prior_sessions": 89,
+    "prior": {
+     "num": -93,
+     "den": 100
+    },
+    "observed": {
+     "num": -44,
+     "den": 25
+    },
+    "fraction": {
+     "num": 7,
+     "den": 25
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 203,
+     "den": 500
+    },
+    "score": {
+     "num": -212437,
+     "den": 124900
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 7,
+     "den": 10
+    },
+    "sessions": 363,
+    "retire_share": {
+     "num": 1,
+     "den": 100
+    },
+    "prior_sessions": 377,
+    "prior": {
+     "num": 6,
+     "den": 5
+    },
+    "observed": {
+     "num": 62,
+     "den": 25
+    },
+    "fraction": {
+     "num": 11,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 623,
+     "den": 1000
+    },
+    "score": {
+     "num": 8454,
+     "den": 4625
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 23,
+     "den": 100
+    },
+    "share": {
+     "num": 73,
+     "den": 100
+    },
+    "sessions": 319,
+    "retire_share": {
+     "num": 1,
+     "den": 100
+    },
+    "prior_sessions": 850,
+    "prior": {
+     "num": 9,
+     "den": 5
+    },
+    "observed": {
+     "num": 71,
+     "den": 100
+    },
+    "fraction": {
+     "num": 22,
+     "den": 25
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 29,
+     "den": 100
+    },
+    "score": {
+     "num": 175649,
+     "den": 116900
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 97,
+     "den": 100
+    },
+    "share": {
+     "num": 23,
+     "den": 50
+    },
+    "sessions": 57,
+    "retire_share": {
+     "num": 1,
+     "den": 20
+    },
+    "prior_sessions": 426,
+    "prior": {
+     "num": -1,
+     "den": 25
+    },
+    "observed": {
+     "num": 43,
+     "den": 50
+    },
+    "fraction": {
+     "num": 1,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 4651,
+     "den": 10000
+    },
+    "score": {
+     "num": 533,
+     "den": 8050
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 1,
+     "den": 20
+    },
+    "share": {
+     "num": 6,
+     "den": 25
+    },
+    "sessions": 231,
+    "retire_share": {
+     "num": 9,
+     "den": 100
+    },
+    "prior_sessions": 46,
+    "prior": {
+     "num": -13,
+     "den": 20
+    },
+    "observed": {
+     "num": -44,
+     "den": 25
+    },
+    "fraction": {
+     "num": 4,
+     "den": 5
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 11,
+     "den": 125
+    },
+    "score": {
+     "num": -21823,
+     "den": 13850
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 89,
+     "den": 100
+    },
+    "sessions": 195,
+    "retire_share": {
+     "num": 1,
+     "den": 20
+    },
+    "prior_sessions": 413,
+    "prior": {
+     "num": -1,
+     "den": 1
+    },
+    "observed": {
+     "num": 49,
+     "den": 25
+    },
+    "fraction": {
+     "num": 31,
+     "den": 50
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 1691,
+     "den": 5000
+    },
+    "score": {
+     "num": -77,
+     "den": 1520
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 27,
+     "den": 100
+    },
+    "sessions": 1955,
+    "retire_share": {
+     "num": 0,
+     "den": 1
+    },
+    "prior_sessions": 260,
+    "prior": {
+     "num": 9,
+     "den": 5
+    },
+    "observed": {
+     "num": 72,
+     "den": 25
+    },
+    "fraction": {
+     "num": 89,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 297,
+     "den": 10000
+    },
+    "score": {
+     "num": 30492,
+     "den": 11075
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 7,
+     "den": 20
+    },
+    "share": {
+     "num": 3,
+     "den": 50
+    },
+    "sessions": 81,
+    "retire_share": {
+     "num": 3,
+     "den": 100
+    },
+    "prior_sessions": 353,
+    "prior": {
+     "num": -21,
+     "den": 50
+    },
+    "observed": {
+     "num": 139,
+     "den": 100
+    },
+    "fraction": {
+     "num": 27,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 1383,
+     "den": 10000
+    },
+    "score": {
+     "num": -3567,
+     "den": 43400
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 3,
+     "den": 4
+    },
+    "share": {
+     "num": 16,
+     "den": 25
+    },
+    "sessions": 100,
+    "retire_share": {
+     "num": 2,
+     "den": 25
+    },
+    "prior_sessions": 470,
+    "prior": {
+     "num": 93,
+     "den": 50
+    },
+    "observed": {
+     "num": -261,
+     "den": 100
+    },
+    "fraction": {
+     "num": 33,
+     "den": 50
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 3563,
+     "den": 5000
+    },
+    "score": {
+     "num": 511,
+     "den": 475
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 79,
+     "den": 100
+    },
+    "sessions": 611,
+    "retire_share": {
+     "num": 2,
+     "den": 25
+    },
+    "prior_sessions": 42,
+    "prior": {
+     "num": -23,
+     "den": 25
+    },
+    "observed": {
+     "num": -11,
+     "den": 50
+    },
+    "fraction": {
+     "num": 49,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 4029,
+     "den": 10000
+    },
+    "score": {
+     "num": -8653,
+     "den": 32650
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 23,
+     "den": 50
+    },
+    "sessions": 1017,
+    "retire_share": {
+     "num": 3,
+     "den": 100
+    },
+    "prior_sessions": 71,
+    "prior": {
+     "num": 129,
+     "den": 100
+    },
+    "observed": {
+     "num": -181,
+     "den": 100
+    },
+    "fraction": {
+     "num": 17,
+     "den": 25
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 92,
+     "den": 625
+    },
+    "score": {
+     "num": -87459,
+     "den": 54400
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 1,
+     "den": 100
+    },
+    "share": {
+     "num": 87,
+     "den": 100
+    },
+    "sessions": 975,
+    "retire_share": {
+     "num": 3,
+     "den": 50
+    },
+    "prior_sessions": 867,
+    "prior": {
+     "num": 3,
+     "den": 50
+    },
+    "observed": {
+     "num": 141,
+     "den": 50
+    },
+    "fraction": {
+     "num": 13,
+     "den": 50
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 404,
+     "den": 625
+    },
+    "score": {
+     "num": 11673,
+     "den": 7675
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 3,
+     "den": 50
+    },
+    "sessions": 653,
+    "retire_share": {
+     "num": 1,
+     "den": 25
+    },
+    "prior_sessions": 24,
+    "prior": {
+     "num": 31,
+     "den": 100
+    },
+    "observed": {
+     "num": 199,
+     "den": 100
+    },
+    "fraction": {
+     "num": 9,
+     "den": 20
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 0,
+     "den": 1
+    },
+    "score": {
+     "num": 130691,
+     "den": 67700
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 1,
+     "den": 50
+    },
+    "share": {
+     "num": 39,
+     "den": 100
+    },
+    "sessions": 1617,
+    "retire_share": {
+     "num": 3,
+     "den": 50
+    },
+    "prior_sessions": 853,
+    "prior": {
+     "num": -49,
+     "den": 50
+    },
+    "observed": {
+     "num": -27,
+     "den": 100
+    },
+    "fraction": {
+     "num": 7,
+     "den": 50
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 1691,
+     "den": 5000
+    },
+    "score": {
+     "num": -127253,
+     "den": 247000
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 37,
+     "den": 50
+    },
+    "share": {
+     "num": 11,
+     "den": 25
+    },
+    "sessions": 496,
+    "retire_share": {
+     "num": 0,
+     "den": 1
+    },
+    "prior_sessions": 916,
+    "prior": {
+     "num": 26,
+     "den": 25
+    },
+    "observed": {
+     "num": -1,
+     "den": 20
+    },
+    "fraction": {
+     "num": 29,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 527,
+     "den": 1000
+    },
+    "score": {
+     "num": 5799,
+     "den": 8825
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 93,
+     "den": 100
+    },
+    "sessions": 1447,
+    "retire_share": {
+     "num": 0,
+     "den": 1
+    },
+    "prior_sessions": 253,
+    "prior": {
+     "num": -97,
+     "den": 100
+    },
+    "observed": {
+     "num": -49,
+     "den": 100
+    },
+    "fraction": {
+     "num": 7,
+     "den": 50
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 3999,
+     "den": 5000
+    },
+    "score": {
+     "num": -23861,
+     "den": 42500
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 13,
+     "den": 20
+    },
+    "sessions": 1476,
+    "retire_share": {
+     "num": 1,
+     "den": 50
+    },
+    "prior_sessions": 648,
+    "prior": {
+     "num": 157,
+     "den": 100
+    },
+    "observed": {
+     "num": -69,
+     "den": 25
+    },
+    "fraction": {
+     "num": 73,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 351,
+     "den": 2000
+    },
+    "score": {
+     "num": -849,
+     "den": 590
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 19,
+     "den": 50
+    },
+    "sessions": 1872,
+    "retire_share": {
+     "num": 9,
+     "den": 100
+    },
+    "prior_sessions": 835,
+    "prior": {
+     "num": -3,
+     "den": 20
+    },
+    "observed": {
+     "num": 63,
+     "den": 50
+    },
+    "fraction": {
+     "num": 19,
+     "den": 50
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 589,
+     "den": 2500
+    },
+    "score": {
+     "num": 223347,
+     "den": 270700
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 81,
+     "den": 100
+    },
+    "sessions": 1773,
+    "retire_share": {
+     "num": 1,
+     "den": 50
+    },
+    "prior_sessions": 693,
+    "prior": {
+     "num": 13,
+     "den": 20
+    },
+    "observed": {
+     "num": -2,
+     "den": 1
+    },
+    "fraction": {
+     "num": 31,
+     "den": 50
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 1539,
+     "den": 5000
+    },
+    "score": {
+     "num": -6879,
+     "den": 5480
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 17,
+     "den": 100
+    },
+    "sessions": 1160,
+    "retire_share": {
+     "num": 1,
+     "den": 20
+    },
+    "prior_sessions": 226,
+    "prior": {
+     "num": -6,
+     "den": 25
+    },
+    "observed": {
+     "num": 1,
+     "den": 25
+    },
+    "fraction": {
+     "num": 37,
+     "den": 50
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 0,
+     "den": 1
+    },
+    "score": {
+     "num": -14,
+     "den": 2475
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 31,
+     "den": 50
+    },
+    "share": {
+     "num": 19,
+     "den": 100
+    },
+    "sessions": 1820,
+    "retire_share": {
+     "num": 1,
+     "den": 10
+    },
+    "prior_sessions": 602,
+    "prior": {
+     "num": -1,
+     "den": 100
+    },
+    "observed": {
+     "num": 53,
+     "den": 50
+    },
+    "fraction": {
+     "num": 4,
+     "den": 25
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 647,
+     "den": 2500
+    },
+    "score": {
+     "num": 13737,
+     "den": 17300
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 7,
+     "den": 25
+    },
+    "sessions": 1906,
+    "retire_share": {
+     "num": 1,
+     "den": 20
+    },
+    "prior_sessions": 63,
+    "prior": {
+     "num": -49,
+     "den": 50
+    },
+    "observed": {
+     "num": -17,
+     "den": 50
+    },
+    "fraction": {
+     "num": 18,
+     "den": 25
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 49,
+     "den": 625
+    },
+    "score": {
+     "num": -35489,
+     "den": 98450
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 37,
+     "den": 100
+    },
+    "share": {
+     "num": 33,
+     "den": 100
+    },
+    "sessions": 1660,
+    "retire_share": {
+     "num": 1,
+     "den": 10
+    },
+    "prior_sessions": 489,
+    "prior": {
+     "num": 1,
+     "den": 4
+    },
+    "observed": {
+     "num": 19,
+     "den": 25
+    },
+    "fraction": {
+     "num": 9,
+     "den": 10
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 183,
+     "den": 500
+    },
+    "score": {
+     "num": 27677,
+     "den": 42980
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 13,
+     "den": 20
+    },
+    "sessions": 1539,
+    "retire_share": {
+     "num": 0,
+     "den": 1
+    },
+    "prior_sessions": 819,
+    "prior": {
+     "num": 51,
+     "den": 50
+    },
+    "observed": {
+     "num": 83,
+     "den": 100
+    },
+    "fraction": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 0,
+     "den": 1
+    },
+    "score": {
+     "num": 939,
+     "den": 1048
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 97,
+     "den": 100
+    },
+    "share": {
+     "num": 19,
+     "den": 100
+    },
+    "sessions": 1454,
+    "retire_share": {
+     "num": 1,
+     "den": 100
+    },
+    "prior_sessions": 817,
+    "prior": {
+     "num": -27,
+     "den": 50
+    },
+    "observed": {
+     "num": 83,
+     "den": 50
+    },
+    "fraction": {
+     "num": 9,
+     "den": 25
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 1177,
+     "den": 2500
+    },
+    "score": {
+     "num": 98623,
+     "den": 113550
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 1,
+     "den": 50
+    },
+    "share": {
+     "num": 9,
+     "den": 25
+    },
+    "sessions": 1130,
+    "retire_share": {
+     "num": 7,
+     "den": 100
+    },
+    "prior_sessions": 596,
+    "prior": {
+     "num": 4,
+     "den": 5
+    },
+    "observed": {
+     "num": 279,
+     "den": 100
+    },
+    "fraction": {
+     "num": 33,
+     "den": 50
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 339,
+     "den": 2500
+    },
+    "score": {
+     "num": 7259,
+     "den": 3452
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 89,
+     "den": 100
+    },
+    "share": {
+     "num": 17,
+     "den": 25
+    },
+    "sessions": 1818,
+    "retire_share": {
+     "num": 7,
+     "den": 100
+    },
+    "prior_sessions": 194,
+    "prior": {
+     "num": -21,
+     "den": 25
+    },
+    "observed": {
+     "num": -241,
+     "den": 100
+    },
+    "fraction": {
+     "num": 3,
+     "den": 5
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 403,
+     "den": 500
+    },
+    "score": {
+     "num": -227217,
+     "den": 100600
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 41,
+     "den": 100
+    },
+    "share": {
+     "num": 7,
+     "den": 100
+    },
+    "sessions": 1973,
+    "retire_share": {
+     "num": 1,
+     "den": 20
+    },
+    "prior_sessions": 933,
+    "prior": {
+     "num": -22,
+     "den": 25
+    },
+    "observed": {
+     "num": 99,
+     "den": 100
+    },
+    "fraction": {
+     "num": 53,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 1251,
+     "den": 5000
+    },
+    "score": {
+     "num": 113223,
+     "den": 290600
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 37,
+     "den": 50
+    },
+    "share": {
+     "num": 11,
+     "den": 20
+    },
+    "sessions": 176,
+    "retire_share": {
+     "num": 1,
+     "den": 50
+    },
+    "prior_sessions": 941,
+    "prior": {
+     "num": 6,
+     "den": 5
+    },
+    "observed": {
+     "num": -201,
+     "den": 100
+    },
+    "fraction": {
+     "num": 39,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 6241,
+     "den": 10000
+    },
+    "score": {
+     "num": 19386,
+     "den": 27925
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 49,
+     "den": 50
+    },
+    "sessions": 753,
+    "retire_share": {
+     "num": 2,
+     "den": 25
+    },
+    "prior_sessions": 960,
+    "prior": {
+     "num": 49,
+     "den": 50
+    },
+    "observed": {
+     "num": -29,
+     "den": 10
+    },
+    "fraction": {
+     "num": 4,
+     "den": 25
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 1029,
+     "den": 1250
+    },
+    "score": {
+     "num": -4143,
+     "den": 5710
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 7,
+     "den": 20
+    },
+    "share": {
+     "num": 13,
+     "den": 100
+    },
+    "sessions": 704,
+    "retire_share": {
+     "num": 3,
+     "den": 50
+    },
+    "prior_sessions": 705,
+    "prior": {
+     "num": 46,
+     "den": 25
+    },
+    "observed": {
+     "num": 61,
+     "den": 25
+    },
+    "fraction": {
+     "num": 21,
+     "den": 50
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 139,
+     "den": 625
+    },
+    "score": {
+     "num": 75374,
+     "den": 35225
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 3,
+     "den": 50
+    },
+    "share": {
+     "num": 31,
+     "den": 50
+    },
+    "sessions": 101,
+    "retire_share": {
+     "num": 2,
+     "den": 25
+    },
+    "prior_sessions": 916,
+    "prior": {
+     "num": -9,
+     "den": 50
+    },
+    "observed": {
+     "num": 39,
+     "den": 25
+    },
+    "fraction": {
+     "num": 7,
+     "den": 20
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 53,
+     "den": 125
+    },
+    "score": {
+     "num": -61,
+     "den": 8475
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 31,
+     "den": 100
+    },
+    "share": {
+     "num": 41,
+     "den": 100
+    },
+    "sessions": 349,
+    "retire_share": {
+     "num": 9,
+     "den": 100
+    },
+    "prior_sessions": 274,
+    "prior": {
+     "num": -7,
+     "den": 50
+    },
+    "observed": {
+     "num": -67,
+     "den": 25
+    },
+    "fraction": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 9,
+     "den": 25
+    },
+    "score": {
+     "num": -24342,
+     "den": 15575
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 77,
+     "den": 100
+    },
+    "share": {
+     "num": 19,
+     "den": 25
+    },
+    "sessions": 1049,
+    "retire_share": {
+     "num": 1,
+     "den": 25
+    },
+    "prior_sessions": 232,
+    "prior": {
+     "num": -19,
+     "den": 20
+    },
+    "observed": {
+     "num": 123,
+     "den": 100
+    },
+    "fraction": {
+     "num": 43,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 7643,
+     "den": 10000
+    },
+    "score": {
+     "num": 106987,
+     "den": 128100
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 37,
+     "den": 50
+    },
+    "sessions": 548,
+    "retire_share": {
+     "num": 2,
+     "den": 25
+    },
+    "prior_sessions": 302,
+    "prior": {
+     "num": 7,
+     "den": 25
+    },
+    "observed": {
+     "num": 46,
+     "den": 25
+    },
+    "fraction": {
+     "num": 24,
+     "den": 25
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 0,
+     "den": 1
+    },
+    "score": {
+     "num": 13661,
+     "den": 10625
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 1,
+     "den": 5
+    },
+    "share": {
+     "num": 33,
+     "den": 50
+    },
+    "sessions": 1118,
+    "retire_share": {
+     "num": 3,
+     "den": 100
+    },
+    "prior_sessions": 205,
+    "prior": {
+     "num": -19,
+     "den": 20
+    },
+    "observed": {
+     "num": -87,
+     "den": 50
+    },
+    "fraction": {
+     "num": 1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 109,
+     "den": 200
+    },
+    "score": {
+     "num": -214007,
+     "den": 132300
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 19,
+     "den": 25
+    },
+    "share": {
+     "num": 1,
+     "den": 100
+    },
+    "sessions": 22,
+    "retire_share": {
+     "num": 1,
+     "den": 50
+    },
+    "prior_sessions": 388,
+    "prior": {
+     "num": 101,
+     "den": 100
+    },
+    "observed": {
+     "num": -29,
+     "den": 100
+    },
+    "fraction": {
+     "num": 6,
+     "den": 25
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 19,
+     "den": 100
+    },
+    "score": {
+     "num": 771,
+     "den": 820
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 1,
+     "den": 50
+    },
+    "share": {
+     "num": 8,
+     "den": 25
+    },
+    "sessions": 357,
+    "retire_share": {
+     "num": 3,
+     "den": 50
+    },
+    "prior_sessions": 25,
+    "prior": {
+     "num": 199,
+     "den": 100
+    },
+    "observed": {
+     "num": 1,
+     "den": 25
+    },
+    "fraction": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 1,
+     "den": 50
+    },
+    "score": {
+     "num": 6403,
+     "den": 38200
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 16,
+     "den": 25
+    },
+    "share": {
+     "num": 29,
+     "den": 50
+    },
+    "sessions": 1535,
+    "retire_share": {
+     "num": 2,
+     "den": 25
+    },
+    "prior_sessions": 19,
+    "prior": {
+     "num": -33,
+     "den": 50
+    },
+    "observed": {
+     "num": 11,
+     "den": 50
+    },
+    "fraction": {
+     "num": 49,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 3047,
+     "den": 5000
+    },
+    "score": {
+     "num": 8129,
+     "den": 38850
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 9,
+     "den": 20
+    },
+    "sessions": 757,
+    "retire_share": {
+     "num": 2,
+     "den": 25
+    },
+    "prior_sessions": 746,
+    "prior": {
+     "num": 111,
+     "den": 100
+    },
+    "observed": {
+     "num": -87,
+     "den": 100
+    },
+    "fraction": {
+     "num": 33,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 603,
+     "den": 2000
+    },
+    "score": {
+     "num": 1883,
+     "den": 16700
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 63,
+     "den": 100
+    },
+    "sessions": 121,
+    "retire_share": {
+     "num": 1,
+     "den": 100
+    },
+    "prior_sessions": 623,
+    "prior": {
+     "num": -21,
+     "den": 100
+    },
+    "observed": {
+     "num": 223,
+     "den": 100
+    },
+    "fraction": {
+     "num": 12,
+     "den": 25
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 819,
+     "den": 2500
+    },
+    "score": {
+     "num": 139,
+     "den": 744
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 13,
+     "den": 25
+    },
+    "sessions": 1653,
+    "retire_share": {
+     "num": 7,
+     "den": 100
+    },
+    "prior_sessions": 845,
+    "prior": {
+     "num": 3,
+     "den": 20
+    },
+    "observed": {
+     "num": 21,
+     "den": 50
+    },
+    "fraction": {
+     "num": 97,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 0,
+     "den": 1
+    },
+    "score": {
+     "num": 82101,
+     "den": 249800
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 24,
+     "den": 25
+    },
+    "share": {
+     "num": 3,
+     "den": 10
+    },
+    "sessions": 1656,
+    "retire_share": {
+     "num": 2,
+     "den": 25
+    },
+    "prior_sessions": 948,
+    "prior": {
+     "num": -9,
+     "den": 100
+    },
+    "observed": {
+     "num": 139,
+     "den": 100
+    },
+    "fraction": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 141,
+     "den": 250
+    },
+    "score": {
+     "num": 18471,
+     "den": 21700
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 21,
+     "den": 25
+    },
+    "share": {
+     "num": 23,
+     "den": 25
+    },
+    "sessions": 1783,
+    "retire_share": {
+     "num": 1,
+     "den": 50
+    },
+    "prior_sessions": 531,
+    "prior": {
+     "num": 33,
+     "den": 25
+    },
+    "observed": {
+     "num": 149,
+     "den": 100
+    },
+    "fraction": {
+     "num": 37,
+     "den": 50
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 538,
+     "den": 625
+    },
+    "score": {
+     "num": 335759,
+     "den": 231400
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 43,
+     "den": 50
+    },
+    "sessions": 687,
+    "retire_share": {
+     "num": 3,
+     "den": 50
+    },
+    "prior_sessions": 95,
+    "prior": {
+     "num": -3,
+     "den": 10
+    },
+    "observed": {
+     "num": 9,
+     "den": 4
+    },
+    "fraction": {
+     "num": 57,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 1849,
+     "den": 5000
+    },
+    "score": {
+     "num": 357,
+     "den": 184
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 37,
+     "den": 50
+    },
+    "sessions": 1560,
+    "retire_share": {
+     "num": 7,
+     "den": 100
+    },
+    "prior_sessions": 778,
+    "prior": {
+     "num": 17,
+     "den": 20
+    },
+    "observed": {
+     "num": -5,
+     "den": 2
+    },
+    "fraction": {
+     "num": 79,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 777,
+     "den": 5000
+    },
+    "score": {
+     "num": -32387,
+     "den": 23380
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 17,
+     "den": 20
+    },
+    "share": {
+     "num": 91,
+     "den": 100
+    },
+    "sessions": 1646,
+    "retire_share": {
+     "num": 9,
+     "den": 100
+    },
+    "prior_sessions": 593,
+    "prior": {
+     "num": -19,
+     "den": 50
+    },
+    "observed": {
+     "num": -19,
+     "den": 100
+    },
+    "fraction": {
+     "num": 79,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 4313,
+     "den": 5000
+    },
+    "score": {
+     "num": -13452,
+     "den": 55975
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 3,
+     "den": 4
+    },
+    "share": {
+     "num": 31,
+     "den": 100
+    },
+    "sessions": 1864,
+    "retire_share": {
+     "num": 9,
+     "den": 100
+    },
+    "prior_sessions": 312,
+    "prior": {
+     "num": -1,
+     "den": 50
+    },
+    "observed": {
+     "num": -191,
+     "den": 100
+    },
+    "fraction": {
+     "num": 4,
+     "den": 5
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 331,
+     "den": 500
+    },
+    "score": {
+     "num": -44581,
+     "den": 27200
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 11,
+     "den": 20
+    },
+    "share": {
+     "num": 7,
+     "den": 10
+    },
+    "sessions": 1941,
+    "retire_share": {
+     "num": 3,
+     "den": 50
+    },
+    "prior_sessions": 620,
+    "prior": {
+     "num": 63,
+     "den": 100
+    },
+    "observed": {
+     "num": 7,
+     "den": 100
+    },
+    "fraction": {
+     "num": 89,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 1133,
+     "den": 2000
+    },
+    "score": {
+     "num": 52647,
+     "den": 256100
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 9,
+     "den": 20
+    },
+    "sessions": 280,
+    "retire_share": {
+     "num": 1,
+     "den": 20
+    },
+    "prior_sessions": 893,
+    "prior": {
+     "num": -7,
+     "den": 50
+    },
+    "observed": {
+     "num": 51,
+     "den": 25
+    },
+    "fraction": {
+     "num": 63,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 333,
+     "den": 2000
+    },
+    "score": {
+     "num": 22309,
+     "den": 58650
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 13,
+     "den": 50
+    },
+    "sessions": 217,
+    "retire_share": {
+     "num": 3,
+     "den": 50
+    },
+    "prior_sessions": 776,
+    "prior": {
+     "num": 41,
+     "den": 25
+    },
+    "observed": {
+     "num": 17,
+     "den": 25
+    },
+    "fraction": {
+     "num": 1,
+     "den": 20
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 247,
+     "den": 1000
+    },
+    "score": {
+     "num": 2367,
+     "den": 1655
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 81,
+     "den": 100
+    },
+    "share": {
+     "num": 7,
+     "den": 25
+    },
+    "sessions": 1732,
+    "retire_share": {
+     "num": 0,
+     "den": 1
+    },
+    "prior_sessions": 755,
+    "prior": {
+     "num": -9,
+     "den": 20
+    },
+    "observed": {
+     "num": 191,
+     "den": 100
+    },
+    "fraction": {
+     "num": 13,
+     "den": 25
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 1389,
+     "den": 2500
+    },
+    "score": {
+     "num": 296837,
+     "den": 248700
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 22,
+     "den": 25
+    },
+    "share": {
+     "num": 21,
+     "den": 50
+    },
+    "sessions": 1845,
+    "retire_share": {
+     "num": 7,
+     "den": 100
+    },
+    "prior_sessions": 259,
+    "prior": {
+     "num": 36,
+     "den": 25
+    },
+    "observed": {
+     "num": -6,
+     "den": 5
+    },
+    "fraction": {
+     "num": 87,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 4101,
+     "den": 5000
+    },
+    "score": {
+     "num": -23013,
+     "den": 26300
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 93,
+     "den": 100
+    },
+    "share": {
+     "num": 21,
+     "den": 25
+    },
+    "sessions": 450,
+    "retire_share": {
+     "num": 3,
+     "den": 100
+    },
+    "prior_sessions": 723,
+    "prior": {
+     "num": 131,
+     "den": 100
+    },
+    "observed": {
+     "num": 43,
+     "den": 20
+    },
+    "fraction": {
+     "num": 22,
+     "den": 25
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 1149,
+     "den": 1250
+    },
+    "score": {
+     "num": 63821,
+     "den": 39100
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 87,
+     "den": 100
+    },
+    "share": {
+     "num": 17,
+     "den": 100
+    },
+    "sessions": 1999,
+    "retire_share": {
+     "num": 9,
+     "den": 100
+    },
+    "prior_sessions": 17,
+    "prior": {
+     "num": 1,
+     "den": 10
+    },
+    "observed": {
+     "num": -14,
+     "den": 25
+    },
+    "fraction": {
+     "num": 3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 139,
+     "den": 200
+    },
+    "score": {
+     "num": -18629,
+     "den": 33600
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 3,
+     "den": 20
+    },
+    "sessions": 1274,
+    "retire_share": {
+     "num": 1,
+     "den": 25
+    },
+    "prior_sessions": 739,
+    "prior": {
+     "num": 24,
+     "den": 25
+    },
+    "observed": {
+     "num": 119,
+     "den": 100
+    },
+    "fraction": {
+     "num": 1,
+     "den": 20
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 57,
+     "den": 400
+    },
+    "score": {
+     "num": 4451,
+     "den": 4026
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 11,
+     "den": 100
+    },
+    "share": {
+     "num": 21,
+     "den": 50
+    },
+    "sessions": 136,
+    "retire_share": {
+     "num": 7,
+     "den": 100
+    },
+    "prior_sessions": 380,
+    "prior": {
+     "num": -59,
+     "den": 100
+    },
+    "observed": {
+     "num": 209,
+     "den": 100
+    },
+    "fraction": {
+     "num": 1,
+     "den": 20
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 809,
+     "den": 2000
+    },
+    "score": {
+     "num": 1501,
+     "den": 12900
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 49,
+     "den": 50
+    },
+    "sessions": 180,
+    "retire_share": {
+     "num": 2,
+     "den": 25
+    },
+    "prior_sessions": 150,
+    "prior": {
+     "num": 197,
+     "den": 100
+    },
+    "observed": {
+     "num": 251,
+     "den": 100
+    },
+    "fraction": {
+     "num": 14,
+     "den": 25
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 539,
+     "den": 1250
+    },
+    "score": {
+     "num": 2491,
+     "den": 1100
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 4,
+     "den": 5
+    },
+    "sessions": 1339,
+    "retire_share": {
+     "num": 1,
+     "den": 100
+    },
+    "prior_sessions": 952,
+    "prior": {
+     "num": 177,
+     "den": 100
+    },
+    "observed": {
+     "num": -149,
+     "den": 100
+    },
+    "fraction": {
+     "num": 7,
+     "den": 25
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 72,
+     "den": 125
+    },
+    "score": {
+     "num": -31007,
+     "den": 229100
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 18,
+     "den": 25
+    },
+    "sessions": 1757,
+    "retire_share": {
+     "num": 0,
+     "den": 1
+    },
+    "prior_sessions": 54,
+    "prior": {
+     "num": 31,
+     "den": 100
+    },
+    "observed": {
+     "num": 48,
+     "den": 25
+    },
+    "fraction": {
+     "num": 31,
+     "den": 50
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 171,
+     "den": 625
+    },
+    "score": {
+     "num": 169509,
+     "den": 90550
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 43,
+     "den": 100
+    },
+    "share": {
+     "num": 51,
+     "den": 100
+    },
+    "sessions": 635,
+    "retire_share": {
+     "num": 1,
+     "den": 10
+    },
+    "prior_sessions": 285,
+    "prior": {
+     "num": 11,
+     "den": 20
+    },
+    "observed": {
+     "num": 21,
+     "den": 100
+    },
+    "fraction": {
+     "num": 51,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 1173,
+     "den": 2500
+    },
+    "score": {
+     "num": 2901,
+     "den": 9200
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 37,
+     "den": 100
+    },
+    "share": {
+     "num": 13,
+     "den": 20
+    },
+    "sessions": 977,
+    "retire_share": {
+     "num": 1,
+     "den": 25
+    },
+    "prior_sessions": 102,
+    "prior": {
+     "num": -9,
+     "den": 20
+    },
+    "observed": {
+     "num": 203,
+     "den": 100
+    },
+    "fraction": {
+     "num": 91,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 247,
+     "den": 625
+    },
+    "score": {
+     "num": 193741,
+     "den": 107900
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 7,
+     "den": 100
+    },
+    "share": {
+     "num": 11,
+     "den": 50
+    },
+    "sessions": 1880,
+    "retire_share": {
+     "num": 0,
+     "den": 1
+    },
+    "prior_sessions": 261,
+    "prior": {
+     "num": 36,
+     "den": 25
+    },
+    "observed": {
+     "num": 109,
+     "den": 100
+    },
+    "fraction": {
+     "num": 49,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 293,
+     "den": 2000
+    },
+    "score": {
+     "num": 60626,
+     "den": 53525
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 51,
+     "den": 100
+    },
+    "sessions": 757,
+    "retire_share": {
+     "num": 3,
+     "den": 50
+    },
+    "prior_sessions": 786,
+    "prior": {
+     "num": -7,
+     "den": 25
+    },
+    "observed": {
+     "num": -17,
+     "den": 25
+    },
+    "fraction": {
+     "num": 43,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 2907,
+     "den": 10000
+    },
+    "score": {
+     "num": -18371,
+     "den": 38575
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 53,
+     "den": 100
+    },
+    "share": {
+     "num": 23,
+     "den": 25
+    },
+    "sessions": 777,
+    "retire_share": {
+     "num": 9,
+     "den": 100
+    },
+    "prior_sessions": 343,
+    "prior": {
+     "num": -61,
+     "den": 100
+    },
+    "observed": {
+     "num": -9,
+     "den": 50
+    },
+    "fraction": {
+     "num": 33,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 7913,
+     "den": 10000
+    },
+    "score": {
+     "num": -4987,
+     "den": 16000
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 27,
+     "den": 50
+    },
+    "share": {
+     "num": 24,
+     "den": 25
+    },
+    "sessions": 1014,
+    "retire_share": {
+     "num": 3,
+     "den": 50
+    },
+    "prior_sessions": 643,
+    "prior": {
+     "num": 9,
+     "den": 25
+    },
+    "observed": {
+     "num": 1,
+     "den": 20
+    },
+    "fraction": {
+     "num": 13,
+     "den": 25
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 927,
+     "den": 1250
+    },
+    "score": {
+     "num": 14109,
+     "den": 82850
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 51,
+     "den": 100
+    },
+    "share": {
+     "num": 1,
+     "den": 4
+    },
+    "sessions": 804,
+    "retire_share": {
+     "num": 1,
+     "den": 50
+    },
+    "prior_sessions": 541,
+    "prior": {
+     "num": 53,
+     "den": 50
+    },
+    "observed": {
+     "num": -237,
+     "den": 100
+    },
+    "fraction": {
+     "num": 49,
+     "den": 50
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 631,
+     "den": 1250
+    },
+    "score": {
+     "num": -66601,
+     "den": 67250
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 9,
+     "den": 50
+    },
+    "share": {
+     "num": 4,
+     "den": 25
+    },
+    "sessions": 877,
+    "retire_share": {
+     "num": 0,
+     "den": 1
+    },
+    "prior_sessions": 524,
+    "prior": {
+     "num": 81,
+     "den": 50
+    },
+    "observed": {
+     "num": 27,
+     "den": 25
+    },
+    "fraction": {
+     "num": 43,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 843,
+     "den": 5000
+    },
+    "score": {
+     "num": 14967,
+     "den": 11675
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 12,
+     "den": 25
+    },
+    "share": {
+     "num": 3,
+     "den": 4
+    },
+    "sessions": 714,
+    "retire_share": {
+     "num": 3,
+     "den": 100
+    },
+    "prior_sessions": 971,
+    "prior": {
+     "num": -3,
+     "den": 20
+    },
+    "observed": {
+     "num": 29,
+     "den": 20
+    },
+    "fraction": {
+     "num": 13,
+     "den": 25
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 381,
+     "den": 625
+    },
+    "score": {
+     "num": 17793,
+     "den": 33700
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 49,
+     "den": 50
+    },
+    "share": {
+     "num": 51,
+     "den": 100
+    },
+    "sessions": 1879,
+    "retire_share": {
+     "num": 1,
+     "den": 25
+    },
+    "prior_sessions": 294,
+    "prior": {
+     "num": -11,
+     "den": 25
+    },
+    "observed": {
+     "num": -3,
+     "den": 10
+    },
+    "fraction": {
+     "num": 1,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 5147,
+     "den": 10000
+    },
+    "score": {
+     "num": -34653,
+     "den": 108650
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 27,
+     "den": 50
+    },
+    "sessions": 1361,
+    "retire_share": {
+     "num": 1,
+     "den": 20
+    },
+    "prior_sessions": 398,
+    "prior": {
+     "num": 133,
+     "den": 100
+    },
+    "observed": {
+     "num": 1,
+     "den": 5
+    },
+    "fraction": {
+     "num": 11,
+     "den": 25
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 189,
+     "den": 625
+    },
+    "score": {
+     "num": 40077,
+     "den": 87950
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 19,
+     "den": 50
+    },
+    "sessions": 875,
+    "retire_share": {
+     "num": 1,
+     "den": 10
+    },
+    "prior_sessions": 249,
+    "prior": {
+     "num": 67,
+     "den": 100
+    },
+    "observed": {
+     "num": -89,
+     "den": 100
+    },
+    "fraction": {
+     "num": 37,
+     "den": 50
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 0,
+     "den": 1
+    },
+    "score": {
+     "num": -7649,
+     "den": 14050
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 37,
+     "den": 100
+    },
+    "sessions": 1439,
+    "retire_share": {
+     "num": 9,
+     "den": 100
+    },
+    "prior_sessions": 808,
+    "prior": {
+     "num": 17,
+     "den": 25
+    },
+    "observed": {
+     "num": -72,
+     "den": 25
+    },
+    "fraction": {
+     "num": 4,
+     "den": 5
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 0,
+     "den": 1
+    },
+    "score": {
+     "num": -89872,
+     "den": 56175
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 47,
+     "den": 100
+    },
+    "share": {
+     "num": 41,
+     "den": 50
+    },
+    "sessions": 687,
+    "retire_share": {
+     "num": 9,
+     "den": 100
+    },
+    "prior_sessions": 606,
+    "prior": {
+     "num": -89,
+     "den": 100
+    },
+    "observed": {
+     "num": -149,
+     "den": 50
+    },
+    "fraction": {
+     "num": 71,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 1143,
+     "den": 2000
+    },
+    "score": {
+     "num": -4311,
+     "den": 2155
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 24,
+     "den": 25
+    },
+    "sessions": 723,
+    "retire_share": {
+     "num": 1,
+     "den": 100
+    },
+    "prior_sessions": 460,
+    "prior": {
+     "num": 29,
+     "den": 50
+    },
+    "observed": {
+     "num": 111,
+     "den": 100
+    },
+    "fraction": {
+     "num": 53,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 282,
+     "den": 625
+    },
+    "score": {
+     "num": 106933,
+     "den": 118300
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 23,
+     "den": 50
+    },
+    "share": {
+     "num": 17,
+     "den": 20
+    },
+    "sessions": 1399,
+    "retire_share": {
+     "num": 3,
+     "den": 100
+    },
+    "prior_sessions": 596,
+    "prior": {
+     "num": 17,
+     "den": 10
+    },
+    "observed": {
+     "num": -13,
+     "den": 25
+    },
+    "fraction": {
+     "num": 7,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 8227,
+     "den": 10000
+    },
+    "score": {
+     "num": 2381,
+     "den": 16625
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 97,
+     "den": 100
+    },
+    "share": {
+     "num": 13,
+     "den": 100
+    },
+    "sessions": 1589,
+    "retire_share": {
+     "num": 1,
+     "den": 20
+    },
+    "prior_sessions": 741,
+    "prior": {
+     "num": -13,
+     "den": 100
+    },
+    "observed": {
+     "num": -21,
+     "den": 100
+    },
+    "fraction": {
+     "num": 11,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 139,
+     "den": 625
+    },
+    "score": {
+     "num": -21501,
+     "den": 116500
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 13,
+     "den": 25
+    },
+    "sessions": 1412,
+    "retire_share": {
+     "num": 1,
+     "den": 25
+    },
+    "prior_sessions": 16,
+    "prior": {
+     "num": 17,
+     "den": 25
+    },
+    "observed": {
+     "num": -38,
+     "den": 25
+    },
+    "fraction": {
+     "num": 17,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 1079,
+     "den": 2500
+    },
+    "score": {
+     "num": -13346,
+     "den": 8925
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 17,
+     "den": 50
+    },
+    "sessions": 1973,
+    "retire_share": {
+     "num": 2,
+     "den": 25
+    },
+    "prior_sessions": 425,
+    "prior": {
+     "num": 43,
+     "den": 100
+    },
+    "observed": {
+     "num": 2,
+     "den": 25
+    },
+    "fraction": {
+     "num": 43,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 969,
+     "den": 5000
+    },
+    "score": {
+     "num": 34059,
+     "den": 239800
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 24,
+     "den": 25
+    },
+    "sessions": 316,
+    "retire_share": {
+     "num": 7,
+     "den": 100
+    },
+    "prior_sessions": 818,
+    "prior": {
+     "num": 12,
+     "den": 25
+    },
+    "observed": {
+     "num": -23,
+     "den": 50
+    },
+    "fraction": {
+     "num": 11,
+     "den": 20
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 54,
+     "den": 125
+    },
+    "score": {
+     "num": 3091,
+     "den": 14175
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 11,
+     "den": 100
+    },
+    "share": {
+     "num": 0,
+     "den": 1
+    },
+    "sessions": 1015,
+    "retire_share": {
+     "num": 0,
+     "den": 1
+    },
+    "prior_sessions": 78,
+    "prior": {
+     "num": 147,
+     "den": 100
+    },
+    "observed": {
+     "num": -61,
+     "den": 25
+    },
+    "fraction": {
+     "num": 1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 11,
+     "den": 400
+    },
+    "score": {
+     "num": -118097,
+     "den": 54650
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 31,
+     "den": 100
+    },
+    "sessions": 1054,
+    "retire_share": {
+     "num": 1,
+     "den": 10
+    },
+    "prior_sessions": 219,
+    "prior": {
+     "num": 93,
+     "den": 50
+    },
+    "observed": {
+     "num": -41,
+     "den": 25
+    },
+    "fraction": {
+     "num": 83,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 0,
+     "den": 1
+    },
+    "score": {
+     "num": -66061,
+     "den": 63650
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 14,
+     "den": 25
+    },
+    "share": {
+     "num": 0,
+     "den": 1
+    },
+    "sessions": 1657,
+    "retire_share": {
+     "num": 1,
+     "den": 100
+    },
+    "prior_sessions": 661,
+    "prior": {
+     "num": 153,
+     "den": 100
+    },
+    "observed": {
+     "num": -299,
+     "den": 100
+    },
+    "fraction": {
+     "num": 24,
+     "den": 25
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 336,
+     "den": 625
+    },
+    "score": {
+     "num": -39431,
+     "den": 23180
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 79,
+     "den": 100
+    },
+    "share": {
+     "num": 67,
+     "den": 100
+    },
+    "sessions": 1804,
+    "retire_share": {
+     "num": 1,
+     "den": 20
+    },
+    "prior_sessions": 125,
+    "prior": {
+     "num": 21,
+     "den": 100
+    },
+    "observed": {
+     "num": -1,
+     "den": 2
+    },
+    "fraction": {
+     "num": 77,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 953,
+     "den": 1250
+    },
+    "score": {
+     "num": -3503,
+     "den": 7716
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 17,
+     "den": 25
+    },
+    "share": {
+     "num": 3,
+     "den": 4
+    },
+    "sessions": 92,
+    "retire_share": {
+     "num": 3,
+     "den": 100
+    },
+    "prior_sessions": 591,
+    "prior": {
+     "num": -39,
+     "den": 100
+    },
+    "observed": {
+     "num": -2,
+     "den": 25
+    },
+    "fraction": {
+     "num": 8,
+     "den": 25
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 1819,
+     "den": 2500
+    },
+    "score": {
+     "num": -4757,
+     "den": 13660
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 23,
+     "den": 50
+    },
+    "share": {
+     "num": 13,
+     "den": 20
+    },
+    "sessions": 1181,
+    "retire_share": {
+     "num": 2,
+     "den": 25
+    },
+    "prior_sessions": 60,
+    "prior": {
+     "num": 133,
+     "den": 100
+    },
+    "observed": {
+     "num": 17,
+     "den": 25
+    },
+    "fraction": {
+     "num": 19,
+     "den": 50
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 2889,
+     "den": 5000
+    },
+    "score": {
+     "num": 22072,
+     "den": 31025
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 27,
+     "den": 100
+    },
+    "share": {
+     "num": 19,
+     "den": 20
+    },
+    "sessions": 1077,
+    "retire_share": {
+     "num": 3,
+     "den": 50
+    },
+    "prior_sessions": 861,
+    "prior": {
+     "num": -1,
+     "den": 2
+    },
+    "observed": {
+     "num": -179,
+     "den": 100
+    },
+    "fraction": {
+     "num": 67,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 309,
+     "den": 625
+    },
+    "score": {
+     "num": -78611,
+     "den": 64600
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 17,
+     "den": 50
+    },
+    "sessions": 1997,
+    "retire_share": {
+     "num": 1,
+     "den": 100
+    },
+    "prior_sessions": 85,
+    "prior": {
+     "num": -3,
+     "den": 4
+    },
+    "observed": {
+     "num": 57,
+     "den": 100
+    },
+    "fraction": {
+     "num": 27,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 1241,
+     "den": 5000
+    },
+    "score": {
+     "num": 17909,
+     "den": 34700
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 91,
+     "den": 100
+    },
+    "sessions": 517,
+    "retire_share": {
+     "num": 7,
+     "den": 100
+    },
+    "prior_sessions": 2,
+    "prior": {
+     "num": 13,
+     "den": 25
+    },
+    "observed": {
+     "num": 87,
+     "den": 50
+    },
+    "fraction": {
+     "num": 71,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 2639,
+     "den": 10000
+    },
+    "score": {
+     "num": 45031,
+     "den": 25950
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 1,
+     "den": 1
+    },
+    "share": {
+     "num": 6,
+     "den": 25
+    },
+    "sessions": 1028,
+    "retire_share": {
+     "num": 0,
+     "den": 1
+    },
+    "prior_sessions": 842,
+    "prior": {
+     "num": -89,
+     "den": 100
+    },
+    "observed": {
+     "num": 29,
+     "den": 25
+    },
+    "fraction": {
+     "num": 73,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 1987,
+     "den": 2500
+    },
+    "score": {
+     "num": 4431,
+     "den": 18700
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 1,
+     "den": 1
+    },
+    "sessions": 1400,
+    "retire_share": {
+     "num": 0,
+     "den": 1
+    },
+    "prior_sessions": 59,
+    "prior": {
+     "num": 187,
+     "den": 100
+    },
+    "observed": {
+     "num": -51,
+     "den": 25
+    },
+    "fraction": {
+     "num": 6,
+     "den": 25
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 19,
+     "den": 25
+    },
+    "score": {
+     "num": -274567,
+     "den": 145900
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 21,
+     "den": 50
+    },
+    "sessions": 69,
+    "retire_share": {
+     "num": 9,
+     "den": 100
+    },
+    "prior_sessions": 926,
+    "prior": {
+     "num": 77,
+     "den": 100
+    },
+    "observed": {
+     "num": 57,
+     "den": 20
+    },
+    "fraction": {
+     "num": 3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 21,
+     "den": 200
+    },
+    "score": {
+     "num": 90967,
+     "den": 99500
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 17,
+     "den": 20
+    },
+    "share": {
+     "num": 79,
+     "den": 100
+    },
+    "sessions": 1020,
+    "retire_share": {
+     "num": 1,
+     "den": 25
+    },
+    "prior_sessions": 245,
+    "prior": {
+     "num": 69,
+     "den": 100
+    },
+    "observed": {
+     "num": 101,
+     "den": 50
+    },
+    "fraction": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 407,
+     "den": 500
+    },
+    "score": {
+     "num": 44589,
+     "den": 25300
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 37,
+     "den": 100
+    },
+    "sessions": 1254,
+    "retire_share": {
+     "num": 1,
+     "den": 10
+    },
+    "prior_sessions": 479,
+    "prior": {
+     "num": -49,
+     "den": 50
+    },
+    "observed": {
+     "num": -3,
+     "den": 4
+    },
+    "fraction": {
+     "num": 69,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 1147,
+     "den": 10000
+    },
+    "score": {
+     "num": -35248,
+     "den": 43325
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 17,
+     "den": 25
+    },
+    "sessions": 1796,
+    "retire_share": {
+     "num": 1,
+     "den": 50
+    },
+    "prior_sessions": 169,
+    "prior": {
+     "num": 41,
+     "den": 100
+    },
+    "observed": {
+     "num": 1,
+     "den": 2
+    },
+    "fraction": {
+     "num": 4,
+     "den": 25
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 357,
+     "den": 625
+    },
+    "score": {
+     "num": 32243,
+     "den": 65500
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 27,
+     "den": 50
+    },
+    "sessions": 94,
+    "retire_share": {
+     "num": 1,
+     "den": 10
+    },
+    "prior_sessions": 950,
+    "prior": {
+     "num": 69,
+     "den": 50
+    },
+    "observed": {
+     "num": 123,
+     "den": 100
+    },
+    "fraction": {
+     "num": 8,
+     "den": 25
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 459,
+     "den": 1250
+    },
+    "score": {
+     "num": 23777,
+     "den": 17400
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 67,
+     "den": 100
+    },
+    "sessions": 996,
+    "retire_share": {
+     "num": 3,
+     "den": 100
+    },
+    "prior_sessions": 807,
+    "prior": {
+     "num": 47,
+     "den": 100
+    },
+    "observed": {
+     "num": -53,
+     "den": 25
+    },
+    "fraction": {
+     "num": 23,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 5159,
+     "den": 10000
+    },
+    "score": {
+     "num": -57741,
+     "den": 60100
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 23,
+     "den": 50
+    },
+    "share": {
+     "num": 3,
+     "den": 25
+    },
+    "sessions": 1600,
+    "retire_share": {
+     "num": 3,
+     "den": 100
+    },
+    "prior_sessions": 921,
+    "prior": {
+     "num": 17,
+     "den": 100
+    },
+    "observed": {
+     "num": 19,
+     "den": 100
+    },
+    "fraction": {
+     "num": 13,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 821,
+     "den": 5000
+    },
+    "score": {
+     "num": 46057,
+     "den": 252100
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 27,
+     "den": 50
+    },
+    "sessions": 1456,
+    "retire_share": {
+     "num": 1,
+     "den": 10
+    },
+    "prior_sessions": 937,
+    "prior": {
+     "num": 27,
+     "den": 50
+    },
+    "observed": {
+     "num": -227,
+     "den": 100
+    },
+    "fraction": {
+     "num": 17,
+     "den": 50
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 891,
+     "den": 2500
+    },
+    "score": {
+     "num": -139957,
+     "den": 119650
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 11,
+     "den": 20
+    },
+    "sessions": 1739,
+    "retire_share": {
+     "num": 1,
+     "den": 10
+    },
+    "prior_sessions": 63,
+    "prior": {
+     "num": 33,
+     "den": 20
+    },
+    "observed": {
+     "num": -54,
+     "den": 25
+    },
+    "fraction": {
+     "num": 23,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 847,
+     "den": 2000
+    },
+    "score": {
+     "num": -365229,
+     "den": 180200
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 24,
+     "den": 25
+    },
+    "sessions": 617,
+    "retire_share": {
+     "num": 1,
+     "den": 20
+    },
+    "prior_sessions": 62,
+    "prior": {
+     "num": 17,
+     "den": 50
+    },
+    "observed": {
+     "num": 52,
+     "den": 25
+    },
+    "fraction": {
+     "num": 97,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 0,
+     "den": 1
+    },
+    "score": {
+     "num": 32611,
+     "den": 16975
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 3,
+     "den": 10
+    },
+    "sessions": 1725,
+    "retire_share": {
+     "num": 9,
+     "den": 100
+    },
+    "prior_sessions": 239,
+    "prior": {
+     "num": 191,
+     "den": 100
+    },
+    "observed": {
+     "num": 17,
+     "den": 20
+    },
+    "fraction": {
+     "num": 89,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 0,
+     "den": 1
+    },
+    "score": {
+     "num": 96137,
+     "den": 98200
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 3,
+     "den": 50
+    },
+    "sessions": 314,
+    "retire_share": {
+     "num": 1,
+     "den": 10
+    },
+    "prior_sessions": 169,
+    "prior": {
+     "num": -39,
+     "den": 100
+    },
+    "observed": {
+     "num": 163,
+     "den": 100
+    },
+    "fraction": {
+     "num": 47,
+     "den": 50
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 0,
+     "den": 1
+    },
+    "score": {
+     "num": 44591,
+     "den": 48300
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 89,
+     "den": 100
+    },
+    "sessions": 1085,
+    "retire_share": {
+     "num": 1,
+     "den": 100
+    },
+    "prior_sessions": 865,
+    "prior": {
+     "num": -3,
+     "den": 25
+    },
+    "observed": {
+     "num": 127,
+     "den": 50
+    },
+    "fraction": {
+     "num": 67,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 2937,
+     "den": 10000
+    },
+    "score": {
+     "num": 26521,
+     "den": 19500
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 1,
+     "den": 20
+    },
+    "sessions": 110,
+    "retire_share": {
+     "num": 1,
+     "den": 50
+    },
+    "prior_sessions": 338,
+    "prior": {
+     "num": 129,
+     "den": 100
+    },
+    "observed": {
+     "num": -101,
+     "den": 50
+    },
+    "fraction": {
+     "num": 17,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 83,
+     "den": 2000
+    },
+    "score": {
+     "num": 10691,
+     "den": 22400
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 69,
+     "den": 100
+    },
+    "sessions": 618,
+    "retire_share": {
+     "num": 0,
+     "den": 1
+    },
+    "prior_sessions": 247,
+    "prior": {
+     "num": -77,
+     "den": 100
+    },
+    "observed": {
+     "num": 181,
+     "den": 100
+    },
+    "fraction": {
+     "num": 27,
+     "den": 50
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 1587,
+     "den": 5000
+    },
+    "score": {
+     "num": 92839,
+     "den": 86500
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 21,
+     "den": 25
+    },
+    "sessions": 1051,
+    "retire_share": {
+     "num": 0,
+     "den": 1
+    },
+    "prior_sessions": 354,
+    "prior": {
+     "num": 8,
+     "den": 25
+    },
+    "observed": {
+     "num": -11,
+     "den": 25
+    },
+    "fraction": {
+     "num": 7,
+     "den": 50
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 903,
+     "den": 1250
+    },
+    "score": {
+     "num": -8729,
+     "den": 35125
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 9,
+     "den": 50
+    },
+    "share": {
+     "num": 17,
+     "den": 25
+    },
+    "sessions": 108,
+    "retire_share": {
+     "num": 2,
+     "den": 25
+    },
+    "prior_sessions": 797,
+    "prior": {
+     "num": 41,
+     "den": 50
+    },
+    "observed": {
+     "num": 267,
+     "den": 100
+    },
+    "fraction": {
+     "num": 17,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 119,
+     "den": 200
+    },
+    "score": {
+     "num": 9419,
+     "den": 9050
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 1,
+     "den": 25
+    },
+    "sessions": 1372,
+    "retire_share": {
+     "num": 3,
+     "den": 100
+    },
+    "prior_sessions": 654,
+    "prior": {
+     "num": 18,
+     "den": 25
+    },
+    "observed": {
+     "num": 33,
+     "den": 25
+    },
+    "fraction": {
+     "num": 3,
+     "den": 50
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 47,
+     "den": 1250
+    },
+    "score": {
+     "num": 28524,
+     "den": 25325
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 1,
+     "den": 20
+    },
+    "sessions": 1965,
+    "retire_share": {
+     "num": 3,
+     "den": 100
+    },
+    "prior_sessions": 891,
+    "prior": {
+     "num": 27,
+     "den": 100
+    },
+    "observed": {
+     "num": -59,
+     "den": 25
+    },
+    "fraction": {
+     "num": 41,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 0,
+     "den": 1
+    },
+    "score": {
+     "num": -146561,
+     "den": 95200
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 31,
+     "den": 100
+    },
+    "share": {
+     "num": 3,
+     "den": 100
+    },
+    "sessions": 1497,
+    "retire_share": {
+     "num": 3,
+     "den": 50
+    },
+    "prior_sessions": 922,
+    "prior": {
+     "num": -17,
+     "den": 25
+    },
+    "observed": {
+     "num": 49,
+     "den": 20
+    },
+    "fraction": {
+     "num": 99,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 192,
+     "den": 625
+    },
+    "score": {
+     "num": 304069,
+     "den": 241900
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 9,
+     "den": 50
+    },
+    "sessions": 1384,
+    "retire_share": {
+     "num": 1,
+     "den": 10
+    },
+    "prior_sessions": 190,
+    "prior": {
+     "num": 14,
+     "den": 25
+    },
+    "observed": {
+     "num": 49,
+     "den": 20
+    },
+    "fraction": {
+     "num": 16,
+     "den": 25
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 0,
+     "den": 1
+    },
+    "score": {
+     "num": 8743,
+     "den": 3935
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 13,
+     "den": 20
+    },
+    "sessions": 1375,
+    "retire_share": {
+     "num": 3,
+     "den": 100
+    },
+    "prior_sessions": 148,
+    "prior": {
+     "num": -23,
+     "den": 50
+    },
+    "observed": {
+     "num": 77,
+     "den": 50
+    },
+    "fraction": {
+     "num": 7,
+     "den": 20
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 169,
+     "den": 400
+    },
+    "score": {
+     "num": 102471,
+     "den": 76150
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 1,
+     "den": 10
+    },
+    "share": {
+     "num": 11,
+     "den": 100
+    },
+    "sessions": 1880,
+    "retire_share": {
+     "num": 9,
+     "den": 100
+    },
+    "prior_sessions": 801,
+    "prior": {
+     "num": 1,
+     "den": 4
+    },
+    "observed": {
+     "num": 61,
+     "den": 50
+    },
+    "fraction": {
+     "num": 3,
+     "den": 20
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 217,
+     "den": 2000
+    },
+    "score": {
+     "num": 49877,
+     "den": 53620
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 43,
+     "den": 100
+    },
+    "sessions": 477,
+    "retire_share": {
+     "num": 1,
+     "den": 50
+    },
+    "prior_sessions": 987,
+    "prior": {
+     "num": -23,
+     "den": 100
+    },
+    "observed": {
+     "num": 31,
+     "den": 100
+    },
+    "fraction": {
+     "num": 17,
+     "den": 50
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 1419,
+     "den": 5000
+    },
+    "score": {
+     "num": -1319,
+     "den": 24400
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 1,
+     "den": 5
+    },
+    "share": {
+     "num": 17,
+     "den": 25
+    },
+    "sessions": 590,
+    "retire_share": {
+     "num": 1,
+     "den": 100
+    },
+    "prior_sessions": 290,
+    "prior": {
+     "num": 6,
+     "den": 25
+    },
+    "observed": {
+     "num": -261,
+     "den": 100
+    },
+    "fraction": {
+     "num": 7,
+     "den": 20
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 64,
+     "den": 125
+    },
+    "score": {
+     "num": -14703,
+     "den": 8800
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 43,
+     "den": 100
+    },
+    "sessions": 1124,
+    "retire_share": {
+     "num": 7,
+     "den": 100
+    },
+    "prior_sessions": 127,
+    "prior": {
+     "num": 63,
+     "den": 100
+    },
+    "observed": {
+     "num": 111,
+     "den": 100
+    },
+    "fraction": {
+     "num": 49,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 2193,
+     "den": 10000
+    },
+    "score": {
+     "num": 8851,
+     "den": 8340
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 43,
+     "den": 50
+    },
+    "sessions": 1124,
+    "retire_share": {
+     "num": 9,
+     "den": 100
+    },
+    "prior_sessions": 813,
+    "prior": {
+     "num": 9,
+     "den": 10
+    },
+    "observed": {
+     "num": -57,
+     "den": 25
+    },
+    "fraction": {
+     "num": 3,
+     "den": 5
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 43,
+     "den": 125
+    },
+    "score": {
+     "num": -91551,
+     "den": 96850
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 3,
+     "den": 100
+    },
+    "sessions": 690,
+    "retire_share": {
+     "num": 0,
+     "den": 1
+    },
+    "prior_sessions": 926,
+    "prior": {
+     "num": -9,
+     "den": 10
+    },
+    "observed": {
+     "num": 59,
+     "den": 50
+    },
+    "fraction": {
+     "num": 39,
+     "den": 50
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 33,
+     "den": 5000
+    },
+    "score": {
+     "num": -6,
+     "den": 505
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 47,
+     "den": 50
+    },
+    "sessions": 751,
+    "retire_share": {
+     "num": 1,
+     "den": 50
+    },
+    "prior_sessions": 495,
+    "prior": {
+     "num": -1,
+     "den": 2
+    },
+    "observed": {
+     "num": -2,
+     "den": 5
+    },
+    "fraction": {
+     "num": 93,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 329,
+     "den": 5000
+    },
+    "score": {
+     "num": -5479,
+     "den": 12460
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 27,
+     "den": 50
+    },
+    "share": {
+     "num": 23,
+     "den": 25
+    },
+    "sessions": 766,
+    "retire_share": {
+     "num": 3,
+     "den": 100
+    },
+    "prior_sessions": 39,
+    "prior": {
+     "num": -47,
+     "den": 50
+    },
+    "observed": {
+     "num": 149,
+     "den": 100
+    },
+    "fraction": {
+     "num": 17,
+     "den": 20
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 597,
+     "den": 1000
+    },
+    "score": {
+     "num": 27617,
+     "den": 20125
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 4,
+     "den": 25
+    },
+    "sessions": 665,
+    "retire_share": {
+     "num": 9,
+     "den": 100
+    },
+    "prior_sessions": 158,
+    "prior": {
+     "num": 13,
+     "den": 20
+    },
+    "observed": {
+     "num": -149,
+     "den": 50
+    },
+    "fraction": {
+     "num": 13,
+     "den": 25
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 0,
+     "den": 1
+    },
+    "score": {
+     "num": -1879,
+     "den": 823
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 47,
+     "den": 50
+    },
+    "sessions": 70,
+    "retire_share": {
+     "num": 1,
+     "den": 20
+    },
+    "prior_sessions": 935,
+    "prior": {
+     "num": 3,
+     "den": 100
+    },
+    "observed": {
+     "num": -137,
+     "den": 50
+    },
+    "fraction": {
+     "num": 9,
+     "den": 10
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 47,
+     "den": 500
+    },
+    "score": {
+     "num": -131,
+     "den": 804
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 9,
+     "den": 50
+    },
+    "sessions": 242,
+    "retire_share": {
+     "num": 3,
+     "den": 100
+    },
+    "prior_sessions": 707,
+    "prior": {
+     "num": 23,
+     "den": 20
+    },
+    "observed": {
+     "num": 197,
+     "den": 100
+    },
+    "fraction": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 9,
+     "den": 50
+    },
+    "score": {
+     "num": 128979,
+     "den": 94900
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 0,
+     "den": 1
+    },
+    "sessions": 362,
+    "retire_share": {
+     "num": 1,
+     "den": 100
+    },
+    "prior_sessions": 4,
+    "prior": {
+     "num": -37,
+     "den": 100
+    },
+    "observed": {
+     "num": 211,
+     "den": 100
+    },
+    "fraction": {
+     "num": 41,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 0,
+     "den": 1
+    },
+    "score": {
+     "num": 38117,
+     "den": 18300
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 71,
+     "den": 100
+    },
+    "sessions": 83,
+    "retire_share": {
+     "num": 7,
+     "den": 100
+    },
+    "prior_sessions": 520,
+    "prior": {
+     "num": 197,
+     "den": 100
+    },
+    "observed": {
+     "num": -219,
+     "den": 100
+    },
+    "fraction": {
+     "num": 19,
+     "den": 25
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 213,
+     "den": 1250
+    },
+    "score": {
+     "num": 84263,
+     "den": 60300
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 7,
+     "den": 20
+    },
+    "share": {
+     "num": 19,
+     "den": 100
+    },
+    "sessions": 1312,
+    "retire_share": {
+     "num": 1,
+     "den": 25
+    },
+    "prior_sessions": 15,
+    "prior": {
+     "num": -18,
+     "den": 25
+    },
+    "observed": {
+     "num": 67,
+     "den": 100
+    },
+    "fraction": {
+     "num": 6,
+     "den": 25
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 571,
+     "den": 2500
+    },
+    "score": {
+     "num": 21706,
+     "den": 33175
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 19,
+     "den": 20
+    },
+    "sessions": 458,
+    "retire_share": {
+     "num": 1,
+     "den": 100
+    },
+    "prior_sessions": 948,
+    "prior": {
+     "num": 77,
+     "den": 50
+    },
+    "observed": {
+     "num": 9,
+     "den": 100
+    },
+    "fraction": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 19,
+     "den": 20
+    },
+    "score": {
+     "num": 75057,
+     "den": 70300
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 53,
+     "den": 100
+    },
+    "share": {
+     "num": 31,
+     "den": 100
+    },
+    "sessions": 1837,
+    "retire_share": {
+     "num": 1,
+     "den": 100
+    },
+    "prior_sessions": 200,
+    "prior": {
+     "num": 77,
+     "den": 50
+    },
+    "observed": {
+     "num": -93,
+     "den": 50
+    },
+    "fraction": {
+     "num": 3,
+     "den": 25
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 841,
+     "den": 2500
+    },
+    "score": {
+     "num": -155441,
+     "den": 101850
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 6,
+     "den": 25
+    },
+    "share": {
+     "num": 1,
+     "den": 5
+    },
+    "sessions": 636,
+    "retire_share": {
+     "num": 3,
+     "den": 100
+    },
+    "prior_sessions": 284,
+    "prior": {
+     "num": 43,
+     "den": 50
+    },
+    "observed": {
+     "num": 29,
+     "den": 100
+    },
+    "fraction": {
+     "num": 29,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 529,
+     "den": 2500
+    },
+    "score": {
+     "num": 10717,
+     "den": 23000
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 47,
+     "den": 50
+    },
+    "sessions": 803,
+    "retire_share": {
+     "num": 1,
+     "den": 25
+    },
+    "prior_sessions": 381,
+    "prior": {
+     "num": 19,
+     "den": 20
+    },
+    "observed": {
+     "num": -77,
+     "den": 50
+    },
+    "fraction": {
+     "num": 7,
+     "den": 25
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 423,
+     "den": 625
+    },
+    "score": {
+     "num": -87467,
+     "den": 118400
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 4,
+     "den": 5
+    },
+    "sessions": 1522,
+    "retire_share": {
+     "num": 7,
+     "den": 100
+    },
+    "prior_sessions": 702,
+    "prior": {
+     "num": 46,
+     "den": 25
+    },
+    "observed": {
+     "num": 37,
+     "den": 25
+    },
+    "fraction": {
+     "num": 23,
+     "den": 50
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 54,
+     "den": 125
+    },
+    "score": {
+     "num": 44303,
+     "den": 27800
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 4,
+     "den": 5
+    },
+    "share": {
+     "num": 7,
+     "den": 25
+    },
+    "sessions": 1177,
+    "retire_share": {
+     "num": 3,
+     "den": 100
+    },
+    "prior_sessions": 843,
+    "prior": {
+     "num": -99,
+     "den": 100
+    },
+    "observed": {
+     "num": -159,
+     "den": 100
+    },
+    "fraction": {
+     "num": 29,
+     "den": 50
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 727,
+     "den": 1250
+    },
+    "score": {
+     "num": -1353,
+     "den": 1010
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 19,
+     "den": 50
+    },
+    "sessions": 643,
+    "retire_share": {
+     "num": 1,
+     "den": 25
+    },
+    "prior_sessions": 961,
+    "prior": {
+     "num": 36,
+     "den": 25
+    },
+    "observed": {
+     "num": -81,
+     "den": 50
+    },
+    "fraction": {
+     "num": 31,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 1311,
+     "den": 5000
+    },
+    "score": {
+     "num": 17109,
+     "den": 80200
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 93,
+     "den": 100
+    },
+    "sessions": 1502,
+    "retire_share": {
+     "num": 9,
+     "den": 100
+    },
+    "prior_sessions": 441,
+    "prior": {
+     "num": -27,
+     "den": 100
+    },
+    "observed": {
+     "num": 42,
+     "den": 25
+    },
+    "fraction": {
+     "num": 4,
+     "den": 5
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 93,
+     "den": 500
+    },
+    "score": {
+     "num": 240429,
+     "den": 194300
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 13,
+     "den": 20
+    },
+    "share": {
+     "num": 13,
+     "den": 100
+    },
+    "sessions": 700,
+    "retire_share": {
+     "num": 0,
+     "den": 1
+    },
+    "prior_sessions": 891,
+    "prior": {
+     "num": 3,
+     "den": 10
+    },
+    "observed": {
+     "num": 201,
+     "den": 100
+    },
+    "fraction": {
+     "num": 13,
+     "den": 25
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 1001,
+     "den": 2500
+    },
+    "score": {
+     "num": 16743,
+     "den": 15910
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 71,
+     "den": 100
+    },
+    "sessions": 1193,
+    "retire_share": {
+     "num": 0,
+     "den": 1
+    },
+    "prior_sessions": 120,
+    "prior": {
+     "num": -14,
+     "den": 25
+    },
+    "observed": {
+     "num": -54,
+     "den": 25
+    },
+    "fraction": {
+     "num": 1,
+     "den": 25
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 426,
+     "den": 625
+    },
+    "score": {
+     "num": -66102,
+     "den": 32825
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 1,
+     "den": 1
+    },
+    "share": {
+     "num": 11,
+     "den": 50
+    },
+    "sessions": 1826,
+    "retire_share": {
+     "num": 1,
+     "den": 20
+    },
+    "prior_sessions": 593,
+    "prior": {
+     "num": 31,
+     "den": 100
+    },
+    "observed": {
+     "num": -18,
+     "den": 25
+    },
+    "fraction": {
+     "num": 7,
+     "den": 25
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 274,
+     "den": 625
+    },
+    "score": {
+     "num": -113089,
+     "den": 241900
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 17,
+     "den": 100
+    },
+    "share": {
+     "num": 13,
+     "den": 100
+    },
+    "sessions": 586,
+    "retire_share": {
+     "num": 1,
+     "den": 25
+    },
+    "prior_sessions": 345,
+    "prior": {
+     "num": 21,
+     "den": 50
+    },
+    "observed": {
+     "num": -8,
+     "den": 25
+    },
+    "fraction": {
+     "num": 7,
+     "den": 10
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 79,
+     "den": 500
+    },
+    "score": {
+     "num": -2131,
+     "den": 46550
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 1,
+     "den": 25
+    },
+    "sessions": 1997,
+    "retire_share": {
+     "num": 2,
+     "den": 25
+    },
+    "prior_sessions": 324,
+    "prior": {
+     "num": -81,
+     "den": 100
+    },
+    "observed": {
+     "num": 41,
+     "den": 50
+    },
+    "fraction": {
+     "num": 2,
+     "den": 25
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 0,
+     "den": 1
+    },
+    "score": {
+     "num": 13751,
+     "den": 23210
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 63,
+     "den": 100
+    },
+    "sessions": 1551,
+    "retire_share": {
+     "num": 7,
+     "den": 100
+    },
+    "prior_sessions": 867,
+    "prior": {
+     "num": 17,
+     "den": 100
+    },
+    "observed": {
+     "num": 197,
+     "den": 100
+    },
+    "fraction": {
+     "num": 7,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 5859,
+     "den": 10000
+    },
+    "score": {
+     "num": 53381,
+     "den": 40300
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 49,
+     "den": 50
+    },
+    "sessions": 1388,
+    "retire_share": {
+     "num": 7,
+     "den": 100
+    },
+    "prior_sessions": 741,
+    "prior": {
+     "num": -47,
+     "den": 100
+    },
+    "observed": {
+     "num": 43,
+     "den": 20
+    },
+    "fraction": {
+     "num": 47,
+     "den": 50
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 0,
+     "den": 1
+    },
+    "score": {
+     "num": 263593,
+     "den": 212900
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 53,
+     "den": 100
+    },
+    "share": {
+     "num": 33,
+     "den": 50
+    },
+    "sessions": 551,
+    "retire_share": {
+     "num": 1,
+     "den": 20
+    },
+    "prior_sessions": 351,
+    "prior": {
+     "num": 11,
+     "den": 100
+    },
+    "observed": {
+     "num": 119,
+     "den": 50
+    },
+    "fraction": {
+     "num": 71,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 5677,
+     "den": 10000
+    },
+    "score": {
+     "num": 134999,
+     "den": 90200
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 6,
+     "den": 25
+    },
+    "share": {
+     "num": 1,
+     "den": 10
+    },
+    "sessions": 1909,
+    "retire_share": {
+     "num": 9,
+     "den": 100
+    },
+    "prior_sessions": 737,
+    "prior": {
+     "num": 19,
+     "den": 50
+    },
+    "observed": {
+     "num": 71,
+     "den": 25
+    },
+    "fraction": {
+     "num": 7,
+     "den": 20
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 149,
+     "den": 1000
+    },
+    "score": {
+     "num": 95027,
+     "den": 44100
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 27,
+     "den": 50
+    },
+    "sessions": 822,
+    "retire_share": {
+     "num": 3,
+     "den": 50
+    },
+    "prior_sessions": 280,
+    "prior": {
+     "num": 27,
+     "den": 25
+    },
+    "observed": {
+     "num": -41,
+     "den": 25
+    },
+    "fraction": {
+     "num": 37,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 1701,
+     "den": 5000
+    },
+    "score": {
+     "num": -13071,
+     "den": 13775
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 22,
+     "den": 25
+    },
+    "sessions": 1048,
+    "retire_share": {
+     "num": 1,
+     "den": 20
+    },
+    "prior_sessions": 350,
+    "prior": {
+     "num": 17,
+     "den": 100
+    },
+    "observed": {
+     "num": 109,
+     "den": 50
+    },
+    "fraction": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 77,
+     "den": 125
+    },
+    "score": {
+     "num": 39069,
+     "den": 23300
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 13,
+     "den": 25
+    },
+    "share": {
+     "num": 7,
+     "den": 25
+    },
+    "sessions": 969,
+    "retire_share": {
+     "num": 1,
+     "den": 20
+    },
+    "prior_sessions": 690,
+    "prior": {
+     "num": 18,
+     "den": 25
+    },
+    "observed": {
+     "num": -8,
+     "den": 5
+    },
+    "fraction": {
+     "num": 14,
+     "den": 25
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 259,
+     "den": 625
+    },
+    "score": {
+     "num": -1756,
+     "den": 2765
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 1,
+     "den": 100
+    },
+    "share": {
+     "num": 18,
+     "den": 25
+    },
+    "sessions": 1373,
+    "retire_share": {
+     "num": 9,
+     "den": 100
+    },
+    "prior_sessions": 876,
+    "prior": {
+     "num": 43,
+     "den": 25
+    },
+    "observed": {
+     "num": -281,
+     "den": 100
+    },
+    "fraction": {
+     "num": 81,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 1449,
+     "den": 10000
+    },
+    "score": {
+     "num": -235141,
+     "den": 224900
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 1,
+     "den": 50
+    },
+    "sessions": 1935,
+    "retire_share": {
+     "num": 1,
+     "den": 10
+    },
+    "prior_sessions": 378,
+    "prior": {
+     "num": -57,
+     "den": 100
+    },
+    "observed": {
+     "num": -133,
+     "den": 100
+    },
+    "fraction": {
+     "num": 7,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 0,
+     "den": 1
+    },
+    "score": {
+     "num": -30989,
+     "den": 25700
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 33,
+     "den": 100
+    },
+    "share": {
+     "num": 57,
+     "den": 100
+    },
+    "sessions": 899,
+    "retire_share": {
+     "num": 1,
+     "den": 25
+    },
+    "prior_sessions": 267,
+    "prior": {
+     "num": 46,
+     "den": 25
+    },
+    "observed": {
+     "num": -17,
+     "den": 25
+    },
+    "fraction": {
+     "num": 7,
+     "den": 10
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 201,
+     "den": 500
+    },
+    "score": {
+     "num": -3001,
+     "den": 29150
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 16,
+     "den": 25
+    },
+    "share": {
+     "num": 7,
+     "den": 10
+    },
+    "sessions": 570,
+    "retire_share": {
+     "num": 1,
+     "den": 20
+    },
+    "prior_sessions": 70,
+    "prior": {
+     "num": 9,
+     "den": 50
+    },
+    "observed": {
+     "num": 21,
+     "den": 10
+    },
+    "fraction": {
+     "num": 13,
+     "den": 20
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 661,
+     "den": 1000
+    },
+    "score": {
+     "num": 189,
+     "den": 100
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 77,
+     "den": 100
+    },
+    "sessions": 1444,
+    "retire_share": {
+     "num": 1,
+     "den": 10
+    },
+    "prior_sessions": 439,
+    "prior": {
+     "num": 19,
+     "den": 50
+    },
+    "observed": {
+     "num": -127,
+     "den": 50
+    },
+    "fraction": {
+     "num": 69,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 2387,
+     "den": 10000
+    },
+    "score": {
+     "num": -175047,
+     "den": 94150
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 1,
+     "den": 5
+    },
+    "share": {
+     "num": 13,
+     "den": 100
+    },
+    "sessions": 666,
+    "retire_share": {
+     "num": 1,
+     "den": 100
+    },
+    "prior_sessions": 943,
+    "prior": {
+     "num": 191,
+     "den": 100
+    },
+    "observed": {
+     "num": 53,
+     "den": 25
+    },
+    "fraction": {
+     "num": 71,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 1797,
+     "den": 10000
+    },
+    "score": {
+     "num": 64261,
+     "den": 32180
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 67,
+     "den": 100
+    },
+    "sessions": 1013,
+    "retire_share": {
+     "num": 1,
+     "den": 10
+    },
+    "prior_sessions": 48,
+    "prior": {
+     "num": -31,
+     "den": 50
+    },
+    "observed": {
+     "num": 6,
+     "den": 25
+    },
+    "fraction": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 201,
+     "den": 500
+    },
+    "score": {
+     "num": 5334,
+     "den": 26525
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 11,
+     "den": 100
+    },
+    "sessions": 1019,
+    "retire_share": {
+     "num": 7,
+     "den": 100
+    },
+    "prior_sessions": 99,
+    "prior": {
+     "num": -8,
+     "den": 25
+    },
+    "observed": {
+     "num": -57,
+     "den": 50
+    },
+    "fraction": {
+     "num": 23,
+     "den": 25
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 0,
+     "den": 1
+    },
+    "score": {
+     "num": -59667,
+     "den": 55900
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 11,
+     "den": 50
+    },
+    "sessions": 126,
+    "retire_share": {
+     "num": 7,
+     "den": 100
+    },
+    "prior_sessions": 960,
+    "prior": {
+     "num": -33,
+     "den": 50
+    },
+    "observed": {
+     "num": -47,
+     "den": 25
+    },
+    "fraction": {
+     "num": 7,
+     "den": 50
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 473,
+     "den": 2500
+    },
+    "score": {
+     "num": -3627,
+     "den": 4525
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 19,
+     "den": 25
+    },
+    "sessions": 292,
+    "retire_share": {
+     "num": 9,
+     "den": 100
+    },
+    "prior_sessions": 740,
+    "prior": {
+     "num": 7,
+     "den": 20
+    },
+    "observed": {
+     "num": -237,
+     "den": 100
+    },
+    "fraction": {
+     "num": 13,
+     "den": 50
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 703,
+     "den": 1250
+    },
+    "score": {
+     "num": -5413,
+     "den": 12900
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 97,
+     "den": 100
+    },
+    "share": {
+     "num": 11,
+     "den": 100
+    },
+    "sessions": 1934,
+    "retire_share": {
+     "num": 9,
+     "den": 100
+    },
+    "prior_sessions": 924,
+    "prior": {
+     "num": -1,
+     "den": 2
+    },
+    "observed": {
+     "num": 7,
+     "den": 100
+    },
+    "fraction": {
+     "num": 83,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 4119,
+     "den": 5000
+    },
+    "score": {
+     "num": -16331,
+     "den": 142900
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 17,
+     "den": 25
+    },
+    "sessions": 975,
+    "retire_share": {
+     "num": 3,
+     "den": 50
+    },
+    "prior_sessions": 805,
+    "prior": {
+     "num": -37,
+     "den": 50
+    },
+    "observed": {
+     "num": -19,
+     "den": 20
+    },
+    "fraction": {
+     "num": 27,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 1241,
+     "den": 2500
+    },
+    "score": {
+     "num": -30439,
+     "den": 35600
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 1,
+     "den": 4
+    },
+    "share": {
+     "num": 39,
+     "den": 100
+    },
+    "sessions": 969,
+    "retire_share": {
+     "num": 3,
+     "den": 50
+    },
+    "prior_sessions": 182,
+    "prior": {
+     "num": 57,
+     "den": 50
+    },
+    "observed": {
+     "num": 64,
+     "den": 25
+    },
+    "fraction": {
+     "num": 27,
+     "den": 50
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 393,
+     "den": 1250
+    },
+    "score": {
+     "num": 67203,
+     "den": 28775
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 17,
+     "den": 50
+    },
+    "share": {
+     "num": 1,
+     "den": 100
+    },
+    "sessions": 1069,
+    "retire_share": {
+     "num": 3,
+     "den": 50
+    },
+    "prior_sessions": 492,
+    "prior": {
+     "num": 49,
+     "den": 50
+    },
+    "observed": {
+     "num": 11,
+     "den": 20
+    },
+    "fraction": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 17,
+     "den": 50
+    },
+    "score": {
+     "num": 107011,
+     "den": 156100
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 17,
+     "den": 25
+    },
+    "share": {
+     "num": 14,
+     "den": 25
+    },
+    "sessions": 1114,
+    "retire_share": {
+     "num": 1,
+     "den": 25
+    },
+    "prior_sessions": 711,
+    "prior": {
+     "num": -53,
+     "den": 100
+    },
+    "observed": {
+     "num": -81,
+     "den": 50
+    },
+    "fraction": {
+     "num": 13,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 1439,
+     "den": 2500
+    },
+    "score": {
+     "num": -218151,
+     "den": 182500
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 73,
+     "den": 100
+    },
+    "sessions": 629,
+    "retire_share": {
+     "num": 1,
+     "den": 25
+    },
+    "prior_sessions": 357,
+    "prior": {
+     "num": 11,
+     "den": 25
+    },
+    "observed": {
+     "num": -73,
+     "den": 50
+    },
+    "fraction": {
+     "num": 23,
+     "den": 25
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 73,
+     "den": 1250
+    },
+    "score": {
+     "num": -2239,
+     "den": 2900
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 43,
+     "den": 100
+    },
+    "share": {
+     "num": 23,
+     "den": 25
+    },
+    "sessions": 1820,
+    "retire_share": {
+     "num": 3,
+     "den": 50
+    },
+    "prior_sessions": 11,
+    "prior": {
+     "num": -9,
+     "den": 25
+    },
+    "observed": {
+     "num": -12,
+     "den": 5
+    },
+    "fraction": {
+     "num": 37,
+     "den": 50
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 2787,
+     "den": 5000
+    },
+    "score": {
+     "num": -109299,
+     "den": 45775
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 29,
+     "den": 100
+    },
+    "share": {
+     "num": 27,
+     "den": 100
+    },
+    "sessions": 1472,
+    "retire_share": {
+     "num": 1,
+     "den": 10
+    },
+    "prior_sessions": 63,
+    "prior": {
+     "num": 47,
+     "den": 50
+    },
+    "observed": {
+     "num": 253,
+     "den": 100
+    },
+    "fraction": {
+     "num": 23,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 1373,
+     "den": 5000
+    },
+    "score": {
+     "num": 189169,
+     "den": 76750
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 13,
+     "den": 50
+    },
+    "share": {
+     "num": 33,
+     "den": 100
+    },
+    "sessions": 167,
+    "retire_share": {
+     "num": 1,
+     "den": 50
+    },
+    "prior_sessions": 64,
+    "prior": {
+     "num": 147,
+     "den": 100
+    },
+    "observed": {
+     "num": 5,
+     "den": 2
+    },
+    "fraction": {
+     "num": 11,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 3223,
+     "den": 10000
+    },
+    "score": {
+     "num": 25579,
+     "den": 11550
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 19,
+     "den": 20
+    },
+    "share": {
+     "num": 1,
+     "den": 100
+    },
+    "sessions": 1157,
+    "retire_share": {
+     "num": 1,
+     "den": 25
+    },
+    "prior_sessions": 791,
+    "prior": {
+     "num": -23,
+     "den": 50
+    },
+    "observed": {
+     "num": 43,
+     "den": 20
+    },
+    "fraction": {
+     "num": 31,
+     "den": 50
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 741,
+     "den": 1250
+    },
+    "score": {
+     "num": 212369,
+     "den": 194800
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 1,
+     "den": 20
+    },
+    "sessions": 1376,
+    "retire_share": {
+     "num": 3,
+     "den": 100
+    },
+    "prior_sessions": 661,
+    "prior": {
+     "num": 109,
+     "den": 100
+    },
+    "observed": {
+     "num": 23,
+     "den": 25
+    },
+    "fraction": {
+     "num": 18,
+     "den": 25
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 0,
+     "den": 1
+    },
+    "score": {
+     "num": 198641,
+     "den": 203700
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 3,
+     "den": 4
+    },
+    "sessions": 500,
+    "retire_share": {
+     "num": 1,
+     "den": 50
+    },
+    "prior_sessions": 903,
+    "prior": {
+     "num": 97,
+     "den": 100
+    },
+    "observed": {
+     "num": 223,
+     "den": 100
+    },
+    "fraction": {
+     "num": 23,
+     "den": 50
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 81,
+     "den": 200
+    },
+    "score": {
+     "num": 199091,
+     "den": 140300
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 29,
+     "den": 100
+    },
+    "sessions": 417,
+    "retire_share": {
+     "num": 1,
+     "den": 25
+    },
+    "prior_sessions": 697,
+    "prior": {
+     "num": 39,
+     "den": 100
+    },
+    "observed": {
+     "num": -183,
+     "den": 100
+    },
+    "fraction": {
+     "num": 1,
+     "den": 20
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 551,
+     "den": 2000
+    },
+    "score": {
+     "num": -6141,
+     "den": 13925
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 11,
+     "den": 100
+    },
+    "share": {
+     "num": 29,
+     "den": 100
+    },
+    "sessions": 1096,
+    "retire_share": {
+     "num": 1,
+     "den": 25
+    },
+    "prior_sessions": 589,
+    "prior": {
+     "num": 149,
+     "den": 100
+    },
+    "observed": {
+     "num": 11,
+     "den": 50
+    },
+    "fraction": {
+     "num": 17,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 1297,
+     "den": 5000
+    },
+    "score": {
+     "num": 111873,
+     "den": 168500
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 3,
+     "den": 25
+    },
+    "sessions": 690,
+    "retire_share": {
+     "num": 1,
+     "den": 20
+    },
+    "prior_sessions": 797,
+    "prior": {
+     "num": -3,
+     "den": 50
+    },
+    "observed": {
+     "num": 131,
+     "den": 100
+    },
+    "fraction": {
+     "num": 9,
+     "den": 10
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 0,
+     "den": 1
+    },
+    "score": {
+     "num": 21402,
+     "den": 37175
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 41,
+     "den": 100
+    },
+    "sessions": 225,
+    "retire_share": {
+     "num": 1,
+     "den": 50
+    },
+    "prior_sessions": 540,
+    "prior": {
+     "num": 33,
+     "den": 20
+    },
+    "observed": {
+     "num": 93,
+     "den": 100
+    },
+    "fraction": {
+     "num": 9,
+     "den": 25
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 164,
+     "den": 625
+    },
+    "score": {
+     "num": 489,
+     "den": 340
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 19,
+     "den": 20
+    },
+    "sessions": 1149,
+    "retire_share": {
+     "num": 1,
+     "den": 25
+    },
+    "prior_sessions": 115,
+    "prior": {
+     "num": 19,
+     "den": 10
+    },
+    "observed": {
+     "num": 49,
+     "den": 25
+    },
+    "fraction": {
+     "num": 17,
+     "den": 25
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 38,
+     "den": 125
+    },
+    "score": {
+     "num": 123527,
+     "den": 63200
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 47,
+     "den": 50
+    },
+    "sessions": 1042,
+    "retire_share": {
+     "num": 1,
+     "den": 100
+    },
+    "prior_sessions": 498,
+    "prior": {
+     "num": -2,
+     "den": 25
+    },
+    "observed": {
+     "num": 23,
+     "den": 10
+    },
+    "fraction": {
+     "num": 93,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 329,
+     "den": 5000
+    },
+    "score": {
+     "num": 8417,
+     "den": 5500
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 7,
+     "den": 10
+    },
+    "sessions": 1206,
+    "retire_share": {
+     "num": 1,
+     "den": 25
+    },
+    "prior_sessions": 93,
+    "prior": {
+     "num": 93,
+     "den": 100
+    },
+    "observed": {
+     "num": -57,
+     "den": 20
+    },
+    "fraction": {
+     "num": 29,
+     "den": 50
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 147,
+     "den": 500
+    },
+    "score": {
+     "num": -111687,
+     "den": 43300
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 1,
+     "den": 2
+    },
+    "sessions": 1444,
+    "retire_share": {
+     "num": 1,
+     "den": 20
+    },
+    "prior_sessions": 441,
+    "prior": {
+     "num": -13,
+     "den": 50
+    },
+    "observed": {
+     "num": 103,
+     "den": 50
+    },
+    "fraction": {
+     "num": 24,
+     "den": 25
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 0,
+     "den": 1
+    },
+    "score": {
+     "num": 4931,
+     "den": 3250
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 27,
+     "den": 50
+    },
+    "sessions": 311,
+    "retire_share": {
+     "num": 1,
+     "den": 25
+    },
+    "prior_sessions": 145,
+    "prior": {
+     "num": 77,
+     "den": 100
+    },
+    "observed": {
+     "num": 11,
+     "den": 20
+    },
+    "fraction": {
+     "num": 7,
+     "den": 25
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 243,
+     "den": 625
+    },
+    "score": {
+     "num": 2827,
+     "den": 4560
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 71,
+     "den": 100
+    },
+    "sessions": 629,
+    "retire_share": {
+     "num": 0,
+     "den": 1
+    },
+    "prior_sessions": 377,
+    "prior": {
+     "num": 163,
+     "den": 100
+    },
+    "observed": {
+     "num": 209,
+     "den": 100
+    },
+    "fraction": {
+     "num": 13,
+     "den": 25
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 213,
+     "den": 625
+    },
+    "score": {
+     "num": 24114,
+     "den": 12575
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 4,
+     "den": 5
+    },
+    "sessions": 1210,
+    "retire_share": {
+     "num": 3,
+     "den": 50
+    },
+    "prior_sessions": 655,
+    "prior": {
+     "num": -71,
+     "den": 100
+    },
+    "observed": {
+     "num": 43,
+     "den": 100
+    },
+    "fraction": {
+     "num": 3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 1,
+     "den": 5
+    },
+    "score": {
+     "num": 221,
+     "den": 7460
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 97,
+     "den": 100
+    },
+    "sessions": 1548,
+    "retire_share": {
+     "num": 1,
+     "den": 50
+    },
+    "prior_sessions": 190,
+    "prior": {
+     "num": 199,
+     "den": 100
+    },
+    "observed": {
+     "num": 12,
+     "den": 5
+    },
+    "fraction": {
+     "num": 17,
+     "den": 25
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 194,
+     "den": 625
+    },
+    "score": {
+     "num": 40933,
+     "den": 17380
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 83,
+     "den": 100
+    },
+    "sessions": 1960,
+    "retire_share": {
+     "num": 1,
+     "den": 20
+    },
+    "prior_sessions": 205,
+    "prior": {
+     "num": -1,
+     "den": 10
+    },
+    "observed": {
+     "num": -41,
+     "den": 100
+    },
+    "fraction": {
+     "num": 1,
+     "den": 50
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 4067,
+     "den": 5000
+    },
+    "score": {
+     "num": -8241,
+     "den": 21650
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 83,
+     "den": 100
+    },
+    "sessions": 1783,
+    "retire_share": {
+     "num": 1,
+     "den": 10
+    },
+    "prior_sessions": 628,
+    "prior": {
+     "num": -69,
+     "den": 100
+    },
+    "observed": {
+     "num": 27,
+     "den": 100
+    },
+    "fraction": {
+     "num": 1,
+     "den": 10
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 747,
+     "den": 1000
+    },
+    "score": {
+     "num": 4809,
+     "den": 241100
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 61,
+     "den": 100
+    },
+    "share": {
+     "num": 1,
+     "den": 4
+    },
+    "sessions": 1595,
+    "retire_share": {
+     "num": 1,
+     "den": 25
+    },
+    "prior_sessions": 109,
+    "prior": {
+     "num": -3,
+     "den": 100
+    },
+    "observed": {
+     "num": 1,
+     "den": 10
+    },
+    "fraction": {
+     "num": 27,
+     "den": 50
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 1111,
+     "den": 2500
+    },
+    "score": {
+     "num": 15623,
+     "den": 170400
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 19,
+     "den": 100
+    },
+    "sessions": 275,
+    "retire_share": {
+     "num": 1,
+     "den": 10
+    },
+    "prior_sessions": 215,
+    "prior": {
+     "num": 13,
+     "den": 10
+    },
+    "observed": {
+     "num": -241,
+     "den": 100
+    },
+    "fraction": {
+     "num": 83,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 0,
+     "den": 1
+    },
+    "score": {
+     "num": -219,
+     "den": 280
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 24,
+     "den": 25
+    },
+    "sessions": 1118,
+    "retire_share": {
+     "num": 7,
+     "den": 100
+    },
+    "prior_sessions": 131,
+    "prior": {
+     "num": 3,
+     "den": 25
+    },
+    "observed": {
+     "num": -119,
+     "den": 50
+    },
+    "fraction": {
+     "num": 9,
+     "den": 20
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 66,
+     "den": 125
+    },
+    "score": {
+     "num": -66128,
+     "den": 31225
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 31,
+     "den": 100
+    },
+    "sessions": 149,
+    "retire_share": {
+     "num": 7,
+     "den": 100
+    },
+    "prior_sessions": 442,
+    "prior": {
+     "num": 33,
+     "den": 25
+    },
+    "observed": {
+     "num": 117,
+     "den": 50
+    },
+    "fraction": {
+     "num": 59,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 1271,
+     "den": 10000
+    },
+    "score": {
+     "num": 3107,
+     "den": 1970
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 16,
+     "den": 25
+    },
+    "sessions": 1497,
+    "retire_share": {
+     "num": 1,
+     "den": 10
+    },
+    "prior_sessions": 962,
+    "prior": {
+     "num": 171,
+     "den": 100
+    },
+    "observed": {
+     "num": 99,
+     "den": 50
+    },
+    "fraction": {
+     "num": 37,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 252,
+     "den": 625
+    },
+    "score": {
+     "num": 115227,
+     "den": 61475
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 37,
+     "den": 50
+    },
+    "share": {
+     "num": 17,
+     "den": 20
+    },
+    "sessions": 607,
+    "retire_share": {
+     "num": 1,
+     "den": 100
+    },
+    "prior_sessions": 818,
+    "prior": {
+     "num": -31,
+     "den": 50
+    },
+    "observed": {
+     "num": 29,
+     "den": 50
+    },
+    "fraction": {
+     "num": 1,
+     "den": 10
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 839,
+     "den": 1000
+    },
+    "score": {
+     "num": -517,
+     "den": 4750
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 17,
+     "den": 25
+    },
+    "sessions": 802,
+    "retire_share": {
+     "num": 1,
+     "den": 20
+    },
+    "prior_sessions": 228,
+    "prior": {
+     "num": 67,
+     "den": 100
+    },
+    "observed": {
+     "num": 3,
+     "den": 4
+    },
+    "fraction": {
+     "num": 11,
+     "den": 25
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 238,
+     "den": 625
+    },
+    "score": {
+     "num": 37713,
+     "den": 51500
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 12,
+     "den": 25
+    },
+    "share": {
+     "num": 16,
+     "den": 25
+    },
+    "sessions": 492,
+    "retire_share": {
+     "num": 1,
+     "den": 10
+    },
+    "prior_sessions": 347,
+    "prior": {
+     "num": -91,
+     "den": 100
+    },
+    "observed": {
+     "num": -34,
+     "den": 25
+    },
+    "fraction": {
+     "num": 9,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 391,
+     "den": 625
+    },
+    "score": {
+     "num": -98489,
+     "den": 83900
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 21,
+     "den": 50
+    },
+    "sessions": 334,
+    "retire_share": {
+     "num": 1,
+     "den": 25
+    },
+    "prior_sessions": 120,
+    "prior": {
+     "num": 17,
+     "den": 25
+    },
+    "observed": {
+     "num": 117,
+     "den": 50
+    },
+    "fraction": {
+     "num": 77,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 483,
+     "den": 5000
+    },
+    "score": {
+     "num": 21579,
+     "den": 11350
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 24,
+     "den": 25
+    },
+    "sessions": 526,
+    "retire_share": {
+     "num": 7,
+     "den": 100
+    },
+    "prior_sessions": 155,
+    "prior": {
+     "num": 143,
+     "den": 100
+    },
+    "observed": {
+     "num": -21,
+     "den": 50
+    },
+    "fraction": {
+     "num": 41,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 354,
+     "den": 625
+    },
+    "score": {
+     "num": 73,
+     "den": 68100
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 73,
+     "den": 100
+    },
+    "sessions": 345,
+    "retire_share": {
+     "num": 1,
+     "den": 25
+    },
+    "prior_sessions": 751,
+    "prior": {
+     "num": 37,
+     "den": 100
+    },
+    "observed": {
+     "num": -181,
+     "den": 100
+    },
+    "fraction": {
+     "num": 27,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 5329,
+     "den": 10000
+    },
+    "score": {
+     "num": -17329,
+     "den": 54800
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 7,
+     "den": 100
+    },
+    "share": {
+     "num": 17,
+     "den": 50
+    },
+    "sessions": 763,
+    "retire_share": {
+     "num": 1,
+     "den": 25
+    },
+    "prior_sessions": 353,
+    "prior": {
+     "num": 17,
+     "den": 100
+    },
+    "observed": {
+     "num": 149,
+     "den": 100
+    },
+    "fraction": {
+     "num": 24,
+     "den": 25
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 101,
+     "den": 1250
+    },
+    "score": {
+     "num": 4987,
+     "den": 4650
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 14,
+     "den": 25
+    },
+    "sessions": 1138,
+    "retire_share": {
+     "num": 1,
+     "den": 100
+    },
+    "prior_sessions": 306,
+    "prior": {
+     "num": -81,
+     "den": 100
+    },
+    "observed": {
+     "num": -3,
+     "den": 20
+    },
+    "fraction": {
+     "num": 91,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 63,
+     "den": 1250
+    },
+    "score": {
+     "num": -2616,
+     "den": 9025
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 24,
+     "den": 25
+    },
+    "share": {
+     "num": 41,
+     "den": 100
+    },
+    "sessions": 425,
+    "retire_share": {
+     "num": 1,
+     "den": 20
+    },
+    "prior_sessions": 850,
+    "prior": {
+     "num": -19,
+     "den": 20
+    },
+    "observed": {
+     "num": 263,
+     "den": 100
+    },
+    "fraction": {
+     "num": 14,
+     "den": 25
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 359,
+     "den": 500
+    },
+    "score": {
+     "num": 73,
+     "den": 300
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 7,
+     "den": 50
+    },
+    "share": {
+     "num": 17,
+     "den": 100
+    },
+    "sessions": 1512,
+    "retire_share": {
+     "num": 0,
+     "den": 1
+    },
+    "prior_sessions": 646,
+    "prior": {
+     "num": 3,
+     "den": 25
+    },
+    "observed": {
+     "num": 68,
+     "den": 25
+    },
+    "fraction": {
+     "num": 43,
+     "den": 50
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 721,
+     "den": 5000
+    },
+    "score": {
+     "num": 4029,
+     "den": 2075
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 77,
+     "den": 100
+    },
+    "sessions": 1467,
+    "retire_share": {
+     "num": 1,
+     "den": 20
+    },
+    "prior_sessions": 857,
+    "prior": {
+     "num": 9,
+     "den": 100
+    },
+    "observed": {
+     "num": 113,
+     "den": 100
+    },
+    "fraction": {
+     "num": 1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 231,
+     "den": 400
+    },
+    "score": {
+     "num": 43371,
+     "den": 58100
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 39,
+     "den": 100
+    },
+    "sessions": 1844,
+    "retire_share": {
+     "num": 1,
+     "den": 100
+    },
+    "prior_sessions": 668,
+    "prior": {
+     "num": 1,
+     "den": 20
+    },
+    "observed": {
+     "num": 253,
+     "den": 100
+    },
+    "fraction": {
+     "num": 47,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 2067,
+     "den": 10000
+    },
+    "score": {
+     "num": 29367,
+     "den": 15700
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 17,
+     "den": 100
+    },
+    "share": {
+     "num": 49,
+     "den": 100
+    },
+    "sessions": 1885,
+    "retire_share": {
+     "num": 2,
+     "den": 25
+    },
+    "prior_sessions": 792,
+    "prior": {
+     "num": 1,
+     "den": 50
+    },
+    "observed": {
+     "num": -11,
+     "den": 50
+    },
+    "fraction": {
+     "num": 93,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 481,
+     "den": 2500
+    },
+    "score": {
+     "num": -19943,
+     "den": 133850
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 79,
+     "den": 100
+    },
+    "share": {
+     "num": 51,
+     "den": 100
+    },
+    "sessions": 1554,
+    "retire_share": {
+     "num": 2,
+     "den": 25
+    },
+    "prior_sessions": 838,
+    "prior": {
+     "num": 9,
+     "den": 25
+    },
+    "observed": {
+     "num": -18,
+     "den": 25
+    },
+    "fraction": {
+     "num": 11,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 338,
+     "den": 625
+    },
+    "score": {
+     "num": -2043,
+     "den": 5980
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 43,
+     "den": 100
+    },
+    "share": {
+     "num": 3,
+     "den": 5
+    },
+    "sessions": 1994,
+    "retire_share": {
+     "num": 0,
+     "den": 1
+    },
+    "prior_sessions": 964,
+    "prior": {
+     "num": -3,
+     "den": 5
+    },
+    "observed": {
+     "num": -291,
+     "den": 100
+    },
+    "fraction": {
+     "num": 41,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 5303,
+     "den": 10000
+    },
+    "score": {
+     "num": -106349,
+     "den": 49300
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 9,
+     "den": 10
+    },
+    "share": {
+     "num": 31,
+     "den": 50
+    },
+    "sessions": 1893,
+    "retire_share": {
+     "num": 2,
+     "den": 25
+    },
+    "prior_sessions": 61,
+    "prior": {
+     "num": 3,
+     "den": 4
+    },
+    "observed": {
+     "num": -38,
+     "den": 25
+    },
+    "fraction": {
+     "num": 7,
+     "den": 20
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 359,
+     "den": 500
+    },
+    "score": {
+     "num": -283161,
+     "den": 195400
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 71,
+     "den": 100
+    },
+    "sessions": 1624,
+    "retire_share": {
+     "num": 0,
+     "den": 1
+    },
+    "prior_sessions": 366,
+    "prior": {
+     "num": 53,
+     "den": 50
+    },
+    "observed": {
+     "num": 27,
+     "den": 10
+    },
+    "fraction": {
+     "num": 17,
+     "den": 50
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 2343,
+     "den": 5000
+    },
+    "score": {
+     "num": 119319,
+     "den": 49750
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 33,
+     "den": 100
+    },
+    "share": {
+     "num": 23,
+     "den": 25
+    },
+    "sessions": 594,
+    "retire_share": {
+     "num": 3,
+     "den": 100
+    },
+    "prior_sessions": 625,
+    "prior": {
+     "num": -23,
+     "den": 25
+    },
+    "observed": {
+     "num": -117,
+     "den": 50
+    },
+    "fraction": {
+     "num": 47,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 6427,
+     "den": 10000
+    },
+    "score": {
+     "num": -49124,
+     "den": 30475
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 1,
+     "den": 5
+    },
+    "sessions": 1814,
+    "retire_share": {
+     "num": 1,
+     "den": 25
+    },
+    "prior_sessions": 633,
+    "prior": {
+     "num": -31,
+     "den": 50
+    },
+    "observed": {
+     "num": -297,
+     "den": 100
+    },
+    "fraction": {
+     "num": 4,
+     "den": 25
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 21,
+     "den": 125
+    },
+    "score": {
+     "num": -144501,
+     "den": 61175
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 13,
+     "den": 20
+    },
+    "sessions": 1018,
+    "retire_share": {
+     "num": 1,
+     "den": 25
+    },
+    "prior_sessions": 241,
+    "prior": {
+     "num": 3,
+     "den": 100
+    },
+    "observed": {
+     "num": 221,
+     "den": 100
+    },
+    "fraction": {
+     "num": 71,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 377,
+     "den": 2000
+    },
+    "score": {
+     "num": 225701,
+     "den": 125900
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 21,
+     "den": 25
+    },
+    "sessions": 126,
+    "retire_share": {
+     "num": 0,
+     "den": 1
+    },
+    "prior_sessions": 280,
+    "prior": {
+     "num": 5,
+     "den": 4
+    },
+    "observed": {
+     "num": -129,
+     "den": 100
+    },
+    "fraction": {
+     "num": 7,
+     "den": 25
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 378,
+     "den": 625
+    },
+    "score": {
+     "num": 1339,
+     "den": 2900
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 61,
+     "den": 100
+    },
+    "sessions": 888,
+    "retire_share": {
+     "num": 0,
+     "den": 1
+    },
+    "prior_sessions": 896,
+    "prior": {
+     "num": -2,
+     "den": 25
+    },
+    "observed": {
+     "num": 127,
+     "den": 50
+    },
+    "fraction": {
+     "num": 33,
+     "den": 50
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 1037,
+     "den": 5000
+    },
+    "score": {
+     "num": 13649,
+     "den": 11150
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 21,
+     "den": 50
+    },
+    "sessions": 1119,
+    "retire_share": {
+     "num": 2,
+     "den": 25
+    },
+    "prior_sessions": 777,
+    "prior": {
+     "num": 1,
+     "den": 50
+    },
+    "observed": {
+     "num": 107,
+     "den": 100
+    },
+    "fraction": {
+     "num": 16,
+     "den": 25
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 189,
+     "den": 1250
+    },
+    "score": {
+     "num": 40429,
+     "den": 63200
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 1,
+     "den": 4
+    },
+    "share": {
+     "num": 99,
+     "den": 100
+    },
+    "sessions": 725,
+    "retire_share": {
+     "num": 2,
+     "den": 25
+    },
+    "prior_sessions": 305,
+    "prior": {
+     "num": -53,
+     "den": 100
+    },
+    "observed": {
+     "num": -103,
+     "den": 100
+    },
+    "fraction": {
+     "num": 12,
+     "den": 25
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 1587,
+     "den": 2500
+    },
+    "score": {
+     "num": -2271,
+     "den": 2575
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 4,
+     "den": 25
+    },
+    "share": {
+     "num": 49,
+     "den": 50
+    },
+    "sessions": 379,
+    "retire_share": {
+     "num": 1,
+     "den": 10
+    },
+    "prior_sessions": 44,
+    "prior": {
+     "num": -9,
+     "den": 100
+    },
+    "observed": {
+     "num": 37,
+     "den": 100
+    },
+    "fraction": {
+     "num": 3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 73,
+     "den": 200
+    },
+    "score": {
+     "num": 13627,
+     "den": 42300
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 17,
+     "den": 20
+    },
+    "sessions": 420,
+    "retire_share": {
+     "num": 1,
+     "den": 10
+    },
+    "prior_sessions": 67,
+    "prior": {
+     "num": 143,
+     "den": 100
+    },
+    "observed": {
+     "num": -259,
+     "den": 100
+    },
+    "fraction": {
+     "num": 67,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 561,
+     "den": 2000
+    },
+    "score": {
+     "num": -99199,
+     "den": 48700
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 43,
+     "den": 100
+    },
+    "sessions": 1703,
+    "retire_share": {
+     "num": 1,
+     "den": 20
+    },
+    "prior_sessions": 894,
+    "prior": {
+     "num": 34,
+     "den": 25
+    },
+    "observed": {
+     "num": -6,
+     "den": 5
+    },
+    "fraction": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 0,
+     "den": 1
+    },
+    "score": {
+     "num": -20694,
+     "den": 64925
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 97,
+     "den": 100
+    },
+    "share": {
+     "num": 93,
+     "den": 100
+    },
+    "sessions": 45,
+    "retire_share": {
+     "num": 1,
+     "den": 100
+    },
+    "prior_sessions": 787,
+    "prior": {
+     "num": 63,
+     "den": 100
+    },
+    "observed": {
+     "num": 4,
+     "den": 25
+    },
+    "fraction": {
+     "num": 7,
+     "den": 20
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 118,
+     "den": 125
+    },
+    "score": {
+     "num": 50301,
+     "den": 83200
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 17,
+     "den": 100
+    },
+    "sessions": 5,
+    "retire_share": {
+     "num": 9,
+     "den": 100
+    },
+    "prior_sessions": 479,
+    "prior": {
+     "num": -51,
+     "den": 100
+    },
+    "observed": {
+     "num": 99,
+     "den": 50
+    },
+    "fraction": {
+     "num": 1,
+     "den": 10
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 153,
+     "den": 1000
+    },
+    "score": {
+     "num": -23439,
+     "den": 48400
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 21,
+     "den": 100
+    },
+    "sessions": 1529,
+    "retire_share": {
+     "num": 0,
+     "den": 1
+    },
+    "prior_sessions": 267,
+    "prior": {
+     "num": 1,
+     "den": 100
+    },
+    "observed": {
+     "num": 7,
+     "den": 10
+    },
+    "fraction": {
+     "num": 93,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 147,
+     "den": 10000
+    },
+    "score": {
+     "num": 107297,
+     "den": 179600
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 6,
+     "den": 25
+    },
+    "sessions": 805,
+    "retire_share": {
+     "num": 1,
+     "den": 50
+    },
+    "prior_sessions": 908,
+    "prior": {
+     "num": 187,
+     "den": 100
+    },
+    "observed": {
+     "num": 133,
+     "den": 100
+    },
+    "fraction": {
+     "num": 87,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 39,
+     "den": 1250
+    },
+    "score": {
+     "num": 92287,
+     "den": 57100
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 41,
+     "den": 100
+    },
+    "share": {
+     "num": 1,
+     "den": 4
+    },
+    "sessions": 33,
+    "retire_share": {
+     "num": 3,
+     "den": 100
+    },
+    "prior_sessions": 117,
+    "prior": {
+     "num": 111,
+     "den": 100
+    },
+    "observed": {
+     "num": 17,
+     "den": 10
+    },
+    "fraction": {
+     "num": 41,
+     "den": 50
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 953,
+     "den": 2500
+    },
+    "score": {
+     "num": 6199,
+     "den": 5000
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 19,
+     "den": 25
+    },
+    "sessions": 926,
+    "retire_share": {
+     "num": 0,
+     "den": 1
+    },
+    "prior_sessions": 911,
+    "prior": {
+     "num": 34,
+     "den": 25
+    },
+    "observed": {
+     "num": 1,
+     "den": 10
+    },
+    "fraction": {
+     "num": 37,
+     "den": 50
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 247,
+     "den": 1250
+    },
+    "score": {
+     "num": 33289,
+     "den": 45925
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 29,
+     "den": 100
+    },
+    "share": {
+     "num": 1,
+     "den": 5
+    },
+    "sessions": 357,
+    "retire_share": {
+     "num": 1,
+     "den": 50
+    },
+    "prior_sessions": 336,
+    "prior": {
+     "num": 51,
+     "den": 100
+    },
+    "observed": {
+     "num": -79,
+     "den": 100
+    },
+    "fraction": {
+     "num": 17,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 2153,
+     "den": 10000
+    },
+    "score": {
+     "num": -527,
+     "den": 3300
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 57,
+     "den": 100
+    },
+    "sessions": 653,
+    "retire_share": {
+     "num": 9,
+     "den": 100
+    },
+    "prior_sessions": 74,
+    "prior": {
+     "num": -1,
+     "den": 25
+    },
+    "observed": {
+     "num": -33,
+     "den": 50
+    },
+    "fraction": {
+     "num": 2,
+     "den": 25
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 1311,
+     "den": 2500
+    },
+    "score": {
+     "num": -21697,
+     "den": 36350
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 33,
+     "den": 100
+    },
+    "sessions": 1086,
+    "retire_share": {
+     "num": 2,
+     "den": 25
+    },
+    "prior_sessions": 229,
+    "prior": {
+     "num": 31,
+     "den": 50
+    },
+    "observed": {
+     "num": -229,
+     "den": 100
+    },
+    "fraction": {
+     "num": 31,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 2277,
+     "den": 10000
+    },
+    "score": {
+     "num": -58624,
+     "den": 32875
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 8,
+     "den": 25
+    },
+    "sessions": 1693,
+    "retire_share": {
+     "num": 1,
+     "den": 20
+    },
+    "prior_sessions": 325,
+    "prior": {
+     "num": -61,
+     "den": 100
+    },
+    "observed": {
+     "num": 69,
+     "den": 50
+    },
+    "fraction": {
+     "num": 53,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 94,
+     "den": 625
+    },
+    "score": {
+     "num": 213809,
+     "den": 201800
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 7,
+     "den": 100
+    },
+    "sessions": 1773,
+    "retire_share": {
+     "num": 9,
+     "den": 100
+    },
+    "prior_sessions": 312,
+    "prior": {
+     "num": -23,
+     "den": 100
+    },
+    "observed": {
+     "num": 61,
+     "den": 25
+    },
+    "fraction": {
+     "num": 17,
+     "den": 20
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 0,
+     "den": 1
+    },
+    "score": {
+     "num": 35453,
+     "den": 17375
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 47,
+     "den": 50
+    },
+    "share": {
+     "num": 17,
+     "den": 20
+    },
+    "sessions": 538,
+    "retire_share": {
+     "num": 1,
+     "den": 100
+    },
+    "prior_sessions": 556,
+    "prior": {
+     "num": -37,
+     "den": 100
+    },
+    "observed": {
+     "num": -11,
+     "den": 50
+    },
+    "fraction": {
+     "num": 49,
+     "den": 50
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 4691,
+     "den": 5000
+    },
+    "score": {
+     "num": -4051,
+     "den": 13675
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 77,
+     "den": 100
+    },
+    "share": {
+     "num": 8,
+     "den": 25
+    },
+    "sessions": 88,
+    "retire_share": {
+     "num": 1,
+     "den": 10
+    },
+    "prior_sessions": 658,
+    "prior": {
+     "num": 46,
+     "den": 25
+    },
+    "observed": {
+     "num": -67,
+     "den": 50
+    },
+    "fraction": {
+     "num": 11,
+     "den": 50
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 419,
+     "den": 1000
+    },
+    "score": {
+     "num": 2732,
+     "den": 1865
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 11,
+     "den": 20
+    },
+    "share": {
+     "num": 4,
+     "den": 5
+    },
+    "sessions": 1233,
+    "retire_share": {
+     "num": 0,
+     "den": 1
+    },
+    "prior_sessions": 917,
+    "prior": {
+     "num": 141,
+     "den": 100
+    },
+    "observed": {
+     "num": 229,
+     "den": 100
+    },
+    "fraction": {
+     "num": 9,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 311,
+     "den": 400
+    },
+    "score": {
+     "num": 205827,
+     "den": 107500
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 17,
+     "den": 20
+    },
+    "share": {
+     "num": 59,
+     "den": 100
+    },
+    "sessions": 1630,
+    "retire_share": {
+     "num": 3,
+     "den": 50
+    },
+    "prior_sessions": 274,
+    "prior": {
+     "num": 29,
+     "den": 50
+    },
+    "observed": {
+     "num": 9,
+     "den": 50
+    },
+    "fraction": {
+     "num": 24,
+     "den": 25
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 2099,
+     "den": 2500
+    },
+    "score": {
+     "num": 2827,
+     "den": 11900
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 11,
+     "den": 50
+    },
+    "share": {
+     "num": 47,
+     "den": 50
+    },
+    "sessions": 1472,
+    "retire_share": {
+     "num": 1,
+     "den": 50
+    },
+    "prior_sessions": 853,
+    "prior": {
+     "num": 41,
+     "den": 50
+    },
+    "observed": {
+     "num": 57,
+     "den": 25
+    },
+    "fraction": {
+     "num": 23,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 484,
+     "den": 625
+    },
+    "score": {
+     "num": 202781,
+     "den": 116250
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 27,
+     "den": 50
+    },
+    "sessions": 354,
+    "retire_share": {
+     "num": 3,
+     "den": 100
+    },
+    "prior_sessions": 10,
+    "prior": {
+     "num": 42,
+     "den": 25
+    },
+    "observed": {
+     "num": 21,
+     "den": 50
+    },
+    "fraction": {
+     "num": 21,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 2133,
+     "den": 5000
+    },
+    "score": {
+     "num": 591,
+     "den": 1300
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 3,
+     "den": 100
+    },
+    "sessions": 373,
+    "retire_share": {
+     "num": 1,
+     "den": 100
+    },
+    "prior_sessions": 178,
+    "prior": {
+     "num": -1,
+     "den": 2
+    },
+    "observed": {
+     "num": -44,
+     "den": 25
+    },
+    "fraction": {
+     "num": 47,
+     "den": 50
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 0,
+     "den": 1
+    },
+    "score": {
+     "num": -18637,
+     "den": 13775
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 73,
+     "den": 100
+    },
+    "sessions": 1924,
+    "retire_share": {
+     "num": 3,
+     "den": 100
+    },
+    "prior_sessions": 130,
+    "prior": {
+     "num": -7,
+     "den": 20
+    },
+    "observed": {
+     "num": -54,
+     "den": 25
+    },
+    "fraction": {
+     "num": 13,
+     "den": 25
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 219,
+     "den": 625
+    },
+    "score": {
+     "num": -16159,
+     "den": 7900
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 9,
+     "den": 50
+    },
+    "sessions": 1412,
+    "retire_share": {
+     "num": 9,
+     "den": 100
+    },
+    "prior_sessions": 41,
+    "prior": {
+     "num": -33,
+     "den": 50
+    },
+    "observed": {
+     "num": 227,
+     "den": 100
+    },
+    "fraction": {
+     "num": 43,
+     "den": 50
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 0,
+     "den": 1
+    },
+    "score": {
+     "num": 158909,
+     "den": 72650
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 11,
+     "den": 25
+    },
+    "share": {
+     "num": 0,
+     "den": 1
+    },
+    "sessions": 480,
+    "retire_share": {
+     "num": 3,
+     "den": 100
+    },
+    "prior_sessions": 501,
+    "prior": {
+     "num": 77,
+     "den": 100
+    },
+    "observed": {
+     "num": 8,
+     "den": 5
+    },
+    "fraction": {
+     "num": 3,
+     "den": 25
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 33,
+     "den": 625
+    },
+    "score": {
+     "num": 38459,
+     "den": 32700
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 23,
+     "den": 50
+    },
+    "share": {
+     "num": 61,
+     "den": 100
+    },
+    "sessions": 1953,
+    "retire_share": {
+     "num": 1,
+     "den": 100
+    },
+    "prior_sessions": 632,
+    "prior": {
+     "num": 6,
+     "den": 25
+    },
+    "observed": {
+     "num": -21,
+     "den": 50
+    },
+    "fraction": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 113,
+     "den": 200
+    },
+    "score": {
+     "num": -3039,
+     "den": 11750
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 69,
+     "den": 100
+    },
+    "share": {
+     "num": 7,
+     "den": 50
+    },
+    "sessions": 1246,
+    "retire_share": {
+     "num": 1,
+     "den": 50
+    },
+    "prior_sessions": 425,
+    "prior": {
+     "num": 3,
+     "den": 10
+    },
+    "observed": {
+     "num": 253,
+     "den": 100
+    },
+    "fraction": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 69,
+     "den": 100
+    },
+    "score": {
+     "num": 81997,
+     "den": 41775
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 7,
+     "den": 10
+    },
+    "share": {
+     "num": 89,
+     "den": 100
+    },
+    "sessions": 328,
+    "retire_share": {
+     "num": 1,
+     "den": 100
+    },
+    "prior_sessions": 917,
+    "prior": {
+     "num": 19,
+     "den": 100
+    },
+    "observed": {
+     "num": -109,
+     "den": 100
+    },
+    "fraction": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 833,
+     "den": 1000
+    },
+    "score": {
+     "num": -18329,
+     "den": 124500
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 13,
+     "den": 20
+    },
+    "sessions": 1638,
+    "retire_share": {
+     "num": 2,
+     "den": 25
+    },
+    "prior_sessions": 897,
+    "prior": {
+     "num": 27,
+     "den": 20
+    },
+    "observed": {
+     "num": -101,
+     "den": 50
+    },
+    "fraction": {
+     "num": 67,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 429,
+     "den": 2000
+    },
+    "score": {
+     "num": -5379,
+     "den": 6500
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 1,
+     "den": 20
+    },
+    "share": {
+     "num": 33,
+     "den": 50
+    },
+    "sessions": 1845,
+    "retire_share": {
+     "num": 9,
+     "den": 100
+    },
+    "prior_sessions": 543,
+    "prior": {
+     "num": 1,
+     "den": 2
+    },
+    "observed": {
+     "num": 63,
+     "den": 100
+    },
+    "fraction": {
+     "num": 37,
+     "den": 50
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 1043,
+     "den": 5000
+    },
+    "score": {
+     "num": 9559,
+     "den": 15920
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 49,
+     "den": 100
+    },
+    "sessions": 398,
+    "retire_share": {
+     "num": 1,
+     "den": 100
+    },
+    "prior_sessions": 632,
+    "prior": {
+     "num": 3,
+     "den": 100
+    },
+    "observed": {
+     "num": 53,
+     "den": 50
+    },
+    "fraction": {
+     "num": 27,
+     "den": 50
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 1127,
+     "den": 5000
+    },
+    "score": {
+     "num": 107,
+     "den": 250
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 89,
+     "den": 100
+    },
+    "sessions": 877,
+    "retire_share": {
+     "num": 3,
+     "den": 50
+    },
+    "prior_sessions": 822,
+    "prior": {
+     "num": 63,
+     "den": 50
+    },
+    "observed": {
+     "num": -3,
+     "den": 25
+    },
+    "fraction": {
+     "num": 11,
+     "den": 25
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 623,
+     "den": 1250
+    },
+    "score": {
+     "num": 23262,
+     "den": 42475
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 4,
+     "den": 5
+    },
+    "share": {
+     "num": 11,
+     "den": 20
+    },
+    "sessions": 326,
+    "retire_share": {
+     "num": 1,
+     "den": 20
+    },
+    "prior_sessions": 116,
+    "prior": {
+     "num": 43,
+     "den": 100
+    },
+    "observed": {
+     "num": 3,
+     "den": 20
+    },
+    "fraction": {
+     "num": 37,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 257,
+     "den": 400
+    },
+    "score": {
+     "num": 4939,
+     "den": 22100
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 23,
+     "den": 100
+    },
+    "share": {
+     "num": 23,
+     "den": 25
+    },
+    "sessions": 519,
+    "retire_share": {
+     "num": 7,
+     "den": 100
+    },
+    "prior_sessions": 204,
+    "prior": {
+     "num": 41,
+     "den": 100
+    },
+    "observed": {
+     "num": 101,
+     "den": 50
+    },
+    "fraction": {
+     "num": 3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 161,
+     "den": 400
+    },
+    "score": {
+     "num": 18867,
+     "den": 12050
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 1,
+     "den": 1
+    },
+    "sessions": 439,
+    "retire_share": {
+     "num": 1,
+     "den": 25
+    },
+    "prior_sessions": 961,
+    "prior": {
+     "num": 31,
+     "den": 20
+    },
+    "observed": {
+     "num": -68,
+     "den": 25
+    },
+    "fraction": {
+     "num": 47,
+     "den": 50
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 3,
+     "den": 50
+    },
+    "score": {
+     "num": 4221,
+     "den": 20000
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 43,
+     "den": 50
+    },
+    "sessions": 862,
+    "retire_share": {
+     "num": 7,
+     "den": 100
+    },
+    "prior_sessions": 770,
+    "prior": {
+     "num": -39,
+     "den": 50
+    },
+    "observed": {
+     "num": -81,
+     "den": 100
+    },
+    "fraction": {
+     "num": 11,
+     "den": 25
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 301,
+     "den": 625
+    },
+    "score": {
+     "num": -21647,
+     "den": 27200
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 77,
+     "den": 100
+    },
+    "sessions": 1641,
+    "retire_share": {
+     "num": 2,
+     "den": 25
+    },
+    "prior_sessions": 328,
+    "prior": {
+     "num": 1,
+     "den": 20
+    },
+    "observed": {
+     "num": 257,
+     "den": 100
+    },
+    "fraction": {
+     "num": 91,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 0,
+     "den": 1
+    },
+    "score": {
+     "num": 423377,
+     "den": 196900
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 71,
+     "den": 100
+    },
+    "sessions": 1538,
+    "retire_share": {
+     "num": 1,
+     "den": 25
+    },
+    "prior_sessions": 243,
+    "prior": {
+     "num": 59,
+     "den": 50
+    },
+    "observed": {
+     "num": 64,
+     "den": 25
+    },
+    "fraction": {
+     "num": 3,
+     "den": 5
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 71,
+     "den": 250
+    },
+    "score": {
+     "num": 211201,
+     "den": 89050
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 1,
+     "den": 2
+    },
+    "share": {
+     "num": 67,
+     "den": 100
+    },
+    "sessions": 488,
+    "retire_share": {
+     "num": 1,
+     "den": 25
+    },
+    "prior_sessions": 219,
+    "prior": {
+     "num": 169,
+     "den": 100
+    },
+    "observed": {
+     "num": -18,
+     "den": 25
+    },
+    "fraction": {
+     "num": 41,
+     "den": 50
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 2653,
+     "den": 5000
+    },
+    "score": {
+     "num": 75,
+     "den": 2828
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 12,
+     "den": 25
+    },
+    "sessions": 1972,
+    "retire_share": {
+     "num": 1,
+     "den": 25
+    },
+    "prior_sessions": 997,
+    "prior": {
+     "num": 48,
+     "den": 25
+    },
+    "observed": {
+     "num": -19,
+     "den": 50
+    },
+    "fraction": {
+     "num": 3,
+     "den": 20
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 51,
+     "den": 125
+    },
+    "score": {
+     "num": 29122,
+     "den": 74225
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 93,
+     "den": 100
+    },
+    "sessions": 1968,
+    "retire_share": {
+     "num": 1,
+     "den": 50
+    },
+    "prior_sessions": 858,
+    "prior": {
+     "num": 13,
+     "den": 50
+    },
+    "observed": {
+     "num": -39,
+     "den": 20
+    },
+    "fraction": {
+     "num": 23,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 7161,
+     "den": 10000
+    },
+    "score": {
+     "num": -30121,
+     "den": 23550
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 11,
+     "den": 20
+    },
+    "sessions": 1913,
+    "retire_share": {
+     "num": 9,
+     "den": 100
+    },
+    "prior_sessions": 714,
+    "prior": {
+     "num": -61,
+     "den": 100
+    },
+    "observed": {
+     "num": 251,
+     "den": 100
+    },
+    "fraction": {
+     "num": 19,
+     "den": 20
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 0,
+     "den": 1
+    },
+    "score": {
+     "num": 436609,
+     "den": 262700
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 7,
+     "den": 25
+    },
+    "sessions": 1741,
+    "retire_share": {
+     "num": 3,
+     "den": 50
+    },
+    "prior_sessions": 695,
+    "prior": {
+     "num": 143,
+     "den": 100
+    },
+    "observed": {
+     "num": 237,
+     "den": 100
+    },
+    "fraction": {
+     "num": 99,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 0,
+     "den": 1
+    },
+    "score": {
+     "num": 256001,
+     "den": 121800
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 8,
+     "den": 25
+    },
+    "share": {
+     "num": 21,
+     "den": 100
+    },
+    "sessions": 1616,
+    "retire_share": {
+     "num": 2,
+     "den": 25
+    },
+    "prior_sessions": 509,
+    "prior": {
+     "num": -9,
+     "den": 20
+    },
+    "observed": {
+     "num": -191,
+     "den": 100
+    },
+    "fraction": {
+     "num": 19,
+     "den": 50
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 1259,
+     "den": 5000
+    },
+    "score": {
+     "num": -331561,
+     "den": 212500
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 17,
+     "den": 20
+    },
+    "share": {
+     "num": 7,
+     "den": 10
+    },
+    "sessions": 234,
+    "retire_share": {
+     "num": 1,
+     "den": 25
+    },
+    "prior_sessions": 858,
+    "prior": {
+     "num": -19,
+     "den": 20
+    },
+    "observed": {
+     "num": 19,
+     "den": 100
+    },
+    "fraction": {
+     "num": 11,
+     "den": 25
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 383,
+     "den": 500
+    },
+    "score": {
+     "num": -247,
+     "den": 350
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 27,
+     "den": 100
+    },
+    "share": {
+     "num": 37,
+     "den": 100
+    },
+    "sessions": 712,
+    "retire_share": {
+     "num": 1,
+     "den": 10
+    },
+    "prior_sessions": 467,
+    "prior": {
+     "num": 99,
+     "den": 100
+    },
+    "observed": {
+     "num": 169,
+     "den": 100
+    },
+    "fraction": {
+     "num": 17,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 353,
+     "den": 1000
+    },
+    "score": {
+     "num": 166561,
+     "den": 117900
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 1,
+     "den": 4
+    },
+    "share": {
+     "num": 6,
+     "den": 25
+    },
+    "sessions": 1572,
+    "retire_share": {
+     "num": 0,
+     "den": 1
+    },
+    "prior_sessions": 765,
+    "prior": {
+     "num": -33,
+     "den": 100
+    },
+    "observed": {
+     "num": -51,
+     "den": 50
+    },
+    "fraction": {
+     "num": 1,
+     "den": 25
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 601,
+     "den": 2500
+    },
+    "score": {
+     "num": -61863,
+     "den": 77900
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 3,
+     "den": 100
+    },
+    "share": {
+     "num": 9,
+     "den": 10
+    },
+    "sessions": 1458,
+    "retire_share": {
+     "num": 1,
+     "den": 10
+    },
+    "prior_sessions": 328,
+    "prior": {
+     "num": 177,
+     "den": 100
+    },
+    "observed": {
+     "num": 59,
+     "den": 25
+    },
+    "fraction": {
+     "num": 7,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 8391,
+     "den": 10000
+    },
+    "score": {
+     "num": 50268,
+     "den": 22325
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 2,
+     "den": 25
+    },
+    "sessions": 873,
+    "retire_share": {
+     "num": 7,
+     "den": 100
+    },
+    "prior_sessions": 296,
+    "prior": {
+     "num": 31,
+     "den": 25
+    },
+    "observed": {
+     "num": 24,
+     "den": 25
+    },
+    "fraction": {
+     "num": 89,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 0,
+     "den": 1
+    },
+    "score": {
+     "num": 4304,
+     "den": 4175
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 21,
+     "den": 25
+    },
+    "share": {
+     "num": 73,
+     "den": 100
+    },
+    "sessions": 457,
+    "retire_share": {
+     "num": 3,
+     "den": 100
+    },
+    "prior_sessions": 97,
+    "prior": {
+     "num": 17,
+     "den": 25
+    },
+    "observed": {
+     "num": -21,
+     "den": 20
+    },
+    "fraction": {
+     "num": 43,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 7773,
+     "den": 10000
+    },
+    "score": {
+     "num": -41389,
+     "den": 55400
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 21,
+     "den": 25
+    },
+    "share": {
+     "num": 1,
+     "den": 2
+    },
+    "sessions": 92,
+    "retire_share": {
+     "num": 1,
+     "den": 10
+    },
+    "prior_sessions": 677,
+    "prior": {
+     "num": 33,
+     "den": 50
+    },
+    "observed": {
+     "num": -11,
+     "den": 4
+    },
+    "fraction": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 159,
+     "den": 250
+    },
+    "score": {
+     "num": 9691,
+     "den": 38450
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 11,
+     "den": 100
+    },
+    "sessions": 795,
+    "retire_share": {
+     "num": 1,
+     "den": 10
+    },
+    "prior_sessions": 284,
+    "prior": {
+     "num": 119,
+     "den": 100
+    },
+    "observed": {
+     "num": 107,
+     "den": 100
+    },
+    "fraction": {
+     "num": 23,
+     "den": 50
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 0,
+     "den": 1
+    },
+    "score": {
+     "num": 118861,
+     "den": 107900
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "share": {
+     "num": 3,
+     "den": 50
+    },
+    "sessions": 1538,
+    "retire_share": {
+     "num": 1,
+     "den": 100
+    },
+    "prior_sessions": 796,
+    "prior": {
+     "num": 3,
+     "den": 20
+    },
+    "observed": {
+     "num": -51,
+     "den": 100
+    },
+    "fraction": {
+     "num": 1,
+     "den": 20
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 57,
+     "den": 1000
+    },
+    "score": {
+     "num": -11083,
+     "den": 38900
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 17,
+     "den": 100
+    },
+    "share": {
+     "num": 7,
+     "den": 10
+    },
+    "sessions": 1659,
+    "retire_share": {
+     "num": 0,
+     "den": 1
+    },
+    "prior_sessions": 430,
+    "prior": {
+     "num": -7,
+     "den": 20
+    },
+    "observed": {
+     "num": -9,
+     "den": 4
+    },
+    "fraction": {
+     "num": 9,
+     "den": 20
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 923,
+     "den": 2000
+    },
+    "score": {
+     "num": -15533,
+     "den": 8356
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 59,
+     "den": 100
+    },
+    "share": {
+     "num": 29,
+     "den": 100
+    },
+    "sessions": 1333,
+    "retire_share": {
+     "num": 1,
+     "den": 10
+    },
+    "prior_sessions": 225,
+    "prior": {
+     "num": 18,
+     "den": 25
+    },
+    "observed": {
+     "num": 37,
+     "den": 25
+    },
+    "fraction": {
+     "num": 79,
+     "den": 100
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 527,
+     "den": 1000
+    },
+    "score": {
+     "num": 2809,
+     "den": 2050
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 31,
+     "den": 100
+    },
+    "share": {
+     "num": 9,
+     "den": 20
+    },
+    "sessions": 1769,
+    "retire_share": {
+     "num": 7,
+     "den": 100
+    },
+    "prior_sessions": 584,
+    "prior": {
+     "num": 31,
+     "den": 50
+    },
+    "observed": {
+     "num": 21,
+     "den": 100
+    },
+    "fraction": {
+     "num": 31,
+     "den": 50
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 227,
+     "den": 625
+    },
+    "score": {
+     "num": 73357,
+     "den": 235300
+    }
+   }
+  }
+ ],
+ "spec_sha256": "3314c460a4f19afd69669809d44ac7bbf96d9a97bd4230cdca9353dbe9da3fc3"
+}

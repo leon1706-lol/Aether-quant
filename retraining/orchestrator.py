@@ -657,6 +657,14 @@ def commit(conn, retraining_id: str, version_id: str, config: dict) -> dict:
     return result
 
 
+def _generations_enabled() -> bool:
+    """`ml/generations/policy.json`'s `enabled`. Absent or damaged reads as off, which is today's single-slot behaviour."""
+    from json_safety import load_json_lenient
+
+    payload = load_json_lenient(ML_DIR / "generations" / "policy.json")
+    return bool(isinstance(payload, dict) and payload.get("enabled") is True)
+
+
 def promote(conn, version_id: str, retraining_id: str | None = None, config: dict | None = None) -> dict:
     config = config or {}
     version = fetch_model_version(conn, version_id)
@@ -666,6 +674,10 @@ def promote(conn, version_id: str, retraining_id: str | None = None, config: dic
         return {"ok": False, "error": "promotion_requires_validated_candidate_status"}
     if config.get("promotion", {}).get("require_vault_commit", True) and not version.get("aether_vault_commit"):
         return {"ok": False, "error": "promotion_requires_vault_commit"}
+    if _generations_enabled():
+        # With generations on, a model reaches the book through a share of it, by rule, never by replacing the one active model in one step.
+        logger.info("promote: %s stays a candidate: generations are enabled, so it goes through `aq cycle research` and `aq cycle promote`.", version_id)
+        return {"ok": False, "error": "generations_enabled_use_aq_cycle", "version_id": version_id}
 
     active_files = tuple(config.get("promotion", {}).get("active_artifact_files", ACTIVE_ARTIFACT_FILES))
     version_dir = candidate_dir(version_id)

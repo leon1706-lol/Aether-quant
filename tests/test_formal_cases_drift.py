@@ -8,7 +8,7 @@ from aether_quant.formal import load_cases, spec_sha256, targets
 
 FORMAL_ROOT = Path(__file__).resolve().parents[1] / "formal"
 
-EXPECTED_TARGETS = ["book_construction", "book_neutrality", "cost_model", "hash_chain", "json_safety", "kill_switch",
+EXPECTED_TARGETS = ["book_construction", "book_neutrality", "cost_model", "generation_blend", "generation_glide", "hash_chain", "json_safety", "kill_switch",
                     "order_gate", "position_sizing", "reconciliation", "risk_controls", "sleeve_guard"]
 
 

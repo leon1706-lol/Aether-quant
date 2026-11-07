@@ -88,15 +88,47 @@ def data_problems(context, date: str) -> list[str]:
     return problems
 
 
-def main() -> int:
-    from v650_lean import candidate_rows
-    from v650_research import load_context
+def blended_rows(ledger: Path) -> dict[str, dict[str, float]]:
+    """{session: blended row} from the generations' ledger (`scripts/cycle_daily.py`). Stops at a broken chain: a row that can't be trusted must not reach an order."""
+    from evaluation.forward_ledger import read_ledger
+    from evaluation.generation_ledger import ALLOCATION_ID, judge_generations
 
+    rows = read_ledger(ledger)
+    if not judge_generations(rows)["chain_valid"]:
+        raise ValueError(f"{ledger.name}: the chain is broken")
+    return {
+        row["payload"]["session"]: dict(row["payload"]["blended"])
+        for row in rows
+        if row["payload"].get("candidate") == ALLOCATION_ID and row["payload"].get("blended") is not None
+    }
+
+
+def write_blended(ledger: Path, out: Path) -> list[str]:
+    """Appends each blended row the file doesn't hold yet, in order, and returns their dates. A paper run with `live_reload` trades this file."""
+    written = []
+    for date, row in sorted(blended_rows(ledger).items()):
+        if append_row(out, date, row):
+            written.append(date)
+    return written
+
+
+def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--candidate", required=True)
+    parser.add_argument("--candidate", default=None, help="one frozen rule's definition")
+    parser.add_argument("--generations", default=None, help="instead of --candidate: the generations' ledger, forward/generations.jsonl")
     parser.add_argument("--out", required=True)
     parser.add_argument("--date", default=None, help="the session to decide for (default: the last session in the data)")
     args = parser.parse_args()
+    if bool(args.candidate) == bool(args.generations):
+        parser.error("name exactly one of --candidate and --generations")
+    if args.generations:
+        for date in write_blended(Path(args.generations), Path(args.out)):
+            print(f"{date}: wrote the blended row")
+        return 0
+
+    from v650_lean import candidate_rows
+    from v650_research import load_context
+
     definition = json.loads(Path(args.candidate).read_text(encoding="utf-8"))
     context = load_context()
     date = args.date or str(context.panel.known.index[-1])

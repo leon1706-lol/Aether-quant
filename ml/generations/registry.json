@@ -1,0 +1,81 @@
+{
+ "generations": [
+  {
+   "admission": {},
+   "born": "2026-11-04",
+   "definition": {
+    "anchor_date": "2026-10-28",
+    "asset_class": {
+     "ADAUSD": "crypto",
+     "BCHUSD": "crypto",
+     "BTCUSD": "crypto",
+     "DOGEUSD": "crypto",
+     "EOSUSD": "crypto",
+     "ETCUSD": "crypto",
+     "ETHUSD": "crypto",
+     "LINKUSD": "crypto",
+     "LTCUSD": "crypto",
+     "XLMUSD": "crypto",
+     "XRPUSD": "crypto",
+     "ZECUSD": "crypto"
+    },
+    "cost_class": "crypto",
+    "data_sources": [
+     "Coinbase public candles",
+     "Yahoo chart API"
+    ],
+    "family": "crypto_trend",
+    "id": "t3_crypto_trend_blend",
+    "initial_weights": {
+     "ADAUSD": 0.00787402,
+     "BCHUSD": 0.00620842,
+     "BTCUSD": 0.01573807,
+     "DOGEUSD": 0.00875561,
+     "ETCUSD": 0.0084649,
+     "ETHUSD": 0.01149489,
+     "LINKUSD": 0.01783285,
+     "LTCUSD": 0.01991861,
+     "XLMUSD": 0.00864937,
+     "XRPUSD": 0.00794528,
+     "ZECUSD": 0.00815455
+    },
+    "installed": true,
+    "kind": "time_series",
+    "params": {
+     "lookback_a": 20,
+     "lookback_b": 60,
+     "lookback_c": 120
+    },
+    "rebalance_every": 5,
+    "tickers": [
+     "ADAUSD",
+     "BCHUSD",
+     "BTCUSD",
+     "DOGEUSD",
+     "EOSUSD",
+     "ETCUSD",
+     "ETHUSD",
+     "LINKUSD",
+     "LTCUSD",
+     "XLMUSD",
+     "XRPUSD",
+     "ZECUSD"
+    ],
+    "universe": [
+     "crypto"
+    ]
+   },
+   "expected_sharpe": 0.0,
+   "freeze_path": null,
+   "id": "g0001",
+   "kind": "rule",
+   "needs": null,
+   "note": "t3_crypto_trend_blend, the installed V6.5.0 sleeve: not verified. It scored Sharpe -0.06 on never-read coins (Problems #301), so it is expected to earn nothing, and stays on paper by the owner's decision.",
+   "procedure_sha256": "1df9d9e2732df4716ec25e0af2e32ce3ed89b3702487075b9cce1180799eecd4",
+   "stage": "active",
+   "tier": "installed",
+   "vintages": []
+  }
+ ],
+ "note": "Which generations exist. `aq cycle promote` changes a stage by rule; a hand edit is visible in git."
+}

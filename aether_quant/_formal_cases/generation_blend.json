@@ -1,0 +1,10509 @@
+{
+ "target": "generation_blend",
+ "spec_files": [
+  "AetherFormal/GenerationBlend.lean"
+ ],
+ "cases": [
+  {
+   "input": {
+    "retire_share": {
+     "num": 2,
+     "den": 25
+    },
+    "old": {
+     "num": 623,
+     "den": 625
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 335,
+    "entry_share": {
+     "num": 1,
+     "den": 4
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 3,
+     "den": 4
+    },
+    "new": {
+     "num": 1,
+     "den": 4
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 3,
+     "den": 100
+    },
+    "old": {
+     "num": 63,
+     "den": 125
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 426,
+    "entry_share": {
+     "num": 3,
+     "den": 20
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 63,
+     "den": 125
+    },
+    "new": {
+     "num": 3,
+     "den": 20
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 0,
+     "den": 1
+    },
+    "old": {
+     "num": 1498167,
+     "den": 3125000
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    },
+    "glide_sessions": 443,
+    "entry_share": {
+     "num": 0,
+     "den": 1
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 1498167,
+     "den": 3125000
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 2,
+     "den": 25
+    },
+    "old": {
+     "num": 34109,
+     "den": 625000
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    },
+    "glide_sessions": 196,
+    "entry_share": {
+     "num": 11,
+     "den": 20
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 0,
+     "den": 1
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 9,
+     "den": 100
+    },
+    "old": {
+     "num": 25461,
+     "den": 160000
+    },
+    "new": {
+     "num": 57339,
+     "den": 160000
+    },
+    "glide_sessions": 162,
+    "entry_share": {
+     "num": 9,
+     "den": 20
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 25461,
+     "den": 160000
+    },
+    "new": {
+     "num": 4688459,
+     "den": 12960000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 0,
+     "den": 1
+    },
+    "old": {
+     "num": 30512401,
+     "den": 100000000
+    },
+    "new": {
+     "num": 6077599,
+     "den": 100000000
+    },
+    "glide_sessions": 308,
+    "entry_share": {
+     "num": 3,
+     "den": 20
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 30512401,
+     "den": 100000000
+    },
+    "new": {
+     "num": 489225123,
+     "den": 7700000000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 2,
+     "den": 25
+    },
+    "old": {
+     "num": 5813411,
+     "den": 50000000
+    },
+    "new": {
+     "num": 281589,
+     "den": 50000000
+    },
+    "glide_sessions": 78,
+    "entry_share": {
+     "num": 2,
+     "den": 5
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 5813411,
+     "den": 50000000
+    },
+    "new": {
+     "num": 8660657,
+     "den": 650000000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 9,
+     "den": 100
+    },
+    "old": {
+     "num": 763,
+     "den": 1000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 8,
+    "entry_share": {
+     "num": 0,
+     "den": 1
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 763,
+     "den": 1000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 100
+    },
+    "old": {
+     "num": 1877,
+     "den": 2500
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 409,
+    "entry_share": {
+     "num": 11,
+     "den": 20
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 9,
+     "den": 20
+    },
+    "new": {
+     "num": 11,
+     "den": 20
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 2,
+     "den": 25
+    },
+    "old": {
+     "num": 6859273,
+     "den": 10000000
+    },
+    "new": {
+     "num": 2466727,
+     "den": 10000000
+    },
+    "glide_sessions": 307,
+    "entry_share": {
+     "num": 13,
+     "den": 20
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 6859273,
+     "den": 10000000
+    },
+    "new": {
+     "num": 760785189,
+     "den": 3070000000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 50
+    },
+    "old": {
+     "num": 1682847,
+     "den": 4000000
+    },
+    "new": {
+     "num": 646353,
+     "den": 4000000
+    },
+    "glide_sessions": 27,
+    "entry_share": {
+     "num": 1,
+     "den": 2
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 1682847,
+     "den": 4000000
+    },
+    "new": {
+     "num": 19451531,
+     "den": 108000000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 2,
+     "den": 25
+    },
+    "old": {
+     "num": 684759,
+     "den": 6250000
+    },
+    "new": {
+     "num": 310241,
+     "den": 6250000
+    },
+    "glide_sessions": 267,
+    "entry_share": {
+     "num": 1,
+     "den": 10
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 684759,
+     "den": 6250000
+    },
+    "new": {
+     "num": 29486449,
+     "den": 556250000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 3,
+     "den": 100
+    },
+    "old": {
+     "num": 11029201,
+     "den": 100000000
+    },
+    "new": {
+     "num": 260799,
+     "den": 100000000
+    },
+    "glide_sessions": 83,
+    "entry_share": {
+     "num": 1,
+     "den": 2
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 11029201,
+     "den": 100000000
+    },
+    "new": {
+     "num": 71646317,
+     "den": 8300000000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 7,
+     "den": 100
+    },
+    "old": {
+     "num": 39,
+     "den": 400
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 264,
+    "entry_share": {
+     "num": 13,
+     "den": 20
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 39,
+     "den": 400
+    },
+    "new": {
+     "num": 13,
+     "den": 20
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 2,
+     "den": 25
+    },
+    "old": {
+     "num": 18389423,
+     "den": 100000000
+    },
+    "new": {
+     "num": 10420577,
+     "den": 100000000
+    },
+    "glide_sessions": 233,
+    "entry_share": {
+     "num": 1,
+     "den": 2
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 18389423,
+     "den": 100000000
+    },
+    "new": {
+     "num": 2477994441,
+     "den": 23300000000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 25
+    },
+    "old": {
+     "num": 2073,
+     "den": 10000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 349,
+    "entry_share": {
+     "num": 3,
+     "den": 20
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 2073,
+     "den": 10000
+    },
+    "new": {
+     "num": 3,
+     "den": 20
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 0,
+     "den": 1
+    },
+    "old": {
+     "num": 2994647,
+     "den": 50000000
+    },
+    "new": {
+     "num": 2695353,
+     "den": 50000000
+    },
+    "glide_sessions": 109,
+    "entry_share": {
+     "num": 1,
+     "den": 10
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 2994647,
+     "den": 50000000
+    },
+    "new": {
+     "num": 338793477,
+     "den": 5450000000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 9,
+     "den": 100
+    },
+    "old": {
+     "num": 229,
+     "den": 5000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 360,
+    "entry_share": {
+     "num": 9,
+     "den": 20
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 0,
+     "den": 1
+    },
+    "new": {
+     "num": 2479,
+     "den": 5000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 0,
+     "den": 1
+    },
+    "old": {
+     "num": 16609,
+     "den": 50000
+    },
+    "new": {
+     "num": 977,
+     "den": 6250
+    },
+    "glide_sessions": 55,
+    "entry_share": {
+     "num": 11,
+     "den": 20
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 16609,
+     "den": 50000
+    },
+    "new": {
+     "num": 22619,
+     "den": 137500
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 7,
+     "den": 100
+    },
+    "old": {
+     "num": 15275491,
+     "den": 50000000
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    },
+    "glide_sessions": 264,
+    "entry_share": {
+     "num": 1,
+     "den": 2
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 15275491,
+     "den": 50000000
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 7,
+     "den": 100
+    },
+    "old": {
+     "num": 447727,
+     "den": 5000000
+    },
+    "new": {
+     "num": 387273,
+     "den": 5000000
+    },
+    "glide_sessions": 410,
+    "entry_share": {
+     "num": 3,
+     "den": 4
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 447727,
+     "den": 5000000
+    },
+    "new": {
+     "num": 16003193,
+     "den": 205000000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 50
+    },
+    "old": {
+     "num": 2397039,
+     "den": 50000000
+    },
+    "new": {
+     "num": 44237961,
+     "den": 50000000
+    },
+    "glide_sessions": 262,
+    "entry_share": {
+     "num": 1,
+     "den": 20
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 2397039,
+     "den": 50000000
+    },
+    "new": {
+     "num": 5818922891,
+     "den": 6550000000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 25
+    },
+    "old": {
+     "num": 4717,
+     "den": 10000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 109,
+    "entry_share": {
+     "num": 1,
+     "den": 10
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 4717,
+     "den": 10000
+    },
+    "new": {
+     "num": 1,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 20
+    },
+    "old": {
+     "num": 842717,
+     "den": 12500000
+    },
+    "new": {
+     "num": 3881033,
+     "den": 12500000
+    },
+    "glide_sessions": 192,
+    "entry_share": {
+     "num": 13,
+     "den": 20
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 842717,
+     "den": 12500000
+    },
+    "new": {
+     "num": 93691667,
+     "den": 300000000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 2,
+     "den": 25
+    },
+    "old": {
+     "num": 1001,
+     "den": 1250
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 198,
+    "entry_share": {
+     "num": 3,
+     "den": 10
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 7,
+     "den": 10
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 10
+    },
+    "old": {
+     "num": 2508231,
+     "den": 100000000
+    },
+    "new": {
+     "num": 121769,
+     "den": 100000000
+    },
+    "glide_sessions": 75,
+    "entry_share": {
+     "num": 13,
+     "den": 20
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 0,
+     "den": 1
+    },
+    "new": {
+     "num": 929,
+     "den": 30000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 20
+    },
+    "old": {
+     "num": 4631,
+     "den": 10000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 342,
+    "entry_share": {
+     "num": 1,
+     "den": 20
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 4631,
+     "den": 10000
+    },
+    "new": {
+     "num": 1,
+     "den": 20
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 100
+    },
+    "old": {
+     "num": 672549,
+     "den": 10000000
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    },
+    "glide_sessions": 146,
+    "entry_share": {
+     "num": 2,
+     "den": 5
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 672549,
+     "den": 10000000
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 7,
+     "den": 100
+    },
+    "old": {
+     "num": 106533,
+     "den": 5000000
+    },
+    "new": {
+     "num": 1090467,
+     "den": 5000000
+    },
+    "glide_sessions": 471,
+    "entry_share": {
+     "num": 19,
+     "den": 20
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 0,
+     "den": 1
+    },
+    "new": {
+     "num": 564037,
+     "den": 2355000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 100
+    },
+    "old": {
+     "num": 254,
+     "den": 625
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 1,
+    "entry_share": {
+     "num": 1,
+     "den": 5
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 254,
+     "den": 625
+    },
+    "new": {
+     "num": 1,
+     "den": 5
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 100
+    },
+    "old": {
+     "num": 3635127,
+     "den": 25000000
+    },
+    "new": {
+     "num": 2229873,
+     "den": 25000000
+    },
+    "glide_sessions": 484,
+    "entry_share": {
+     "num": 3,
+     "den": 10
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 3635127,
+     "den": 25000000
+    },
+    "new": {
+     "num": 274189633,
+     "den": 3025000000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 0,
+     "den": 1
+    },
+    "old": {
+     "num": 6302967,
+     "den": 100000000
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    },
+    "glide_sessions": 253,
+    "entry_share": {
+     "num": 3,
+     "den": 20
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 6302967,
+     "den": 100000000
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 10
+    },
+    "old": {
+     "num": 1823,
+     "den": 10000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 499,
+    "entry_share": {
+     "num": 3,
+     "den": 10
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 1823,
+     "den": 10000
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 25
+    },
+    "old": {
+     "num": 3419,
+     "den": 5000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 165,
+    "entry_share": {
+     "num": 19,
+     "den": 20
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 1,
+     "den": 20
+    },
+    "new": {
+     "num": 19,
+     "den": 20
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 50
+    },
+    "old": {
+     "num": 6411,
+     "den": 10000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 455,
+    "entry_share": {
+     "num": 19,
+     "den": 20
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 1,
+     "den": 20
+    },
+    "new": {
+     "num": 19,
+     "den": 20
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 50
+    },
+    "old": {
+     "num": 15553473,
+     "den": 50000000
+    },
+    "new": {
+     "num": 436527,
+     "den": 50000000
+    },
+    "glide_sessions": 110,
+    "entry_share": {
+     "num": 1,
+     "den": 5
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 15553473,
+     "den": 50000000
+    },
+    "new": {
+     "num": 8801797,
+     "den": 550000000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 100
+    },
+    "old": {
+     "num": 15126033,
+     "den": 100000000
+    },
+    "new": {
+     "num": 38303967,
+     "den": 100000000
+    },
+    "glide_sessions": 301,
+    "entry_share": {
+     "num": 4,
+     "den": 5
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 15126033,
+     "den": 100000000
+    },
+    "new": {
+     "num": 11549494067,
+     "den": 30100000000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 7,
+     "den": 100
+    },
+    "old": {
+     "num": 9413,
+     "den": 10000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 63,
+    "entry_share": {
+     "num": 7,
+     "den": 20
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 7,
+     "den": 10
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 50
+    },
+    "old": {
+     "num": 7789,
+     "den": 10000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 92,
+    "entry_share": {
+     "num": 3,
+     "den": 20
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 7789,
+     "den": 10000
+    },
+    "new": {
+     "num": 3,
+     "den": 20
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 10
+    },
+    "old": {
+     "num": 287,
+     "den": 625
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 304,
+    "entry_share": {
+     "num": 9,
+     "den": 20
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 287,
+     "den": 625
+    },
+    "new": {
+     "num": 9,
+     "den": 20
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 9,
+     "den": 100
+    },
+    "old": {
+     "num": 6777,
+     "den": 10000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 60,
+    "entry_share": {
+     "num": 11,
+     "den": 20
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 9,
+     "den": 20
+    },
+    "new": {
+     "num": 11,
+     "den": 20
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 2,
+     "den": 25
+    },
+    "old": {
+     "num": 9613,
+     "den": 10000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 437,
+    "entry_share": {
+     "num": 19,
+     "den": 20
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 0,
+     "den": 1
+    },
+    "new": {
+     "num": 1,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 2,
+     "den": 25
+    },
+    "old": {
+     "num": 1659,
+     "den": 2000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 41,
+    "entry_share": {
+     "num": 1,
+     "den": 5
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 4,
+     "den": 5
+    },
+    "new": {
+     "num": 1,
+     "den": 5
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 2,
+     "den": 25
+    },
+    "old": {
+     "num": 432411,
+     "den": 1000000
+    },
+    "new": {
+     "num": 265589,
+     "den": 1000000
+    },
+    "glide_sessions": 282,
+    "entry_share": {
+     "num": 1,
+     "den": 5
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 432411,
+     "den": 1000000
+    },
+    "new": {
+     "num": 37848049,
+     "den": 141000000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 3,
+     "den": 50
+    },
+    "old": {
+     "num": 611961,
+     "den": 100000000
+    },
+    "new": {
+     "num": 33198039,
+     "den": 100000000
+    },
+    "glide_sessions": 147,
+    "entry_share": {
+     "num": 1,
+     "den": 2
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 0,
+     "den": 1
+    },
+    "new": {
+     "num": 502007,
+     "den": 1470000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 50
+    },
+    "old": {
+     "num": 1692673,
+     "den": 50000000
+    },
+    "new": {
+     "num": 1197327,
+     "den": 50000000
+    },
+    "glide_sessions": 461,
+    "entry_share": {
+     "num": 1,
+     "den": 20
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 1692673,
+     "den": 50000000
+    },
+    "new": {
+     "num": 599467747,
+     "den": 23050000000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 2,
+     "den": 25
+    },
+    "old": {
+     "num": 1503,
+     "den": 2500
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 358,
+    "entry_share": {
+     "num": 3,
+     "den": 20
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 1503,
+     "den": 2500
+    },
+    "new": {
+     "num": 3,
+     "den": 20
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 2,
+     "den": 25
+    },
+    "old": {
+     "num": 3667,
+     "den": 5000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 463,
+    "entry_share": {
+     "num": 3,
+     "den": 5
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 7,
+     "den": 10
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 3,
+     "den": 50
+    },
+    "old": {
+     "num": 9158247,
+     "den": 10000000
+    },
+    "new": {
+     "num": 151753,
+     "den": 10000000
+    },
+    "glide_sessions": 370,
+    "entry_share": {
+     "num": 13,
+     "den": 20
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 9158247,
+     "den": 10000000
+    },
+    "new": {
+     "num": 5964861,
+     "den": 370000000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 3,
+     "den": 50
+    },
+    "old": {
+     "num": 181671,
+     "den": 1250000
+    },
+    "new": {
+     "num": 451329,
+     "den": 1250000
+    },
+    "glide_sessions": 231,
+    "entry_share": {
+     "num": 13,
+     "den": 20
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 181671,
+     "den": 1250000
+    },
+    "new": {
+     "num": 14956357,
+     "den": 41250000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 50
+    },
+    "old": {
+     "num": 2757,
+     "den": 5000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 18,
+    "entry_share": {
+     "num": 1,
+     "den": 10
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 2757,
+     "den": 5000
+    },
+    "new": {
+     "num": 1,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 7,
+     "den": 100
+    },
+    "old": {
+     "num": 3025149,
+     "den": 10000000
+    },
+    "new": {
+     "num": 1568851,
+     "den": 10000000
+    },
+    "glide_sessions": 268,
+    "entry_share": {
+     "num": 13,
+     "den": 20
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 3025149,
+     "den": 10000000
+    },
+    "new": {
+     "num": 105988017,
+     "den": 670000000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 20
+    },
+    "old": {
+     "num": 14426217,
+     "den": 25000000
+    },
+    "new": {
+     "num": 3706283,
+     "den": 25000000
+    },
+    "glide_sessions": 426,
+    "entry_share": {
+     "num": 3,
+     "den": 5
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 14426217,
+     "den": 25000000
+    },
+    "new": {
+     "num": 794438279,
+     "den": 5325000000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 25
+    },
+    "old": {
+     "num": 5221377,
+     "den": 25000000
+    },
+    "new": {
+     "num": 4056123,
+     "den": 25000000
+    },
+    "glide_sessions": 494,
+    "entry_share": {
+     "num": 1,
+     "den": 10
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 5221377,
+     "den": 25000000
+    },
+    "new": {
+     "num": 1013112381,
+     "den": 6175000000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 3,
+     "den": 100
+    },
+    "old": {
+     "num": 4346649,
+     "den": 12500000
+    },
+    "new": {
+     "num": 6244601,
+     "den": 12500000
+    },
+    "glide_sessions": 396,
+    "entry_share": {
+     "num": 7,
+     "den": 20
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 4346649,
+     "den": 12500000
+    },
+    "new": {
+     "num": 620246749,
+     "den": 1237500000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 3,
+     "den": 50
+    },
+    "old": {
+     "num": 145103,
+     "den": 6250000
+    },
+    "new": {
+     "num": 5309897,
+     "den": 6250000
+    },
+    "glide_sessions": 261,
+    "entry_share": {
+     "num": 7,
+     "den": 10
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 0,
+     "den": 1
+    },
+    "new": {
+     "num": 47521,
+     "den": 54375
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 100
+    },
+    "old": {
+     "num": 591,
+     "den": 2500
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 228,
+    "entry_share": {
+     "num": 1,
+     "den": 1
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 591,
+     "den": 2500
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 7,
+     "den": 100
+    },
+    "old": {
+     "num": 1987,
+     "den": 2500
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 43,
+    "entry_share": {
+     "num": 7,
+     "den": 10
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 3,
+     "den": 10
+    },
+    "new": {
+     "num": 7,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 2,
+     "den": 25
+    },
+    "old": {
+     "num": 8123,
+     "den": 10000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 147,
+    "entry_share": {
+     "num": 3,
+     "den": 10
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 7,
+     "den": 10
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 0,
+     "den": 1
+    },
+    "old": {
+     "num": 811,
+     "den": 2000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 248,
+    "entry_share": {
+     "num": 1,
+     "den": 1
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 0,
+     "den": 1
+    },
+    "new": {
+     "num": 1,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 2,
+     "den": 25
+    },
+    "old": {
+     "num": 951817,
+     "den": 3125000
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    },
+    "glide_sessions": 121,
+    "entry_share": {
+     "num": 7,
+     "den": 10
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 951817,
+     "den": 3125000
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 10
+    },
+    "old": {
+     "num": 2337,
+     "den": 10000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 145,
+    "entry_share": {
+     "num": 9,
+     "den": 10
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 1,
+     "den": 10
+    },
+    "new": {
+     "num": 9,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 50
+    },
+    "old": {
+     "num": 17029129,
+     "den": 50000000
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    },
+    "glide_sessions": 106,
+    "entry_share": {
+     "num": 1,
+     "den": 20
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 17029129,
+     "den": 50000000
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 7,
+     "den": 100
+    },
+    "old": {
+     "num": 669,
+     "den": 2500
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 107,
+    "entry_share": {
+     "num": 1,
+     "den": 20
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 669,
+     "den": 2500
+    },
+    "new": {
+     "num": 1,
+     "den": 20
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 3,
+     "den": 50
+    },
+    "old": {
+     "num": 2311,
+     "den": 2500
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 140,
+    "entry_share": {
+     "num": 3,
+     "den": 10
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 7,
+     "den": 10
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 3,
+     "den": 50
+    },
+    "old": {
+     "num": 1751651,
+     "den": 50000000
+    },
+    "new": {
+     "num": 25238349,
+     "den": 50000000
+    },
+    "glide_sessions": 326,
+    "entry_share": {
+     "num": 3,
+     "den": 5
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 0,
+     "den": 1
+    },
+    "new": {
+     "num": 440937,
+     "den": 815000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 2,
+     "den": 25
+    },
+    "old": {
+     "num": 2543,
+     "den": 10000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 448,
+    "entry_share": {
+     "num": 7,
+     "den": 20
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 2543,
+     "den": 10000
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 10
+    },
+    "old": {
+     "num": 178353,
+     "den": 12500000
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    },
+    "glide_sessions": 136,
+    "entry_share": {
+     "num": 3,
+     "den": 20
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 0,
+     "den": 1
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 50
+    },
+    "old": {
+     "num": 2634711,
+     "den": 4000000
+    },
+    "new": {
+     "num": 628089,
+     "den": 4000000
+    },
+    "glide_sessions": 84,
+    "entry_share": {
+     "num": 13,
+     "den": 20
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 2634711,
+     "den": 4000000
+    },
+    "new": {
+     "num": 1934267,
+     "den": 12000000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 3,
+     "den": 100
+    },
+    "old": {
+     "num": 404297,
+     "den": 12500000
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    },
+    "glide_sessions": 372,
+    "entry_share": {
+     "num": 3,
+     "den": 4
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 404297,
+     "den": 12500000
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 100
+    },
+    "old": {
+     "num": 2349,
+     "den": 10000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 467,
+    "entry_share": {
+     "num": 1,
+     "den": 4
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 2349,
+     "den": 10000
+    },
+    "new": {
+     "num": 1,
+     "den": 4
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 20
+    },
+    "old": {
+     "num": 159,
+     "den": 2500
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 155,
+    "entry_share": {
+     "num": 3,
+     "den": 20
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 159,
+     "den": 2500
+    },
+    "new": {
+     "num": 3,
+     "den": 20
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 25
+    },
+    "old": {
+     "num": 6883,
+     "den": 10000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 147,
+    "entry_share": {
+     "num": 1,
+     "den": 1
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 6883,
+     "den": 10000
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 25
+    },
+    "old": {
+     "num": 180439,
+     "den": 1250000
+    },
+    "new": {
+     "num": 117561,
+     "den": 1250000
+    },
+    "glide_sessions": 487,
+    "entry_share": {
+     "num": 1,
+     "den": 4
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 180439,
+     "den": 1250000
+    },
+    "new": {
+     "num": 58189707,
+     "den": 608750000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 25
+    },
+    "old": {
+     "num": 3008983,
+     "den": 50000000
+    },
+    "new": {
+     "num": 356017,
+     "den": 50000000
+    },
+    "glide_sessions": 304,
+    "entry_share": {
+     "num": 1,
+     "den": 4
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 3008983,
+     "den": 50000000
+    },
+    "new": {
+     "num": 9108073,
+     "den": 950000000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 0,
+     "den": 1
+    },
+    "old": {
+     "num": 109,
+     "den": 250
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 390,
+    "entry_share": {
+     "num": 1,
+     "den": 1
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 109,
+     "den": 250
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 50
+    },
+    "old": {
+     "num": 6357,
+     "den": 10000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 27,
+    "entry_share": {
+     "num": 19,
+     "den": 20
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 6357,
+     "den": 10000
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 9,
+     "den": 100
+    },
+    "old": {
+     "num": 4783,
+     "den": 5000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 54,
+    "entry_share": {
+     "num": 9,
+     "den": 10
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 7,
+     "den": 10
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 10
+    },
+    "old": {
+     "num": 62963,
+     "den": 800000
+    },
+    "new": {
+     "num": 95037,
+     "den": 800000
+    },
+    "glide_sessions": 180,
+    "entry_share": {
+     "num": 17,
+     "den": 20
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 0,
+     "den": 1
+    },
+    "new": {
+     "num": 119,
+     "den": 600
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 25
+    },
+    "old": {
+     "num": 5470557,
+     "den": 50000000
+    },
+    "new": {
+     "num": 26224443,
+     "den": 50000000
+    },
+    "glide_sessions": 431,
+    "entry_share": {
+     "num": 1,
+     "den": 20
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 5470557,
+     "den": 50000000
+    },
+    "new": {
+     "num": 11350234933,
+     "den": 21550000000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 100
+    },
+    "old": {
+     "num": 5253,
+     "den": 10000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 429,
+    "entry_share": {
+     "num": 9,
+     "den": 20
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 5253,
+     "den": 10000
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 0,
+     "den": 1
+    },
+    "old": {
+     "num": 4962617,
+     "den": 6250000
+    },
+    "new": {
+     "num": 851133,
+     "den": 6250000
+    },
+    "glide_sessions": 216,
+    "entry_share": {
+     "num": 13,
+     "den": 20
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 4962617,
+     "den": 6250000
+    },
+    "new": {
+     "num": 46508057,
+     "den": 337500000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 7,
+     "den": 100
+    },
+    "old": {
+     "num": 6031,
+     "den": 10000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 426,
+    "entry_share": {
+     "num": 1,
+     "den": 1
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 6031,
+     "den": 10000
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 20
+    },
+    "old": {
+     "num": 493,
+     "den": 500
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 69,
+    "entry_share": {
+     "num": 1,
+     "den": 10
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 9,
+     "den": 10
+    },
+    "new": {
+     "num": 1,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 0,
+     "den": 1
+    },
+    "old": {
+     "num": 121,
+     "den": 625
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 492,
+    "entry_share": {
+     "num": 7,
+     "den": 10
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 121,
+     "den": 625
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 9,
+     "den": 100
+    },
+    "old": {
+     "num": 9197223,
+     "den": 50000000
+    },
+    "new": {
+     "num": 2267777,
+     "den": 50000000
+    },
+    "glide_sessions": 162,
+    "entry_share": {
+     "num": 1,
+     "den": 10
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 9197223,
+     "den": 50000000
+    },
+    "new": {
+     "num": 22909993,
+     "den": 450000000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 2,
+     "den": 25
+    },
+    "old": {
+     "num": 90153,
+     "den": 156250
+    },
+    "new": {
+     "num": 56763,
+     "den": 625000
+    },
+    "glide_sessions": 350,
+    "entry_share": {
+     "num": 3,
+     "den": 4
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 90153,
+     "den": 156250
+    },
+    "new": {
+     "num": 200233,
+     "den": 2187500
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 20
+    },
+    "old": {
+     "num": 3272597,
+     "den": 50000000
+    },
+    "new": {
+     "num": 46162403,
+     "den": 50000000
+    },
+    "glide_sessions": 31,
+    "entry_share": {
+     "num": 17,
+     "den": 20
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 3272597,
+     "den": 50000000
+    },
+    "new": {
+     "num": 1438534493,
+     "den": 1550000000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 7,
+     "den": 100
+    },
+    "old": {
+     "num": 7873,
+     "den": 10000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 32,
+    "entry_share": {
+     "num": 0,
+     "den": 1
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 7873,
+     "den": 10000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 3,
+     "den": 100
+    },
+    "old": {
+     "num": 449,
+     "den": 500
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 87,
+    "entry_share": {
+     "num": 1,
+     "den": 2
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 7,
+     "den": 10
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 2,
+     "den": 25
+    },
+    "old": {
+     "num": 343,
+     "den": 5000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 195,
+    "entry_share": {
+     "num": 9,
+     "den": 10
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 0,
+     "den": 1
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 10
+    },
+    "old": {
+     "num": 591,
+     "den": 10000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 387,
+    "entry_share": {
+     "num": 1,
+     "den": 5
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 0,
+     "den": 1
+    },
+    "new": {
+     "num": 2591,
+     "den": 10000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 20
+    },
+    "old": {
+     "num": 1303,
+     "den": 2000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 280,
+    "entry_share": {
+     "num": 9,
+     "den": 10
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 1303,
+     "den": 2000
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 20
+    },
+    "old": {
+     "num": 30251369,
+     "den": 50000000
+    },
+    "new": {
+     "num": 14678631,
+     "den": 50000000
+    },
+    "glide_sessions": 185,
+    "entry_share": {
+     "num": 11,
+     "den": 20
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 30251369,
+     "den": 50000000
+    },
+    "new": {
+     "num": 547609347,
+     "den": 1850000000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 7,
+     "den": 100
+    },
+    "old": {
+     "num": 14630103,
+     "den": 50000000
+    },
+    "new": {
+     "num": 9579897,
+     "den": 50000000
+    },
+    "glide_sessions": 483,
+    "entry_share": {
+     "num": 0,
+     "den": 1
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 14630103,
+     "den": 50000000
+    },
+    "new": {
+     "num": 4677090251,
+     "den": 24150000000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 100
+    },
+    "old": {
+     "num": 110517,
+     "den": 500000
+    },
+    "new": {
+     "num": 29733,
+     "den": 500000
+    },
+    "glide_sessions": 453,
+    "entry_share": {
+     "num": 19,
+     "den": 20
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 110517,
+     "den": 500000
+    },
+    "new": {
+     "num": 13494049,
+     "den": 226500000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 20
+    },
+    "old": {
+     "num": 9591,
+     "den": 10000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 398,
+    "entry_share": {
+     "num": 3,
+     "den": 20
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 17,
+     "den": 20
+    },
+    "new": {
+     "num": 3,
+     "den": 20
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 10
+    },
+    "old": {
+     "num": 187227,
+     "den": 2500000
+    },
+    "new": {
+     "num": 2010273,
+     "den": 2500000
+    },
+    "glide_sessions": 99,
+    "entry_share": {
+     "num": 11,
+     "den": 20
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 0,
+     "den": 1
+    },
+    "new": {
+     "num": 9719,
+     "den": 11000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 0,
+     "den": 1
+    },
+    "old": {
+     "num": 3983,
+     "den": 5000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 253,
+    "entry_share": {
+     "num": 9,
+     "den": 20
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 11,
+     "den": 20
+    },
+    "new": {
+     "num": 9,
+     "den": 20
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 20
+    },
+    "old": {
+     "num": 1471,
+     "den": 10000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 314,
+    "entry_share": {
+     "num": 11,
+     "den": 20
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 1471,
+     "den": 10000
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 20
+    },
+    "old": {
+     "num": 2373,
+     "den": 10000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 268,
+    "entry_share": {
+     "num": 3,
+     "den": 10
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 2373,
+     "den": 10000
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 25
+    },
+    "old": {
+     "num": 293,
+     "den": 2000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 162,
+    "entry_share": {
+     "num": 0,
+     "den": 1
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 293,
+     "den": 2000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 2,
+     "den": 25
+    },
+    "old": {
+     "num": 6349,
+     "den": 10000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 259,
+    "entry_share": {
+     "num": 7,
+     "den": 10
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 3,
+     "den": 10
+    },
+    "new": {
+     "num": 7,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 100
+    },
+    "old": {
+     "num": 135943,
+     "den": 200000
+    },
+    "new": {
+     "num": 26377,
+     "den": 200000
+    },
+    "glide_sessions": 409,
+    "entry_share": {
+     "num": 4,
+     "den": 5
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 135943,
+     "den": 200000
+    },
+    "new": {
+     "num": 10828193,
+     "den": 81800000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 50
+    },
+    "old": {
+     "num": 987,
+     "den": 2000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 329,
+    "entry_share": {
+     "num": 3,
+     "den": 10
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 987,
+     "den": 2000
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 2,
+     "den": 25
+    },
+    "old": {
+     "num": 10993639,
+     "den": 25000000
+    },
+    "new": {
+     "num": 5898861,
+     "den": 25000000
+    },
+    "glide_sessions": 331,
+    "entry_share": {
+     "num": 1,
+     "den": 10
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 10993639,
+     "den": 25000000
+    },
+    "new": {
+     "num": 1975022991,
+     "den": 8275000000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 7,
+     "den": 100
+    },
+    "old": {
+     "num": 9293487,
+     "den": 25000000
+    },
+    "new": {
+     "num": 636513,
+     "den": 25000000
+    },
+    "glide_sessions": 440,
+    "entry_share": {
+     "num": 1,
+     "den": 10
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 9293487,
+     "den": 25000000
+    },
+    "new": {
+     "num": 7564143,
+     "den": 275000000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 25
+    },
+    "old": {
+     "num": 68658039,
+     "den": 100000000
+    },
+    "new": {
+     "num": 11111961,
+     "den": 100000000
+    },
+    "glide_sessions": 189,
+    "entry_share": {
+     "num": 17,
+     "den": 20
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 68658039,
+     "den": 100000000
+    },
+    "new": {
+     "num": 705053543,
+     "den": 6300000000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 10
+    },
+    "old": {
+     "num": 9361,
+     "den": 10000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 437,
+    "entry_share": {
+     "num": 2,
+     "den": 5
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 7,
+     "den": 10
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 100
+    },
+    "old": {
+     "num": 6039,
+     "den": 10000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 466,
+    "entry_share": {
+     "num": 1,
+     "den": 20
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 6039,
+     "den": 10000
+    },
+    "new": {
+     "num": 1,
+     "den": 20
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 100
+    },
+    "old": {
+     "num": 1859,
+     "den": 4000
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    },
+    "glide_sessions": 95,
+    "entry_share": {
+     "num": 1,
+     "den": 4
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 1859,
+     "den": 4000
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 100
+    },
+    "old": {
+     "num": 2147,
+     "den": 10000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 283,
+    "entry_share": {
+     "num": 1,
+     "den": 1
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 0,
+     "den": 1
+    },
+    "new": {
+     "num": 1,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 9,
+     "den": 100
+    },
+    "old": {
+     "num": 34,
+     "den": 125
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 385,
+    "entry_share": {
+     "num": 1,
+     "den": 10
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 34,
+     "den": 125
+    },
+    "new": {
+     "num": 1,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 20
+    },
+    "old": {
+     "num": 397773,
+     "den": 5000000
+    },
+    "new": {
+     "num": 181227,
+     "den": 5000000
+    },
+    "glide_sessions": 380,
+    "entry_share": {
+     "num": 1,
+     "den": 1
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 397773,
+     "den": 5000000
+    },
+    "new": {
+     "num": 181227,
+     "den": 5000000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 7,
+     "den": 100
+    },
+    "old": {
+     "num": 466,
+     "den": 625
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 487,
+    "entry_share": {
+     "num": 1,
+     "den": 1
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 7,
+     "den": 10
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 3,
+     "den": 50
+    },
+    "old": {
+     "num": 1683,
+     "den": 2500
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 438,
+    "entry_share": {
+     "num": 7,
+     "den": 20
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 1683,
+     "den": 2500
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 100
+    },
+    "old": {
+     "num": 33741,
+     "den": 3125000
+    },
+    "new": {
+     "num": 67971,
+     "den": 781250
+    },
+    "glide_sessions": 7,
+    "entry_share": {
+     "num": 1,
+     "den": 4
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 33741,
+     "den": 3125000
+    },
+    "new": {
+     "num": 2123469,
+     "den": 10937500
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 50
+    },
+    "old": {
+     "num": 4757,
+     "den": 10000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 311,
+    "entry_share": {
+     "num": 9,
+     "den": 20
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 4757,
+     "den": 10000
+    },
+    "new": {
+     "num": 9,
+     "den": 20
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 3,
+     "den": 100
+    },
+    "old": {
+     "num": 1143897,
+     "den": 10000000
+    },
+    "new": {
+     "num": 1821103,
+     "den": 10000000
+    },
+    "glide_sessions": 84,
+    "entry_share": {
+     "num": 1,
+     "den": 1
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 1143897,
+     "den": 10000000
+    },
+    "new": {
+     "num": 1821103,
+     "den": 10000000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 2,
+     "den": 25
+    },
+    "old": {
+     "num": 7113,
+     "den": 10000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 304,
+    "entry_share": {
+     "num": 1,
+     "den": 20
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 7113,
+     "den": 10000
+    },
+    "new": {
+     "num": 1,
+     "den": 20
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 50
+    },
+    "old": {
+     "num": 182,
+     "den": 625
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 395,
+    "entry_share": {
+     "num": 7,
+     "den": 20
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 182,
+     "den": 625
+    },
+    "new": {
+     "num": 7,
+     "den": 20
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 3,
+     "den": 100
+    },
+    "old": {
+     "num": 432,
+     "den": 625
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 123,
+    "entry_share": {
+     "num": 2,
+     "den": 5
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 3,
+     "den": 5
+    },
+    "new": {
+     "num": 2,
+     "den": 5
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 20
+    },
+    "old": {
+     "num": 253227,
+     "den": 3125000
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    },
+    "glide_sessions": 241,
+    "entry_share": {
+     "num": 1,
+     "den": 2
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 253227,
+     "den": 3125000
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 9,
+     "den": 100
+    },
+    "old": {
+     "num": 1372173,
+     "den": 20000000
+    },
+    "new": {
+     "num": 4429827,
+     "den": 20000000
+    },
+    "glide_sessions": 453,
+    "entry_share": {
+     "num": 13,
+     "den": 20
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 0,
+     "den": 1
+    },
+    "new": {
+     "num": 1317653,
+     "den": 4530000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 2,
+     "den": 25
+    },
+    "old": {
+     "num": 811903,
+     "den": 10000000
+    },
+    "new": {
+     "num": 3097,
+     "den": 10000000
+    },
+    "glide_sessions": 442,
+    "entry_share": {
+     "num": 3,
+     "den": 4
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 811903,
+     "den": 10000000
+    },
+    "new": {
+     "num": 1934437,
+     "den": 2210000000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 2,
+     "den": 25
+    },
+    "old": {
+     "num": 4317,
+     "den": 5000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 366,
+    "entry_share": {
+     "num": 3,
+     "den": 4
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 7,
+     "den": 10
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 25
+    },
+    "old": {
+     "num": 299,
+     "den": 1000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 204,
+    "entry_share": {
+     "num": 0,
+     "den": 1
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 299,
+     "den": 1000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 3,
+     "den": 100
+    },
+    "old": {
+     "num": 44,
+     "den": 625
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 448,
+    "entry_share": {
+     "num": 7,
+     "den": 20
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 44,
+     "den": 625
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 9,
+     "den": 100
+    },
+    "old": {
+     "num": 3956391,
+     "den": 5000000
+    },
+    "new": {
+     "num": 198609,
+     "den": 5000000
+    },
+    "glide_sessions": 470,
+    "entry_share": {
+     "num": 1,
+     "den": 4
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 3956391,
+     "den": 5000000
+    },
+    "new": {
+     "num": 9709623,
+     "den": 235000000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 10
+    },
+    "old": {
+     "num": 84609,
+     "den": 500000
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    },
+    "glide_sessions": 216,
+    "entry_share": {
+     "num": 9,
+     "den": 20
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 84609,
+     "den": 500000
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 9,
+     "den": 100
+    },
+    "old": {
+     "num": 16617,
+     "den": 62500
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    },
+    "glide_sessions": 438,
+    "entry_share": {
+     "num": 9,
+     "den": 20
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 16617,
+     "den": 62500
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 3,
+     "den": 50
+    },
+    "old": {
+     "num": 5260499,
+     "den": 10000000
+    },
+    "new": {
+     "num": 209501,
+     "den": 10000000
+    },
+    "glide_sessions": 109,
+    "entry_share": {
+     "num": 7,
+     "den": 20
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 5260499,
+     "den": 10000000
+    },
+    "new": {
+     "num": 29335609,
+     "den": 1090000000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 0,
+     "den": 1
+    },
+    "old": {
+     "num": 9983,
+     "den": 10000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 476,
+    "entry_share": {
+     "num": 9,
+     "den": 10
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 1,
+     "den": 10
+    },
+    "new": {
+     "num": 9,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 10
+    },
+    "old": {
+     "num": 4194703,
+     "den": 10000000
+    },
+    "new": {
+     "num": 1563297,
+     "den": 10000000
+    },
+    "glide_sessions": 81,
+    "entry_share": {
+     "num": 19,
+     "den": 20
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 4194703,
+     "den": 10000000
+    },
+    "new": {
+     "num": 127127057,
+     "den": 810000000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 100
+    },
+    "old": {
+     "num": 1862553,
+     "den": 6250000
+    },
+    "new": {
+     "num": 447447,
+     "den": 6250000
+    },
+    "glide_sessions": 264,
+    "entry_share": {
+     "num": 1,
+     "den": 5
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 1862553,
+     "den": 6250000
+    },
+    "new": {
+     "num": 15390751,
+     "den": 206250000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 0,
+     "den": 1
+    },
+    "old": {
+     "num": 8217,
+     "den": 10000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 253,
+    "entry_share": {
+     "num": 1,
+     "den": 1
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 0,
+     "den": 1
+    },
+    "new": {
+     "num": 1,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 3,
+     "den": 100
+    },
+    "old": {
+     "num": 1189,
+     "den": 10000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 113,
+    "entry_share": {
+     "num": 3,
+     "den": 10
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 1189,
+     "den": 10000
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 10
+    },
+    "old": {
+     "num": 3513,
+     "den": 10000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 103,
+    "entry_share": {
+     "num": 9,
+     "den": 10
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 3513,
+     "den": 10000
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 10
+    },
+    "old": {
+     "num": 7541,
+     "den": 10000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 220,
+    "entry_share": {
+     "num": 7,
+     "den": 10
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 7,
+     "den": 10
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 2,
+     "den": 25
+    },
+    "old": {
+     "num": 11489201,
+     "den": 25000000
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    },
+    "glide_sessions": 52,
+    "entry_share": {
+     "num": 1,
+     "den": 10
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 11489201,
+     "den": 25000000
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 100
+    },
+    "old": {
+     "num": 2387,
+     "den": 2500
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 497,
+    "entry_share": {
+     "num": 2,
+     "den": 5
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 7,
+     "den": 10
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 3,
+     "den": 100
+    },
+    "old": {
+     "num": 831,
+     "den": 2000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 70,
+    "entry_share": {
+     "num": 1,
+     "den": 2
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 831,
+     "den": 2000
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 9,
+     "den": 100
+    },
+    "old": {
+     "num": 1031,
+     "den": 1250
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 377,
+    "entry_share": {
+     "num": 7,
+     "den": 10
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 7,
+     "den": 10
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 0,
+     "den": 1
+    },
+    "old": {
+     "num": 191,
+     "den": 1000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 307,
+    "entry_share": {
+     "num": 1,
+     "den": 10
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 191,
+     "den": 1000
+    },
+    "new": {
+     "num": 1,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 0,
+     "den": 1
+    },
+    "old": {
+     "num": 149,
+     "den": 500
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 442,
+    "entry_share": {
+     "num": 4,
+     "den": 5
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 149,
+     "den": 500
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 7,
+     "den": 100
+    },
+    "old": {
+     "num": 460971,
+     "den": 20000000
+    },
+    "new": {
+     "num": 1165029,
+     "den": 20000000
+    },
+    "glide_sessions": 274,
+    "entry_share": {
+     "num": 1,
+     "den": 10
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 0,
+     "den": 1
+    },
+    "new": {
+     "num": 115881,
+     "den": 1370000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 0,
+     "den": 1
+    },
+    "old": {
+     "num": 24060127,
+     "den": 100000000
+    },
+    "new": {
+     "num": 28369873,
+     "den": 100000000
+    },
+    "glide_sessions": 256,
+    "entry_share": {
+     "num": 1,
+     "den": 4
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 24060127,
+     "den": 100000000
+    },
+    "new": {
+     "num": 114651367,
+     "den": 400000000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 50
+    },
+    "old": {
+     "num": 4271,
+     "den": 10000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 315,
+    "entry_share": {
+     "num": 0,
+     "den": 1
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 4271,
+     "den": 10000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 20
+    },
+    "old": {
+     "num": 6117,
+     "den": 10000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 20,
+    "entry_share": {
+     "num": 3,
+     "den": 4
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 1,
+     "den": 4
+    },
+    "new": {
+     "num": 3,
+     "den": 4
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 20
+    },
+    "old": {
+     "num": 189,
+     "den": 1000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 399,
+    "entry_share": {
+     "num": 3,
+     "den": 4
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 189,
+     "den": 1000
+    },
+    "new": {
+     "num": 3,
+     "den": 4
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 100
+    },
+    "old": {
+     "num": 1423,
+     "den": 10000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 121,
+    "entry_share": {
+     "num": 0,
+     "den": 1
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 1423,
+     "den": 10000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 10
+    },
+    "old": {
+     "num": 1971,
+     "den": 10000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 11,
+    "entry_share": {
+     "num": 3,
+     "den": 4
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 1971,
+     "den": 10000
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 3,
+     "den": 50
+    },
+    "old": {
+     "num": 77139137,
+     "den": 100000000
+    },
+    "new": {
+     "num": 1150863,
+     "den": 100000000
+    },
+    "glide_sessions": 162,
+    "entry_share": {
+     "num": 3,
+     "den": 10
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 77139137,
+     "den": 100000000
+    },
+    "new": {
+     "num": 128219903,
+     "den": 8100000000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 25
+    },
+    "old": {
+     "num": 1599,
+     "den": 2500
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 230,
+    "entry_share": {
+     "num": 17,
+     "den": 20
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 3,
+     "den": 20
+    },
+    "new": {
+     "num": 17,
+     "den": 20
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 25
+    },
+    "old": {
+     "num": 6404463,
+     "den": 20000000
+    },
+    "new": {
+     "num": 2305537,
+     "den": 20000000
+    },
+    "glide_sessions": 90,
+    "entry_share": {
+     "num": 7,
+     "den": 10
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 6404463,
+     "den": 20000000
+    },
+    "new": {
+     "num": 7116611,
+     "den": 60000000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 50
+    },
+    "old": {
+     "num": 168543,
+     "den": 5000000
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    },
+    "glide_sessions": 406,
+    "entry_share": {
+     "num": 1,
+     "den": 5
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 168543,
+     "den": 5000000
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 50
+    },
+    "old": {
+     "num": 1191,
+     "den": 5000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 458,
+    "entry_share": {
+     "num": 4,
+     "den": 5
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 1191,
+     "den": 5000
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 3,
+     "den": 50
+    },
+    "old": {
+     "num": 3089,
+     "den": 10000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 85,
+    "entry_share": {
+     "num": 4,
+     "den": 5
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 1,
+     "den": 5
+    },
+    "new": {
+     "num": 4,
+     "den": 5
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 10
+    },
+    "old": {
+     "num": 31,
+     "den": 625
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 375,
+    "entry_share": {
+     "num": 7,
+     "den": 10
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 0,
+     "den": 1
+    },
+    "new": {
+     "num": 937,
+     "den": 1250
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 3,
+     "den": 100
+    },
+    "old": {
+     "num": 101,
+     "den": 200
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 359,
+    "entry_share": {
+     "num": 7,
+     "den": 10
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 3,
+     "den": 10
+    },
+    "new": {
+     "num": 7,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 3,
+     "den": 50
+    },
+    "old": {
+     "num": 8267493,
+     "den": 12500000
+    },
+    "new": {
+     "num": 3237507,
+     "den": 12500000
+    },
+    "glide_sessions": 178,
+    "entry_share": {
+     "num": 4,
+     "den": 5
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 8267493,
+     "den": 12500000
+    },
+    "new": {
+     "num": 289388123,
+     "den": 1112500000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 50
+    },
+    "old": {
+     "num": 5087477,
+     "den": 20000000
+    },
+    "new": {
+     "num": 3682523,
+     "den": 20000000
+    },
+    "glide_sessions": 45,
+    "entry_share": {
+     "num": 3,
+     "den": 10
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 5087477,
+     "den": 20000000
+    },
+    "new": {
+     "num": 35942707,
+     "den": 180000000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 2,
+     "den": 25
+    },
+    "old": {
+     "num": 1843,
+     "den": 5000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 141,
+    "entry_share": {
+     "num": 2,
+     "den": 5
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 1843,
+     "den": 5000
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 3,
+     "den": 100
+    },
+    "old": {
+     "num": 6257,
+     "den": 10000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 223,
+    "entry_share": {
+     "num": 1,
+     "den": 5
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 6257,
+     "den": 10000
+    },
+    "new": {
+     "num": 1,
+     "den": 5
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 2,
+     "den": 25
+    },
+    "old": {
+     "num": 354637,
+     "den": 781250
+    },
+    "new": {
+     "num": 134113,
+     "den": 781250
+    },
+    "glide_sessions": 140,
+    "entry_share": {
+     "num": 1,
+     "den": 20
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 354637,
+     "den": 781250
+    },
+    "new": {
+     "num": 7807203,
+     "den": 43750000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 7,
+     "den": 100
+    },
+    "old": {
+     "num": 5547,
+     "den": 10000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 82,
+    "entry_share": {
+     "num": 9,
+     "den": 10
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 5547,
+     "den": 10000
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 10
+    },
+    "old": {
+     "num": 3950919,
+     "den": 25000000
+    },
+    "new": {
+     "num": 6164081,
+     "den": 25000000
+    },
+    "glide_sessions": 20,
+    "entry_share": {
+     "num": 3,
+     "den": 5
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 3950919,
+     "den": 25000000
+    },
+    "new": {
+     "num": 6664081,
+     "den": 25000000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 10
+    },
+    "old": {
+     "num": 1523,
+     "den": 5000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 288,
+    "entry_share": {
+     "num": 1,
+     "den": 5
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 1523,
+     "den": 5000
+    },
+    "new": {
+     "num": 1,
+     "den": 5
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 25
+    },
+    "old": {
+     "num": 1567503,
+     "den": 5000000
+    },
+    "new": {
+     "num": 2459997,
+     "den": 5000000
+    },
+    "glide_sessions": 80,
+    "entry_share": {
+     "num": 0,
+     "den": 1
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 1567503,
+     "den": 5000000
+    },
+    "new": {
+     "num": 2522497,
+     "den": 5000000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 25
+    },
+    "old": {
+     "num": 2243397,
+     "den": 6250000
+    },
+    "new": {
+     "num": 2471603,
+     "den": 6250000
+    },
+    "glide_sessions": 198,
+    "entry_share": {
+     "num": 1,
+     "den": 10
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 2243397,
+     "den": 6250000
+    },
+    "new": {
+     "num": 27500133,
+     "den": 68750000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 3,
+     "den": 50
+    },
+    "old": {
+     "num": 33682859,
+     "den": 50000000
+    },
+    "new": {
+     "num": 3647141,
+     "den": 50000000
+    },
+    "glide_sessions": 226,
+    "entry_share": {
+     "num": 1,
+     "den": 10
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 33682859,
+     "den": 50000000
+    },
+    "new": {
+     "num": 434626933,
+     "den": 5650000000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 100
+    },
+    "old": {
+     "num": 350203,
+     "den": 4000000
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    },
+    "glide_sessions": 453,
+    "entry_share": {
+     "num": 2,
+     "den": 5
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 350203,
+     "den": 4000000
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 7,
+     "den": 100
+    },
+    "old": {
+     "num": 1407,
+     "den": 5000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 255,
+    "entry_share": {
+     "num": 1,
+     "den": 20
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 1407,
+     "den": 5000
+    },
+    "new": {
+     "num": 1,
+     "den": 20
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 10
+    },
+    "old": {
+     "num": 1419,
+     "den": 2500
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 149,
+    "entry_share": {
+     "num": 1,
+     "den": 4
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 1419,
+     "den": 2500
+    },
+    "new": {
+     "num": 1,
+     "den": 4
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 3,
+     "den": 100
+    },
+    "old": {
+     "num": 571,
+     "den": 10000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 378,
+    "entry_share": {
+     "num": 3,
+     "den": 5
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 571,
+     "den": 10000
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 7,
+     "den": 100
+    },
+    "old": {
+     "num": 1039,
+     "den": 2500
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 330,
+    "entry_share": {
+     "num": 1,
+     "den": 5
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 1039,
+     "den": 2500
+    },
+    "new": {
+     "num": 1,
+     "den": 5
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 10
+    },
+    "old": {
+     "num": 1539,
+     "den": 5000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 480,
+    "entry_share": {
+     "num": 7,
+     "den": 10
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 1539,
+     "den": 5000
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 10
+    },
+    "old": {
+     "num": 1577487,
+     "den": 50000000
+    },
+    "new": {
+     "num": 4667513,
+     "den": 50000000
+    },
+    "glide_sessions": 398,
+    "entry_share": {
+     "num": 3,
+     "den": 4
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 0,
+     "den": 1
+    },
+    "new": {
+     "num": 249801,
+     "den": 1990000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 7,
+     "den": 100
+    },
+    "old": {
+     "num": 5297,
+     "den": 10000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 357,
+    "entry_share": {
+     "num": 3,
+     "den": 4
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 5297,
+     "den": 10000
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 100
+    },
+    "old": {
+     "num": 41409,
+     "den": 400000
+    },
+    "new": {
+     "num": 44591,
+     "den": 400000
+    },
+    "glide_sessions": 378,
+    "entry_share": {
+     "num": 11,
+     "den": 20
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 41409,
+     "den": 400000
+    },
+    "new": {
+     "num": 946411,
+     "den": 8400000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 0,
+     "den": 1
+    },
+    "old": {
+     "num": 4427,
+     "den": 5000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 109,
+    "entry_share": {
+     "num": 1,
+     "den": 10
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 4427,
+     "den": 5000
+    },
+    "new": {
+     "num": 1,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 50
+    },
+    "old": {
+     "num": 2009,
+     "den": 2500
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 32,
+    "entry_share": {
+     "num": 7,
+     "den": 10
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 3,
+     "den": 10
+    },
+    "new": {
+     "num": 7,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 0,
+     "den": 1
+    },
+    "old": {
+     "num": 1837,
+     "den": 2500
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 199,
+    "entry_share": {
+     "num": 7,
+     "den": 10
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 7,
+     "den": 10
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 100
+    },
+    "old": {
+     "num": 4958123,
+     "den": 100000000
+    },
+    "new": {
+     "num": 31471877,
+     "den": 100000000
+    },
+    "glide_sessions": 336,
+    "entry_share": {
+     "num": 7,
+     "den": 20
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 4958123,
+     "den": 100000000
+    },
+    "new": {
+     "num": 664971917,
+     "den": 2100000000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 20
+    },
+    "old": {
+     "num": 273,
+     "den": 2500
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 351,
+    "entry_share": {
+     "num": 9,
+     "den": 20
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 273,
+     "den": 2500
+    },
+    "new": {
+     "num": 9,
+     "den": 20
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 10
+    },
+    "old": {
+     "num": 493,
+     "den": 5000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 324,
+    "entry_share": {
+     "num": 13,
+     "den": 20
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 0,
+     "den": 1
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 50
+    },
+    "old": {
+     "num": 31886273,
+     "den": 100000000
+    },
+    "new": {
+     "num": 5203727,
+     "den": 100000000
+    },
+    "glide_sessions": 257,
+    "entry_share": {
+     "num": 1,
+     "den": 20
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 31886273,
+     "den": 100000000
+    },
+    "new": {
+     "num": 1432357839,
+     "den": 25700000000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 3,
+     "den": 50
+    },
+    "old": {
+     "num": 3737,
+     "den": 5000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 334,
+    "entry_share": {
+     "num": 17,
+     "den": 20
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 7,
+     "den": 10
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 3,
+     "den": 50
+    },
+    "old": {
+     "num": 12508397,
+     "den": 50000000
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    },
+    "glide_sessions": 127,
+    "entry_share": {
+     "num": 0,
+     "den": 1
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 12508397,
+     "den": 50000000
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 10
+    },
+    "old": {
+     "num": 11048121,
+     "den": 20000000
+    },
+    "new": {
+     "num": 265879,
+     "den": 20000000
+    },
+    "glide_sessions": 28,
+    "entry_share": {
+     "num": 1,
+     "den": 20
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 11048121,
+     "den": 20000000
+    },
+    "new": {
+     "num": 6611153,
+     "den": 140000000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 10
+    },
+    "old": {
+     "num": 1651,
+     "den": 5000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 270,
+    "entry_share": {
+     "num": 4,
+     "den": 5
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 1651,
+     "den": 5000
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 25
+    },
+    "old": {
+     "num": 193,
+     "den": 400
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 427,
+    "entry_share": {
+     "num": 1,
+     "den": 20
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 193,
+     "den": 400
+    },
+    "new": {
+     "num": 1,
+     "den": 20
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 9,
+     "den": 100
+    },
+    "old": {
+     "num": 6269,
+     "den": 10000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 378,
+    "entry_share": {
+     "num": 13,
+     "den": 20
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 7,
+     "den": 20
+    },
+    "new": {
+     "num": 13,
+     "den": 20
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 50
+    },
+    "old": {
+     "num": 1607799,
+     "den": 25000000
+    },
+    "new": {
+     "num": 1574701,
+     "den": 25000000
+    },
+    "glide_sessions": 37,
+    "entry_share": {
+     "num": 1,
+     "den": 1
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 1607799,
+     "den": 25000000
+    },
+    "new": {
+     "num": 1574701,
+     "den": 25000000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 20
+    },
+    "old": {
+     "num": 4079,
+     "den": 10000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 7,
+    "entry_share": {
+     "num": 1,
+     "den": 2
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 4079,
+     "den": 10000
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 100
+    },
+    "old": {
+     "num": 702297,
+     "den": 50000000
+    },
+    "new": {
+     "num": 407703,
+     "den": 50000000
+    },
+    "glide_sessions": 353,
+    "entry_share": {
+     "num": 4,
+     "den": 5
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 702297,
+     "den": 50000000
+    },
+    "new": {
+     "num": 153919159,
+     "den": 17650000000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 10
+    },
+    "old": {
+     "num": 17190603,
+     "den": 50000000
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    },
+    "glide_sessions": 406,
+    "entry_share": {
+     "num": 1,
+     "den": 10
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 17190603,
+     "den": 50000000
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 3,
+     "den": 100
+    },
+    "old": {
+     "num": 9567,
+     "den": 10000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 402,
+    "entry_share": {
+     "num": 3,
+     "den": 4
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 7,
+     "den": 10
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 20
+    },
+    "old": {
+     "num": 313761,
+     "den": 25000000
+    },
+    "new": {
+     "num": 801239,
+     "den": 25000000
+    },
+    "glide_sessions": 293,
+    "entry_share": {
+     "num": 1,
+     "den": 5
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 0,
+     "den": 1
+    },
+    "new": {
+     "num": 69339,
+     "den": 1465000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 3,
+     "den": 100
+    },
+    "old": {
+     "num": 5323,
+     "den": 10000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 471,
+    "entry_share": {
+     "num": 1,
+     "den": 10
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 5323,
+     "den": 10000
+    },
+    "new": {
+     "num": 1,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 3,
+     "den": 50
+    },
+    "old": {
+     "num": 61173,
+     "den": 625000
+    },
+    "new": {
+     "num": 484529,
+     "den": 1250000
+    },
+    "glide_sessions": 398,
+    "entry_share": {
+     "num": 17,
+     "den": 20
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 61173,
+     "den": 625000
+    },
+    "new": {
+     "num": 96515021,
+     "den": 248750000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 10
+    },
+    "old": {
+     "num": 983,
+     "den": 1250
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 396,
+    "entry_share": {
+     "num": 3,
+     "den": 10
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 7,
+     "den": 10
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 50
+    },
+    "old": {
+     "num": 4821,
+     "den": 5000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 126,
+    "entry_share": {
+     "num": 0,
+     "den": 1
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 4821,
+     "den": 5000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 50
+    },
+    "old": {
+     "num": 1123293,
+     "den": 2500000
+    },
+    "new": {
+     "num": 41707,
+     "den": 2500000
+    },
+    "glide_sessions": 323,
+    "entry_share": {
+     "num": 4,
+     "den": 5
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 1123293,
+     "den": 2500000
+    },
+    "new": {
+     "num": 13971361,
+     "den": 807500000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 25
+    },
+    "old": {
+     "num": 2036619,
+     "den": 100000000
+    },
+    "new": {
+     "num": 3033381,
+     "den": 100000000
+    },
+    "glide_sessions": 303,
+    "entry_share": {
+     "num": 2,
+     "den": 5
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 0,
+     "den": 1
+    },
+    "new": {
+     "num": 53207,
+     "den": 1010000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 0,
+     "den": 1
+    },
+    "old": {
+     "num": 366,
+     "den": 625
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 214,
+    "entry_share": {
+     "num": 13,
+     "den": 20
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 7,
+     "den": 20
+    },
+    "new": {
+     "num": 13,
+     "den": 20
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 3,
+     "den": 100
+    },
+    "old": {
+     "num": 2430679,
+     "den": 20000000
+    },
+    "new": {
+     "num": 3087321,
+     "den": 20000000
+    },
+    "glide_sessions": 402,
+    "entry_share": {
+     "num": 1,
+     "den": 5
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 2430679,
+     "den": 20000000
+    },
+    "new": {
+     "num": 628551521,
+     "den": 4020000000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 9,
+     "den": 100
+    },
+    "old": {
+     "num": 29,
+     "den": 1000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 310,
+    "entry_share": {
+     "num": 11,
+     "den": 20
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 0,
+     "den": 1
+    },
+    "new": {
+     "num": 579,
+     "den": 1000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 50
+    },
+    "old": {
+     "num": 1526159,
+     "den": 6250000
+    },
+    "new": {
+     "num": 828929,
+     "den": 1562500
+    },
+    "glide_sessions": 245,
+    "entry_share": {
+     "num": 3,
+     "den": 5
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 1526159,
+     "den": 6250000
+    },
+    "new": {
+     "num": 40742521,
+     "den": 76562500
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 50
+    },
+    "old": {
+     "num": 509,
+     "den": 2000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 301,
+    "entry_share": {
+     "num": 9,
+     "den": 10
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 1,
+     "den": 10
+    },
+    "new": {
+     "num": 9,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 3,
+     "den": 50
+    },
+    "old": {
+     "num": 4173,
+     "den": 10000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 436,
+    "entry_share": {
+     "num": 1,
+     "den": 1
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 4173,
+     "den": 10000
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 3,
+     "den": 100
+    },
+    "old": {
+     "num": 578,
+     "den": 625
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 73,
+    "entry_share": {
+     "num": 3,
+     "den": 20
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 17,
+     "den": 20
+    },
+    "new": {
+     "num": 3,
+     "den": 20
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 50
+    },
+    "old": {
+     "num": 1089,
+     "den": 5000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 46,
+    "entry_share": {
+     "num": 1,
+     "den": 4
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 1089,
+     "den": 5000
+    },
+    "new": {
+     "num": 1,
+     "den": 4
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 2,
+     "den": 25
+    },
+    "old": {
+     "num": 5750787,
+     "den": 50000000
+    },
+    "new": {
+     "num": 14484213,
+     "den": 50000000
+    },
+    "glide_sessions": 21,
+    "entry_share": {
+     "num": 0,
+     "den": 1
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 5750787,
+     "den": 50000000
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 0,
+     "den": 1
+    },
+    "old": {
+     "num": 1617,
+     "den": 5000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 394,
+    "entry_share": {
+     "num": 9,
+     "den": 10
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 1617,
+     "den": 5000
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 10
+    },
+    "old": {
+     "num": 8127843,
+     "den": 50000000
+    },
+    "new": {
+     "num": 4862157,
+     "den": 50000000
+    },
+    "glide_sessions": 325,
+    "entry_share": {
+     "num": 1,
+     "den": 2
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 8127843,
+     "den": 50000000
+    },
+    "new": {
+     "num": 64208041,
+     "den": 650000000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 50
+    },
+    "old": {
+     "num": 5297,
+     "den": 10000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 85,
+    "entry_share": {
+     "num": 7,
+     "den": 10
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 3,
+     "den": 10
+    },
+    "new": {
+     "num": 7,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 10
+    },
+    "old": {
+     "num": 44590143,
+     "den": 100000000
+    },
+    "new": {
+     "num": 17939857,
+     "den": 100000000
+    },
+    "glide_sessions": 218,
+    "entry_share": {
+     "num": 1,
+     "den": 2
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 44590143,
+     "den": 100000000
+    },
+    "new": {
+     "num": 1980444413,
+     "den": 10900000000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 20
+    },
+    "old": {
+     "num": 37,
+     "den": 250
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 97,
+    "entry_share": {
+     "num": 3,
+     "den": 5
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 37,
+     "den": 250
+    },
+    "new": {
+     "num": 3,
+     "den": 5
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 3,
+     "den": 100
+    },
+    "old": {
+     "num": 4943853,
+     "den": 50000000
+    },
+    "new": {
+     "num": 7251147,
+     "den": 50000000
+    },
+    "glide_sessions": 160,
+    "entry_share": {
+     "num": 13,
+     "den": 20
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 4943853,
+     "den": 50000000
+    },
+    "new": {
+     "num": 3680261,
+     "den": 25000000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 20
+    },
+    "old": {
+     "num": 2401,
+     "den": 5000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 212,
+    "entry_share": {
+     "num": 1,
+     "den": 10
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 2401,
+     "den": 5000
+    },
+    "new": {
+     "num": 1,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 50
+    },
+    "old": {
+     "num": 1199,
+     "den": 2500
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 202,
+    "entry_share": {
+     "num": 1,
+     "den": 5
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 1199,
+     "den": 2500
+    },
+    "new": {
+     "num": 1,
+     "den": 5
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 2,
+     "den": 25
+    },
+    "old": {
+     "num": 533013,
+     "den": 800000
+    },
+    "new": {
+     "num": 6747,
+     "den": 800000
+    },
+    "glide_sessions": 113,
+    "entry_share": {
+     "num": 17,
+     "den": 20
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 533013,
+     "den": 800000
+    },
+    "new": {
+     "num": 882411,
+     "den": 90400000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 3,
+     "den": 100
+    },
+    "old": {
+     "num": 11126827,
+     "den": 50000000
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    },
+    "glide_sessions": 105,
+    "entry_share": {
+     "num": 3,
+     "den": 4
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 11126827,
+     "den": 50000000
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 2,
+     "den": 25
+    },
+    "old": {
+     "num": 9029,
+     "den": 10000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 3,
+    "entry_share": {
+     "num": 1,
+     "den": 5
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 4,
+     "den": 5
+    },
+    "new": {
+     "num": 1,
+     "den": 5
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 10
+    },
+    "old": {
+     "num": 3793153,
+     "den": 12500000
+    },
+    "new": {
+     "num": 951847,
+     "den": 12500000
+    },
+    "glide_sessions": 427,
+    "entry_share": {
+     "num": 3,
+     "den": 4
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 3793153,
+     "den": 12500000
+    },
+    "new": {
+     "num": 409563669,
+     "den": 5337500000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 7,
+     "den": 100
+    },
+    "old": {
+     "num": 1227369,
+     "den": 6250000
+    },
+    "new": {
+     "num": 917631,
+     "den": 6250000
+    },
+    "glide_sessions": 119,
+    "entry_share": {
+     "num": 2,
+     "den": 5
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 1227369,
+     "den": 6250000
+    },
+    "new": {
+     "num": 112948089,
+     "den": 743750000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 100
+    },
+    "old": {
+     "num": 61887,
+     "den": 20000000
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    },
+    "glide_sessions": 403,
+    "entry_share": {
+     "num": 13,
+     "den": 20
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 0,
+     "den": 1
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 3,
+     "den": 100
+    },
+    "old": {
+     "num": 22479,
+     "den": 100000
+    },
+    "new": {
+     "num": 9271,
+     "den": 100000
+    },
+    "glide_sessions": 135,
+    "entry_share": {
+     "num": 17,
+     "den": 20
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 22479,
+     "den": 100000
+    },
+    "new": {
+     "num": 84439,
+     "den": 900000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 0,
+     "den": 1
+    },
+    "old": {
+     "num": 1411417,
+     "den": 5000000
+    },
+    "new": {
+     "num": 2918083,
+     "den": 5000000
+    },
+    "glide_sessions": 419,
+    "entry_share": {
+     "num": 1,
+     "den": 20
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 1411417,
+     "den": 5000000
+    },
+    "new": {
+     "num": 1227426777,
+     "den": 2095000000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 3,
+     "den": 100
+    },
+    "old": {
+     "num": 5597,
+     "den": 10000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 399,
+    "entry_share": {
+     "num": 1,
+     "den": 4
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 5597,
+     "den": 10000
+    },
+    "new": {
+     "num": 1,
+     "den": 4
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 50
+    },
+    "old": {
+     "num": 1464309,
+     "den": 12500000
+    },
+    "new": {
+     "num": 5465691,
+     "den": 12500000
+    },
+    "glide_sessions": 475,
+    "entry_share": {
+     "num": 3,
+     "den": 5
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 1464309,
+     "den": 12500000
+    },
+    "new": {
+     "num": 104048129,
+     "den": 237500000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 7,
+     "den": 100
+    },
+    "old": {
+     "num": 363,
+     "den": 1000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 459,
+    "entry_share": {
+     "num": 7,
+     "den": 10
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 363,
+     "den": 1000
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 20
+    },
+    "old": {
+     "num": 5763,
+     "den": 10000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 305,
+    "entry_share": {
+     "num": 7,
+     "den": 10
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 3,
+     "den": 10
+    },
+    "new": {
+     "num": 7,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 50
+    },
+    "old": {
+     "num": 8581,
+     "den": 10000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 128,
+    "entry_share": {
+     "num": 1,
+     "den": 20
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 8581,
+     "den": 10000
+    },
+    "new": {
+     "num": 1,
+     "den": 20
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 2,
+     "den": 25
+    },
+    "old": {
+     "num": 1532521,
+     "den": 4000000
+    },
+    "new": {
+     "num": 1469479,
+     "den": 4000000
+    },
+    "glide_sessions": 19,
+    "entry_share": {
+     "num": 19,
+     "den": 20
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 1532521,
+     "den": 4000000
+    },
+    "new": {
+     "num": 28120101,
+     "den": 76000000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 3,
+     "den": 50
+    },
+    "old": {
+     "num": 3045193,
+     "den": 20000000
+    },
+    "new": {
+     "num": 3924807,
+     "den": 20000000
+    },
+    "glide_sessions": 287,
+    "entry_share": {
+     "num": 9,
+     "den": 20
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 3045193,
+     "den": 20000000
+    },
+    "new": {
+     "num": 1137419609,
+     "den": 5740000000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 3,
+     "den": 50
+    },
+    "old": {
+     "num": 3608139,
+     "den": 25000000
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    },
+    "glide_sessions": 310,
+    "entry_share": {
+     "num": 9,
+     "den": 20
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 3608139,
+     "den": 25000000
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 10
+    },
+    "old": {
+     "num": 415757,
+     "den": 4000000
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    },
+    "glide_sessions": 103,
+    "entry_share": {
+     "num": 7,
+     "den": 20
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 415757,
+     "den": 4000000
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 9,
+     "den": 100
+    },
+    "old": {
+     "num": 2179,
+     "den": 2500
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 45,
+    "entry_share": {
+     "num": 11,
+     "den": 20
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 9,
+     "den": 20
+    },
+    "new": {
+     "num": 11,
+     "den": 20
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 0,
+     "den": 1
+    },
+    "old": {
+     "num": 5109,
+     "den": 10000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 104,
+    "entry_share": {
+     "num": 1,
+     "den": 4
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 5109,
+     "den": 10000
+    },
+    "new": {
+     "num": 1,
+     "den": 4
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 7,
+     "den": 100
+    },
+    "old": {
+     "num": 1047,
+     "den": 2500
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 393,
+    "entry_share": {
+     "num": 3,
+     "den": 20
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 1047,
+     "den": 2500
+    },
+    "new": {
+     "num": 3,
+     "den": 20
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 3,
+     "den": 100
+    },
+    "old": {
+     "num": 36175383,
+     "den": 100000000
+    },
+    "new": {
+     "num": 52294617,
+     "den": 100000000
+    },
+    "glide_sessions": 376,
+    "entry_share": {
+     "num": 3,
+     "den": 10
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 36175383,
+     "den": 100000000
+    },
+    "new": {
+     "num": 2466596999,
+     "den": 4700000000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 3,
+     "den": 50
+    },
+    "old": {
+     "num": 827,
+     "den": 1250
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 34,
+    "entry_share": {
+     "num": 1,
+     "den": 20
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 827,
+     "den": 1250
+    },
+    "new": {
+     "num": 1,
+     "den": 20
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 0,
+     "den": 1
+    },
+    "old": {
+     "num": 8572891,
+     "den": 50000000
+    },
+    "new": {
+     "num": 3137109,
+     "den": 50000000
+    },
+    "glide_sessions": 285,
+    "entry_share": {
+     "num": 1,
+     "den": 10
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 8572891,
+     "den": 50000000
+    },
+    "new": {
+     "num": 62605071,
+     "den": 950000000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 2,
+     "den": 25
+    },
+    "old": {
+     "num": 8925987,
+     "den": 100000000
+    },
+    "new": {
+     "num": 35504013,
+     "den": 100000000
+    },
+    "glide_sessions": 443,
+    "entry_share": {
+     "num": 0,
+     "den": 1
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 8925987,
+     "den": 100000000
+    },
+    "new": {
+     "num": 15828277759,
+     "den": 44300000000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 2,
+     "den": 25
+    },
+    "old": {
+     "num": 4329,
+     "den": 5000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 446,
+    "entry_share": {
+     "num": 9,
+     "den": 20
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 11,
+     "den": 20
+    },
+    "new": {
+     "num": 9,
+     "den": 20
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 2,
+     "den": 25
+    },
+    "old": {
+     "num": 1567,
+     "den": 2000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 325,
+    "entry_share": {
+     "num": 17,
+     "den": 20
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 7,
+     "den": 10
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 7,
+     "den": 100
+    },
+    "old": {
+     "num": 111273,
+     "den": 312500
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    },
+    "glide_sessions": 327,
+    "entry_share": {
+     "num": 3,
+     "den": 20
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 111273,
+     "den": 312500
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 10
+    },
+    "old": {
+     "num": 2749,
+     "den": 10000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 488,
+    "entry_share": {
+     "num": 19,
+     "den": 20
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 2749,
+     "den": 10000
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 10
+    },
+    "old": {
+     "num": 4867,
+     "den": 10000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 13,
+    "entry_share": {
+     "num": 1,
+     "den": 2
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 4867,
+     "den": 10000
+    },
+    "new": {
+     "num": 1,
+     "den": 2
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 50
+    },
+    "old": {
+     "num": 221,
+     "den": 1000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 90,
+    "entry_share": {
+     "num": 11,
+     "den": 20
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 221,
+     "den": 1000
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 10
+    },
+    "old": {
+     "num": 6140717,
+     "den": 50000000
+    },
+    "new": {
+     "num": 2164283,
+     "den": 50000000
+    },
+    "glide_sessions": 243,
+    "entry_share": {
+     "num": 2,
+     "den": 5
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 6140717,
+     "den": 50000000
+    },
+    "new": {
+     "num": 185306923,
+     "den": 4050000000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 50
+    },
+    "old": {
+     "num": 1731,
+     "den": 2500
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 6,
+    "entry_share": {
+     "num": 3,
+     "den": 4
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 1,
+     "den": 4
+    },
+    "new": {
+     "num": 3,
+     "den": 4
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 9,
+     "den": 100
+    },
+    "old": {
+     "num": 1721,
+     "den": 2500
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 33,
+    "entry_share": {
+     "num": 3,
+     "den": 4
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 1,
+     "den": 4
+    },
+    "new": {
+     "num": 3,
+     "den": 4
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 25
+    },
+    "old": {
+     "num": 1137,
+     "den": 1250
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 425,
+    "entry_share": {
+     "num": 1,
+     "den": 20
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 1137,
+     "den": 1250
+    },
+    "new": {
+     "num": 1,
+     "den": 20
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 50
+    },
+    "old": {
+     "num": 9947,
+     "den": 10000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 19,
+    "entry_share": {
+     "num": 7,
+     "den": 10
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 3,
+     "den": 10
+    },
+    "new": {
+     "num": 7,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 25
+    },
+    "old": {
+     "num": 16504251,
+     "den": 25000000
+    },
+    "new": {
+     "num": 8265749,
+     "den": 25000000
+    },
+    "glide_sessions": 290,
+    "entry_share": {
+     "num": 7,
+     "den": 20
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 16504251,
+     "den": 25000000
+    },
+    "new": {
+     "num": 241331721,
+     "den": 725000000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 20
+    },
+    "old": {
+     "num": 339,
+     "den": 5000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 500,
+    "entry_share": {
+     "num": 1,
+     "den": 5
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 339,
+     "den": 5000
+    },
+    "new": {
+     "num": 1,
+     "den": 5
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 20
+    },
+    "old": {
+     "num": 3743,
+     "den": 5000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 258,
+    "entry_share": {
+     "num": 2,
+     "den": 5
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 7,
+     "den": 10
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 25
+    },
+    "old": {
+     "num": 974817,
+     "den": 6250000
+    },
+    "new": {
+     "num": 546433,
+     "den": 6250000
+    },
+    "glide_sessions": 488,
+    "entry_share": {
+     "num": 3,
+     "den": 5
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 974817,
+     "den": 6250000
+    },
+    "new": {
+     "num": 33644913,
+     "den": 381250000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 3,
+     "den": 50
+    },
+    "old": {
+     "num": 53907,
+     "den": 1250000
+    },
+    "new": {
+     "num": 84609,
+     "den": 625000
+    },
+    "glide_sessions": 239,
+    "entry_share": {
+     "num": 13,
+     "den": 20
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 0,
+     "den": 1
+    },
+    "new": {
+     "num": 86023,
+     "den": 478000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 10
+    },
+    "old": {
+     "num": 8183,
+     "den": 10000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 218,
+    "entry_share": {
+     "num": 3,
+     "den": 20
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 8183,
+     "den": 10000
+    },
+    "new": {
+     "num": 3,
+     "den": 20
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 2,
+     "den": 25
+    },
+    "old": {
+     "num": 48979639,
+     "den": 100000000
+    },
+    "new": {
+     "num": 5850361,
+     "den": 100000000
+    },
+    "glide_sessions": 148,
+    "entry_share": {
+     "num": 2,
+     "den": 5
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 48979639,
+     "den": 100000000
+    },
+    "new": {
+     "num": 231463357,
+     "den": 3700000000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 3,
+     "den": 50
+    },
+    "old": {
+     "num": 27149383,
+     "den": 100000000
+    },
+    "new": {
+     "num": 48920617,
+     "den": 100000000
+    },
+    "glide_sessions": 260,
+    "entry_share": {
+     "num": 1,
+     "den": 2
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 27149383,
+     "den": 100000000
+    },
+    "new": {
+     "num": 638468021,
+     "den": 1300000000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 50
+    },
+    "old": {
+     "num": 6371,
+     "den": 10000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 276,
+    "entry_share": {
+     "num": 13,
+     "den": 20
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 7,
+     "den": 20
+    },
+    "new": {
+     "num": 13,
+     "den": 20
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 7,
+     "den": 100
+    },
+    "old": {
+     "num": 353,
+     "den": 625
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 107,
+    "entry_share": {
+     "num": 11,
+     "den": 20
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 353,
+     "den": 625
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 50
+    },
+    "old": {
+     "num": 983,
+     "den": 2000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 171,
+    "entry_share": {
+     "num": 19,
+     "den": 20
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 983,
+     "den": 2000
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 25
+    },
+    "old": {
+     "num": 7728819,
+     "den": 50000000
+    },
+    "new": {
+     "num": 19466181,
+     "den": 50000000
+    },
+    "glide_sessions": 498,
+    "entry_share": {
+     "num": 13,
+     "den": 20
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 7728819,
+     "den": 50000000
+    },
+    "new": {
+     "num": 4855829069,
+     "den": 12450000000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 10
+    },
+    "old": {
+     "num": 1397,
+     "den": 2000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 270,
+    "entry_share": {
+     "num": 1,
+     "den": 5
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 1397,
+     "den": 2000
+    },
+    "new": {
+     "num": 1,
+     "den": 5
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 3,
+     "den": 50
+    },
+    "old": {
+     "num": 5353,
+     "den": 10000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 162,
+    "entry_share": {
+     "num": 13,
+     "den": 20
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 7,
+     "den": 20
+    },
+    "new": {
+     "num": 13,
+     "den": 20
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 25
+    },
+    "old": {
+     "num": 8161,
+     "den": 10000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 281,
+    "entry_share": {
+     "num": 1,
+     "den": 1
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 0,
+     "den": 1
+    },
+    "new": {
+     "num": 1,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 50
+    },
+    "old": {
+     "num": 1439493,
+     "den": 12500000
+    },
+    "new": {
+     "num": 8515507,
+     "den": 12500000
+    },
+    "glide_sessions": 277,
+    "entry_share": {
+     "num": 3,
+     "den": 5
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 1439493,
+     "den": 12500000
+    },
+    "new": {
+     "num": 2363795439,
+     "den": 3462500000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 100
+    },
+    "old": {
+     "num": 3401,
+     "den": 5000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 33,
+    "entry_share": {
+     "num": 7,
+     "den": 10
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 3401,
+     "den": 5000
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 50
+    },
+    "old": {
+     "num": 588187,
+     "den": 1562500
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    },
+    "glide_sessions": 172,
+    "entry_share": {
+     "num": 1,
+     "den": 4
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 588187,
+     "den": 1562500
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 10
+    },
+    "old": {
+     "num": 3877,
+     "den": 5000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 28,
+    "entry_share": {
+     "num": 7,
+     "den": 20
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 7,
+     "den": 10
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 3,
+     "den": 50
+    },
+    "old": {
+     "num": 2507379,
+     "den": 25000000
+    },
+    "new": {
+     "num": 2025121,
+     "den": 25000000
+    },
+    "glide_sessions": 169,
+    "entry_share": {
+     "num": 7,
+     "den": 10
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 2507379,
+     "den": 25000000
+    },
+    "new": {
+     "num": 349745449,
+     "den": 4225000000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 3,
+     "den": 100
+    },
+    "old": {
+     "num": 1313,
+     "den": 2500
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 325,
+    "entry_share": {
+     "num": 11,
+     "den": 20
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 9,
+     "den": 20
+    },
+    "new": {
+     "num": 11,
+     "den": 20
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 2,
+     "den": 25
+    },
+    "old": {
+     "num": 1440969,
+     "den": 10000000
+    },
+    "new": {
+     "num": 3048031,
+     "den": 10000000
+    },
+    "glide_sessions": 173,
+    "entry_share": {
+     "num": 3,
+     "den": 20
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 1440969,
+     "den": 10000000
+    },
+    "new": {
+     "num": 535809363,
+     "den": 1730000000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 10
+    },
+    "old": {
+     "num": 117,
+     "den": 500
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 279,
+    "entry_share": {
+     "num": 3,
+     "den": 20
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 117,
+     "den": 500
+    },
+    "new": {
+     "num": 3,
+     "den": 20
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 0,
+     "den": 1
+    },
+    "old": {
+     "num": 2091609,
+     "den": 6250000
+    },
+    "new": {
+     "num": 784641,
+     "den": 6250000
+    },
+    "glide_sessions": 36,
+    "entry_share": {
+     "num": 1,
+     "den": 1
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 2091609,
+     "den": 6250000
+    },
+    "new": {
+     "num": 784641,
+     "den": 6250000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 0,
+     "den": 1
+    },
+    "old": {
+     "num": 1428791,
+     "den": 10000000
+    },
+    "new": {
+     "num": 1756209,
+     "den": 10000000
+    },
+    "glide_sessions": 8,
+    "entry_share": {
+     "num": 2,
+     "den": 5
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 1428791,
+     "den": 10000000
+    },
+    "new": {
+     "num": 2506209,
+     "den": 10000000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 25
+    },
+    "old": {
+     "num": 24546189,
+     "den": 50000000
+    },
+    "new": {
+     "num": 4488811,
+     "den": 50000000
+    },
+    "glide_sessions": 491,
+    "entry_share": {
+     "num": 0,
+     "den": 1
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 24546189,
+     "den": 50000000
+    },
+    "new": {
+     "num": 2254006201,
+     "den": 24550000000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 20
+    },
+    "old": {
+     "num": 3037,
+     "den": 5000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 354,
+    "entry_share": {
+     "num": 9,
+     "den": 10
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 3037,
+     "den": 5000
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 25
+    },
+    "old": {
+     "num": 8247,
+     "den": 10000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 49,
+    "entry_share": {
+     "num": 2,
+     "den": 5
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 3,
+     "den": 5
+    },
+    "new": {
+     "num": 2,
+     "den": 5
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 2,
+     "den": 25
+    },
+    "old": {
+     "num": 9009,
+     "den": 10000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 472,
+    "entry_share": {
+     "num": 13,
+     "den": 20
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 7,
+     "den": 20
+    },
+    "new": {
+     "num": 13,
+     "den": 20
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 9,
+     "den": 100
+    },
+    "old": {
+     "num": 223,
+     "den": 5000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 18,
+    "entry_share": {
+     "num": 3,
+     "den": 20
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 0,
+     "den": 1
+    },
+    "new": {
+     "num": 973,
+     "den": 5000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 9,
+     "den": 100
+    },
+    "old": {
+     "num": 1688057,
+     "den": 5000000
+    },
+    "new": {
+     "num": 701943,
+     "den": 5000000
+    },
+    "glide_sessions": 336,
+    "entry_share": {
+     "num": 1,
+     "den": 1
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 1688057,
+     "den": 5000000
+    },
+    "new": {
+     "num": 701943,
+     "den": 5000000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 100
+    },
+    "old": {
+     "num": 2464677,
+     "den": 100000000
+    },
+    "new": {
+     "num": 12665323,
+     "den": 100000000
+    },
+    "glide_sessions": 290,
+    "entry_share": {
+     "num": 9,
+     "den": 20
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 2464677,
+     "den": 100000000
+    },
+    "new": {
+     "num": 372794367,
+     "den": 2900000000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 9,
+     "den": 100
+    },
+    "old": {
+     "num": 349923,
+     "den": 2500000
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    },
+    "glide_sessions": 7,
+    "entry_share": {
+     "num": 17,
+     "den": 20
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 349923,
+     "den": 2500000
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 7,
+     "den": 100
+    },
+    "old": {
+     "num": 1890959,
+     "den": 10000000
+    },
+    "new": {
+     "num": 1735041,
+     "den": 10000000
+    },
+    "glide_sessions": 423,
+    "entry_share": {
+     "num": 0,
+     "den": 1
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 1890959,
+     "den": 10000000
+    },
+    "new": {
+     "num": 743922343,
+     "den": 4230000000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 20
+    },
+    "old": {
+     "num": 8181,
+     "den": 10000
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 6,
+    "entry_share": {
+     "num": 2,
+     "den": 5
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 7,
+     "den": 10
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 0,
+     "den": 1
+    },
+    "old": {
+     "num": 1019333,
+     "den": 1562500
+    },
+    "new": {
+     "num": 818209,
+     "den": 3125000
+    },
+    "glide_sessions": 5,
+    "entry_share": {
+     "num": 1,
+     "den": 5
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 1019333,
+     "den": 1562500
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 25
+    },
+    "old": {
+     "num": 54571,
+     "den": 781250
+    },
+    "new": {
+     "num": 55429,
+     "den": 781250
+    },
+    "glide_sessions": 49,
+    "entry_share": {
+     "num": 9,
+     "den": 20
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 54571,
+     "den": 781250
+    },
+    "new": {
+     "num": 6291417,
+     "den": 76562500
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 50
+    },
+    "old": {
+     "num": 133551,
+     "den": 5000000
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    },
+    "glide_sessions": 276,
+    "entry_share": {
+     "num": 7,
+     "den": 20
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 133551,
+     "den": 5000000
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 0,
+     "den": 1
+    },
+    "old": {
+     "num": 2749297,
+     "den": 12500000
+    },
+    "new": {
+     "num": 635703,
+     "den": 12500000
+    },
+    "glide_sessions": 334,
+    "entry_share": {
+     "num": 13,
+     "den": 20
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 2749297,
+     "den": 12500000
+    },
+    "new": {
+     "num": 108349901,
+     "den": 2087500000
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 50
+    },
+    "old": {
+     "num": 22141003,
+     "den": 50000000
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    },
+    "glide_sessions": 61,
+    "entry_share": {
+     "num": 17,
+     "den": 20
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 22141003,
+     "den": 50000000
+    },
+    "new": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 9,
+     "den": 100
+    },
+    "old": {
+     "num": 903,
+     "den": 1250
+    },
+    "new": {
+     "num": 0,
+     "den": 1
+    },
+    "glide_sessions": 218,
+    "entry_share": {
+     "num": 1,
+     "den": 20
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 903,
+     "den": 1250
+    },
+    "new": {
+     "num": 1,
+     "den": 20
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 100
+    },
+    "old": {
+     "num": 14007,
+     "den": 4000000
+    },
+    "new": {
+     "num": 215993,
+     "den": 4000000
+    },
+    "glide_sessions": 93,
+    "entry_share": {
+     "num": 3,
+     "den": 20
+    },
+    "cap": {
+     "num": 3,
+     "den": 10
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 0,
+     "den": 1
+    },
+    "new": {
+     "num": 2479,
+     "den": 37200
+    }
+   }
+  },
+  {
+   "input": {
+    "retire_share": {
+     "num": 1,
+     "den": 50
+    },
+    "old": {
+     "num": 40722987,
+     "den": 50000000
+    },
+    "new": {
+     "num": 7487013,
+     "den": 50000000
+    },
+    "glide_sessions": 475,
+    "entry_share": {
+     "num": 19,
+     "den": 20
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "old": {
+     "num": 40722987,
+     "den": 50000000
+    },
+    "new": {
+     "num": 142353247,
+     "den": 950000000
+    }
+   }
+  }
+ ],
+ "spec_sha256": "18a78176533595e53f86183f3fbe527f9a5d9c97ce5ef05788fcaeded3cb41ba"
+}

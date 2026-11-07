@@ -130,6 +130,20 @@ def membership_mask(table: Mapping[str, list[tuple[str, str]]], sessions: list[s
     return mask
 
 
+def record_holdout_read(path: Path, *, candidate: str, cells: tuple[str, ...], digest: str, created_at: str) -> None:
+    """The once-only ledger of holdout reads. `write_freeze` only refuses its own path, so a second freeze file would otherwise reopen a cell.
+    Written before the read: a crash after it still counts as spent."""
+    path = Path(path)
+    held = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()] if path.exists() else []
+    spent = {cell for entry in held for cell in entry.get("cells", ())}
+    again = sorted(spent & set(cells))
+    if again:
+        raise PermissionError(f"cells {again} have already been read: a holdout is read once")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8", newline="\n") as handle:
+        handle.write(json.dumps({"candidate": candidate, "cells": list(cells), "digest": digest, "created_at": created_at}, sort_keys=True) + "\n")
+
+
 def write_freeze(path: Path, payload: Mapping) -> str:
     """Writes the freeze file once and returns its digest. Refuses to overwrite: a second freeze would be a second look."""
     path = Path(path)

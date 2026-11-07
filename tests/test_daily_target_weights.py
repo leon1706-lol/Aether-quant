@@ -48,6 +48,35 @@ def test_daily_rows_equal_the_research_file():
     assert checked >= 3
 
 
+def _generations_ledger(tmp_path):
+    from evaluation.generation_ledger import ALLOCATION_EVENT, ALLOCATION_ID, append_event
+
+    path = tmp_path / "generations.jsonl"
+    append_event(path, event=ALLOCATION_EVENT, session="2026-11-05", candidate=ALLOCATION_ID, payload={"status": "allocation", "shares": {"g1": 1.0}, "blended": {"BTCUSD": 0.02}}, created_at="t")
+    append_event(path, event=ALLOCATION_EVENT, session="2026-11-06", candidate=ALLOCATION_ID, payload={"status": "allocation", "shares": {"g1": 1.0}, "blended": None}, created_at="t")
+    append_event(path, event=ALLOCATION_EVENT, session="2026-11-09", candidate=ALLOCATION_ID, payload={"status": "allocation", "shares": {"g1": 0.0}, "blended": {}}, created_at="t")
+    return path
+
+
+def test_blended_rows_reach_the_file_a_live_run_reloads(tmp_path):
+    from portfolio.target_weights import load_live_weight_file, next_unapplied_row
+
+    ledger, out = _generations_ledger(tmp_path), tmp_path / "blended.csv"
+    assert module.write_blended(ledger, out) == ["2026-11-05", "2026-11-09"], "a session with no row due writes none"
+    weights = load_live_weight_file(out)
+    assert next_unapplied_row(weights, "2026-11-06", None) == ("2026-11-05", {"BTCUSD": 0.02})
+    assert next_unapplied_row(weights, "2026-11-10", "2026-11-05") == ("2026-11-09", {}), "flat is a decision, and it reaches the book"
+    assert module.write_blended(ledger, out) == [], "a date is written once"
+
+
+def test_a_broken_chain_stops_the_blend_before_any_order(tmp_path):
+    ledger, out = _generations_ledger(tmp_path), tmp_path / "blended.csv"
+    ledger.write_text(ledger.read_text(encoding="utf-8").replace('"BTCUSD": 0.02', '"BTCUSD": 0.99'), encoding="utf-8")
+    with pytest.raises(ValueError, match="chain"):
+        module.write_blended(ledger, out)
+    assert not out.exists()
+
+
 def test_a_date_that_is_no_rebalance_day_gives_no_row():
     context = _context()
     start = str(context.panel.known.index[100])
