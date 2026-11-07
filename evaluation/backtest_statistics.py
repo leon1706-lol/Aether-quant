@@ -663,6 +663,30 @@ def load_trial_sharpes(registry_path: Path) -> list[float]:
     return [trial["median_sharpe"] for trial in payload.get("trials", []) if _finite(trial.get("median_sharpe")) is not None]
 
 
+def _benchmark_section(run: dict, config: dict, root: Path) -> list[dict]:
+    """The run's portfolio and strategy against SPY, 60/40, Bitcoin and its own coins, on one calendar (`evaluation/lean_benchmarks.py`)."""
+    import pandas as pd
+
+    from evaluation.alpha_proof import benchmark_daily_returns, strategy_daily_returns, to_sessions
+    from evaluation.backtest_audit import class_by_ticker_from_config, daily_equity_from_chart
+    from evaluation.lean_attribution import fills_from_order_events
+    from evaluation.lean_benchmarks import benchmark_rows
+
+    points = daily_equity_from_chart(run["result"])
+    if len(points) < 3:
+        return []
+    classes = class_by_ticker_from_config(config)
+    crypto = sorted({fill.ticker for fill in fills_from_order_events(run.get("order_events", [])) if classes.get(fill.ticker) == "crypto"})
+    start, end = points[0][0], points[-1][0]
+    benchmarks = benchmark_daily_returns(root, config, ("SPY", "AGG", "BTCUSD", *[coin for coin in crypto if coin != "BTCUSD"]), start=start, end=end)
+    if benchmarks.empty:
+        return []
+    nav = pd.Series({day: value for day, value in points}, dtype=float).sort_index()
+    portfolio = to_sessions(nav.pct_change(fill_method=None).dropna(), benchmarks.index)
+    strategy = to_sessions(strategy_daily_returns(run, config, root), benchmarks.index)
+    return sanitize_json_finite(benchmark_rows(portfolio, strategy, benchmarks, crypto))
+
+
 def compute_for_run_dir(run_dir: Path, config: dict, root: Path) -> dict:
     """`aq evaluate --backtest-stats`: load the run folder and its companions, then compute every section."""
     from evaluation.backtest_audit import load_backtest_run
@@ -693,10 +717,6 @@ def compute_for_run_dir(run_dir: Path, config: dict, root: Path) -> dict:
     if result_path is not None and all(path.exists() for path in rate_files.values()):
         try:
             table = statistics_table(result_path, {"shipped rate file": rate_files["shipped rate file, 365 days"]}, (365,))
-            pre = evaluation_dir / "v620" / "interest-rate_pre_v620.csv"
-            if pre.exists():
-                old = statistics_table(result_path, {"pre-V6.2 rate file": pre}, (252,))
-                table["replica"].update(old["replica"])
             lean_basis = table
         except (OSError, ValueError, KeyError, ZeroDivisionError):
             lean_basis = None
@@ -706,6 +726,7 @@ def compute_for_run_dir(run_dir: Path, config: dict, root: Path) -> dict:
         trial_annual_sharpes=load_trial_sharpes(evaluation_dir / "trial_registry.json"),
         offline_classification=offline, lean_basis=lean_basis, attribution=attribution,
     )
+    stats["sections"]["benchmarks"] = _benchmark_section(run, run_config, root)
     stats["book_history"] = str(history_path) if history_path else None
     stats["config"] = str(snapshot) if snapshot else "config.json"
     return stats

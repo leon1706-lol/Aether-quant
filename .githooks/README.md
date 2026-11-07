@@ -1,14 +1,5 @@
 # .githooks
 
-Optional git hooks, opt-in per clone (never auto-installed on a fresh
-checkout):
+Opt-in git hooks: `git config core.hooksPath .githooks`.
 
-```powershell
-git config core.hooksPath .githooks
-```
-
-Currently one hook: `pre-commit`, which invokes `aq secrets-check`
-(`execution/secret_scan.py`) and blocks the commit if a populated secret
-field is about to land in the tracked `lean.json` or a real `.env` file is
-tracked by git. This is what actually stops a secret from being committed —
-see [`SECURITY.md`](../SECURITY.md) for the reporting policy.
+- **`pre-commit`:** runs `aq secrets-check` and blocks a commit with a populated secret in `lean.json` or a tracked `.env`. See [`SECURITY.md`](../SECURITY.md).

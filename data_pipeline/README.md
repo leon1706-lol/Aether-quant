@@ -1,309 +1,43 @@
 # data_pipeline
 
-Owns the Lean-data pipeline contract and the data-ingestion tooling around
-it.
+Gets data into Lean's local `data/` folder, which training and backtesting both read. It wraps `train.py`'s dataset build, not replaces it. Every fetch is a dry run without `--apply`.
 
-The core rule stays simple and important: training and backtesting use the local Lean `data/` folder. This package describes that contract for the downstream modules (MoE experts, regime detection, topology modeling, dynamic risk, the dashboards) so they can depend on a stable manifest.
+## The universe's bars
 
-It does not replace `train.py`; it wraps and documents the existing dataset pipeline.
-
-## Modules
-
-- `v2_manifest.py` — the V2 metadata contract for the Lean-data training
-  pipeline (the "stable manifest" the rule above promises).
-- `fetch.py` — `aq fetch` (see below).
-- `yfinance_backfill.py` — Yahoo Finance historical backfill (see below).
-- `fred_backfill.py` — Treasury yield/credit-spread backfill (see below).
-- `ib_backfill.py` — Interactive Brokers futures/options backfill (see below).
-- `factor_file_backfill.py` — Lean-format split/dividend **factor-file**
-  backfill (the price-adjustment factors Lean reads alongside the price
-  zips; the missing-factor-file class of data-quality issue behind
-  `development/Problems.md` #91/#97/#99). **V5.5.0 (#130):** a zip written by
-  `yfinance_backfill.py` is already split- and dividend-adjusted, so it needs
-  **no** factor file (the contract described under *Two data-provenance
-  contracts* below) - the 63 files this module first generated double-adjusted
-  them. `--audit` (read-only, exit 1 on a finding) and
-  `--repair-adjusted-zips [--apply]` (REMOVES the files - a sentinel-only stub
-  makes Lean start the symbol's data in 2050 - originals backed up to
-  `data/equity/usa/factor_files_backup_pre_v550/`) fix and police that; generation now skips
-  backfill-written zips, which are fingerprinted by their float-formatted
-  volume column. Genuine QuantConnect zips (integer volume) keep their files.
-- `dividend_backfill.py` — real ex-dividend history via `yfinance`, with
-  next-date projection from historical cadence; feeds
-  `portfolio/options_assignment_risk.py`'s early-assignment scoring.
-- `bar_synthesis.py` (V5.3.10) — pure functions extracted from `main.py`
-  so they are unit-testable without a Lean runtime:
-  `midpoint_bar_from_quote_bar()` (synthesizes a bar from forex/crypto
-  quote bars) and `pad_sequence_history()` (pads short history for the
-  sequence encoder), plus the adaptive sell-threshold helper. Parity-tested
-  in `tests/test_bar_synthesis_parity.py`.
-
-## Yahoo Finance historical data backfill
-
-`yfinance_backfill.py` is a deliberate, narrow exception to the rule above:
-it is the first thing in this package that reaches outside the local Lean
-`data/` folder, to fill gaps in thin series (initially `ETHUSD`/`LTCUSD`,
-which have only a few scattered days of real Coinbase minute data — see
-`train.py::ensure_derived_crypto_daily_series()` and this repo's Changelog).
-It is a **manual, offline maintenance script** — never invoked from
-`train.py`, `main.py`, or any Docker worker; no network calls happen during
-training or a backtest.
-
-- Per-asset opt-in via a `"backfill"` sub-block in `config.json`'s
-  `phase1.universe.assets[]` entries (`source`, `symbol`, `backfill_from`,
-  `backfill_to`). Assets without it are skipped entirely.
-- Fetched Yahoo rows are converted to the exact Lean zip format
-  (`train.py::ensure_derived_crypto_daily_series()`'s row/member-name
-  convention) and merged into the existing zip — **existing real Lean rows
-  always win on any overlapping date**; Yahoo data only fills genuine gaps.
-- **Dry run by default.** Writing zip files requires an explicit `--apply`
-  flag. Regardless of `--apply`, this script **never** edits `config.json`'s
-  `available_from`/`available_to` — it only prints the suggested new values,
-  because `train.py::build_asset_quality()` only counts rows inside those
-  configured windows, so a human must deliberately widen them for the extra
-  history to actually affect training/backtesting.
-
-Usage: `python -m data_pipeline.yfinance_backfill [--tickers ETHUSD LTCUSD] [--apply] [--quotes]`.
-`yfinance` is a dev-only dependency (`requirements/requirements-dev.txt`),
-never in `requirements.txt` (the one requirements file the consolidated
-`aether-quant-engine` Docker image installs).
-
-- `--quotes` (V5.4.10, `development/Problems.md` #126): Lean's default crypto
-  subscription requests BOTH a trade and a quote feed, but this script (and
-  `train.py::ensure_derived_crypto_daily_series()`) only ever wrote
-  `*_trade.zip` — so a real Lean backtest's quote requests for every crypto
-  asset except BTC failed (34% of the 2026-08-27 run's data requests). The
-  2 actually-traded crypto (BTC/LTC) should carry a `_quote.zip`; the 10
-  `observation_only` watch-mode assets correctly stay quote-less.
-  `write_lean_crypto_quote_zip(trade_zip, quote_zip, ticker)` derives an
-  11-column bid/ask quote zip from an existing trade zip via the zero-spread
-  `synthesize_crypto_bid_ask_row()` (the crypto sibling of the forex
-  synthesis), preserving any pre-existing REAL bid/ask rows on merge. Run:
-  `python -m data_pipeline.yfinance_backfill --quotes --tickers LTCUSD --apply`
-  (or `aq backfill yfinance --quotes --tickers LTCUSD --apply`).
-
-## Ad-hoc ticker fetch (`aq fetch`)
-
-`fetch.py` is a narrower sibling to `yfinance_backfill.py` above, with a
-different scope and a deliberately different `config.json` policy:
-
-|  | `yfinance_backfill.py` | `fetch.py` (backs `aq fetch`) |
+| Module | Scope | `config.json` |
 |---|---|---|
-| Scope | Fills gaps in **already-configured** assets | Fetches **any** ticker, including ones with no `config.json` entry at all |
-| Date range | Auto-detected gap vs. the asset's `"backfill"` block | Explicit `--start`/`--end` |
-| `config.json` | **Never** edited — only prints suggested values | **Writes** a new asset block on `--apply`, for a ticker that isn't already configured |
+| `yfinance_backfill.py` (`aq backfill yfinance`) | Refreshes **configured** assets; `--quotes` derives a missing crypto quote zip | Never edited |
+| `fetch.py` (`aq fetch`) | Adds **any** ticker, reusing the same writers | Writes a new asset block |
 
-The differing `config.json` policy is deliberate, not an inconsistency:
-`yfinance_backfill.py`'s rule exists to stop it from silently widening an
-*existing*, already-trained asset's date range without a human decision.
-`fetch.py` exists specifically to *add a brand-new ticker* to the universe
-on purpose — auto-writing `config.json` there is the intended effect, not
-an accidental side effect. If a ticker fetched via `aq fetch` already has a
-`config.json` entry, `fetch.py` leaves it untouched and points at
-`yfinance_backfill.py` instead, since extending an existing asset's range
-is that script's job, not this one's.
+- **Two price contracts:** a zip written here is already split- and dividend-adjusted, so it needs **no** factor file; genuine QuantConnect zips (integer volume) keep theirs. `factor_file_backfill.py --audit` polices this, and `--repair-adjusted-zips` fixes double adjustment (#130).
+- **`price_overrides.json`:** back-adjustments for corporate actions Yahoo misses.
+- **`data_audit.py` (`aq evaluate --audit-data`):** coverage, outliers, OHLC sanity, flat runs and a SHA-256 manifest.
+- **`scripts/data_append_refresh.py`:** the routine way to add new bars.
 
-Reuses `yfinance_backfill.py`'s pure functions (`fetch_yahoo_ohlcv`,
-`scale_for_lean`, `write_lean_zip`) unchanged — no duplicated logic. Same
-dry-run-by-default/`--apply` safety convention. Never runs `train.py`
-itself; see the root [`README.md`](../README.md#cli-reference) for the
-full `aq fetch` usage.
+## Reference series
 
-### Two data-provenance contracts, by design (`aq fetch` tickers are pre-adjusted)
+- **`fred_backfill.py` (`aq backfill fred`):** Treasury yields, credit spreads, VIX, financial conditions and FX 3-month rates, cached in `data/reference/fred_series/`, with no API key. Read through `series_value_asof()`, which respects publication lag.
+- **`dividend_backfill.py` (`aq backfill dividends`):** ex-dates and a projected next date, for early-assignment scoring.
+- **`cftc_cot.py`:** speculators' positioning, keyed by publication date.
 
-Every ticker fetched via `fetch_adhoc_asset()` (the bond ETF sleeve added in
-Phase 1 of the 5/10 -> 9/10 roadmap is the first real-universe example) goes
-through `fetch_yahoo_ohlcv()`'s `auto_adjust=True` — Yahoo applies its own
-split/dividend adjustment **before** the data ever reaches a Lean zip. This
-is a second, deliberate data-provenance contract living alongside the
-original one: the original ~15 equities (AAPL, SPY, ...) use **raw** Lean
-prices, adjusted separately at train time via a checked-in
-`data/equity/usa/factor_files/<ticker>.csv`
-(`train.py::apply_split_adjustments()`/`load_factor_file()`). An
-`aq fetch`-added ticker deliberately has **no** factor file — adding one
-would double-adjust already-adjusted prices — and `load_factor_file()`'s
-existing "return `None` when missing" behavior is the correct, intended
-no-op for this path, not an accidental gap (see
-`tests/test_train_pipeline.py::test_apply_split_adjustments_noop_is_the_intended_contract_for_aq_fetch_tickers`).
-This matters more for bond ETFs than most equities, since they distribute
-income frequently (often monthly) — an un-adjusted bond ETF price series
-would show a fake "return" on every distribution date.
+## Interactive Brokers: `ib_backfill.py`
 
-`fetch_adhoc_asset()` also does **not** write a Lean
-`data/equity/usa/map_files/<ticker>.csv` — that file is Lean's own
-local-disk security-resolution convention (a two-row identity map,
-`<start_date>,<ticker>,Q` / `20501231,<ticker>,Q`, mirroring e.g.
-`aapl.csv`) and every currently-active equity ticker in this universe
-already has one (bundled with QuantConnect's sample data, since no prior
-`aq fetch`-added ticker had ever been wired into an active universe before
-Phase 1). Since this repo's Lean backtests are run manually by the user
-(see the Runbook), rather than block on an automated `lean backtest` check
-this repo doesn't currently have Docker access to run, map files were
-created proactively for the bond ETF sleeve, following the exact identity
-format above — any future `aq fetch`-added ticker destined for the real
-universe should get one the same way until/unless a real Lean run confirms
-it's unnecessary.
+Futures and options for `aq fetch futures` and `aq fetch options`. Needs a running Gateway and `phase_v2.ib` (`aq ib status`); without them it fails cleanly. IB's historical API is per-contract and rate-limited, so a training set is built by repeated runs: `--contract-month` for a term structure, and `--family-ticker` to group contracts for term-structure and skew features. Lean's backtest engine only reads local files, so bars must be backfilled before a backtest can use them.
 
-## Real Treasury yield/credit-spread backfill (`fred_backfill.py`)
+## Research sources
 
-A third sibling, alongside `yfinance_backfill.py`/`fetch.py` above, backing
-`features/bond_features.py`'s real-data yield-curve/credit-spread features
-(distinct from `features/macro_features.py`'s price-momentum proxies).
-Fetches FRED's public graph CSV endpoint — **no API key required**, stdlib
-`urllib.request` only (no new runtime dependency, unlike
-`yfinance_backfill.py`'s deferred `import yfinance`). Same
-dry-run-by-default/`--apply` safety convention; writes a local cache
-(`data/reference/fred_series/*.csv`, never committed as real market data
-the way Lean zips are) rather than editing `config.json` at all — nothing
-in this codebase's asset universe schema needs to change for bond features
-to exist, since they're cross-asset macro signals broadcast to every asset,
-not a new configured ticker.
+Free, with no account. They write to the research roots (`data_wide/`, `data_crypto_wide/`), never `data/`.
 
-`load_cached_fred_series()` is the read-side: loaded once at
-`train.py`/`main.py` startup (never fetched live mid-backtest — Lean
-backtests are date-bounded), `{}` if the cache was never populated (fresh
-clone), in which case every bond feature neutral-defaults to `0.0` — the
-same "missing reference -> 0.0" convention `macro_features.py` already
-established, never a crash.
+- **`sp500_membership.py`:** point-in-time S&P 500 members.
+- **`edgar_facts.py`:** first-filing fundamentals, available a session after filing; quarterly accruals, sectors from SIC. Needs `AQ_SEC_CONTACT`.
+- **`sec_form345.py`:** insider trades by filing date. **`finra_short_volume.py`:** daily short ratios.
+- **`binance_archive.py`:** spot klines and funding, delisted pairs included.
+- **`factor_library.py`:** French's and AQR's daily factors.
 
-V5.4.7 (#123): cache writes MERGE by date — a narrow `--start/--end`
-refetch no longer destroys observations outside its window (new rows win
-their own dates). Same round: Yahoo NaN-frame rows are filtered before any
-zip write, and `aq fetch --apply`'s config.json rewrite is atomic.
+## Helpers
 
-Usage: `python -m data_pipeline.fred_backfill [--series treasury_10yr ...] [--apply]`.
+- **`bar_synthesis.py`:** `midpoint_bar_from_quote_bar()`, `pad_sequence_history()` and the adaptive sell threshold, extracted from `main.py` to be testable.
+- **`net_retry.py`:** a download that survives a dropped connection; only the server's own answer means a file is absent.
+- **`v2_manifest.py`:** the metadata contract for the dataset pipeline.
 
-### Alt-data extension (Phase 4.12, `development/Problems.md` #71)
-
-The same fetcher, generic series-ID passthrough, and cache convention
-above now also back `features/alt_data_features.py`: `VIXCLS` (CBOE VIX),
-`VXVCLS` (3-month VIX), and `NFCI` (Chicago Fed financial conditions) —
-`DEFAULT_ALT_DATA_REFERENCE_SERIES`. `--group {bond,alt,all}` selects which
-reference-series set to fetch (`reference_series(config, group="all")`,
-`alt_data_reference_series(config)`); `aq backfill fred --group alt
---apply` fetches only the new three.
-
-**Publication lag is the one thing that matters here.** VIX/VXV are
-same-day CBOE closes (lag `0`), but NFCI is Friday-dated and not released
-until the following Wednesday — `ALT_DATA_PUBLICATION_LAG_DAYS` records
-each series' lag in days, and `series_value_asof(rows, current_date,
-publication_lag_days)`/`series_change_asof(rows, current_date,
-publication_lag_days, periods_back)` are the lag-aware lookups both
-`train.py::build_alt_data_features_by_date()` and
-`main.py::_build_alt_data_payload()` use — deliberately **not** the bare
-`_fred_series_asof()` bisect the bond features use, since that helper has
-no lag parameter and would silently look ahead on a lagged series.
-
-Candidate series were screened before adding (`BAMLH0A0HYM2` dropped for
-insufficient free-endpoint history, `STLFSI4` rejected as near-collinear
-with `NFCI`) — see `development/Changelog.md` for the screening details.
-
-## Interactive Brokers historical backfill (`ib_backfill.py`) — futures/options only
-
-The futures/options sibling to `fetch.py`, but a fundamentally different
-data source: `ib_insync` (a **dev-only** dependency,
-`requirements/requirements-dev.txt`, never in `requirements.txt` — this
-module is importable with `ib_insync` absent as long as IB stays
-disabled, same deferred-import convention as `yfinance_backfill.py`).
-
-This is deliberately a **separate integration** from Lean's own native
-live/paper Interactive Brokers brokerage (`lean.json`'s
-`ib-account`/`ib-user-name`/`ib-password`/`ib-trading-mode` fields, and
-`environments.live-interactive` — untouched by this module, see root
-`README.md`'s `aq ib` section for the full explanation of why there are
-two IB integrations, not one). Lean's `environments.backtesting` is
-hardcoded to `FileSystemDataFeed`/`SubscriptionDataReaderHistoryProvider`
-— it never talks to IB regardless of `lean.json`'s contents — so
-historical futures/options bars still need this separate, offline
-data-prep step to land as local Lean-format zip files before any backtest
-can use them.
-
-- **"IB ready" requires both**: `config.json`'s `phase_v2.ib.enabled ==
-  true` (Aether's own app-level feature flag) AND `lean.json`'s
-  `ib-account`/`ib-user-name` non-empty (Lean's own credential fields,
-  read-only from this module's perspective). `phase_v2.ib.host`/`port`/
-  `client_id` are TWS/IB Gateway **socket API connection settings only**
-  (not credentials — your Gateway session already handles login), a
-  second, independent API client alongside whatever Lean's own brokerage
-  uses when live-deployed (standard IB API pattern — Gateway supports
-  multiple simultaneous API clients).
-- Every public function raises `IBNotConfiguredError` — never a raw
-  traceback — when IB isn't ready, so `aq fetch futures`/`aq fetch
-  options` fail cleanly with a message pointing at `aq ib status`.
-- Plugs into `fetch.py::ASSET_CLASS_CONFIG`'s `"futures"`/`"options"`
-  entries the same way `yfinance_backfill.py`'s functions plug into
-  `"crypto"`/`"stock"` — `aq_cli.py::cmd_fetch()` builds a closure binding
-  the connected IB client + contract spec/expiry/strike/right before
-  calling the same `fetch_adhoc_asset()` every asset class shares.
-
-Usage: `aq fetch futures --ticker ES --start ... --end ... --expiry ... [--apply]`,
-`aq fetch options --ticker SPY --start ... --end ... --expiry ... --strike ... --right call [--apply]`
-— see root `README.md`'s CLI Reference.
-
-### Building a real training-time derivatives dataset (manual, per-contract)
-
-`train.py::build_derivatives_macro_features_by_date()` computes real
-futures term structure / options put-call-ratio / IV-skew features from
-whatever future/option assets are configured in `config.json` — but IB's
-historical API is per-contract and rate-limited, so there is no single
-bulk-fetch command for this. Building a useful training window means
-repeating `aq fetch futures`/`aq fetch options` once per contract:
-
-- **Futures term structure** needs at least two same-root contracts tagged
-  with the same `--family-ticker` and *different* `--contract-month`
-  (`YYYYMM`), e.g.:
-  ```text
-  aq fetch futures --ticker ES_FRONT --family-ticker ES --contract-month 202603 --start ... --end ... --expiry ... --apply
-  aq fetch futures --ticker ES_NEXT  --family-ticker ES --contract-month 202606 --start ... --end ... --expiry ... --apply
-  ```
-  Without `--contract-month`, `aq fetch futures` fetches Lean's default
-  *continuous* contract — fine for price/return features, but a single
-  continuous series can't produce a term-structure slope; you need two
-  distinct dated contracts for that.
-- **Options sentiment (put/call ratio, IV skew)** needs option assets
-  tagged with `--family-ticker <underlying>` (matching
-  `phase1.features.derivatives_reference_tickers.options_sentiment` in
-  `config.json`, default `"SPY"`) plus their own `--strike`/`--expiry`/
-  `--right`, e.g.:
-  ```text
-  aq fetch options --ticker SPY_500C --family-ticker SPY --strike 500 --expiry 2026-08-21 --right call --start ... --end ... --apply
-  aq fetch options --ticker SPY_490P --family-ticker SPY --strike 490 --expiry 2026-08-21 --right put  --start ... --end ... --apply
-  ```
-- Any family/underlying with too few tagged contracts (or missing
-  `strike`/`expiry`/`right` metadata) resolves to the neutral default
-  (0.0) for that feature, silently — never a crash. This is the honest
-  "no data configured" case, not a bug; run `aq assets status` to see
-  what's currently configured.
-- After fetching, run `python train.py --dataset-only` (then `python
-  train.py` when ready) to actually train on the new data — `aq fetch`
-  never trains anything itself.
-
-
-## FX rate series and the holdout root (V5.7.0)
-
-`fred_backfill.py --group fx` fetches the seven foreign 3-month interbank rates (`DEFAULT_FX_RATE_REFERENCE_SERIES`) behind
-`features/fx_carry.py`; `--group all` now includes them. `scripts/build_holdout_data.py` writes a SEPARATE `data_holdout/` root
-(Yahoo-adjusted bars 2014-06..2025-06 for every universe asset, FRED through 2025) for the out-of-window evaluation; `data/` is never
-touched, so the trained models, the dataset and Lean backtests are unaffected.
-
-## V5.8.0 additions
-
-- `data_audit.py` (`aq evaluate --audit-data`) — per-ticker coverage against the class calendar, return outliers, OHLC sanity, flat runs, quote-vs-trade coverage, plus a SHA-256 file manifest (`data/manifest_v580.json`) the Codespace sync compares both ways.
-- `price_overrides.json` — documented back-adjustment ratios for corporate actions Yahoo does not adjust (spinoffs); applied by the writer with a source note.
-- `yfinance_backfill.py` — can rewrite a whole universe zip from one pull (`merge_with_existing=False`), which is how every class got one Yahoo vintage through 2026-09-30 (V6.4.0 extended it to 2026-10-16 by appending only, `scripts/data_append_refresh.py` / `data_append_guard.py`); never leave a sentinel-only factor file (the 2050 trap, Problems #130).
-- `cftc_cot.py` (V6.5.0) — speculators' net positioning from the free CFTC files, keyed by publication date (`data/reference/cot_positioning.csv`, from 2005).
-- `edgar_facts.py` (V6.5.0) — point-in-time quarterly EPS from SEC EDGAR, first filing only, into `data/reference/edgar_eps.csv`; `--apply --splits` writes `equity_splits.csv` from Yahoo. SEC refuses a client with no contact, so set `AQ_SEC_CONTACT` for the run (never in the repository). `surprise_table` expects split-adjusted EPS (`split_adjusted_eps`) and compares a quarter with the one ending 350-380 days earlier.
-
-## V6.6.0 additions
-
-- `sp500_membership.py` — point-in-time S&P 500 members (Wikipedia-derived, so with errors), renames, share-class twins, the coverage gap.
-- `binance_archive.py` — data.binance.vision's spot klines and funding, delisted pairs included; `liquid_universe` reads trailing volume only.
-- `edgar_facts.py` — annual first filings, `fundamentals_table` a session after filing, `market_cap_table` on closes without dividends, sectors from SIC.
-- `sec_form345.py` — Form 4 open-market trades by filing date, and Cohen-Malloy-Pomorski's opportunistic split.
-- `finra_short_volume.py` — daily short ratios from 2018-08.
-- `factor_library.py` — French's and AQR's daily factors, reported beside a result and never blocking.
-- `net_retry.py` — only the server's own answer means a file is absent.
-
-## V6.6.1: quarterly fundamentals
-
-`edgar_facts.extended_rows` adds trailing-twelve-month net income and operating cash flow (a filing's cash-flow figures are year to date, so standalone quarters can't simply be summed: last year + this year to date - last year to date, usable from the latest filing among its parts), quarterly assets, cash, short-term debt, capex and R&D. `scripts/build_wide_info.py --parts extended` writes them to their own file, `data_wide/reference/edgar_fundamentals_ext.csv.gz`, so the file every earlier trial read stays byte-identical.
+Data parity with live is checked against live: AGENTS.md rule 12, and `aq evaluate --reconcile-features`.

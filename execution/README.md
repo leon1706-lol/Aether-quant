@@ -1,312 +1,65 @@
 # execution
 
-Pure, Lean-free order gating, cost/slippage math, and paper/live readiness
-checks shared between `main.py` and the test suite. Nothing here imports
-`AlgorithmImports`/`QCAlgorithm` — every module is unit-testable without a
-Lean runtime; `main.py` is the only place that touches Lean's runtime types
-and wires these modules to it.
+Pure order gating, cost math and paper/live readiness, shared by `main.py` and the tests. Nothing here imports Lean; `main.py` wires it to Lean's runtime.
 
-## Core order gating (`order_gate.py`)
+## Order gate: `order_gate.py`
 
-- `resolve_runtime_mode(raw_mode)` — normalizes `phase_v2.runtime.mode`,
-  failing safe to `"observation"`. Valid modes: `backtest`, `observation`,
-  `paper`, `live`.
-- `resolve_order_permission(mode, allow_live_orders, broker_config_present,
-  risk_locks_healthy)` — the mode → real-vs-simulated order decision table.
-  `observation` always returns `False` regardless of other flags (the one
-  safety invariant this phase depends on); `backtest` always unrestricted;
-  `paper`/`live` need the matching flags AND healthy risk locks
-  (V5.4.5, Problems.md #116 — paper previously ignored the kill switch).
-- `simulate_fill(close_price, target_weight, equity, slippage_bps=0.0)` —
-  hypothetical fill-price/quantity/notional math used by
-  `experience/simulated_portfolio.py`. `fill_price = close_price +
-  slippage_amount(...)`; quantity/notional = `target_weight * equity` at
-  that price. All-zero for non-positive `close_price`.
-- `is_real_order_placement(execution_note, orders_allowed)` — classifies an
-  execution note as a genuine real order vs. simulated (`"simulated_"`
-  prefix) or a known no-op (denylists `_NO_OP_EXECUTION_NOTES` +
-  `_NO_OP_EXECUTION_NOTE_SUFFIXES`). Backs the real-order audit-log hook in
-  `on_data()`'s Pass 2.
+- **`resolve_runtime_mode()`:** normalizes `phase_v2.runtime.mode`, failing safe to `observation`.
+- **`resolve_order_permission()`:** `observation` never trades, `backtest` always may, and `paper` or `live` need the flags **and** healthy risk locks (proved in `formal/AetherFormal/OrderGate.lean`).
+- **`simulate_fill()`:** hypothetical fills for `experience/simulated_portfolio.py`.
+- **`is_real_order_placement()`:** backs the audit log's real-order hook.
+- **`resolve_pending_order_action()`:** one order per symbol. Keep a same-direction order, replace an opposite or timed-out one.
+- **`should_skip_for_open_order()`:** no second entry on an order already working.
+- **`compute_fill_slippage_divergence_bps()`:** realized minus expected slippage, adverse only, against the fill bar's open.
 
-## Expected-net-edge cost model (`cost_model.py`)
+## Cost model: `cost_model.py`
 
-Entry-decision side of cost-awareness (sibling to, not a replacement for,
-the fill/pricing math below): does this trade's expected edge clear its
-expected cost.
+Does an entry's expected edge clear its cost?
 
-- `estimate_round_trip_cost_bps(liquidity_payload, *, commission_bps_per_side,
-  min_commission_usd, order_value, extra_slippage_bps)` — reads
-  `liquidity_payload["estimated_round_trip_cost"]`, **never recomputes
-  slippage**; adds a commission leg (bps of order value) covering BOTH
-  round-trip sides — per side = `max(rate leg, min_commission_usd floor)`
-  (V5.4.5, Problems.md #116 — one side was charged against a round-trip
-  contract) — plus an optional `extra_slippage_bps` buffer. Non-finite
-  estimates fail the gate closed with an explicit reason (#117).
-- `expected_edge_bps(predicted_rank, *, edge_bps_per_rank_unit, holding_bars,
-  horizon_days, trade_direction=1)` — linear in rank deviation from the
-  median (0.5), scaled down when `holding_bars` < the rank head's forward
-  horizon. `trade_direction` (+1 long/-1 short) must be the sign of the
-  trade being evaluated — measures edge in the direction of the trade, not
-  just the long-side edge.
-  `None` prediction → `0.0`.
-- `build_net_edge_decision(predicted_rank, liquidity_payload, order_value,
-  cost_config, *, trade_direction=1)` — consumed by
-  `analyzer/market_analyzer.py`'s Priority 6.5 tier and
-  `risk/position_sizing.py::cost_sizing_multiplier()`. **Fail-open,
-  always**: `passes=True` when the gate is disabled, `edge_bps_per_rank_unit`
-  is uncalibrated (`0.0`), or the rank prediction is missing. Config:
-  `phase_v2.costs` (`enabled: false` until calibrated via
-  `aq evaluate --calibrate-edge`).
-- **Per-class exchange fees (V5.6.0):** `phase_v2.costs.fee_by_type.<security_type>` =
-  `{"model": "coinbase", "fee_bps": 80.0, "min_usd": 0.0}` replaces the global
-  commission terms for that class (`commission_terms_for_security_type()`, passed to the gate as
-  `security_type=`). Lean's default crypto fee model charges **$0** (every 2026-10-07 crypto fill),
-  so `model: "coinbase"` also assigns Lean's own `CoinbaseFeeModel()` to crypto securities in
-  `main.py`, and `commission_bps_by_ticker()` hands the same rate to the offline simulator
-  (`simulate_rank_book(commission_bps_by_ticker=...)`). Absent key = pre-V5.6.0 behaviour.
+- **`estimate_round_trip_cost_bps()`:** reads liquidity's estimate, never recomputes it, and adds both commission sides. Non-finite estimates fail closed (#117).
+- **`expected_edge_bps()`:** linear in rank distance from the median, scaled by holding period.
+- **`build_net_edge_decision()`:** read by the analyzer and `cost_sizing_multiplier()`. Fails open when disabled, uncalibrated or missing a rank.
+- **Per-class fees (`phase_v2.costs.fee_by_type`):** `{"model": "coinbase", ...}` also sets Lean's `CoinbaseFeeModel`, because Lean's default charges crypto $0. A fee model must be set through `SetFeeModel` to take effect.
+- **Calibrate:** `aq evaluate --calibrate-edge`.
 
-## Position reconciliation (`reconciliation.py`)
+## Reconciliation: `reconciliation.py`
 
-`reconcile_positions(expected_by_symbol, actual_by_symbol, *,
-weight_tolerance, value_tolerance_usd, portfolio_value,
-max_tolerated_drift=None) -> ReconciliationReport` — compares the book's
-intended weights against what a broker (or simulated portfolio) actually
-holds. Classifies each symbol `matched` (within both `weight_tolerance` and
-`value_tolerance_usd`), `drifted` (outside tolerance), `orphan_broker`
-(held, not in book) or `missing_broker` (in book, not held).
-`max_abs_weight_drift` = largest drift among non-matched symbols;
-`breach=True` past `max_tolerated_drift`. `main.py` calls it once per bar
-(portfolio-book path); a breach feeds `risk/kill_switch.py`'s trigger
-inputs, so it can actually stop trading, not just log.
+`reconcile_positions()` compares intended and actual weights, classifying each symbol `matched`, `drifted`, `orphan_broker` or `missing_broker`. A breach feeds the kill switch, so it can stop trading.
 
 ## Real fill slippage
 
-`liquidity/market_liquidity.py`'s `estimated_round_trip_cost` was
-sizing/routing input only; now wired into real and simulated fills too.
+Lean's fill model has no bid-ask awareness, so this is where spread reaches a fill price.
 
-- `resolve_slippage_bps(symbol_key, slippage_bps_by_symbol, max_bps=
-  MAX_LIQUIDITY_SLIPPAGE_BPS)` — lookup + clamp. Missing symbol → `0.0`;
-  clamp default `MAX_LIQUIDITY_SLIPPAGE_BPS = 500.0` (5%, a guard against a
-  degenerate estimate — normal participation never approaches it).
-- `slippage_amount(reference_price, slippage_bps)` — the one bps→price
-  formula in the codebase, shared by real and simulated fills.
-- `resolve_fill_slippage(symbol_key, reference_price, slippage_bps_by_symbol,
-  max_bps=...)` — composes the two above; used by `main.py`'s real Lean
-  fill path.
-- `liquidity_cost_fraction(liquidity_payload, source)` — picks
-  `estimated_round_trip_cost` vs `estimated_slippage` per config.
-  `resolve_fill_slippage_source(raw_source)` normalizes/fails-safe (same
-  pattern as `resolve_runtime_mode()`).
-
-Config `phase_v2.liquidity.fill_slippage` (`main.py::_ensure_ready()`):
-`source` (default `"round_trip"` = impact+spread combined — the default
-because Lean's own fill model has no bid-ask awareness, so this is the only
-place spread cost ever reaches a fill price; `"impact_only"` = impact
-alone), `max_bps` (default `500.0`).
-
-**Real Lean fills**: `_LiquidityAwareSlippageModel` (`main.py`, duck-typed
-against Lean's `ISlippageModel.GetSlippageApproximation(asset, order)`) is
-attached per-security via `security.SetSlippageModel(...)` in `_add_asset()`;
-reads `self.latest_liquidity_slippage_bps` (refreshed every bar in
-`on_data()` Pass 2) and delegates to `resolve_fill_slippage()`.
-**Observation-mode fills**: `simulated_portfolio.py::enter_long()` takes
-`slippage_bps: float = 0.0` threaded to `simulate_fill()`; every `main.py`
-call site passes `resolve_slippage_bps(...)` so real and simulated fills
-charge the identical estimate.
-
-### V5.5.0 additions to `order_gate.py`
-
-- `resolve_pending_order_action(existing, is_buy, bar_index, timeout_bars)` -
-  `submit` / `keep` / `cancel_replace`. One order per symbol: an in-flight order in the
-  same direction is kept (its original `submitted_bar` keeps the timeout clock), an
-  opposite or timed-out one is cancelled and replaced. Re-submitting every bar and
-  overwriting the record orphaned the old ticket (AMZN: 3 fills, 689 shares).
-- `should_skip_for_open_order(open_qty, has_tracked_pending_limit)` - an *untracked*
-  order is already working (the market fallback the timeout sweep just sent), so no
-  second entry is stacked on it (`order_already_open`); 26 market+limit pairs in the
-  2026-10-07 run, several of which both filled (Problems #133).
-- `liquidity_cost_fraction(payload, "per_side")` - half the round-trip estimate, the
-  one-fill cost; `phase_v2.liquidity.fill_slippage.source` is now `per_side`.
-- `compute_fill_slippage_divergence_bps(fill, reference, expected_cost_bps, direction=None)` -
-  realized minus expected, None on unusable input; `main.py` passes the **fill bar's open** and
-  half the expected round trip (the prior close made it the overnight gap). With `direction`
-  (the fill quantity's sign) only **adverse** slippage counts - price improvement is not a cost
-  (V5.7.0, Problems #148) - and `main.py` skips tracked **limit** fills altogether: their gap to
-  the bar open is intraday drift bounded by the limit price (#153).
+- **Shared formula:** `slippage_amount()`, `resolve_slippage_bps()`, `resolve_fill_slippage()`, clamped by `MAX_LIQUIDITY_SLIPPAGE_BPS`.
+- **Source:** `liquidity_cost_fraction()` by `phase_v2.liquidity.fill_slippage.source`; `per_side` is half a round trip.
+- **Fills:** `_LiquidityAwareSlippageModel` in `main.py`; observation-mode fills charge the same estimate.
 
 ## Real limit orders
 
-Config-gated alternative to market orders (`phase_v2.limit_orders.enabled`):
-the code default is `false` (a global kill switch — disabling it makes every
-routing call site byte-for-byte identical to the plain market-order path),
-but the shipped `config.json` turns it **on** for all 5 asset classes,
-where it has been extensively exercised in real backtests since 2026-07-20
-(development/Problems.md #34/#96: 45 real `order-events.json` files show
-continuous limit-order activity, 2,370-4,103 fills per run in several).
+`phase_v2.limit_orders` routes orders as limits, on for the classes it lists; the target-weights path uses market orders and rests crypto exits as limits.
 
-**Casing convention**: this codebase calls the Lean API in **PascalCase**
-(`self.MarketOrder`, `self.SetHoldings`, `self.SetSlippageModel`) but
-overrides Lean's virtual callbacks in **snake_case** (`initialize`,
-`on_data`). Limit-order code follows the same split:
-PascalCase calls (`self.LimitOrder(...)`, `ticket.Cancel()`,
-`OrderStatus.Filled`), snake_case override (`on_order_event`).
+- **`resolve_limit_price()`:** half the spread from the reference price, times `offset_multiplier`.
+- **`classify_order_status()`:** `pending`, `filled`, `canceled` or `unknown` (treated as pending), verified against real order events.
+- **`main.py`:** `_try_submit_limit_order()`, then `_process_pending_limit_order_timeouts()` cancels past `unfilled_timeout_bars`, with a market fallback per class (`fallback_to_market_on_timeout`; off for futures and options, where a silent fill is a real unchosen position).
+- **Cooldown:** stamps at confirmed fill, not placement, so an unfilled order doesn't block a flipped signal.
+- **Casing:** call Lean's API in PascalCase (`self.MarketOrder`), and override its callbacks in snake_case (`on_order_event`).
 
-- `resolve_limit_price(reference_price, spread_fraction, is_buy,
-  offset_multiplier=1.0)` — reuses `liquidity_payload["spread_proxy"]`. Buy
-  limits below reference price, sell/short above, offset by half the
-  spread × `offset_multiplier`. Fails safe to the unchanged reference price
-  for non-positive price/spread.
-- `classify_order_status(status_name)` — classifies into `"pending"` /
-  `"filled"` / `"canceled"` / `"unknown"` (unrecognized → `"unknown"`,
-  treated as pending). Backed by three tuples (one-line spelling fix if
-  Lean's real enum differs):
-  - `PENDING_ORDER_STATUS_NAMES` = `New`, `Submitted`, `PartiallyFilled`,
-    `UpdateSubmitted`, `CancelPending`
-  - `TERMINAL_FILLED_STATUS_NAMES` = `Filled`
-  - `TERMINAL_CANCELED_STATUS_NAMES` = `Canceled`, `Invalid`
+## Config cache: `config_cache.py`
 
-  All spellings verified against real `order-events.json` exports
-  (`CancelPending` appeared 23 times, 1:1 with confirmed unfilled-timeout
-  cancels).
+`read_cached(path, loader)` is mtime-gated. The key includes the loader, because several readers share `config.json` within a bar (#13).
 
-Config `phase_v2.limit_orders` (`main.py::_ensure_ready()`): `enabled`
-(default `false`, global kill switch), `asset_classes` (default all 5),
-`offset_multiplier` (default `1.0`; `<1.0` more aggressive/likely to fill,
-`>1.0` more passive), `unfilled_timeout_bars` (default `3`),
-`fallback_to_market_on_timeout` — **per-asset-class dict**, not a single
-bool (mirrors `exposure_caps_by_asset_class`): `true` for equity/crypto/bond
-(fallback = what `SetHoldings` would've placed anyway), `false` for
-future/option (a silent fallback fill is a real, model-unchosen position
-under margin/expiry mechanics — safer to stay flat).
+## Paper and live readiness
 
-**Real Lean fills** (`main.py`): `_try_submit_limit_order()` — shared helper
-called from every real-order branch in `_apply_signal()`/
-`_apply_option_order()`; returns `False` immediately when disabled/asset
-class not configured (caller's market-order call runs instead). Quantity
-from the caller's already-computed
-`_futures_contract_count_for_weight()`/`options_decision.contracts`, or
-`self.CalculateOrderQuantity(symbol, target_weight)` for equity/crypto/bond.
-`OrderTicket` tracked in `self.pending_limit_orders` (keyed by `str(symbol)`).
-`_process_pending_limit_order_timeouts()` runs once per bar (right after
-`_refresh_risk_state()`): cancels anything past `unfilled_timeout_bars`, and
-per the fallback flag optionally places a real `MarketOrder()`.
-`on_order_event(self, order_event)` is Lean's fill/cancel callback — maps
-back to the `pending_limit_orders` entry via
-`self.symbol_key_by_option_contract_symbol` for options (fires on the
-contract symbol) or `str(order_event.Symbol)` otherwise; fill stamps
-`last_trade_bar_by_symbol` and clears the entry, cancel just clears it.
+- **`paper_readiness.py` (pure):** `evaluate_broker_config()`, `evaluate_observation_readiness()`, `evaluate_live_risk_posture()`.
+- **`paper_readiness_io.py`, `paper_readiness_report.py`:** `aq paper-readiness`, writing `visualization/grafana/paper_readiness_report.json`.
+- **`paper_readiness_scheduler.py`:** keeps that report fresh.
+- **`live_credentials.py`, `live_credentials_io.py`:** credential checks, without ever printing a secret.
 
-**Cooldown-timing change (feature-on only)**: `last_trade_bar_by_symbol`
-normally stamps at order-placement time; with limit orders enabled it
-stamps at confirmed-fill time instead, so a flipped signal isn't blocked by
-a cooldown for a trade that never happened. Disabled: no change. Risk: if
-`on_order_event` never fires, the cooldown stamp is silently skipped.
+## Secrets
 
-**Observation-mode fills untouched** — `_try_submit_limit_order()` only
-runs inside `if orders_allowed:`, unreachable from simulated `enter_long()`;
-no fill-uncertainty modeling was added to `SimulatedPortfolioState`.
+- **`secret_scan.py`:** `aq secrets-check`, the pre-commit guard.
+- **`lean_config_render.py`:** `aq render-lean-config`. Secrets stay in the gitignored `lean.live.json`, and the tracked `lean.json` stays empty. It warns that IB can't fill crypto (#192).
 
-## Config-read caching (`config_cache.py`)
+## Going to paper
 
-`read_cached(config_path, loader)` — shared, mtime-gated cache used by
-`paper_readiness_io.py::read_paper_trading_config()`,
-`runtime_config_io.py::read_runtime_mode()`, and (outside this package)
-`risk/manual_override.py::read_manual_trade_lock_override()`. Avoids
-redundant `open()`+`json.load()` on every call while still picking up an
-edit as soon as the file's mtime changes.
-
-**Cache key is `(config_path, loader)`, not just `config_path`** — several
-readers share `config.json` within the same bar
-(`main.py::_refresh_risk_state()` calls the manual-override and
-paper-trading readers back-to-back); a path-only cache let one reader's
-value leak into another's result. See `development/Problems.md` #13,
-`tests/test_config_cache.py::test_two_different_loaders_on_the_same_path_do_not_collide`.
-
-## Paper/live broker readiness
-
-- `paper_readiness.py` (pure) — `evaluate_broker_config()` is the single
-  entrypoint `main.py` calls regardless of mode; dispatches to
-  `evaluate_paper_broker_config()` (Lean's built-in `PaperBrokerage`, no
-  real credentials — brokerage/live-data-provider/manual-review
-  attestation flags only) or `evaluate_live_broker_config()` (real
-  credentials + `evaluate_live_risk_posture()`). Also
-  `evaluate_observation_readiness()`, codifying
-  `development/infrastructure.md`'s readiness checklist.
-- `paper_readiness_io.py` (IO) — mtime-cached `read_paper_trading_config()`
-  of `phase_v2.paper_trading`, plus `fetch_observation_mode_events()`
-  (first `mode='observation'`-filtered `experience_events` query).
-- `paper_readiness_report.py` — offline report (`aq paper-readiness`,
-  `build_paper_readiness_view()`/`write_paper_readiness_file()`); writes
-  `visualization/grafana/paper_readiness_report.json` (`main.py` has no
-  Postgres connection to compute this itself).
-- `live_credentials.py` (pure: `credentials_present()`,
-  `describe_missing_fields()`, `postgres_dsn_is_live_safe()`) +
-  `live_credentials_io.py` (IO: `load_live_credentials()`,
-  `load_postgres_dsn()`) — pre-flight validation for real broker
-  credentials (`ib_config.py` or `AETHER_IB_*` via `.env.live`). Does not
-  wire Lean itself — Lean reads `ib-*` fields directly from `lean.json`.
-- `runtime_config_io.py::read_runtime_mode()` — mtime-cached read of
-  `phase_v2.runtime.mode`, used by `retraining/worker.py`'s
-  auto-promote-blocked-in-live-mode safety net (separate process from
-  `main.py`).
-
-See the Paper Trading Readiness Contract (V2-21) and Live Deployment
-Contract (V2-22) in `development/architecture.md` for the full picture.
-
-## Scheduled readiness reporting (`paper_readiness_scheduler.py`)
-
-`PaperReadinessScheduler` — periodic loop around
-`build_paper_readiness_view()`/`write_paper_readiness_file()`, so the
-readiness report (already dashboard-visible via `monitoring/api_server.py`'s
-`/api/state` merge + `get_paper_readiness()` endpoint) doesn't go stale
-between manual `aq paper-readiness` runs. Mirrors
-`performance/trigger_worker.py::TriggerWorker`: sync-only, DSN via
-`AETHER_POSTGRES_DSN`, `--once` flag, `_pg_conn` injection for tests. Run as
-its own process: `python -m execution.paper_readiness_scheduler
---poll-interval 3600` (not folded into `retraining/worker.py`'s loop —
-different cadence). Purely additive — never touches
-`phase_v2.paper_trading` config or order-routing behavior.
-
-## Secret handling (`secret_scan.py`, `lean_config_render.py`)
-
-The tracked `lean.json` ships as the stock Lean template with every
-brokerage/API-secret field empty; these keep it that way while still
-letting live/paper deployment use real credentials.
-
-- `secret_scan.py` — backs `aq secrets-check` / `.githooks/pre-commit`.
-  `find_populated_secret_fields(lean_config)` flags any field whose name
-  looks like a credential (`is_secret_field()`, suffix match on
-  `-api-key`/`-password`/etc. plus IB identity fields) and is non-empty.
-  `is_tracked_env_secret(filename)` flags a `.env`-style filename that
-  isn't a committed `*.example` template. Pure — only field names are ever
-  returned, never values.
-- `lean_config_render.py` — Lean does not expand env vars inside
-  `lean.json` (read literally), so `render_lean_config()` (pure) overlays
-  real values from `.env.live`/`AETHER_*` env vars (`SECRET_ENV_MAP`) onto
-  the empty template; `write_rendered_config()` (IO) writes a gitignored
-  `lean.live.json` that live/paper deployment points Lean at via
-  `--lean-config`. Backtests use the plain `lean.json` untouched.
-  `load_env_file()`/`parse_env_file()` handle `.env.live` parsing.
-
-## Activating real paper-trading fills — manual step
-
-Everything here today produces **synthetic** fills
-(`order_gate.py::simulate_fill()`, via `simulated_portfolio.py`'s
-`enter_long()`/`exit()`/`liquidate_all()`), never a real Lean
-`PaperBrokerage` fill event. Switching the fill *source* to real fills is a
-distinct, deliberately unbuilt follow-up ("Phase 7b") — the rest of the
-pipeline (experience store, triggers, retraining, `rank_ic_monitor.py`)
-needs no change when that happens.
-
-The manual gate already exists as config, not code:
-`paper_readiness.py::evaluate_paper_broker_config()` blocks activation
-until a human sets, in `config.json`,
-`phase_v2.paper_trading.live_data_provider_configured: true` and
-`phase_v2.paper_trading.manual_review_confirmed: true`. Neither is touched
-by any automated process — both stay `false` until a human flips them, and
-`aq paper-readiness`/`PaperReadinessScheduler` keep reporting `ready: false`
-(via `blocking_reasons`) until they do.
-
-## V6.1.0 additions
-
-- `lean_config_render.py` — `validate_live_crypto_route`: a warning (never a change) when crypto is in the universe and the rendered credentials are Interactive Brokers', whose QuantConnect brokerage does not support crypto (Problems.md #192).
+Follow RUNBOOK's "Deploy checklist" and "When the keys arrive".

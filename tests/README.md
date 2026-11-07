@@ -1,22 +1,16 @@
 # tests
 
-Pytest suite for every non-`webui` module. The current count lives in the
-root `README.md`'s badge (`aq test` keeps it in sync automatically — see
-`aq_cli.py::cmd_test`), not hardcoded here since it changes too often to
-keep two copies aligned.
+The pytest suite for everything except `webui`. The count is on the root README's badge, which `aq test` refreshes.
 
-Conventions (established since the first V2 test files and followed
-throughout): one test file per source module (`tests/test_<module>.py`),
-plain `def test_...():` functions — newer files (V5.3+) may group related
-tests into `class TestX:` namespaces, still with no shared `conftest.py`;
-each file carries its own module-level fixtures/helpers
-(`_sample_x()` builders, `_make_conn_mock()` for Postgres-backed modules),
-duplicated across files rather than centralized.
+**Run with an explicit path, never bare `pytest`:** `aq test`, or `pytest tests/`. A bare run crawls the code each Lean run copies into `backtests/` and collides on module names (#8).
 
-`_make_conn_mock()` (used by every Postgres IO-layer test, e.g.
-`test_retraining_postgres_registry.py`, `test_postgres_triggers.py`,
-`test_postgres_worker.py`) mocks a psycopg3 connection/cursor pair so DDL
-and queries can be asserted on without a real database:
+## Conventions
+
+- **One file per source module** (`tests/test_<module>.py`). Cross-module regressions go in round files such as `test_v660_fixes.py`, committed with their fix.
+- **Register every new file** in `aq_cli.py`'s `_SUBSYSTEM_TEST_FILES`, or `aq test --risk` and the like skip it.
+- **Plain functions and module-level helpers;** no shared `conftest.py`.
+- **`tests/` is not a package on CI:** never `from tests.x import ...`.
+- **Never assume Redis, Postgres or IB.** Workers (`PostgresWorker`, `TriggerWorker`, `RetrainingWorker`) take `_pg_conn` and `_redis_client` so tests can inject a mocked connection:
 
 ```python
 def _make_conn_mock():
@@ -27,57 +21,19 @@ def _make_conn_mock():
     return conn_mock, cur_mock
 ```
 
-Worker classes (`PostgresWorker`, `TriggerWorker`, `RetrainingWorker`)
-accept a `_pg_conn`/`_redis_client` constructor kwarg specifically so tests
-can inject the mock above instead of opening a real connection.
+## Special suites
 
-**`main.py` against a Lean stub (V5.5.0):** `main.py` only imports inside a Lean
-process, so it had no unit coverage at all. `tests/test_main_wiring.py` installs a
-minimal `AlgorithmImports` (just `QCAlgorithm`), builds the algorithm with
-`object.__new__` (skipping `initialize()`), sets only the attributes a method reads, and
-drives the order-path methods (`_apply_signal`, `_try_submit_limit_order`,
-`_open_order_quantity`, `_short_exposure`, exit tracking, slippage divergence, the
-shutdown probe). It proves the decisions *this repo* makes around Lean's APIs - never
-fill timing or API semantics (that stays the owner-run backtest's job), and it does
-not drive `on_data()`; `tests/test_v550_parity_fixes.py` therefore also keeps a
-structural guard that `main.py` still contains a real call to each fixed function.
+- **`main.py` against a Lean stub:** `test_main_wiring.py` installs a minimal `AlgorithmImports`, builds the algorithm with `object.__new__` and drives the order-path methods. It proves this repo's decisions around Lean's APIs, not fill timing, and it doesn't drive `on_data()`. `test_main_ensure_ready_smoke.py` runs the real first-bar setup.
+- **Repo guards (`aq test --meta`):**
+  - `test_ci_workflows.py`: the CI shape.
+  - `test_packaging_modules.py`: every shipped import is shipped.
+  - `test_docs_links.py`: relative links and `AQ:*` marker pairs.
+  - `test_docs_facts.py`: quoted numbers, the README's library example, and paths, config keys, commands and problem numbers in living docs.
+  - `test_ci_scripts.py`: CI helper scripts.
+  - `test_aether_quant_api.py`: the library's public surface, and that importing it loads nothing heavy.
+- **Formal cases (`aq test --formal`):** `test_formal_differential_<target>.py` runs each verified function on the inputs Lean 4 generated and compares exact outputs. `test_formal_cases_drift.py` fails when a spec changed after its cases were generated. No Lean install is needed.
 
-**Repo-level guards (`aq test --meta`):** `test_ci_workflows.py` pins the CI shape (every
-job, the subsystem matrix equal to `_SUBSYSTEM_TEST_FILES`, CPU torch ordering, pinned
-tool versions), `test_packaging_modules.py` fails when a shipped file imports a
-first-party module `pyproject.toml` does not ship, `test_docs_links.py` checks every
-relative Markdown link and `AQ:*` marker pair, `test_ci_scripts.py` covers the CI
-helper scripts, and (V6.4.3) `test_aether_quant_api.py` pins the library's public surface
-(`tests/data/aether_quant_api.json`) and that importing it loads no heavy dependency.
+## Before a commit
 
-**Formal differential cases (`aq test --formal`, V6.4.3):** `test_formal_differential_<target>.py`
-runs each verified Python function on the inputs the Lean 4 models in `formal/` generated and
-compares with their exact outputs (`aether_quant/_formal_cases/`); `test_formal_cases_drift.py`
-fails when a spec changed after its cases were generated (`aq prove --regen-cases`), and
-`test_v643_formal_findings.py` pins the proof findings and the non-finite audit. No Lean install
-is needed to run them.
-
-**Run with an explicit path, never bare `pytest`:**
-
-```powershell
-pytest tests/
-```
-
-Per `development/Problems.md` #8: a bare `pytest` from the repo root also
-crawls `backtests/<run>/code/tests/` (each Lean backtest run copies the
-full algorithm source, tests included, into its own output folder), and
-pytest's default import mode then collides on duplicate module names once
-enough backtests have accumulated locally. This only bites locally
-(`backtests/` is gitignored), never on a fresh clone or CI.
-
-**Clean checkout before a commit (V6.2.0):** `powershell -File scripts/clean_checkout_test.ps1`
-runs CI's pytest command in a detached worktree of HEAD plus the working-tree changes, with no
-gitignored file present. A test that reads `ml/model_weights.json`, a dataset or a backtest
-folder passes locally and on the Codespace (both hold them) and fails only on CI; V6.1.0's red
-CI was exactly that. Tests bring their own artifacts in `tmp_path` instead.
-
-**V6.1.0 round files:** `test_v610_simulator_parity.py` (the simulator's daily member pass, whole-portfolio kill switch, weekend accrual, legacy signal, position cap, live analyzer, and the exit-cost / risk-off-severity fixes), `test_v610_forex_holidays.py` (Lean's forex calendar, reproducing a live GBPJPY momentum value from the real zip), `test_v610_model_ensemble.py` (live and offline seed-ensemble averaging agree to 1e-12), `test_v610_research.py` (the rule chain's pure pieces), `test_v610_config_decisions.py` (config pins with the rule that made them). `test_main_ensure_ready_smoke.py` also pins `on_data`'s setup order and the live ensemble path.
-
-**V6.4.0 round files:** `test_v640_round.py` (live-path parity of every V6.4.0 change: kill-switch trip confirmation through the simulator, the book-history record and paper gate, sector-relative ranks, partial adjustment, the overlay hook), `test_v640_research.py` (every pre-registered clause and stage on synthetic summaries), `test_classification_parity.py`, `test_paper_protocol.py`, `test_probability_calibration.py`, `test_direction_overlay.py`, `test_engaged_day_skill.py`, `test_trade_bootstrap.py`, `test_data_append_guard.py`, `test_codespace_session_v640.py`.
-
-**V6.6.0 files:** `test_v660_fixes.py` (the phase's evidence and live-path fixes, cross-module), `test_v660_research.py` (no selection stage can read a held-out cell), `test_research_cells.py` (held-out cells refuse without a freeze digest), `test_wide_signals.py` and `test_wide_info.py` (no look-ahead, split invariance), `test_power_analysis.py`, `test_forward_ledger.py` (a tampered row is caught), `test_binance_archive.py`, `test_sp500_membership.py`, `test_net_retry.py`. `test_vault_contract.py` now runs in CI: `aether-vault==1.7.0` is pinned in `requirements/requirements.txt`.
+- `scripts/clean_checkout_test.ps1` runs CI's pytest in a detached worktree with no gitignored files. A test that reads `ml/model_weights.json` or a backtest folder passes locally and fails only on CI, so tests bring their artifacts in `tmp_path`.
+- On a low-memory PC, `scripts/codespace_verify.ps1 -Start` runs every CI job on a Codespace. Never `aq test --parallel` there.

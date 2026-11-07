@@ -11,6 +11,7 @@ LEAN_REPORT_FLAGS = (
     ("order-level audit", "audit_backtest"),
     ("P&L attribution", "attribute_lean"),
     ("fill prices", "audit_fills"),
+    ("proof of alpha", "alpha_proof"),
     ("backtest statistics", "backtest_stats"),
     ("classification parity", "classification_parity"),
 )

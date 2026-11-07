@@ -1,322 +1,71 @@
 # evaluation
 
-Offline, cost-aware evaluation of the cross-sectional rank book (V5.1
-Phase 0, development/Problems.md — the phase focused on model prediction
-performance). Answers the question nothing else in this codebase could:
-`train.py::compute_strategy_metrics()` simulates a long-only 1-day-direction
-strategy **gross of costs**, not the rank book, and not net of cost. This
-package turns "how good is this rank prediction" into "what would this have
-actually earned net of fees."
+Offline evaluation, audits and the research cycle. Pure numpy and pandas, with no torch, so `performance/`, `retraining/` and the library can import it. CLI: the README's [`aq evaluate`](../README.md#aq-evaluate).
 
-Pure numpy/pandas — **deliberately no torch import**, so `performance/` and
-`retraining/` (and any future Postgres-fed monitoring job) can import it
-without pulling in the training stack, the same torch-free-core convention
-`train.py::_rank_ic_from_arrays()` established for its own metric.
+## Reading a finished Lean run
 
-- `rank_book_simulator.py::simulate_rank_book(...)` — reuses the **exact**
-  selection/neutrality machinery `main.py`'s live decision path uses:
-  `portfolio.book_construction.build_rank_based_book()` (including its
-  hysteresis-aware sticky selection) and
-  `portfolio.book_neutrality.apply_book_neutrality()`. Per date: rebalance
-  on schedule, equal-weight each leg, neutralize, hold until the next
-  rebalance, accrue gross return and cost (`cost_bps_per_side +
-  commission_bps`, charged on turnover only at rebalance). Dates with fewer
-  than `min_universe_size` eligible rows are **skipped**, not zero-filled.
-- `rank_book_simulator.py::capacity_curve(...)` — sweeps `top_n` (breadth
-  check: is the edge concentrated in a handful of names, or genuinely
-  spread across the cross-section?) and estimates a rough capacity ceiling
-  from the lowest-average-dollar-volume held name.
-- `rank_book_simulator.py::stress_test_costs(...)` — re-runs the simulation
-  at 1×/2×/3× the configured cost, answering "does the edge survive if
-  real-world costs turn out higher than calibrated."
-- `rank_book_simulator.py::summarize_metric_stability(...)` — cross-window
-  sign-flip-fraction + bootstrap-CI summary (used by Phase 4's walk-forward
-  evaluation and Phase 5's ablation harness). Duplicates the ~12-line
-  bootstrap from `train.py::bootstrap_ic_confidence_interval()` rather than
-  importing it, for the same torch-free reason above.
-- `live_parity.py` (V5.5.0, Problems.md #128) — turns config + dataset into the
-  keyword arguments that make `simulate_rank_book()` mirror `main.py`:
-  `build_as_live_kwargs()`, `lag_predictions_for_tickers()` (forex/crypto bars
-  land after the equity tick), `make_rolling_ic_gate_fn()` (lazy, cached,
-  no-lookahead gate per date), `build_candidate_metadata()`. The simulator's
-  matching switches (all default to the idealized behavior): `normalize_to_percentile`,
-  `min_rank_confidence_spread`, `rolling_ic_gate_fn`, `live_weighting`,
-  `hold_positions_on_veto`, `retry_rebalance_after_veto`, `max_holding_dates`,
-  `candidate_metadata_by_ticker`; the result gains `num_vetoed_rebalances`/`veto_reasons`.
-  Exposed as `aq evaluate --rank-book --as-live`.
-- `lean_attribution.py` (V6.0.0, `aq evaluate --attribute-lean`) — a Lean run's daily P&L per ticker and component from its order events and the data zips, reconciled with the equity curve; fee per fill by route.
-- `lean_statistics.py` (V6.2.0, `aq evaluate --lean-stats`) — Lean's Sharpe / Sortino / PSR reproduced exactly from a result JSON (compounded mean daily return, sample variance x days a year, the risk-free file averaged over every equity sample), on any rate file and day count, plus counterfactual daily returns (`with_extra_daily_returns`).
-- `tranche_book.py` (V6.2.0, rule R-STAGGER) — the staggered tranche book offline: the sum of K phase-shifted runs of `simulate_rank_book`, each tranche's kill switch fed the others' returns; `simulate_rank_book(cash_sweep=)` models the T-bill sweep as its own component outside the kill switch.
-- `backtest_audit.py` (V5.5.0, #127) — order-level audit of one finished Lean
-  run (`aq evaluate --audit-backtest`): exposure per asset class, book-member vs
-  non-member entries (`classify_entries`, against the run's own
-  `book_history.jsonl` segment), overlapping/long-open limit orders, holding
-  histogram, P&L and fee bps per class, Sharpe with and without a risk-free
-  rate, gate vetoes, engine-log teardown, and (V5.6.0) `pnl_by_entry_bucket` (book vs
-  legacy-sleeve P&L net of fees; `--book-run-index` pairs an older run with its own book segment). Pure functions over the run folder;
-  stdlib + `rank_signal_calibration.segment_logged_records_by_run`.
-- `volatility_threshold_calibration.py` (V5.5.0, #129) — per-asset-class
-  percentile of the topology's own 24-return annualized volatility, with a
-  suggested `phase_v2.topology.elevated_volatility_threshold`.
-- `factor_neutralization_check.py` — `compute_factor_exposure()` plus (V5.5.0)
-  `compute_book_factor_exposure()` (SPY + long-short momentum factors from the
-  dataset's own close pivot, forward-dated like the simulator); alpha now
-  includes the regression intercept (it was always 0.0 before).
-- `model_predictions.py` — runs every dataset row through
-  `inference/exported_model.py` (the **same** torch-free interpreter
-  `main.py`'s live decision path uses) to produce a predicted-`<head>`
-  column, so every number this package reports is the offline mirror of
-  live behavior, not a separately re-derived approximation. Includes a
-  torch-free port of `train.py::build_sequence_tensor_dataset()`
-  (`build_sequence_windows()`), cross-validated against the original in
-  `tests/test_model_predictions.py`.
-- `ablation.py::run_ablation(...)` — isolates the contribution of
-  neutrality/hysteresis/cost-model by re-running the simulation with each
-  turned off in turn. Runtime-only mechanisms with no offline equivalent
-  (gating, topology sizing) report an honest `not_offline_measurable`
-  sentinel instead of a fabricated number.
-- `rank_signal_calibration.py` — `calibrate_book_confidence_spread()`
-  (derives `min_rank_confidence_spread` from real per-date score
-  dispersion); `reconcile_book_history_date()`/
-  `replay_book_history_reconciliation()`/
-  `summarize_book_history_reconciliation()` (compares a real Lean
-  backtest's logged book selections against a fresh offline
-  re-derivation — independent or hysteresis-replayed); `summarize_book_member_diversion()`
-  (aggregates each book member's final action/reasons, V5.2.6).
-- `confidence_threshold_calibration.py` — derives `min_confidence_to_trade`
-  from the real confidence-vs-forward-return relationship, same
-  percentile-of-a-real-distribution discipline as the book-spread
-  calibration above.
-- `kill_switch_replay.py::replay_kill_switch_over_dataset(...)`/
-  `summarize_kill_switch_replay(...)` (V5.2.8) — a day-by-day offline
-  replay of the kill-switch + sticky trade-lock state machine against the
-  rank book's own return series. Explicitly approximate (see its own
-  module docstring): no bypass flags, no `net_edge`/book-selection
-  modeling, only the two dataset-derivable `evaluate_kill_switch()`
-  inputs plus the drawdown-lock breach.
-- `limit_fill_simulator.py::simulate_limit_fills(...)`/
-  `sweep_limit_fill_offsets(...)` (V5.3.1) — an offline counterfactual
-  estimate of how often a real limit order would fill vs. time out,
-  reusing `execution/order_gate.py::resolve_limit_price()` against the
-  dataset's own high/low bars. Answers a different question than the real
-  order-events evidence (development/Problems.md #34/#96): "would this
-  signal have filled," not "did the real book's actual orders fill."
-- `feature_reconciliation.py::reconcile_feature_snapshot(...)`/
-  `summarize_feature_reconciliation(...)` (V5.3.5.3, Problems.md #91/#100)
-  — diffs ONE symbol's logged live feature values (book_history.jsonl's
-  allowlist-bounded `feature_snapshot` field) against full_dataset.csv's
-  same (ticker, date) rows: per-feature deltas, tolerance-gated
-  (abs AND rel), NaN-degrading, worst offenders aggregated first. Pure
-  diff core only — the CLI (`aq evaluate --reconcile-features --symbol
-  XOM`) owns all I/O and joins.
-- `readme_research.py` (V5.8.0) — also `build_lean_vs_offline_markdown`: the audited Lean run's sub-periods (`--audit-backtest --period`) next to the offline books and the S&P 500 / 60-40 over the same dates, in the README's Lean section (`AQ:LEANCMP`); README markdown for the as-live book per split
-  and the research/audit block (sleeve and RL verdicts, class IC, gate audit,
-  head audit, holdout). Pure JSON-to-markdown; `generate_evaluation_report.py`
-  calls it, and every audit flag and research script refreshes the README on exit.
-- `monte_carlo.py::run_monte_carlo(...)` (V5.3.8) — stationary-block (or
-  i.i.d.) bootstrap of the offline rank book's daily NET returns into N
-  alternative equity histories: per-run curves, red average curve,
-  return/Sharpe/maxDD percentile distributions, loss probability.
-  Deterministic given seed; pure numpy core — the CLI
-  (`aq evaluate --rank-book --monte-carlo`) owns inference + persistence +
-  README chart/section refresh.
-- `benchmark_comparison.py` (V5.4.3) — naive strategy baselines
-  (momentum top-N / mean-reversion / random-entry) on the same dataset
-  and window as the rank book, so the model's edge is stated relative to
-  simple benchmarks rather than in isolation. V5.4.4 added
-  `close_pivot_from_frame()` (long-format dataset frame → the
-  (dates × tickers) close pivot every baseline consumes) and
-  `run_all_baselines()` (all five baselines into one report dict), plus a
-  real return accrual for the mean-reversion baseline (it previously
-  accrued a hardcoded placeholder, so its Sharpe was structurally 0.0).
-- `public_benchmarks.py` (V5.4.4) — well-known PUBLIC benchmark
-  baselines computed from the universe's own index/bond proxy columns:
-  `compute_sp500_baseline()` (buy-and-hold SPY) and
-  `compute_60_40_baseline()` (60% SPY / 40% TLT, daily rebalanced).
-  Same `close_pivot` input, same Sharpe formula, and same output shape
-  as the strategy baselines above (plus a `status` field — a universe
-  without SPY/TLT degrades to `SKIPPED`, never a crash). Zero new data
-  dependencies.
+Each reads only the run folder and its data; `aq evaluate --lean-report` runs them in order.
 
-Both modules are surfaced end-to-end by `aq evaluate --benchmarks`
-(included in `--all`): the CLI writes
-`ml/evaluation/benchmark_comparison.json`, the README's Benchmark
-Comparison section auto-refreshes from it, and the webui's Evaluation tab
-renders it via `/api/evaluation`'s `benchmarks` key (BenchmarkPanel).
+| Module | Answers |
+|---|---|
+| `backtest_statistics.py` | The README's Backtest Statistics, per portfolio and per strategy |
+| `lean_benchmarks.py` | The run against SPY, 60/40, Bitcoin and its own coins, on one calendar |
+| `alpha_proof.py` | Is it alpha? Per period: Sharpe interval, alpha with a Newey-West t, deflated Sharpe (R-ALPHA1) |
+| `lean_statistics.py` | Lean's Sharpe, Sortino and PSR, replicated exactly |
+| `monte_carlo.py` | A block bootstrap into N alternative histories |
+| `backtest_audit.py` | Orders: exposure per class, overlaps, holding periods, P&L, vetoes, engine-log teardown |
+| `lean_attribution.py` | Daily P&L per ticker and component |
+| `fill_price_audit.py` | Fills against the bar's open: cost or price gap? |
+| `classification_parity.py` | Logged probabilities against the offline head |
+| `lean_verdict.py` | Is a confirming run of an adopted change kept? (R-LEAN rules) |
+| `paper_protocol.py` | A paper run against a reference run's bands |
+| `lean_report.py` | The plan behind `--lean-report` |
+| `readme_statistics.py`, `readme_research.py` | README and research-archive blocks, pure JSON to markdown |
 
-## V5.6.0 additions
+## Simulators
 
-- `model_predictions.predict_heads()` — every requested head from ONE interpreter pass per row
-  (`predict_head()` re-ran the whole model per head); both accept `row_mask` (predict only those
-  rows, windows built only for them) — the reconciliation tools run in ~150 MB instead of ~1.3 GB.
-- `simulate_rank_book(commission_bps_by_ticker=..., entry_veto_column=...)` — a per-ticker exchange fee
-  that replaces the generic commission (crypto), and the analyzer's Priority-3 elevated-topology veto
-  as an entry filter (`build_as_live_kwargs(topology_config=...)` turns it on unless
-  `phase_v2.topology.elevated_veto_applies_to_book_members` is `false`).
-- `feature_parity.py` macro / cs-rank replicas follow the live tick order (bars visible strictly
-  before the row's own tick); see `features/README.md`.
+- **`target_weights_engine.py`:** the shipped path's orders, in seconds. Tracks Lean above 0.99 daily correlation.
+- **`rank_book_simulator.py`:** the model book, reusing `build_rank_based_book()` and `apply_book_neutrality()`. Also `capacity_curve`, `stress_test_costs`, `summarize_metric_stability`.
+- **`live_parity.py`:** the keyword arguments that make it mirror `main.py`: blended head, gates, kill switch, per-member sizing, lag (`--as-live`).
+- **Supporting:** `model_predictions.py` (rows through the same interpreter as live), `rolling_ic_series.py`, `impact_model.py` (Almgren), `tranche_book.py`, `trend_sleeve_backtest.py`, `premia_research.py`, `limit_fill_simulator.py`, `kill_switch_replay.py`, `rolling_ic_gate_replay.py`, `ablation.py`.
+- **Against Lean:** `sim_lean_calibration.py` and `gate_replica_audit.py` show where the rank-book simulator parts from the engine, which is why its numbers are estimates.
 
-## V5.7.0 additions (the as-live simulator models what Pass 2 actually does)
+## Research and proof
 
-- `rolling_ic_series.py::make_rolling_ic_state_fn` — the rolling-IC state of every date computed once
-  (per-origin IC versions as tickers resolve), equal to `compute_rolling_ic_state` on every date incl. mixed
-  equity/crypto/forex calendars and live's bounded buffer; one state serves every floor
-  (`live_parity.make_rolling_ic_gate_fn(state_fn=...)`). Replaces the per-date full-history recompute (~15 min per gate).
-- `simulate_rank_book(kill_switch_config=, kill_switch_sticky=, member_weight_fn=, raw_weights_fn=, impact_inputs_fn=,
-  min_commission_usd_by_ticker=, hysteresis_anchor_on_formed_book=)` — all default off. The kill switch runs
-  `risk.kill_switch.evaluate_kill_switch` on the simulated returns; a locked rebalance freezes members (exits pass).
-  `live_parity.build_live_member_weight_fn` is the live per-member chain (dynamic sizing, liquidity gate, reduce_size,
-  net-edge gate + cost multiplier, book weight floor, analyzer verdicts) built from `main.py`'s own pure functions;
-  `build_live_mechanisms(config, frame)` assembles all of it. Almgren impact is now a rate on each name's traded notional.
-- `fill_price_audit.py` / `aq evaluate --audit-fills` — fills vs the dataset open and vs the Lean zip's own open.
-- `backtest_audit` — limit-order age in weekday sessions (`--max-open-sessions`), `load_book_history` reads the per-run
-  files, runs are selected by `run_id`. `rank_ic_core.newey_west_t_stat` — HAC t for daily IC series.
-- `rank_signal_calibration.calibrate_book_confidence_spread(candidate_metadata_by_ticker=, session_asset_class=)` — the
-  floor is calibrated on the pool live selects from.
-- Lever / gate research (scripts): `scripts/as_live_levers.py` (`AsLiveHarness`, cached scoring) and `scripts/gate_research.py`
-  (R-GATE on both splits).
+| Module | What |
+|---|---|
+| `research_harness.py` | `evaluate_signal()`: one report for any signal (`aq research`) |
+| `research_round.py` | A pre-registered round from a rule file (`aq cycle research`) |
+| `research_cells.py`, `wide_context.py` | Which data a step may read, enforced in code. Held-out cells refuse without a freeze digest |
+| `trial_ledger.py`, `trial_registry.py` | Every scored trial, for the deflated Sharpe's N |
+| `pbo.py` | Probability of backtest overfitting (CSCV) |
+| `factor_spanning.py`, `factor_neutralization_check.py` | What a signal adds over plain factors; market exposure |
+| `power_analysis.py` | What a t-test on an alpha can show, given the history |
+| `research_probes.py`, `walk_forward_linear.py` | Small models fitted to measure what the data supports |
+| `trade_bootstrap.py` | A repeatable effect, or a few lucky fills? |
 
-## CLI
+## Generations and forward records
 
-`aq evaluate` (see the root README's CLI Reference for full flag
-descriptions):
+- **`generation_registry.py`:** which generations exist, what each may hold, and R-ADMIT1.
+- **`generation_ledger.py`:** each generation's forward record and the capital they share.
+- **`alpha_decay.py`:** a one-sided CUSUM of net returns against what it was expected to earn.
+- **`glide_calibration.py`:** which handover policy loses least to an oracle.
+- **`forward_ledger.py`:** a hash-chained record that can't be backfilled.
+- **`research_cycle.py`:** what is due, whether a host may train, and scheduling.
 
-- Simulation: `--rank-book`, `--capacity`, `--stress`, `--all` (bundles
-  the three plus `--calibrate-edge` and `--benchmarks`)
-- Benchmarks (V5.4.4): `--benchmarks` (strategy + public baselines,
-  README section + webui panel refresh)
-- Calibration: `--calibrate-edge`, `--calibrate-book-spread`,
-  `--calibrate-confidence-threshold`
-- Reconciliation: `--reconcile-book-history`, `--replay-hysteresis`,
-  `--reconcile-features` (V5.3.5.3, requires `--symbol`)
-- Monte Carlo (V5.3.8): `--rank-book --monte-carlo`
-  (`--mc-runs/--mc-block-size/--mc-seed/--mc-method`)
-- Diagnostics/investigation (not in `--all`): `--ablation` (`--variants`
-  picks the ablation variants), `--replay-kill-switch` (V5.2.8),
-  `--simulate-limit-fills` (V5.3.1, `--limit-fill-offset-sweep`),
-  `--walk-forward-summary`
-- Rolling-IC gate: `--calibrate-rolling-ic-floor` (a suggested
-  `min_rolling_mean_ic`), `--replay-rolling-ic-gate` (day-by-day offline
-  replay of the gate, no lookahead)
-- Book-history reconciliation options: `--reconcile-run-index N` (one run
-  segment), `--reconcile-all-runs` (every segment on its own),
-  `--hysteresis-survives-veto` (keep offline's hysteresis anchor across a
-  vetoed rebalance, as live does)
-- Lean run: `--lean-monte-carlo` (block bootstrap of a finished run's own
-  daily returns, writes `monte_carlo_lean.json`)
-- Factors and regimes: `--factor-exposure` (rank-book returns on SPY and a
-  momentum factor), `--calibrate-volatility-threshold` (per-class realised
-  volatility percentiles)
-- Data and features: `--audit-data` (coverage, gaps, suspicious moves, OHLC
-  sanity per universe zip), `--audit-features --permutation` (adds the
-  multitask model's validation IC drop per shuffled feature; slow, >1 h on
-  the dev PC)
+## Audits
 
-Writes `ml/evaluation/*.json`, consumed by `monitoring/evaluation_state.py`
-for the webui's Evaluation tab (`/api/evaluation`).
+| Module | Flag |
+|---|---|
+| `class_ic_audit.py` | `--ic-by-class`: within- and between-class IC |
+| `gate_audit.py`, `engaged_day_skill.py` | `--audit-gates`: the rolling-IC gate's vetoes, and skill on engaged days |
+| `head_audit.py` | `--audit-heads`: each head against its own gate |
+| `feature_quality_audit.py`, `feature_parity.py`, `feature_reconciliation.py` | `--audit-features`, `--reconcile-features`: feature quality and train-versus-live parity |
+| `leakage_audit.py`, `overfit_diagnostics.py`, `model_audit.py` | `--audit-leakage`, `--overfit-report`: leakage, IC kept out of sample, what the models could know |
 
-## Config
+## Baselines and calibration
 
-`phase1.target.ranking.net_performance` (book/cost parameters) and
-`phase_v2.costs` (the entry-decision net-edge gate, `execution/cost_model.py`
-— off by default until calibrated via `aq evaluate --calibrate-edge`).
-
-## Known finding (development/Problems.md)
-
-Running `aq evaluate --rank-book` against the live-trained artifacts during
-development surfaced, in real predictions, the compression this repo's own
-Problems.md documents: `rank_20d` predictions clustered in roughly
-`[0.5, 0.7]` instead of spanning `[0, 1]` — direct evidence of the rank
-heads' sigmoid-at-inference/raw-at-training mismatch. `IC` is invariant
-under any monotone transform, which is exactly why no rank-IC-based gate
-ever caught it; this package's net-Sharpe simulation is sensitive to the
-compressed dispersion in a way IC is not.
-
-## V5.8.0 additions (Problems.md #156-#174)
-
-- `class_ic_audit.py` (`aq evaluate --ic-by-class`) — pooled vs within-class vs between-class rank IC with HAC t, so a pooled edge can be told apart from a class-timing bet.
-- `gate_audit.py` (`--audit-gates`) — the rolling-IC gate's own reading next to the realised IC: veto share by reason, false-veto share, the gate's lag; it self-checks on synthetic constant-IC data.
-- `head_audit.py` (`--audit-heads`) — the R-HEAD table: every head and submodel, its own gate verdict, and whether the live path reads it.
-- `feature_quality_audit.py` (`--audit-features`) — per-feature IC per class, constant-per-class share and ticker-ID / leak suspects.
-- `audit_runners.py` — loads the inputs the way the live path sees them for the four flags above (heavy imports stay lazy).
-- `ml_cleanup.py` (`aq clean ml`) — a dry-run disk plan for `ml/versions` and `ml/_backup_*`; nothing is deleted without `--apply`, and the installed models are always protected.
-- `backtest_audit.py` — `class_by_ticker` splits P&L by the config's asset class (bond ETFs are Lean equities), `period_summary` backs `--audit-backtest --period START..END` (BT2 spans the backtest split and the holdout).
-- `live_parity.py` — `topology_inputs_fn` feeds the learned-topology sizing multiplier into the as-live run; `late_bar_offline_row` / `LATE_BAR_SAME_ROW_FEATURE_PREFIXES` say which dataset row a crypto or forex snapshot belongs to (own-price block = previous row, cross-asset block = the tick's row).
-
-## V6.1.0 additions
-
-- `rank_book_simulator.py` — new options, all off by default and replicas of `main.py` mechanisms (rule R-CAL2): `mid_cycle_member_updates` (the daily member pass between rebalances), `accrue_skipped_dates` (weekend crypto), `kill_switch_extra_returns` (P&L outside the simulation that live's whole-portfolio kill switch reads), `legacy_component` (the legacy probability signal on non-members, per-component returns in `per_date_component_returns`) and `max_active_positions`; exit costs of an age / stop / guard exit are now charged on a rebalance date too.
-- `live_parity.py` — `build_live_member_weight_fn(use_live_analyzer=True)` ends in `analyzer.market_analyzer.build_market_analysis_decision` itself and can size a legacy-signal entry; the risk-off override reads `phase_v2.regime_detection` (a key that did not exist was read before).
-- `lean_attribution.py` — a position belongs to the component that **opened** it (`opener_members_by_date`); the per-day view stays as `components_by_membership`.
-- `model_predictions.py` — `predict_heads_ensemble`: the seed-ensemble mean of each head (NaN where any member is NaN).
-- `readme_research.py` — reads the V6 decisions and the shipped config (no settings typed here) and renders the R-CAL2 and rule-chain results.
-
-## V6.3.0 additions
-
-- `backtest_statistics.py` (`aq evaluate --backtest-stats`) — the README's Backtest Statistics for one Lean run (López de Prado, AFML ch. 14): general characteristics (AUM, leverage, bets, holding period, turnover, SPY correlation), performance (PnL by side, hit ratio, time-weighted return), runs (HHI of returns and of bet timing, 95th-percentile drawdown and time under water), implementation shortfall (fees and slippage per turnover, return on execution costs), efficiency (PSR, deflated Sharpe over the trial registry), classification scores and risk / return per asset class. Each row has a portfolio value and a strategy value (the run without its T-bill sweep); an uncomputable metric carries a `reason`, never a number.
-- `readme_statistics.py` — renders those sections from `ml/evaluation/backtest_statistics.json`; `LEAN_STAT_SECTION` gives every Lean statistic its section.
-- `lean_report.py` (`aq evaluate --lean-report`, run by `aq backtest`) — the order of the run-folder tools; `aq_cli._run_lean_report` runs each step best-effort.
-- `backtest_audit.py` — `class_by_ticker_from_config` files the cash-sweep ticker as its own class `cash_sweep` (it was ~0.8 of NAV inside "equity").
-- `fill_price_audit.py` — `zip_opens_for_fills` (shared with the slippage metric); fills carry their quantity.
-- `rank_book_simulator.py` / `kill_switch_replay.py` — carry the kill switch's `release_rolling_sharpe` band state bar to bar, as `main.py` does (rule R-KILL).
-- `readme_research.py` — R-CAL3 replaces R-CAL2's table once `v630/calibration.json` exists; the V6.3.0 rule chain table.
-
-## V6.4.0 additions
-
-- `classification_parity.py` (`aq evaluate --classification-parity`, step of `--lean-report`) — a Lean run's logged book-call probabilities against the same `direction_20d` head scored offline on the same (date, ticker) calls (late-bar names on the previous row, as live decides them); rule R-L11's tolerance: |accuracy delta|, |neg log-loss delta| <= 0.01, median |probability gap| <= 0.005.
-- `paper_protocol.py` (`aq evaluate --paper-check`) — the paper-period checklist of a run folder (veto rate, lock share, exposure, fills, slippage, fee bps, strategy and sweep P&L per day, hit ratio, turnover) and the 5-95% bands of every contiguous 6-rebalance window of a reference run; success = every metric inside its band, >= 6 rebalances, >= 120 days.
-- `probability_calibration.py` — reliability curve, ECE, Brier, log-loss, temperature scaling, isotonic regression (pool adjacent violators), per-class thresholds and cross-fitted log-loss for the direction heads (lead L2).
-- `engaged_day_skill.py` — rank IC, top/bottom spread and as-live Sharpe on the dates the rolling-IC gate engages against all dates, and the owner's bar (+0.02 IC, +0.15 Sharpe on both splits; lead L1).
-- `trade_bootstrap.py` — bootstrap of a sleeve's round-trip P&L, top-k share and leave-one-name-out (lead L9).
-- `backtest_statistics.py` — `lean_book_calls` + `_classification_section`: the Lean row of Classification Scores gets a log-loss when the book history logged `member_probabilities`.
-- `rank_book_simulator.py` — `sector_relative_rank`, `partial_adjust_fraction` and `rank_overlay_fn` (default off, each calling the function live uses); the kill switch carries `trip_confirm_bars`' counter. `kill_switch_replay.py` — `forward_window_returns` / `false_lock_share` (a lock before the unlocked book's top-third 20-day return).
-
-## V6.4.1 additions
-
-- `lean_verdict.py` (`python -m evaluation.lean_verdict --baseline backtests/<BT5> --candidate backtests/<BT6>`) — R-LEAN13: a confirming Lean run keeps an adopted change iff the strategy's Sharpe without a risk-free rate is not worse than the baseline run's by more than 0.10, the portfolio's maximum drawdown not worse by more than 1 percentage point, and the engine log shows a complete run (statistics written, teardown reached, no inference failure; the PC's teardown timeout is reported, not judged).
-
-## V6.4.2 additions
-
-- `lean_verdict.py` — `--rule superiority --margin 0.10` is R-LEAN14, which adopts a change on Lean evidence: the strategy Sharpe must beat the baseline's by the margin (drawdown and completeness clauses as R-LEAN13). Each run's statistics now use its own frozen config (`ml/evaluation/run_configs/<run folder>.json`), the root `config.json` only as a fallback.
-- `backtest_audit.configured_run_window` — a run's configured start / end (`algorithmConfiguration`); every window label (README Overview, run history, Backtest Statistics "Time range", the Lean Monte Carlo line) uses it, because Lean keeps charting about two days past the end.
-
-## V6.4.3 additions
-
-- `research_harness.py` — `evaluate_signal(frame, score_column=...)`: any signal's rank IC per split and horizon with plain, non-overlapping and HAC t-stats, a date-block bootstrap CI, 90-day era stability, IC by year / class / regime tercile and the decay over horizons (`aq research --signal CSV`).
-- `pbo.py` — `probability_of_backtest_overfitting(returns, blocks=16)`: CSCV (Bailey, Borwein, López de Prado, Zhu 2017) over a T x N table of the trials' daily returns, plus the out-of-sample degradation slope (`aq evaluate --pbo`).
-- `factor_spanning.py` — `build_factor_scores` (12-1 and 20-day momentum, 5-day reversal, low volatility, 52-week high, a composite; as of each row), `build_factor_returns` (top-minus-bottom quintile), `factor_spanning` (OLS with Newey-West errors: the alpha a signal adds over the factors; `aq evaluate --factor-spanning`).
-- `leakage_audit.py` — `audit_leakage`: tail-NaN (a forward window), label shuffle (t-test), single-feature IC above 0.15, and the IC of an asset-identity / asset-class prior against the model's (`aq evaluate --audit-leakage`).
-- `overfit_diagnostics.py` — `training_gap_report` (train / validation / backtest IC of every rank head and the share retained; `aq evaluate --overfit-report`) and `learning_curve`.
-- `research_probes.py` — `load_research_frame` (chunked, `usecols`, float32), `fit_ridge_rank`, `fit_hgb_rank` (sklearn on call), `predict_scores`: evaluation-only models, never installed.
-- `sim_lean_calibration.py` — `rung_attribution`, `daily_gap_breakdown`, `gap_report`: what each rung of `scripts/lean_calibration.py`'s ladder adds to the offline-vs-Lean daily correlation (rule R-CAL4; `aq evaluate --calibrate-sim-lean`).
-- `trial_registry.py` — the trial registry's functions, moved from `scripts/build_trial_registry.py` (which now imports them) so the library shares one definition.
-- `alpha_proof.py` (V6.4.4) — `aq evaluate --alpha-proof`: per period (run, backtest, holdout, the fresh weeks after 2026-10-16) the strategy's Sharpe with a stationary-bootstrap interval, its alpha against SPY / AGG / BTC on the session calendar with a Newey-West t (`factor_spanning`'s estimator), PSR and the deflated Sharpe over the trial registry, and the descriptive R-ALPHA1 verdict.
-- `trend_sleeve_backtest.py` (V6.4.4) — the trend sleeve on the shipped daily zips (one-bar lag, units that drift between rebalances, commission with its dollar floor plus a half-spread, the sleeve's loss guard), and `trend_phase_summary` over rebalance phases (rule R-TREND1).
-- `gate_replica_audit.py` (V6.4.4) — classifies Lean's main-book trades (from the fills) and the simulator's (from its weights) into entries, exits, flips and resizes on and off live's rebalance dates (rule R-CAL5).
-- `research_runners.py` — the runners behind those flags and `aq research`.
-- `target_weights_engine.py` (V6.5.0) — the offline twin of the target-weights path: same pure functions, fills and marks on Lean's timeline, cash per currency. Daily correlation with Lean 0.992-0.9999999 (R-INSTR1), against 0.73 for `rank_book_simulator` on the gated path. Trust it only for this path.
-- `premia_research.py` (V6.5.0) — scores a sleeve as the median over 5 rebalance phases, runs placebos, and holds the gate R-SLEEVE2 as code (`selection_gate`).
-- `trial_ledger.py` (V6.5.0) — append-only log of every run with its window and role, and `deflation_inputs` (N and the same-window Sharpe variance for the deflated Sharpe).
-- `alpha_proof.py` (V6.5.0) — `window_report`, `deflated_sharpe_from_inputs`; `fresh` now starts at 2026-11-03, `forward_judgeable` at 60 sessions.
-
-## V6.6.0 additions
-
-- `research_cells.py` — the split by name and time; `open`ing a held-out cell needs the freeze's digest.
-- `wide_context.py` — `equity_cell`, `crypto_cell`: a cell's context, features and signal tables, holding only its own names.
-- `power_analysis.py` — what a t-test can show given the history: the minimum detectable alpha, power, and the alpha sizes a result excludes.
-- `forward_ledger.py` — the hash-chained forward record, and `judge_ledger`.
-- `alpha_proof.py` — `data_dir`, a required benchmark, BTC at 0 before its first bar, sessions rather than calendar rows for the fresh period.
-- `premia_research.py` — scores on `strategy_excess`, with `annual_sharpe(sessions=)`.
-- `trial_ledger.py` — `legacy_trials` keeps a ledger's trials from counting twice.
-
-## V6.6.1: the research cycle
-
-- `research_round.py`: one pre-registered round from a hashed rule file (`rules`, `score`, `placebo`, `gate`, `pbo`, `freeze`, `hold`, `report`), what each phase used to hand-write in `scripts/v6xx_*.py`. `gate_report` and `pbo_report` are pure, and recompute round 2's stored verdict exactly.
-- `model_audit.py`: rank IC of six fixed feature groups at three horizons, and fundamental coverage by year, each look counted in N.
-- `walk_forward_linear.py`: `fama_macbeth_ridge`, monthly slopes held to a sign fixed in advance.
-- `alpha_decay.py`: a one-sided CUSUM against what a generation was expected to earn, with hysteresis. At the default threshold the median false alarm is about 1,040 sessions and the median detection of a fall from Sharpe 1 to 0 about 380, which is why it never drives capital alone.
-- `generation_registry.py`: the registry, the owner's admission rule R-ADMIT1 (`next_stage`, `share_cap`), a hash-chained lifecycle log.
-- `generation_ledger.py`: each generation's forward return at its real fill lag, the allocation row in either mode, `replay_handover`, `replay_dynamic`.
-- `glide_calibration.py`: R-GLIDE1 and R-GLIDE2, the handover policies over fixed-seed worlds, using the running allocator.
-- `research_cycle.py`: `ram_preflight`, `retrain_stages`, `due_actions`, `render_schedule`: what `aq cycle` asks and answers. Pure, stdlib only.
-- `research_cells.py` gains `record_holdout_read`: a once-only ledger at `ml/generations/holdout_ledger.jsonl`, since `write_freeze` only refuses its own path.
+- **Baselines:** `benchmark_comparison.py`, `public_benchmarks.py` (`--benchmarks`).
+- **Calibration:** `rank_signal_calibration.py` (spread, and book-history reconciliation), `confidence_threshold_calibration.py`, `rolling_ic_gate_calibration.py`, `volatility_threshold_calibration.py`, `probability_calibration.py`. Each takes a percentile of a real distribution, not a guess.
+- **Core:** `rank_ic_core.py` is the torch-free rank IC and HAC t.
+- **Runners:** `audit_runners.py`, `research_runners.py` load only what a flag needs. `ml_cleanup.py` is `aq clean ml`.

@@ -1,68 +1,14 @@
 # experience
 
-Owns observation and decision history:
+Observation and decision history: Redis is the low-latency buffer, PostgreSQL the permanent store.
 
-- observations
-- signals
-- expert outputs
-- simulated trades
-- later live trades
+1. Signals and trades push events to a Redis stream at once.
+2. A worker reads asynchronously and writes batches to PostgreSQL.
+3. Controlled retraining reads PostgreSQL as the source of truth. Model versions and retraining events live in `retraining/`.
 
-(Model versions and retraining events live in `retraining/` since V2-17 —
-that package owns the `model_versions`/`retraining_events` Postgres tables
-and reads this package's `experience_events` table as an input, but does not
-write into it.)
+**Members**
 
-V2 no longer uses a JSONL fallback. Redis is the temporary low-latency buffer, and PostgreSQL is the permanent experience store.
-
-Runtime flow:
-
-1. Signal generation, simulated trades or live trades push raw events into Redis immediately.
-2. Redis stores the events as a stream or queue, for example via `XADD` or `LPUSH`.
-3. A separate worker reads Redis asynchronously, for example via `XREAD` or `BLPOP`.
-4. The worker writes batched events into PostgreSQL.
-5. Controlled retraining reads from PostgreSQL as the single source of truth.
-
-V5.4.7 (Problems.md #120): producers serialize through `json_safety.dumps_json_safe`
-(non-finite floats -> null, numpy scalars -> python - a bare NaN previously wedged
-the whole pipeline at PostgreSQL's JSONB), and the worker's batch failure falls back
-per row with a first-row probe: poisoned rows dead-letter + ack, Postgres outages
-still re-raise and stay pending.
-
-V2-19 adds `build_session_summary_event()` to `redis_queue.py`: main.py pushes
-one of these per session rollover (see `main.py::_refresh_risk_state()`),
-reusing `observation_metrics.compute_observation_summary()` for every stat —
-it computes nothing itself besides `session_return`. Its `event_type` is
-`"session_summary"` rather than `"market_decision"`, so it carries no
-per-asset `ticker`/`symbol`/`signal`; `postgres_worker.py::event_to_row()`
-uses `.get(..., "")` defaults for those columns rather than direct indexing
-to accommodate this. `notifications/telegram_worker.py` is the consumer —
-see that package's README for the alerting side.
-
-V4.9 (Priority 5, latency pass) adds an opt-in non-blocking delivery mode
-to `ExperienceQueue.push()`: `async_enabled=True`
-(`phase_v2.experience_queue.async_enabled`, default `false`) enqueues
-onto a bounded background `queue.Queue` and returns immediately, instead
-of blocking `on_data()`'s hot path on the real `XADD` call — a single
-daemon thread drains the queue and performs the actual Redis write off
-the caller's thread. Already gated off entirely in backtest mode
-(`main.py`, see the `runtime_mode != "backtest"` check at the `push()`
-call site), so this specifically targets live/paper mode's per-bar
-latency. `async_enabled=False` (the default) reproduces the exact
-pre-V4.9 synchronous behavior byte-identically — see
-`experience/redis_queue.py::ExperienceQueue`'s own docstring for the
-honest delivery-ordering/hard-kill tradeoff this mode accepts once
-enabled.
-
-V2-15 (Observation Mode) adds two members:
-
-- `simulated_portfolio.py` (`SimulatedPortfolioState`) — an in-memory fake
-  portfolio (cash/holdings/equity/drawdown/exposure/turnover) that never
-  touches `self.Portfolio` or any broker call. Used whenever
-  `execution.order_gate.resolve_order_permission` blocks a real order; its
-  `snapshot()` is a drop-in superset of the `portfolio={...}` dict already
-  passed to `build_experience_event`.
-- `observation_metrics.py` — pure aggregation functions (counts, signal/action
-  distribution, rejected-by-reason, simulated win/loss, Sharpe, max drawdown)
-  over a plain `list[dict]` of experience events, usable identically against
-  an in-memory event log or a Postgres `payload` column query.
+- **`redis_queue.py`:** `ExperienceQueue`. `phase_v2.experience_queue.async_enabled` (default off) moves the Redis write off the hot path. Backtests never push. Also builds session-summary events for `notifications/`.
+- **`postgres_worker.py`:** batch inserts. Producers serialize finite-safe JSON; a poison row dead-letters, while an outage re-raises and stays pending (#120).
+- **`simulated_portfolio.py`:** an in-memory portfolio used whenever `execution.order_gate.resolve_order_permission` blocks a real order. It never touches the broker.
+- **`observation_metrics.py`:** pure aggregates over a list of events (signal distribution, rejections, simulated win rate, Sharpe, drawdown), usable on memory or a Postgres query.

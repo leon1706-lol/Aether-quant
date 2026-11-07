@@ -13,7 +13,7 @@ ships with ib-account/ib-user-name/ib-password/ib-trading-mode as empty
 placeholders; real values are rendered into a gitignored `lean.live.json` by
 scripts/render_lean_credentials.py (`aq render-lean-config`) from these same
 AETHER_* vars, and Lean is pointed at that file via `--lean-config` (see
-execution/lean_config_render.py and development/infrastructure.md's V2-22
+execution/lean_config_render.py and development/infrastructure.md's "Live"
 runbook). Never raises - missing everything just yields all-empty-string values.
 """
 

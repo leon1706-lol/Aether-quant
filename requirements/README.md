@@ -1,28 +1,13 @@
 # requirements
 
-All dependency manifests live under this directory so Lean CLI does not
-auto-detect and bind-mount a dependency file from the project root.
+Dependency files live here so Lean CLI doesn't auto-detect and bind-mount one from the root.
 
 | File | Used by | Contents |
 |---|---|---|
-| `requirements/requirements.txt` | local dev, `train.py`, and the consolidated `Dockerfile` | Full app/worker stack, including `redis`, `psycopg[binary]`, `torch`, `pandas`, and `lean` |
-| `requirements/requirements-dev.txt` | local dev and tests | Lean CLI, pytest, formatting, test doubles, offline data helpers, and report-generation extras |
-| `requirements/lean-runtime.txt` | `Dockerfile.lean` / the local image used by `aq backtest` | Only packages missing from the pinned QuantConnect image; currently `redis` + `httpx[http2]` |
+| `requirements/requirements.txt` | Local dev, `train.py`, `Dockerfile` | The full app and worker stack |
+| `requirements/requirements-dev.txt` | Local dev and tests | Lean CLI, pytest, ruff, test doubles, data helpers |
+| `requirements/lean-runtime.txt` | `Dockerfile.lean` (`aq backtest`) | Only what the pinned Lean image lacks |
 
-## Local LEAN image
+`aq backtest` builds a local image on the pinned <!--fact:lean.engine-->quantconnect/lean:17900<!--/fact--> engine from `Dockerfile.lean`, which avoids Lean CLI's Windows bind mount of a generated `requirements.txt`.
 
-`aq backtest` uses `Dockerfile.lean` to build `aether-quant-lean:17900` on
-the first run. The image is based on the pinned `quantconnect/lean:17900`
-engine and installs `requirements/lean-runtime.txt` inside the image. This
-avoids Lean CLI's Windows-host bind mount of a generated root
-`requirements.txt` while preserving the Redis dependency for
-`ExperienceQueue`.
-
-The main `Dockerfile` continues to install `requirements/requirements.txt`
-for the application and worker images. Install local dependencies from the
-repo root with:
-
-```powershell
-pip install -r requirements/requirements.txt
-pip install -r requirements/requirements-dev.txt
-```
+The library's own extras (`lib`, `research`, `train`) are in `pyproject.toml`.

@@ -1,84 +1,28 @@
 # ml
 
-Model and dataset artifacts written by `train.py`. Gitignored (except
-tracked schema/manifest JSON files where applicable) — regenerated locally
-by running the training pipeline.
+Models, datasets and evidence. Gitignored, except for what must survive a clone. Regenerate with `aq train`.
 
-**Active model** (the one `main.py`'s Lean algorithm loads at runtime):
+**What Lean loads now:** `target_weights.csv`, the shipped sleeve's weights, pinned by `phase_v2.target_weights.weights_sha256`.
 
-- `model_weights.json` — Lean-readable export: architecture, JSON state
-  dict, training/backtest metrics. `main.py`'s `_validate_runtime_artifacts()`
-  requires this file to exist.
-- `feature_schema.json`, `scaler_stats.json` — also strictly required by
-  `main.py`; `scaler_stats.json`'s mean/scale arrays are what Lean actually
-  uses for inference (not `scaler.pkl`).
-- `model.pt` — binary PyTorch checkpoint (training/debugging only, not read
-  by Lean).
-- `scaler.pkl` — joblib-pickled `StandardScaler` (training-only; not read
-  by Lean).
-- `training_metrics.json`, `dataset_manifest.json`, `dataset_inventory.json`
-  — training/validation/backtest metrics, dataset build summary, and the
-  Phase-1 Lean-data inventory respectively.
-- `datasets/` — the built feature dataset CSVs (full/train/validation/backtest splits).
-- `expert_models/<name>/`, `expert_training_metrics.json`,
-  `expert_dataset_manifest.json` — the four MoE expert models (bullish,
-  bearish, sideways, volatility) and their datasets.
-- `multitask_model.json`, `multitask_feature_schema.json`,
-  `multitask_training_metrics.json` — the joint direction+magnitude+
-  volatility+rank model (`train_multitask.py`/`aq train --multitask-only`),
-  including the `*_ranking_quality` promotion-gate verdicts (per-head,
-  per-era) surfaced on the webui's Neural Network page.
-- `sequence_model.json`, `sequence_feature_schema.json`,
-  `sequence_training_metrics.json` — the Phase 2 causal-TCN sequence
-  encoder (`train_sequence.py`/`aq train --sequence-only`), informational
-  by default (`phase_v2.gating_network.sequence_weight`) until blended into
-  the live decision via `moe/gating.py`.
-- `gating_model.json`, `gating_feature_schema.json`,
-  `gating_training_metrics.json` — the learned MoE gating blend
-  (`train_gating.py`/`aq train --gating-only`, `moe/README.md`), optional
-  and off by default until trained.
-- `rl_sizing_model.json`, `rl_sizing_feature_schema.json`,
-  `rl_sizing_training_metrics.json` — the offline contextual-bandit sizing
-  overlay (`train_rl_sizing.py`/`aq train --rl-sizing-only`,
-  `risk/README.md`). Off by default
-  (`phase_v2.dynamic_risk.rl_sizing_enabled`); this
-  project's first real training run of it produced an honest negative
-  result (backtest expected reward below the constant-baseline — later
-  root-caused and fixed in V5.4.1's asymmetric-reward fix), so it
-  ships disabled per its own pre-committed abandon criterion.
-- `topology_model.json`, `topology_feature_schema.json`,
-  `topology_training_metrics.json` — the learned KMeans-prototype overlay
-  over the deterministic 3D topology embedding (`train_topology.py`/
-  `aq train --topology-only`, `topology/README.md`).
+**Model artifacts** (trained and installed, not driving the shipped book)
 
-**Candidate models (V2-17)** — `versions/<model_version_id>/`: the exact
-same artifact set as above (`model_weights.json`, `model.pt`,
-`training_metrics.json`, `strategy_report.json`, `equity_curves.csv`,
-`scaler.pkl`, `scaler_stats.json`, `feature_schema.json`,
-`dataset_manifest.json`), produced by `python train.py --candidate
---version-id <uuid>` (see `train.py`'s `candidate_output_paths()`) and
-never touching any of the active files above until
-`retraining/orchestrator.py`'s `promote()` explicitly copies a validated,
-Vault-committed candidate over them.
+| Files | What |
+|---|---|
+| `model_weights.json`, `feature_schema.json`, `scaler_stats.json` | The baseline model and what `main.py` requires at load |
+| `model.pt`, `scaler.pkl` | Training only; Lean never reads them |
+| `multitask_*`, `sequence_*` | Rank, direction, magnitude and volatility heads, with their schemas and metrics |
+| `expert_models/<name>/`, `expert_*` | The four experts |
+| `gating_*`, `topology_*`, `rl_sizing_*` | Optional overlays, off until trained or enabled |
+| `training_metrics.json`, `dataset_manifest.json`, `dataset_inventory.json` | Metrics and dataset summaries |
+| `datasets/` | The feature CSVs |
 
-**Walk-forward runs** — `versions/walk-forward-<run-id>/window_<i>/`: the
-same per-window artifact set as a candidate above, one directory per
-expanding/rolling window (`aq train --walk-forward`), plus a top-level
-`walk_forward_summary.json` (per-metric mean/bootstrap-CI/stability
-verdict across windows, and per-window offline net-performance numbers).
-`multitask_training_metrics.json`/`sequence_training_metrics.json` now
-also carry a `training_recipe` block (optimizer, LR schedule, ranking
-objective, SWA, batch mode) and rank heads for both plain and
-market/sector/size-**residualized** cross-sectional rank
-(`rank_5d`/`rank_20d`/`residual_rank_5d`/`residual_rank_20d`, plus a
-disabled-by-default `beta_neutral_rank_20d`).
+**Other folders**
 
-**Evaluation reports** — `ml/evaluation/*.json` holds `aq evaluate`'s
-output: `rank_book_simulation.json` (+ per-model/`entry_lag_1` variants),
-`capacity_report.json`, `cost_stress_report.json`, `ablation_report.json`,
-`monte_carlo.json` (+ the `monte_carlo_curves.npz` per-run matrix),
-`benchmark_comparison.json`, `kill_switch_replay.json`,
-`rolling_ic_gate_replay.json`, `book_history_reconciliation.json` and the
-calibration reports — the offline, cost-aware evaluation of whatever model
-is currently active. See `evaluation/README.md`. (The top-level `evaluation/`
-directory is the *code* package, not these outputs.)
+- **`versions/<id>/`:** a retraining candidate, never touching active files until `aq retrain promote`.
+- **`versions/walk-forward-<run>/`:** one directory per window, plus `walk_forward_summary.json`.
+- **`evaluation/`:** reports from `aq evaluate` and each phase's rules and scores.
+- **`generations/`:** tracked. Which generations exist, the glide policy, the lifecycle log and the once-only holdout ledger. Nothing in Lean reads it.
+- **`forward/`:** the frozen rules the forward ledger records.
+- **`cycle/`:** resumable retraining state.
+
+Remove old candidates with `aq clean ml`.

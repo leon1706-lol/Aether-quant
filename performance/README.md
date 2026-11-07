@@ -1,79 +1,16 @@
 # performance
 
-Owns the V2-16 performance trigger system: detects, scores and durably logs
-warning signs in live/observation/backtest activity — but never retrains
-anything itself. `retrain_candidate` is a flag consumed by `retraining/`
-(V2-17), not an action taken here.
+Detects, scores and logs warning signs. It never retrains anything itself: `retrain_candidate` is a flag `retraining/` reads.
 
-- `triggers.py` (pure) — 17 trigger functions
-  (`observation_count_trigger`, `drawdown_trigger`,
-  `sharpe_degradation_trigger`, `win_rate_trigger`,
-  `confidence_decay_trigger`, `regime_shift_trigger`,
-  `liquidity_warning_trigger`, `risk_lock_trigger`,
-  `topology_uncertainty_trigger`, `topology_regime_mismatch_trigger`,
-  `cluster_drift_trigger`, `model_topology_disagreement_trigger`,
-  `trigger_frequency_spike`, `live_order_permission_blocked_trigger`,
-  `executed_trade_count_trigger`, `sustained_drawdown_trigger`) plus
-  `evaluate_all_triggers()`, operating on
-  the same source-agnostic `list[dict]` of experience-event dicts that
-  `experience/observation_metrics.py` established — reuses its
-  `simulated_sharpe`/`simulated_max_drawdown` rather than reimplementing
-  them. Each fired trigger carries `severity` (breach-ratio rule: ≥1.5x
-  past threshold → `critical`) and a `retrain_candidate` boolean. The four
-  topology triggers are persistence-guarded (a rolling-window average
-  breach plus a minimum fraction of individually-breaching bars) so a
-  single noisy observation never fires them; `trigger_frequency_spike` is a
-  meta-trigger over trigger *rows*, not events, and is the one exception
-  wired in only when `evaluate_all_triggers()`'s optional
-  `recent_triggers` argument is supplied.
-  `live_order_permission_blocked_trigger` is a deployment-health trigger
-  (fires `critical` when `mode == "live"` but orders are still being
-  simulated); `executed_trade_count_trigger` and `sustained_drawdown_trigger`
-  are the other two members of the `_NON_RETRAIN_TRIGGERS` set — a broker
-  misconfiguration or an execution-volume anomaly is an ops problem, not
-  something a new model version fixes.
-- **`rank_ic_decay_trigger()`** — the
-  one trigger whose input isn't the standard `events` list.
-  `performance/rank_ic_monitor.py::compute_realized_rank_ic_observations()`
-  self-joins ordinary `experience_events` rows (no new table needed —
-  reuses the same events every other trigger already reads) against each
-  prediction's realized 20-trading-day forward return, producing the
-  `rank_ic_observations` series this trigger actually consumes. Fires when
-  either the rolling mean rank-IC or its t-stat falls below its own floor.
-  Registered in `_MODEL_QUALITY_TRIGGERS`/`_RECOMMENDED_ACTIONS` like any
-  other model-quality trigger. `evaluate_all_triggers()` dispatches to it
-  via an optional `rank_ic_observations=` kwarg (same additive-parameter
-  pattern as `recent_triggers=`/`trigger_frequency_spike`) — `trigger_worker.py`
-  below is what actually supplies it in production, so this trigger is
-  reachable from the real running worker, not just direct unit tests.
-- `postgres_triggers.py` (IO) — embedded DDL for the durable
-  `performance_triggers` table (the system of record — separate from
-  `experience_events` so dashboards/retraining can query it cleanly) plus a
-  `performance_trigger_watermark` table for incremental polling, suppression
-  -window dedup on insert, `fetch_candidate_triggers()`
-  for `retraining/planning.py` to read `retrain_candidate=true` rows, and
-  `fetch_recent_events()` (a true rolling-window read, distinct
-  from the incremental `fetch_events_since()`), `fetch_triggers_since()`
-  and `fetch_last_retraining_at()` (best-effort, never raises).
-- `trigger_worker.py` — standalone worker (`python -m
-  performance.trigger_worker [--once]`) that polls `experience_events` past
-  the watermark to advance it cheaply, and evaluates triggers
-  over a real rolling window — the last `rolling_window_events`
-  observations bounded to `rolling_window_days` or since the last
-  promoted/validated retrain, whichever is more recent — rather than only
-  whatever arrived since the
-  last poll. Also resolves that same rolling-window history into
-  `rank_ic_observations` (via `rank_ic_monitor.py::compute_realized_rank_ic_observations()`)
-  and passes them into `evaluate_all_triggers()`, closing the loop so
-  `rank_ic_decay_trigger()` actually runs every cycle instead of sitting
-  unreachable. Reads `config.json`'s `phase_v2.performance_triggers`
-  thresholds directly (no Redis dependency — this worker never touches the
-  Redis stream).
-- `main.py` additionally keeps a fast, **non-durable**, in-memory-only view
-  (`_build_performance_triggers_view()`) for the current run's dashboard —
-  the Postgres table populated by `trigger_worker.py` is the only source
-  `retraining/` reads from.
+- **`triggers.py` (pure):** the trigger functions and `evaluate_all_triggers()`, over the same event dicts as `experience/observation_metrics.py`.
+  - **Covers:** observation count, drawdown, Sharpe, win rate, confidence decay, regime shift, liquidity, risk lock, topology, trigger frequency, blocked live orders and trade counts.
+  - **Severity:** 1.5x past the threshold is `critical`.
+  - **Persistence:** topology triggers need a sustained breach, so one noisy bar can't fire them.
+  - **Ops, not model:** broker and execution triggers are in `_NON_RETRAIN_TRIGGERS`, because a new model doesn't fix them.
+- **`rank_ic_monitor.py`:** joins each prediction to its realized 20-day return, for `rank_ic_decay_trigger()`.
+- **`postgres_triggers.py`:** the durable `performance_triggers` table and polling watermark, with deduplication on insert.
+- **`trigger_worker.py`:** `python -m performance.trigger_worker [--once]` evaluates a real rolling window (`phase_v2.performance_triggers`), bounded to the last promoted retrain. Doesn't touch Redis.
 
-Dashboard/API: `visualization/grafana/performance_triggers.json`,
-`/api/grafana/performance-triggers`, and the webui's
-`PerformanceTriggersPanel.tsx`.
+`main.py` also keeps a fast, non-durable view for the dashboard (`_build_performance_triggers_view()`); only the Postgres table feeds `retraining/`.
+
+The research cycle's decay tracking is separate: `aq cycle status`.

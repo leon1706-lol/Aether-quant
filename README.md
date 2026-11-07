@@ -5,74 +5,56 @@
 <h1 align="center">Aether Quant</h1>
 
 <p align="center">
-  <strong>Aether Quant's flagship trading model: a dynamic, self-adapting algorithmic trading system built on QuantConnect Lean and PyTorch, engineered to prove that dynamic models belong in dynamic markets.</strong>
+  <strong>A self-adapting algorithmic trading system on QuantConnect Lean and PyTorch, and an open toolkit for building, testing and proving your own algorithms.</strong>
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/python-3.10%2B-FF8C00?style=flat-square&labelColor=1A1A1A&logo=python&logoColor=white" alt="Python 3.10+">
+  <img src="https://img.shields.io/badge/python-3.11-FF8C00?style=flat-square&labelColor=1A1A1A&logo=python&logoColor=white" alt="Python 3.11">
   <img src="https://img.shields.io/badge/%F0%9F%93%84%20license-PolyForm%20Noncommercial%201.0.0-8B5CF6?style=flat-square&labelColor=1A1A1A" alt="License: PolyForm Noncommercial 1.0.0">
-  <!-- AQ:TEST_BADGE_START --><img src="https://img.shields.io/badge/tests-4476%2F4476%20passing-brightgreen?style=flat-square&labelColor=1A1A1A" alt="4476 of 4476 tests passing"><!-- AQ:TEST_BADGE_END -->
+  <!-- AQ:TEST_BADGE_START --><img src="https://img.shields.io/badge/tests-4809%2F4809%20passing-brightgreen?style=flat-square&labelColor=1A1A1A" alt="4809 of 4809 tests passing"><!-- AQ:TEST_BADGE_END -->
   <img src="https://img.shields.io/pypi/v/aether-quant?style=flat-square&labelColor=1A1A1A&color=FF8C00&logo=pypi&logoColor=white" alt="PyPI version">
   <img src="https://img.shields.io/badge/docker-ghcr.io%2Faether--quant-2496ED?style=flat-square&labelColor=1A1A1A&logo=docker&logoColor=white" alt="Docker image on GHCR">
 </p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/PyTorch-4B5563?style=flat-square&labelColor=1A1A1A&logo=pytorch&logoColor=white" alt="PyTorch">
-  <img src="https://img.shields.io/badge/scikit--learn-4B5563?style=flat-square&labelColor=1A1A1A&logo=scikitlearn&logoColor=white" alt="scikit-learn">
   <img src="https://img.shields.io/badge/QuantConnect%20Lean-4B5563?style=flat-square&labelColor=1A1A1A&logo=quantconnect&logoColor=white" alt="QuantConnect Lean">
   <img src="https://img.shields.io/badge/Interactive%20Brokers-4B5563?style=flat-square&labelColor=1A1A1A" alt="Interactive Brokers">
   <img src="https://img.shields.io/badge/FastAPI-4B5563?style=flat-square&labelColor=1A1A1A&logo=fastapi&logoColor=white" alt="FastAPI">
   <img src="https://img.shields.io/badge/React-4B5563?style=flat-square&labelColor=1A1A1A&logo=react&logoColor=white" alt="React">
-  <img src="https://img.shields.io/badge/TypeScript-4B5563?style=flat-square&labelColor=1A1A1A&logo=typescript&logoColor=white" alt="TypeScript">
   <img src="https://img.shields.io/badge/Redis-4B5563?style=flat-square&labelColor=1A1A1A&logo=redis&logoColor=white" alt="Redis">
   <img src="https://img.shields.io/badge/PostgreSQL-4B5563?style=flat-square&labelColor=1A1A1A&logo=postgresql&logoColor=white" alt="PostgreSQL">
   <img src="https://img.shields.io/badge/GitHub%20Actions-4B5563?style=flat-square&labelColor=1A1A1A&logo=githubactions&logoColor=white" alt="GitHub Actions">
-  <img src="https://img.shields.io/badge/GitHub%20Codespaces-4B5563?style=flat-square&labelColor=1A1A1A&logo=github&logoColor=white" alt="GitHub Codespaces">
 </p>
 
-Aether Quant is not a single static strategy. It's a **dynamic system**.
-At its core, an ensemble of neural models predicts, for every asset every
-day, a multi-horizon view of the market: **direction** at 1, 5 and 20 days,
-expected **return magnitude** and **volatility**, and the signal it actually
-trades on: each asset's **cross-sectional rank**, which drives a
-market-neutral **long/short book**. Predictions come from a
-**Mixture-of-Experts** ensemble (bullish/bearish/sideways/volatility
-specialists) routed by a learned gating network, plus a **causal-TCN
-sequence encoder**, all reading one feature pipeline that folds in a
-**market-regime detector**, a **3D market topology** layer, and a
-**liquidity/market-impact engine**. A **unified multi-asset-class layer**
-trades equities, crypto, bonds, futures, options, and Forex through one
-coherent portfolio — real yield-curve features for bonds, margin-aware
-sizing for futures, greeks-based sizing for options, and shared cross-asset
-macro signals feeding every asset's prediction — while a **controlled
-retraining loop** lets the model evolve as markets do. Everything is wired
-together and validated end-to-end inside QuantConnect's Lean engine. The
-thesis this project exists to test: **markets are non-stationary, so a
-trading model should be too.** Every subsystem here exists to make the model
-adapt to regime shifts, changing correlation structure, and liquidity
-conditions. The [Architecture](#architecture) section below has the full
-picture; [`development/architecture.md`](development/architecture.md) goes
-deeper still.
+Aether Quant is not a single static strategy. It's a **dynamic system**. At its core, an ensemble of neural models predicts, for every asset every day, a multi-horizon view of the market: **direction** at 1, 5 and 20 days, expected **return magnitude** and **volatility**, and each asset's **cross-sectional rank**. Predictions come from a **Mixture-of-Experts** ensemble (bullish/bearish/sideways/volatility specialists) routed by a learned gating network, plus a **causal-TCN sequence encoder**, all reading one feature pipeline that folds in a **market-regime detector**, a **3D market topology** layer and a **liquidity/market-impact engine**. A **unified multi-asset-class layer** routes equities, crypto, bonds, futures, options and forex through one portfolio, behind a kill switch, position reconciliation and a hash-chained audit log, while a **controlled retraining loop** and a **research cycle** let generations of models share capital and hand it over as evidence arrives. Everything is wired together and validated end to end inside QuantConnect's Lean engine. The thesis this project exists to test: **markets are non-stationary, so a trading model should be too.**
+
+Proving that thesis is only half the purpose. Aether Quant is also meant to help build the next algorithm, whoever writes it. The [`aether_quant` library](#the-aether_quant-library) and the [`aq` CLI](#cli-reference) work on any signal, not just this project's, and offer the same tools it judges itself by: position sizing, book construction, order gates, a cost-aware simulator, pre-registered research with counted trials and once-only holdouts, overfitting tests, Lean-exact statistics, and generations that hand over gradually. The safety-critical functions behind them are proved in Lean 4 and tested against those proofs.
+
+The book trading today is simpler than the stack around it: a long-only crypto trend sleeve, on paper only. It is labelled *improved, not verified*, because no pre-registered test has found a verified edge yet.
+
+<!-- AQ:STATUS_START -->
+| Lean Sharpe | Net profit | Max drawdown | Sharpe without T-bill carry | Alpha t | Deflated Sharpe |
+|---|---|---|---|---|---|
+| 0.63 | 33.850% | 7.83% | 0.72 | 0.13 | 4.01% |
+
+_Lean run `2026-11-04_18-10-49`, 2023-07-01 to 2026-11-02, computed 2026-11-07 12:22 UTC. Details: [Backtest Statistics](#backtest-statistics)._
+<!-- AQ:STATUS_END -->
 
 ## Known Limitations
 
-Bonds are fully real; futures and options are wired end to end but **data-empty until an Interactive Brokers key is connected** (`phase_v2.ib.enabled`, `aq ib status`).
-
-- **V6.6.1's third round found no verified alpha either, and built the research cycle.** Ten more pre-registered trials on cell S (pooled books, composites less known exposures, models held to published signs, quarterly accruals) gave zero survivors, against an unmoved bar, so the holdouts stay unread (#315). The nearest were 0.58 (second half 0.29) and 0.47 (needs 0.50). Up to four model generations can now share the book, each one's share computed from its record and moving smoothly, proved in Lean with three at once (#319, #323), and anyone can retrain with `aq cycle retrain` (#321). A calibration found that no handover keeps capital off a generation with no alpha to the 20% limit it set, though the dynamic glide halves that time against a fixed ladder: admission does the rest (#318, #323). `aq cycle status` says what is due.
-- **V6.6.0 tested for alpha on data no rule had read, and found none.** All 28 pre-registered trials (fundamentals, insiders, short volume, funding, the model retrained on S&P 500 point-in-time members, a wide crypto universe) failed selection, so verification was not reached and nothing was installed. The installed crypto rule itself scored Sharpe -0.06 on never-read coins (2024 on: -0.45, alpha t -1.94); on the same dates the 12 chosen coins score 0.33, so most of its record came before 2018. What the selection windows can't exclude: an alpha Sharpe below about 0.6 to 1.0 in a rule sleeve. The models' bound is about 0. A second round of eight trials, run before this was committed, also found nothing (best Sharpe 0.57; #310). The owner's decision of 2026-11-06 is to keep trading the sleeve on paper only. Coinbase has delisted EOS, which the sleeve's universe still lists (#311). Details: `development/Problems.md` #300, #301. The equity survivorship checks sit in the verification stage this search never reached, so they did not run; Yahoo still lacks delisted names.
-- **Improved, not verified: no demonstrated edge.** V6.5.0's strict bar (Lean Sharpe >= 1, alpha t >= 3, deflated Sharpe >= 0.95, Lean placebos, unread pre-2013 data) was not met, and could not be: overfitting probability over all 38 selection trials is 0.53, above the 0.5 limit, which ended verification before it began. By the pre-registered fallback R-LEAN19, V6.5.0 ships **a long-only crypto trend sleeve** (`t3_crypto_trend_blend`) in place of the model book: Lean Sharpe 0.63 on 2023-07..2026-11-02 (median of 5 rebalance phases, 0.51-0.77), against -0.20 for V6.4.4's book.
-  - **It is mostly crypto exposure, not alpha.** Against SPY / AGG / BTC the alpha is +0.4%/yr (Newey-West t 0.13), and over 2014-12..2026-11 +1.3%/yr (t 0.83). Without its T-bill carry and a risk-free rate its Sharpe is 1.15 in 2023-07..2025-06 and 0.06 in 2025-07..2026-11: nearly all of the result is the earlier period. The deflated Sharpe is 12% over the 124 configurations tested.
-  - **Not deployable at Interactive Brokers** until a crypto venue is decided (#192). The 12 coins are today's survivors, chosen with hindsight.
-  - **The earlier book's models are not in use.** Every ML ranking, including a new set transformer and gradient-boosted rankers on honest walk-forward scores, failed: strong in 2019-2021, negative in 2021-2023.
-  - The first run of this comparison halted on a velocity lock within months and was rerun under a recorded amendment (`ml/evaluation/v650/rules_amendment_1.json`), so those windows are not unread. See [Backtest Statistics](#backtest-statistics) and `development/Changelog.md`. **Paper trading only; no live capital.**
-- **Offline numbers:** the target-weights path has an offline twin that tracks Lean at a daily correlation of 0.992-0.9999999. The older rank-book simulator, whose results fill the offline sections below, tracked the gated path at only ~0.6-0.73 and describes the V6.4.4 book, not the shipped one.
-- **Lean runs before V5.8.0 are not comparable**: they covered 2019-01..2021-03 on data that then ended there (`development/Problems.md` #145-#154, #185, #186).
-- **IB is unverified end to end**: the connection, the opt-in live futures margin source (#67) and all 43 option structures (#59) have never met a real Gateway; no option or future asset is in the universe yet. They have met Lean: all 43 structures fill through `OptionStrategies` on its sample chain, the live margin source returns a usable value on its sample futures data (V6.5.0), and `main.py`'s own option order fills there (V6.6.0).
-- **Production safety is unit- and backtest-verified, not field-tested**: the kill switch, reconciliation and auto-rollback have run inside Lean backtests, never against a live broker / Postgres deployment over paper hours.
+- **No demonstrated edge.** The sleeve is mostly crypto exposure, and almost all of its result came before mid-2025. See [Alpha by Period](#alpha-by-period).
+- **Nothing has survived selection.** All 46 pre-registered trials of the last three rounds failed, so the holdouts stay unread. See [Research Record](#research-record).
+- **Hindsight in the universe.** The 12 coins are today's survivors. The same rule scored Sharpe -0.06 on coins no rule had read (#301), and Coinbase has delisted EOS (#311).
+- **Paper only, and no broker yet.** Interactive Brokers cannot fill this sleeve, and the crypto venue (Coinbase assumed) needs an API key (#192). See RUNBOOK "When the keys arrive".
+- **IB is unverified end to end.** Connection, live futures margin and all <!--fact:options.structures-->43<!--/fact--> option structures have only met Lean's samples, never a real Gateway. Futures and options stay data-empty until a key is connected (`aq ib status`).
+- **Safety is not field-tested.** The kill switch, reconciliation and auto-rollback have run in unit tests and Lean backtests, never against a live broker and Postgres.
+- **Packages lag the repo.** PyPI and the Docker image are at the last release tag (5.4.x), before the library existed. Install from source for now.
 
 ## Table of Contents
 
 - [Known Limitations](#known-limitations)
+- [The `aether_quant` Library](#the-aether_quant-library)
 - [Download](#download)
 - [Getting Started](#getting-started)
 - [Requirements](#requirements)
@@ -84,17 +66,18 @@ Bonds are fully real; futures and options are wired end to end but **data-empty 
 - [Open Source Files](#open-source-files)
 - [Backtest Statistics](#backtest-statistics)
   - [Overview](#overview)
+  - [Benchmarks](#benchmarks)
+  - [Alpha by Period](#alpha-by-period)
   - [General Characteristics](#general-characteristics)
   - [Performance](#performance)
   - [Runs and Drawdowns](#runs-and-drawdowns)
   - [Implementation Shortfall](#implementation-shortfall)
   - [Return/Risk Efficiency](#returnrisk-efficiency)
-  - [Classification Scores](#classification-scores)
   - [Attribution](#attribution)
-  - [Robustness](#robustness): [Monte Carlo](#monte-carlo-simulation), [Walk-Forward](#walk-forward-trainingtesting)
-  - [Offline vs Lean](#offline-vs-lean): [Lean vs Offline Books](#lean-vs-offline-books), [Offline Evaluation](#offline-evaluation), [As-Live Book](#as-live-book), [Benchmarks](#benchmark-comparison), [Cross-Checks](#cross-checks)
-  - [Research and Audit](#research-and-audit)
+  - [Robustness](#robustness): [Monte Carlo](#monte-carlo-simulation)
+  - [Research Record](#research-record)
   - [Disclaimer](#disclaimer)
+  - Retired model book: [Classification Scores](development/research_results.md#direction-heads), [Walk-Forward](development/research_results.md#walk-forward), [Lean vs Offline Books](development/research_results.md#lean-vs-offline), [Offline Evaluation](development/research_results.md#offline-evaluation), [As-Live Book](development/research_results.md#as-live-book), [Benchmarks](development/research_results.md#benchmarks), [Cross-Checks](development/research_results.md#cross-checks), [Research and Audit](development/research_results.md#rule-chains)
 - [Test Suite](#test-suite)
 - [CLI Reference](#cli-reference)
   - [`aq train`](#aq-train)
@@ -102,16 +85,21 @@ Bonds are fully real; futures and options are wired end to end but **data-empty 
   - [`aq backtest`](#aq-backtest)
   - [`aq profile`](#aq-profile)
   - [`aq report`](#aq-report)
+  - [`aq cycle`](#aq-cycle)
   - [`aq api`](#aq-api)
   - [`aq webui`](#aq-webui)
   - [`aq docker`](#aq-docker)
   - [`aq config`](#aq-config)
   - [`aq lean`](#aq-lean)
+  - [`aq docs`](#aq-docs)
   - [`aq retrain`](#aq-retrain)
   - [`aq paper-readiness`](#aq-paper-readiness)
   - [`aq trade-lock`](#aq-trade-lock)
   - [`aq kill-switch`](#aq-kill-switch)
+  - [`aq clean`](#aq-clean)
   - [`aq evaluate`](#aq-evaluate)
+  - [`aq research`](#aq-research)
+  - [`aq prove`](#aq-prove)
   - [`aq fetch`](#aq-fetch)
   - [`aq backfill`](#aq-backfill)
   - [`aq ib`](#aq-ib)
@@ -125,332 +113,228 @@ Bonds are fully real; futures and options are wired end to end but **data-empty 
 
 ---
 
+## The `aether_quant` Library
+
+One importable package over the same pure functions the live algorithm and the research chain call: <!--fact:library.names-->690<!--/fact--> public names across <!--fact:library.modules-->24<!--/fact--> modules.
+
+```powershell
+pip install "aether-quant[research] @ git+https://github.com/leon1706-lol/Aether-quant"
+# from a clone: pip install -e .[research]
+```
+
+Score your own signal, build a constrained book, gate an order and test for overfitting:
+
+<!-- Executed by tests/test_readme_library_example.py -->
+```python
+import numpy as np
+import pandas as pd
+
+from aether_quant import execution, portfolio, research, risk
+
+# Your signal: one score per ticker per date, next to the realised rank it should predict
+rng = np.random.default_rng(0)
+rows = []
+for date in pd.date_range("2024-01-01", periods=120, freq="B").strftime("%Y-%m-%d"):
+    future = rng.normal(size=30)
+    ranks = pd.Series(future).rank(pct=True).to_numpy()
+    for i in range(30):
+        rows.append({"date": date, "ticker": f"T{i}", "split": "validation", "my_score": 0.3 * future[i] + rng.normal(),
+                     "target_rank_5d": ranks[i], "target_rank_20d": ranks[i]})
+frame = pd.DataFrame(rows)
+
+# 1. The report this project judges its own models by: rank IC, HAC t, bootstrap interval
+report = research.evaluate_signal(frame, score_column="my_score", splits=("validation",), bootstrap_draws=200)
+h20 = report["splits"]["validation"]["h20"]
+print(f"IC {h20['mean_ic']:.3f}, HAC t {h20['hac_t']:.1f}")
+
+# 2. A market-neutral book: per-name and sector caps, dollar neutrality, gross cap
+weights, _ = portfolio.apply_book_neutrality(
+    {"AAA": 0.20, "BBB": 0.10, "CCC": -0.15, "DDD": -0.05},
+    sector_by_symbol={"AAA": "tech", "BBB": "tech", "CCC": "energy", "DDD": "tech"},
+    dollar_neutral=True, sector_neutral=True, gross_exposure_cap=0.5, max_weight_per_name=0.12, sector_max_net_weight=0.15,
+)
+
+# 3. Sizing never flips a trade or exceeds its cap; a tripped risk lock stops the order
+sized = risk.build_dynamic_position_sizing(-0.3, 0.9, 0.02, 0.10)
+allowed, reason = execution.resolve_order_permission("paper", True, True, False)
+print(round(sized.target_weight, 4), allowed, reason)
+
+# 4. How likely is the best of your variants just the luckiest? (daily returns, one column per variant)
+trial_returns = rng.normal(0, 0.01, size=(400, 8))
+print("PBO:", research.probability_of_backtest_overfitting(trial_returns, blocks=8)["pbo"])
+```
+
+How it works:
+
+- **A facade, not a copy.** Every name is re-exported from the module `main.py` and the offline tools already use, so a library result and a live decision come from the same code.
+- **Light to import.** No torch, Lean, Redis, Postgres or web stack. Optional extras load only when called.
+- **Modules map to jobs:**
+  - `risk`, `portfolio`, `execution`: sizing, kill switch, book construction, HRP, order gates, cost model, reconciliation.
+  - `features`, `training`, `data`: indicators, cross-sectional ranks, purged folds, data parsers.
+  - `evaluation`, `research`: simulators, Monte Carlo, Lean-exact statistics, deflated Sharpe, PBO, factor spanning, leakage audits.
+  - `cycle`: pre-registered rounds, generation shares, decay detection, retraining preflight.
+  - `audit`, `formal`, `io`: the hash chain, Lean 4 proof cases, finite-safe JSON.
+- **Stable surface.** The public names are pinned in `tests/data/aether_quant_api.json`, so a change is always deliberate.
+
+Runnable tours: [`examples/aether_quant_quickstart.py`](examples/aether_quant_quickstart.py), [`examples/aether_quant_cycle.py`](examples/aether_quant_cycle.py). Full module list: [`aether_quant/README.md`](aether_quant/README.md).
+
 ## Download
 
-If you just want to use Aether Quant rather than develop on it, no local
-`pip install -e .` or source checkout is needed: the CLI and backend are
-published as ready-to-use releases:
+The published release, behind the repo for now (see [Known Limitations](#known-limitations)):
 
 ```powershell
 pip install aether-quant
 docker pull ghcr.io/leon1706-lol/aether-quant:latest
 ```
 
-`aq --help` is then available immediately (see [CLI Reference](#cli-reference)
-below). `aq` checks PyPI at most once every 24h (short timeout, never
-blocking) for a newer version and prints a one-line notice if one's
-available (disable with `AQ_SKIP_UPDATE_CHECK=1`).
-
-The Docker image is the same one `docker-compose.yml`'s `engine` service
-(and every worker service, which all share this one build,
-`aether-quant-engine`) pulls by default (override with the
-`AETHER_QUANT_IMAGE` env var, e.g. to use a locally built image instead).
-This is the single consolidated image (app + every worker, includes the
-full ML stack), so expect a larger download than a minimal API-only image.
+For the library, install from git as shown [above](#the-aether_quant-library).
 
 ## Getting Started
 
-For local development (this repo cloned, a virtual environment active):
+From a clone, with a virtual environment active:
 
-1. Install dependencies:
+```powershell
+pip install -r requirements/requirements.txt
+pip install -r requirements/requirements-dev.txt
+pip install -e .                # registers the `aq` command
+aq --help
+aq test                         # the suite, without Redis, Postgres or IB
+aq evaluate --lean-report       # refresh the statistics from a finished run
+aq cycle status                 # what is due today
+```
 
-   ```powershell
-   pip install -r requirements/requirements.txt
-   pip install -r requirements/requirements-dev.txt   # local dev extras
-   ```
-
-2. Refresh the data inventory only:
-
-   ```powershell
-   python train.py --init-only
-   ```
-
-3. Build the dataset and train the model:
-
-   ```powershell
-   python train.py
-   ```
-
-   Or build dataset artifacts only, without training:
-
-   ```powershell
-   python train.py --dataset-only
-   ```
-
-4. Start the webui locally (two processes):
-
-   ```powershell
-   uvicorn monitoring.api_server:app --port 8001 --reload
-   ```
-
-   ```powershell
-   cd webui
-   npm install
-   npm run dev
-   ```
-
-   Then open `http://localhost:3002`.
-
-5. Run a real backtest and refresh this README's [Backtest Statistics](#backtest-statistics):
-
-   ```powershell
-   pip install -e .   # registers the `aq` command from source
-   aq backtest
-   ```
-   First run downloads the pinned QuantConnect Lean engine Docker image once (~40GB+) and builds the small local `aether-quant-lean:17900` layer; budget time and bandwidth for it. Later runs reuse both images.
+- **Dashboard:** run `aq api` (port 8001), then `npm install` in `webui/` and `aq webui` (port 3002).
+- **Training:** `aq train`, `aq cycle retrain`. See [`RUNBOOK.md`](RUNBOOK.md).
 
 ## Requirements
 
-- **Python ≥ 3.10** for the training pipeline, `main.py`'s Lean algorithm, the FastAPI monitoring server, and the `aq` CLI.
-- **QuantConnect Lean CLI** (`pip install lean`) for running backtests and paper/live trading.
-- **Docker & Docker Compose** for the local infrastructure (Redis, PostgreSQL, and the background workers, experience persistence, performance triggers, controlled retraining, Telegram alerts).
-- **Node.js** (for the `webui/` React/Vite dashboard).
-- **GitHub CLI (`gh`)** — optional, only needed to reproduce model training via a GitHub Codespace (this project's own convention for offloading training off a resource-constrained dev machine; see `development/Problems.md` #71).
+- **Python <!--fact:python.ci-->3.11<!--/fact-->**, which CI runs. Package metadata says <!--fact:python.requires-->>=3.10<!--/fact-->, but `evaluation/lean_statistics.py` needs 3.11 (#326).
+- **For backtests:** Docker and the Lean CLI (`pip install lean`). The first run pulls the pinned engine image, <!--fact:lean.engine-->quantconnect/lean:17900<!--/fact-->, about 40 GB.
+- **For the infrastructure:** Docker Compose (Redis, Postgres, workers). Everything degrades gracefully without it.
+- **For the dashboard:** Node.js.
+- **For retraining:** 14 GB of RAM, or the training Codespace through the GitHub CLI (`gh`).
 
-This repo splits its Python dependencies across several `requirements*.txt`
-files (full training stack vs. minimal per-Docker-image installs vs. local
-dev extras) rather than one monolithic file. See
-**[`requirements/README.md`](requirements/README.md)** for the exact
-`pip install` command for every variant and which Dockerfile consumes each one.
+Dependency sets are listed in [`requirements/README.md`](requirements/README.md).
 
 ## Architecture
 
-Aether Quant runs a daily-bar decision pipeline entirely inside Lean's
-`on_data()` callback: features (including bond/macro and options-implied
-alt-data) flow through regime detection and 3D topology modeling (a
-deterministic embedding plus a learned overlay), both feed a gating
-network that routes across four specialized experts, an asset-class
-router sizes the decision across equities/crypto/bonds/futures/options/
-Forex, and every decision is persisted through a Redis → PostgreSQL
-experience pipeline that a controlled retraining loop reads from to
-evolve the model over time.
+Every decision runs daily inside Lean's `on_data()`. A config flag picks what drives the book:
 
-#### System Flow
+- **Target weights (shipped):** `phase_v2.target_weights` reads `ml/target_weights.csv`, produced by a rule or by blended generations, and an offline twin tracks it at a daily correlation above 0.99.
+- **Model book (trained, not trading):** the ensemble's rank heads drive a dollar- and sector-neutral long/short book. It has failed the pre-registered bar every time.
 
 ```mermaid
 flowchart LR
-    A["Lean data folder<br/>stocks, ETFs, bonds, crypto, Forex"] --> B["Feature pipeline<br/>train.py<br/>price/volume + indicators +<br/>regime + liquidity + topology + peer returns +<br/>bond/macro + alt-data (VIX/financial conditions)"]
-    B --> C["Regime detection<br/>trend, volatility, drawdown, correlation"]
-    B --> D["3D topology modeling<br/>deterministic + learned overlay"]
-    B --> V["Multitask + sequence heads<br/>baseline + 4 experts<br/>direction + magnitude + volatility + rank"]
-    C --> E["Gating network<br/>the manager"]
-    D --> E
-    V --> E
-    E --> F["Expert modules"]
-    F --> G["Bullish expert"]
-    F --> H["Bearish expert"]
-    F --> I["Sideways expert"]
-    F --> J["Volatility expert"]
-    G --> K["Market analyzer<br/>central decision layer"]
-    H --> K
-    I --> K
-    J --> K
-    C --> K
-    D --> K
-    L["Liquidity engine<br/>DDV, participation rate,<br/>slippage estimate"] --> K
-    K --> AC["Asset-class router<br/>equity/crypto/bond/futures/options/Forex"]
-    AC --> RK["rank_20d/rank_5d position sizing<br/>+ topology/RL sizing multipliers"]
-    RK --> M["Action categorization<br/>trade / simulate / observe<br/>reduce_risk / retrain_candidate"]
-    M --> N["Lean order execution"]
-    M --> O["Observation / simulation record"]
-    N --> P["Redis event stream<br/>temporary low-latency buffer"]
-    O --> P
-    P --> Q["Experience worker<br/>async batch persistence"]
-    Q --> R["PostgreSQL experience database<br/>single source of truth"]
-    R --> S["Performance triggers<br/>100 observations, drawdown, Sharpe, regime shift"]
-    S --> T["Controlled retraining<br/>versioned weights and rollback"]
-    T --> E
+    D["Lean data<br/>equities, bonds, crypto, forex"] --> F["Feature pipeline<br/>regime, liquidity, topology, macro"]
+    F --> M["Models<br/>4 experts + gating,<br/>multitask, sequence"]
+    M -. "model book" .-> B["Book construction<br/>neutrality, sizing, costs"]
+    W["Target weights<br/>rule or blended generations"] -- "shipped" --> B
+    B --> G["Safety gates<br/>kill switch, order gate,<br/>reconciliation"]
+    G --> L["Lean orders"]
+    L --> R["Redis, then PostgreSQL<br/>experience and audit log"]
+    R --> T["Performance triggers"]
+    T --> C["Controlled retraining<br/>validate, promote, roll back"]
+    C --> M
+    Q["Research cycle<br/>rounds, generations, decay"] --> W
+    C --> Q
 ```
 
-#### Tech Stack
+**Models** (one shared feature code path for training and runtime)
 
-```mermaid
-flowchart TB
-    A["Infrastructure"] --> A1["Docker Compose<br/>(Redis, Postgres, aether-quant app)"]
-    A --> A2["Lean CLI<br/>(backtest + paper trading, local only)"]
-    A --> A3["30-day observation phase before live mode"]
-    A --> A4["GitHub Codespaces<br/>(cloud training compute)"]
-    B["Development"] --> B1["VS Code + Claude Code"]
-    B --> B2["GitHub"]
-    C["Data and storage"] --> C1["Lean data folder for training/backtesting"]
-    C --> C2["Redis temporary event stream"]
-    C --> C3["PostgreSQL permanent experience database"]
-    D["AI and modeling"] --> D1["PyTorch"]
-    D --> D2["scikit-learn"]
-    D --> D3["NumPy / Pandas"]
-    D --> D4["MoE experts and gating network"]
-    D --> D5["Multitask heads (direction/magnitude/<br/>volatility/rank) + causal-TCN sequence encoder"]
-    E["Monitoring and UI"] --> E1["React/Vite webui, Tracing dashboard (port 3002 dev / 8001 Docker)"]
-    E --> E2["FastAPI JSON API (port 8000)"]
-    E --> E3["Telegram alerts<br/>notifications/telegram_worker.py"]
-```
+- **Baseline + 4 experts:** bullish, bearish, sideways and volatility specialists, routed by a learned gating network.
+- **Multitask:** a shared trunk with direction, magnitude, volatility and rank heads, including residualised ranks that measure skill rather than beta.
+- **Sequence:** a causal-TCN over a 30-bar window.
+- **Ranking objective:** trained directly on soft-Spearman or ListNet over whole dates.
 
-These two diagrams are the high-level summary. For the full system —
-every subsystem contract, the module map, the multi-asset-class and
-signal-promotion-gate design, and an honest analysis of what would need
-to change for this to become a genuinely low-latency/HFT system — see
-**[`development/architecture.md`](development/architecture.md)**.
+**Risk and execution**
 
-#### The model stack
+- **Sizing:** bounded and direction-preserving, scaled down when expected edge does not clear round-trip cost.
+- **Controls:** an automated kill switch, reconciliation against broker holdings, a drawdown lock and an opt-in auto-rollback.
+- **Asset classes:** one router for equities, crypto, bonds, forex, futures and options.
 
-Three model families are trained and shipped, all reading the same
-train/runtime-parity feature pipeline (shared pure functions, never
-hand-matched formulas, `features/`, `main.py::_build_model_input()`):
+**Research cycle** (`aq cycle`)
 
-- **Baseline + 4 experts** (`train.py::AetherNet*`) — a direction model
-  plus bullish/bearish/sideways/volatility specialists, routed by the
-  learned gating network (`moe/gating.py`). Each also carries optional
-  multitask heads for return magnitude and volatility.
-- **Multitask model** (`AetherNetMultiTaskHorizons`, `train_multitask.py`)
-  — a shared trunk with multiple heads: next-day direction,
-  `direction_5d`/`direction_20d`, and the cross-sectional rank heads
-  (`rank_5d`/`rank_20d`, plus market/sector/size-**residualized** variants
-  that measure real skill rather than beta). `rank_20d` is the primary
-  trading signal.
-- **Sequence encoder** (`AetherNetSequenceMultiTaskHorizons`,
-  `train_sequence.py`) — a causal-TCN over a rolling 30-bar window of the
-  same inputs, adding temporal structure the flat-MLP trunk can't see;
-  its `rank_5d` head is the strongest signal in this project's history.
+- **Rounds:** rules are hashed before any score, trials go in a ledger, and a holdout read happens once.
+- **Generations:** up to four share a book, each one's share computed from its record and moving smoothly.
+- **Admission:** a candidate must earn its share (R-ADMIT1); real money is always the owner's manual action.
+- **Off by default:** `ml/generations/policy.json` has `enabled: false`, and nothing in Lean reads it.
 
-Both trainers are trained directly against a differentiable ranking
-objective (soft-Spearman/ListNet over whole-date cross-sectional batches),
-not an MSE proxy — the model now optimizes for the thing it actually
-trades on.
-
-**66 model inputs** — not just price/volume: regime state (one-hot /
-confidence / trend / risk), liquidity spread/dollar-volume, cross-asset
-topology correlation/risk, correlated-peer lagged returns, 7 technical
-indicators, real bond yield-curve/credit-spread features, alt-data
-(options-implied volatility, financial-conditions change), and per-asset
-macro **sensitivity betas** (rolling regression of each asset's return
-against ΔVIX/Δreal-rate/Δcredit/Δdollar, so macro actually varies
-cross-sectionally instead of shifting every asset equally) — all computed
-offline and at runtime by the same code, with verified parity.
-
-The rank heads drive a dollar- and sector-neutral long/short book
-(`portfolio/book_neutrality.py`) with per-position sizing
-(`risk/position_sizing.py`, bounded and direction-preserving) that's
-scaled down when a trade's expected edge doesn't clear its expected
-round-trip cost (`execution/cost_model.py`). Book sizing itself is
-config-selectable (`phase_v2.portfolio_book.allocation_method`): the
-default `"rank"` uses the confidence formula, while `"hrp"` re-weights
-the same selected symbols with Hierarchical Risk Parity inverse-variance
-weights from their correlation structure (`portfolio/book_construction.py::
-apply_hrp_weights()`) — selection never changes, only sizing. An
-automated kill switch, position reconciliation against the broker's
-actual holdings, and an opt-in auto-rollback sit in front of all of it
-(`risk/kill_switch.py`, `execution/reconciliation.py`,
-`retraining/auto_rollback.py`). All of it
-is visible on the `/neural-network`, `/evaluation`, and `/operations`
-webui tabs and in `ml/*_training_metrics.json`.
-
-See `inference/README.md`, `moe/README.md`, `risk/README.md`,
-`regime/README.md`, `liquidity/README.md` and `topology/README.md` for
-the full per-subsystem contracts, and `development/architecture.md` for
-how it all fits together.
+**Stack:** Lean CLI, Docker Compose, Redis, PostgreSQL, PyTorch, NumPy/pandas, FastAPI, React/Vite, Telegram alerts, GitHub Actions, Codespaces. Full contracts: [`development/architecture.md`](development/architecture.md).
 
 ## Universe Size
 
-The trading universe currently spans **104 assets**: 55 stocks/broad-market
-ETFs, 22 fixed-income (bond) ETFs, 12 crypto pairs, and 15 forex/FX pairs
-(53% equity / 21% bond / 12% crypto / 14% forex by count), defined in
-`config.json`'s `phase1.universe.assets` and shared across training,
-validation, and backtesting (common window `2014-12-01` to `2025-06-30`, then the `2025-07-01` to `2026-09-30` holdout).
-Of these, tradeable names carry real positions while "observation-only"
-names (thin history) are fed through the full model pipeline but never
-sized. The 15 forex pairs (V4.10, fetched via `aq fetch forex`) all cover
-the full common window with real Yahoo Finance history, unlike the 7
-newly-added crypto pairs — expected to land "Trading" for the same reason,
-though this hasn't been run through `train.py`'s actual asset-quality
-classifier yet (left for a manual `python train.py --dataset-only` run,
-same division of labor as this project's other deferred training steps).
+<!--fact:universe.total-->104<!--/fact--> assets in `config.json`: <!--fact:universe.equity-->55<!--/fact--> equities and broad ETFs, <!--fact:universe.bond-->22<!--/fact--> bond ETFs, <!--fact:universe.crypto-->12<!--/fact--> crypto pairs, <!--fact:universe.forex-->15<!--/fact--> forex pairs. The shipped book trades the crypto pairs; the rest feed the models.
 
-See **[`development/asset_universe.md`](development/asset_universe.md)** for
-the full ticker list, the trading-vs-observation split, the bond-ETF
-duration/credit coverage, and the group-level diagram.
+| Split | Dates |
+|---|---|
+| Training | <!--fact:windows.training-->2014-12-01 to 2021-12-31<!--/fact--> |
+| Validation | <!--fact:windows.validation-->2022-01-01 to 2023-06-30<!--/fact--> |
+| Backtest | <!--fact:windows.backtest-->2023-07-01 to 2025-06-30<!--/fact--> |
+| Holdout | <!--fact:windows.holdout-->2025-07-01 to 2026-11-02<!--/fact--> |
+
+Tickers and roles: [`development/asset_universe.md`](development/asset_universe.md).
 
 ## Project Structure
 
-The repository is a set of single-responsibility Python packages (one concern
-per folder, each with its own README), a few top-level entry-point scripts
-(`main.py` for the Lean algorithm, `train*.py` for the offline trainers,
-`aq_cli.py` for the CLI), and the runtime config (`config.json` / `lean.json`).
-
-See **[`development/project_structure.md`](development/project_structure.md)**
-for the full annotated directory tree, and the
-[Module Documentation](#module-documentation) table below for a per-package
-index with links to each package's own README.
+Single-responsibility Python packages, each with its own README, a few top-level entry points (`main.py` for the Lean algorithm, `train*.py` for the trainers, `aq_cli.py` for the CLI) and the runtime config (`config.json`, `lean.json`). The annotated tree is in [`development/project_structure.md`](development/project_structure.md).
 
 ## Module Documentation
 
-Every package below has its own README with the full detail on what it owns
-and how it's wired in, this table is the index.
-
-| Module | What it owns | Docs |
+| Area | Module | What it owns |
 |---|---|---|
-| `aether_quant/` | The library (V6.4.3, whole project since V6.6.1): one importable facade over the pure functions of every subsystem, the research cycle and the Lean-computed test cases (`pip install -e .[research]`, `examples/aether_quant_quickstart.py`, `examples/aether_quant_cycle.py`) | [README](aether_quant/README.md) |
-| `formal/` | Lean 4 + Mathlib proofs of the shared safety-critical functions and the differential-case generator (`aq prove`) | [README](formal/README.md) |
-| `analyzer/` | Central market analyzer, the final per-asset action categorization layer | [README](analyzer/README.md) |
-| `audit/` | Tamper-evident hash-chained audit log (credential loads, live-mode transitions, order path), Redis + PostgreSQL | [README](audit/README.md) |
-| `backtests/` | Strategy validation output (active model + per-candidate reports), gitignored | [README](backtests/README.md) |
-| `data/` | Local Lean data-folder format documentation | [README](data/README.md) |
-| `data_pipeline/` | Lean-data contract + Yahoo Finance historical backfill | [README](data_pipeline/README.md) |
-| `evaluation/` | Offline, cost-aware rank-book simulation (net Sharpe, turnover, capacity, cost stress) — the torch-free offline mirror of the live decision path | [README](evaluation/README.md) |
-| `execution/` | Order gating, paper/live broker readiness, config-read caching, expected-net-edge cost model | [README](execution/README.md) |
-| `experience/` | Observation/decision history, Redis buffer + PostgreSQL persistence | [README](experience/README.md) |
-| `experts/` | Bullish, bearish, sideways, and volatility expert models | [README](experts/README.md) |
-| `features/` | Shared feature-computation functions, called from both `train.py` and `main.py` for train/inference parity | [README](features/README.md) |
-| `inference/` | Vectorized forward-pass interpreter for the exported neural networks | [README](inference/README.md) |
-| `cpp_inference_ext/` | Optional C++/pybind11 accelerator (builds the `cpp_inference` module, never a hard dependency), a separate top-level folder name from the module it builds, deliberately, to avoid a namespace-package collision with the installed package | [README](cpp_inference_ext/README.md) |
-| `liquidity/` | Liquidity and market-impact engine | [README](liquidity/README.md) |
-| `ml/` | Model & dataset artifacts, including versioned retraining candidates | [README](ml/README.md) |
-| `moe/` | Mixture-of-Experts gating network | [README](moe/README.md) |
-| `monitoring/` | FastAPI JSON API serving runtime state to the webui | [README](monitoring/README.md) |
-| `notifications/` | Telegram alerting worker | [README](notifications/README.md) |
-| `performance/` | Performance trigger system (14 trigger functions) | [README](performance/README.md) |
-| `portfolio/` | Stage-2 cross-sectional long/short book construction + Black-Scholes options sizing | [README](portfolio/README.md) |
-| `regime/` | Market regime detection | [README](regime/README.md) |
-| `requirements/` | All `requirements*.txt` variants and what consumes each | [README](requirements/README.md) |
-| `retraining/` | Controlled retraining, plan/train/validate/backtest/commit/promote/rollback | [README](retraining/README.md) |
-| `risk/` | Dynamic position sizing, leverage caps, drawdown-aware sizing | [README](risk/README.md) |
-| `scripts/` | Standalone dev tooling (e.g. the inference-hot-path profiler) | [README](scripts/README.md) |
-| `storage/` | Reserved placeholder for future persistent artifact storage | [README](storage/README.md) |
-| `tests/` | Pytest suite conventions (<!-- AQ:TEST_COUNT_START -->4785<!-- AQ:TEST_COUNT_END --> tests) | [README](tests/README.md) |
-| `topology/` | 3D market topology, deterministic SMACOF embedding + learned overlay | [README](topology/README.md) |
-| `visualization/` | Shared runtime-state JSON/CSV exports | [README](visualization/README.md) |
-| `webui/` | React/Vite dashboard (Overview, Operations, Risk, Options & Strategy, Topology, Neural Network, Tracing) | [README](webui/README.md) |
-| `Aether-quant-Obsidian-Vault/` | Auto-generated Obsidian vault mirroring the repo's architecture/code graph, gitignored (regenerate with `Aether-quant-Obsidian-Vault/scripts/generate_code_graph.py`) | — |
+| Library | [`aether_quant/`](aether_quant/README.md) | The importable facade over every subsystem |
+| Library | [`formal/`](formal/README.md) | Lean 4 proofs of the safety-critical functions (`aq prove`) |
+| Trading | [`risk/`](risk/README.md) | Position sizing, leverage, kill switch, asset-class routing |
+| Trading | [`portfolio/`](portfolio/README.md) | Book construction, HRP, sleeves, target weights, options |
+| Trading | [`execution/`](execution/README.md) | Order gate, cost model, reconciliation, paper readiness |
+| Trading | [`analyzer/`](analyzer/README.md) | The final per-asset action layer |
+| Models | [`features/`](features/README.md) | Feature functions shared by training and runtime |
+| Models | [`inference/`](inference/README.md) · [`cpp_inference_ext/`](cpp_inference_ext/README.md) | The numpy forward pass · its optional C++ accelerator |
+| Models | [`moe/`](moe/README.md) · [`experts/`](experts/README.md) | The gating network · the four expert models |
+| Models | [`regime/`](regime/README.md) · [`topology/`](topology/README.md) · [`liquidity/`](liquidity/README.md) | Regime detection · market topology · market impact |
+| Models | [`ml/`](ml/README.md) | Weights, datasets, candidates, generations |
+| Research | [`evaluation/`](evaluation/README.md) | Simulators, audits, statistics, the research cycle |
+| Research | [`retraining/`](retraining/README.md) · [`performance/`](performance/README.md) | Controlled retraining and rollback · performance triggers |
+| Research | [`backtests/`](backtests/README.md) | Lean run output (gitignored) |
+| Data | [`data/`](data/README.md) · [`data_pipeline/`](data_pipeline/README.md) | The Lean data layout · backfills and bar synthesis |
+| Ops | [`experience/`](experience/README.md) · [`audit/`](audit/README.md) | Redis-to-Postgres decision history · the hash-chained audit log |
+| Ops | [`monitoring/`](monitoring/README.md) · [`webui/`](webui/README.md) · [`visualization/`](visualization/README.md) | FastAPI · the React dashboard · runtime state exports |
+| Ops | [`notifications/`](notifications/README.md) | Telegram alerts |
+| Tooling | [`tests/`](tests/README.md) · [`scripts/`](scripts/README.md) · [`requirements/`](requirements/README.md) | The suite · dev and research scripts · dependency sets |
 
 ## Development Documentation
 
 | Document | Contents |
 |---|---|
-| [`development/README.md`](development/README.md) | Index of this folder |
-| [`development/asset_universe.md`](development/asset_universe.md) | The full 104-asset universe: ticker list, trading-vs-observation split, bond-ETF coverage, group diagram |
-| [`development/project_structure.md`](development/project_structure.md) | The full annotated directory tree of the repository |
-| [`development/architecture.md`](development/architecture.md) | The full system architecture: process-flow and tech-stack diagrams, the module map, per-subsystem "contract" sections, the multi-asset-class/ranking design, and the HFT-readiness analysis |
-| [`development/infrastructure.md`](development/infrastructure.md) | Docker Compose runbook, start commands for every service, SQL inspection snippets, port reference |
-| [`development/Changelog.md`](development/Changelog.md) | Detailed, append-only, per-phase build history, what was built, when, and why |
-| [`development/Problems.md`](development/Problems.md) | Append-only audit log of bugs and infrastructure issues, each with a severity rating and fixed/open status |
-| [`development/backups/`](development/backups/README.md) | Frozen pre-condensation snapshots of the two files above (restore points only — never edited) |
+| [`development/architecture.md`](development/architecture.md) | Subsystem contracts and the offline/live parity contract |
+| [`development/infrastructure.md`](development/infrastructure.md) | Docker, ports, Codespaces, database inspection |
+| [`development/research_results.md`](development/research_results.md) | Generated results of the retired model book and past rule chains |
+| [`development/project_structure.md`](development/project_structure.md) | The directory tree |
+| [`development/asset_universe.md`](development/asset_universe.md) | The tickers |
+| [`development/Changelog.md`](development/Changelog.md) | Build history |
+| [`development/Problems.md`](development/Problems.md) | Bug log |
+| [`development/backups/`](development/backups/README.md) | Full text from before each condensing pass |
 
 ## Open Source Files
 
 | File | Purpose |
 |---|---|
 | [`LICENSE`](LICENSE) | PolyForm Noncommercial 1.0.0 |
-| [`CONTRIBUTING.md`](CONTRIBUTING.md) | How to contribute: setup, testing, code conventions, CI expectations |
-| [`AGENTS.md`](AGENTS.md) | Agent instructions: file layout, commands, code conventions, status markers |
-| [`todo.md`](todo.md) | Owner's live objectives canvas — the current brief for humans and agents; rewritten/cleared as objectives change |
-| [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) | Community conduct policy |
-| [`SECURITY.md`](SECURITY.md) | Security vulnerability reporting policy |
-| [`RUNBOOK.md`](RUNBOOK.md) | Operational procedures: everyday commands, cloud training, kill-switch trips, reconciliation breaches, data gaps |
-| [`REPRODUCIBILITY.md`](REPRODUCIBILITY.md) | Exact steps to reproduce every claimed number |
-| [`development/backups/`](development/backups/README.md) | Pre-condensation snapshots of development records |
+| [`CONTRIBUTING.md`](CONTRIBUTING.md) | Setup and conventions for people |
+| [`AGENTS.md`](AGENTS.md) | Setup and conventions for AI agents |
+| [`RUNBOOK.md`](RUNBOOK.md) | Everyday commands, incidents, the research cycle, what to do when keys arrive |
+| [`REPRODUCIBILITY.md`](REPRODUCIBILITY.md) | How to reproduce every published number |
+| [`SECURITY.md`](SECURITY.md) | Reporting a vulnerability |
+| [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) | Community conduct |
+| [`todo.md`](todo.md) | The owner's current objectives |
 
 ## Backtest Statistics
 
-_Every table is generated, never hand-edited. `aq backtest` refreshes the Lean blocks after each run (`aq evaluate --lean-report --backtest-dir backtests/<run>` for a run made elsewhere); `aq evaluate` refreshes the offline ones. **Strategy** is the Lean run without its T-bill cash sweep: idle-cash carry is not alpha._
+The shipped book's numbers from the real Lean engine. Every table is generated, never hand-edited: `aq backtest` or `aq evaluate --lean-report --backtest-dir backtests/<run>` refreshes them.
+
+- **Portfolio** is the whole Lean run. **Strategy** is that run without its T-bill sweep, because idle-cash carry is not alpha.
+- The current code reproduces the pinned run order for order. No newer run is needed until the book changes.
+- Results of the retired model book live in [`development/research_results.md`](development/research_results.md).
 
 ### Overview
 
@@ -466,28 +350,38 @@ _Every table is generated, never hand-edited. `aq backtest` refreshes the Lean b
 | Drawdown | 7.800% |
 | Total Orders | 1012 |
 | Win Rate | 61% |
-| Last updated | 2026-11-04 18:48 UTC (auto-generated by `aq backtest`) |
+| Last updated | 2026-11-07 10:54 UTC (auto-generated by `aq backtest`) |
 <!-- AQ:BACKTEST_END -->
 
-**All finished Lean runs** (newest first)
+### Benchmarks
 
-<!-- AQ:BACKTEST_HISTORY_START -->
-| Run | Window | Sharpe | Net profit | Drawdown | Orders | Status |
+<!-- AQ:BTSTATS_BENCHMARKS_START -->
+| Series | Total return | Annual return | Volatility | Sharpe | Max drawdown |
+|---|---|---|---|---|---|
+| **Portfolio** (with the T-bill sweep) | +34.25% | +9.26% | 7.68% | 1.19 | 7.83% |
+| **Strategy** (without the sweep) | +18.95% | +5.36% | 7.68% | 0.72 | 9.88% |
+| SPY | +76.55% | +18.64% | 14.91% | 1.22 | 18.76% |
+| 60/40 SPY/AGG, rebalanced daily | +48.09% | +12.53% | 9.63% | 1.27 | 11.27% |
+| Bitcoin, buy and hold | +157.01% | +32.83% | 46.20% | 0.84 | 53.06% |
+| The book's 12 coins, equal weight | +107.25% | +24.50% | 65.38% | 0.66 | 61.95% |
+
+_Run `2026-11-04_18-10-49` · computed 2026-11-07 12:22 UTC · same sessions to the last equity close, no risk-free rate_
+<!-- AQ:BTSTATS_BENCHMARKS_END -->
+
+### Alpha by Period
+
+<!-- AQ:ALPHA_START -->
+| Period | Dates | Sharpe | 95% interval | Alpha per year | Alpha t | Deflated Sharpe |
 |---|---|---|---|---|---|---|
-| `2026-11-04_18-27-36` | 2014-12-01 to 2026-11-02 | 0.531 | 68.341% | 14.700% | 1414 | - |
-| `2026-11-04_18-26-28` | 2023-07-01 to 2026-11-02 | 0.25 | 23.070% | 9.800% | 1946 | - |
-| `2026-11-04_18-25-22` | 2023-07-01 to 2026-11-02 | 0.321 | 25.504% | 10.700% | 2005 | - |
-| `2026-11-04_18-20-37` | 2014-12-01 to 2026-11-02 | 0.18 | 48.909% | 12.000% | 1158 | - |
-| `2026-11-04_18-23-56` | 2023-07-01 to 2026-11-02 | 0.121 | 18.923% | 9.600% | 2082 | - |
-| `2026-11-04_18-22-51` | 2023-07-01 to 2026-11-02 | 0.14 | 19.517% | 11.100% | 2089 | - |
-| `2026-11-04_18-21-23` | 2023-07-01 to 2026-11-02 | 0.082 | 17.694% | 12.500% | 1929 | - |
-| `2026-11-04_18-20-18` | 2023-07-01 to 2026-11-02 | -0.088 | 13.456% | 8.900% | 349 | - |
-| `2026-11-04_18-18-48` | 2023-07-01 to 2026-11-02 | -0.081 | 13.513% | 9.200% | 343 | - |
-| `2026-11-04_18-18-07` | 2023-07-01 to 2026-11-02 | -0.329 | 7.598% | 8.600% | 363 | - |
-| `2026-11-04_18-10-49` | 2023-07-01 to 2026-11-02 | 0.633 | 33.850% | 7.800% | 1012 | shipped (README pin), kept (R-LEAN19) |
+| Whole run | 2023-07-02 to 2026-11-04 | 0.72 | -0.46 to 1.90 | +0.37% | 0.13 | 4.01% |
+| First half | 2023-07-02 to 2025-06-30 | 1.15 | -0.48 to 2.73 | -0.69% | -0.18 | 22.89% |
+| Second half | 2025-07-01 to 2026-11-02 | 0.06 | -1.58 to 1.66 | +2.43% | 0.64 | 3.18% |
+| Long run, same rule | 2014-12-02 to 2026-11-04 | 0.91 | 0.26 to 1.51 | +1.30% | 0.83 | 0.42% |
 
-_The newest finished Lean runs and the README pin (11 rows), computed 2026-11-04; Status from the README pin and the `evaluation.lean_verdict` files (`ml/evaluation/*/r_lean*.json`)._
-<!-- AQ:BACKTEST_HISTORY_END -->
+**Proof of alpha (R-ALPHA1): not demonstrated** (full-window alpha t < 2.0; deflated Sharpe < 0.95).
+
+_Run `2026-11-04_18-10-49` · computed 2026-11-07 10:55 UTC · alpha against SPY / AGG / BTCUSD with a Newey-West t · deflated over 192 ledger trials_
+<!-- AQ:ALPHA_END -->
 
 ### General Characteristics
 
@@ -512,7 +406,7 @@ _The newest finished Lean runs and the README pin (11 rows), computed 2026-11-04
 | Total orders | 1,012 |  |  |
 | Lean portfolio turnover (daily mean) | 0.790% |  |  |
 
-_Run `2026-11-04_18-10-49` · computed 2026-11-04 18:49 UTC_
+_Run `2026-11-04_18-10-49` · computed 2026-11-07 12:22 UTC_
 <!-- AQ:BTSTATS_GENERAL_END -->
 
 ### Performance
@@ -536,7 +430,7 @@ _Run `2026-11-04_18-10-49` · computed 2026-11-04 18:49 UTC_
 | Expectancy (Lean) | 0.329 |  |
 | Unrealized at the end (Lean) | +$12,331 |  |
 
-_Run `2026-11-04_18-10-49` · computed 2026-11-04 18:49 UTC_
+_Run `2026-11-04_18-10-49` · computed 2026-11-07 12:22 UTC_
 <!-- AQ:BTSTATS_PERFORMANCE_END -->
 
 ### Runs and Drawdowns
@@ -556,7 +450,7 @@ _Run `2026-11-04_18-10-49` · computed 2026-11-04 18:49 UTC_
 | Drawdown recovery (Lean, days) | 243 |  |
 | Maximum drawdown duration (Lean) | 159.00:00:00 |  |
 
-_Run `2026-11-04_18-10-49` · computed 2026-11-04 18:49 UTC_
+_Run `2026-11-04_18-10-49` · computed 2026-11-07 12:22 UTC_
 <!-- AQ:BTSTATS_RUNS_END -->
 
 ### Implementation Shortfall
@@ -572,7 +466,7 @@ _Run `2026-11-04_18-10-49` · computed 2026-11-04 18:49 UTC_
 | Return on execution costs (net PnL / (fees + slippage)) | 3.88x | 2.24x |
 | Total fees (Lean) | $7,753 |  |
 
-_Run `2026-11-04_18-10-49` · computed 2026-11-04 18:49 UTC_
+_Run `2026-11-04_18-10-49` · computed 2026-11-07 12:22 UTC_
 <!-- AQ:BTSTATS_SHORTFALL_END -->
 
 ### Return/Risk Efficiency
@@ -586,7 +480,7 @@ _Run `2026-11-04_18-10-49` · computed 2026-11-04 18:49 UTC_
 | Information ratio (Lean) | -0.715 |  |  |
 | Probabilistic Sharpe ratio (P[true Sharpe > 0]) | 98.76% | 90.85% |  |
 | Probabilistic Sharpe ratio (Lean, vs its benchmark) | 21.770% |  |  |
-| Deflated Sharpe ratio | 39.52% | 12.29% | 124 registered trials, expected best Sharpe 1.35 |
+| Deflated Sharpe ratio | 26.45% | 6.40% | 173 registered trials, expected best Sharpe 1.54 |
 | Sortino ratio (Lean) | 0.973 |  |  |
 | Alpha / beta (Lean) | 0.025 / 0.147 |  |  |
 | Annual standard deviation (Lean) | 0.075 |  |  |
@@ -594,22 +488,9 @@ _Run `2026-11-04_18-10-49` · computed 2026-11-04 18:49 UTC_
 | Tracking error (Lean) | 0.146 |  |  |
 | Treynor ratio (Lean) | 0.322 |  |  |
 | Sharpe, Lean formula (shipped rate file/365) | 0.633 |  |  |
-| Sharpe, Lean formula (pre-V6.2 rate file/252) | 0.147 |  |  |
 
-_Run `2026-11-04_18-10-49` · computed 2026-11-04 18:49 UTC_
+_Run `2026-11-04_18-10-49` · computed 2026-11-07 12:22 UTC_
 <!-- AQ:BTSTATS_EFFICIENCY_END -->
-
-### Classification Scores
-
-<!-- AQ:BTSTATS_CLASSIFICATION_START -->
-| Source | Calls | Accuracy | Precision | Recall | F1 | Neg. log-loss |
-|---|---|---|---|---|---|---|
-| Lean book calls (side vs 20-bar forward move) | 0 | n/a | n/a | n/a | n/a | n/a (no book history for this run) |
-| Offline multitask direction_20d (backtest split, threshold 0.5) | 55,038 | 58.22% | 59.07% | 89.52% | 0.712 | -0.698 |
-| Offline sequence direction_20d (backtest split, threshold 0.5) | 55,038 | 56.91% | 59.83% | 76.69% | 0.672 | -0.716 |
-
-_Run `2026-11-04_18-10-49` · computed 2026-11-04 18:49 UTC_
-<!-- AQ:BTSTATS_CLASSIFICATION_END -->
 
 ### Attribution
 
@@ -620,43 +501,28 @@ _Run `2026-11-04_18-10-49` · computed 2026-11-04 18:49 UTC_
 | crypto | +$19,353 | +4.75% | 7.48% | 0.72 | 11.36% | 99.73% | $7,692 |
 | unattributed (Lean minus rebuilt) | -$1 | | | | | | |
 
-_Run `2026-11-04_18-10-49` · computed 2026-11-04 18:49 UTC_
+_Run `2026-11-04_18-10-49` · computed 2026-11-07 12:22 UTC_
 <!-- AQ:BTSTATS_ATTRIBUTION_END -->
 
 ### Robustness
 
 #### Monte Carlo Simulation
 
-_Stationary block bootstrap of daily returns (`aq evaluate --monte-carlo`, `--lean-monte-carlo`): risk as a distribution, not one path. Red line: the average run; faint lines: individual runs._
-
 <!-- AQ:MONTECARLO_START -->
-1000-run stationary-block bootstrap of the offline rank book's daily net returns
-(method=`block`, block=20d, seed=42). The red line marks the
-average of all generated runs; faint lines are individual resampled histories.
-
 ![Monte Carlo equity curves](development/monte_carlo_equity_curves.png)
 
 | Metric | p5 | p50 | p95 |
 |---|---|---|---|
-| Final return | -17.970441% | -7.655138% | 2.610591% |
-| Annualized Sharpe | -2.08273 | -0.841299 | 0.317423 |
-| Max drawdown | 5.035976% | 11.016698% | 19.812691% |
-| P(negative total return): **0.877** |||
-
-_Source: the offline idealized rank book, model `sequence`, head `rank_20d`, split `backtest`, computed 2026-11-03 17:27 UTC (rendered 2026-11-06 19:46 UTC) (a simulation at the configured book cadence, not the engine)._
-
-**The Lean run's own equity curve** (`2026-11-04_18-10-49`, 2023-07-01 .. 2026-11-02, 1222 daily returns, same bootstrap; the run itself returned 33.85%):
-
-| Metric | p5 | p50 | p95 |
-|---|---|---|---|
 | Final return | 4.410409% | 32.631471% | 78.613024% |
-| Annualized Sharpe | 0.180282 | 0.977389 | 1.831282 |
+| Annualized Sharpe | 0.21697 | 1.176288 | 2.203949 |
 | Max drawdown | 5.024% | 7.980479% | 13.315981% |
 | P(negative total return): **0.028** |||
+
+_1000 block-bootstrapped histories (block 20 days, seed 42) of Lean run `2026-11-04_18-10-49`'s 1222 daily returns, 2023-07-01 to 2026-11-02. The run itself returned 33.85%; computed 2026-11-07 11:00 UTC (rendered 2026-11-07 12:22 UTC)._
 <!-- AQ:MONTECARLO_END -->
 
 <details>
-<summary><strong>Full Monte Carlo distribution</strong></summary>
+<summary><strong>Full distribution</strong></summary>
 
 <!-- AQ:MONTECARLO_FULL_STATS_START -->
 Deeper distribution statistics across all Monte Carlo runs:
@@ -665,23 +531,23 @@ Deeper distribution statistics across all Monte Carlo runs:
 
 | p5 | p25 | p50 | p75 | p95 |
 |---|---|---|---|---|
-| -17.970441 | -11.897603 | -7.655138 | -3.176143 | 2.610591 |
+| 4.410409 | 19.770973 | 32.631471 | 47.866705 | 78.613024 |
 
 **Annualized Sharpe**
 
 | p5 | p25 | p50 | p75 | p95 |
 |---|---|---|---|---|
-| -2.08273 | -1.356361 | -0.841299 | -0.328284 | 0.317423 |
+| 0.21697 | 0.77705 | 1.176288 | 1.565803 | 2.203949 |
 
 **Max drawdown (%)**
 
 | p5 | p25 | p50 | p75 | p95 |
 |---|---|---|---|---|
-| 5.035976 | 8.150285 | 11.016698 | 14.363191 | 19.812691 |
+| 5.024 | 6.358014 | 7.980479 | 9.887616 | 13.315981 |
 
-- Best run total return: **11.3778%**
-- Worst run total return: **-27.9267%**
-- Probability of a negative total return: **0.877**
+- Best run total return: **142.5662%**
+- Worst run total return: **-12.8344%**
+- Probability of a negative total return: **0.028**
 - Config: n_runs=1000, method=`block`, block_size=20d, seed=42 (pinned - the section only changes when underlying results change)
 
 The red line in the chart above is the element-wise AVERAGE of all run equity curves; faint blue lines are the individual bootstrap histories.
@@ -689,442 +555,78 @@ The red line in the chart above is the element-wise AVERAGE of all run equity cu
 
 </details>
 
-#### Walk-Forward Training/Testing
+### Research Record
 
-_The full pipeline retrained on expanding/rolling windows, each scored on data its model never saw (`aq train --walk-forward`)._
+Each search used rules written before any score. Details are in [`development/Problems.md`](development/Problems.md).
 
-<!-- AQ:WALKFORWARD_START -->
-| Metric | Mean | 95% CI | Stable? |
-|---|---|---|---|
-| backtest_mcc | 0.0180 | [0.0099, 0.0264] | yes |
-| rank_5d_ic | 0.0224 | [0.0127, 0.0328] | yes |
-| rank_20d_ic | 0.0525 | [0.0192, 0.0828] | yes |
-| residual_rank_20d_ic | 0.0240 | [0.0071, 0.0410] | yes |
-| net_sharpe (per-window) | -0.158 | — | 4/12 windows positive |
-
-12 expanding/rolling windows, run `walk-forward-633816f4-8736-4724-9c4f-b69b3ccc0a61`, computed 2026-10-13 09:53 UTC (rendered 2026-11-06 19:46 UTC) (auto-generated by `aq train --walk-forward`; a retrain refreshes it, a re-render does not).
-<!-- AQ:WALKFORWARD_END -->
-
-<details>
-<summary><strong>Per-window walk-forward results</strong></summary>
-
-<!-- AQ:WALKFORWARD_FULL_STATS_START -->
-| Window | Backtest period | Model | Backtest MCC | Gross Sharpe | Net Sharpe | Net return | Max DD | Turnover |
-|---|---|---|---|---|---|---|---|---|
-| 0 | 2018-11-30 → 2019-11-29 | sequence | 0.0260 | 2.966 | 2.643 | 9.93% | -1.62% | 8.27x |
-| 1 | 2019-05-29 → 2020-05-27 | sequence | 0.0167 | -0.434 | -0.538 | -2.40% | -5.53% | 6.51x |
-| 2 | 2019-11-25 → 2020-11-23 | sequence | 0.0308 | -1.467 | -1.774 | -8.39% | -9.86% | 6.80x |
-| 3 | 2020-05-23 → 2021-05-22 | sequence | 0.0356 | 1.287 | 0.949 | 4.20% | -2.87% | 5.31x |
-| 4 | 2020-11-19 → 2021-11-18 | sequence | 0.0423 | -1.514 | -1.631 | -17.66% | -19.15% | 6.20x |
-| 5 | 2021-05-18 → 2022-05-17 | sequence | 0.0208 | -0.727 | -1.253 | -6.41% | -7.01% | 10.45x |
-| 6 | 2021-11-14 → 2022-11-13 | sequence | 0.0155 | -0.921 | -1.376 | -7.15% | -7.91% | 10.87x |
-| 7 | 2022-05-13 → 2023-05-12 | sequence | 0.0168 | -0.536 | -0.991 | -3.08% | -4.99% | 8.13x |
-| 8 | 2022-11-09 → 2023-11-08 | sequence | -0.0029 | -0.206 | -0.770 | -3.20% | -4.34% | 13.33x |
-| 9 | 2023-05-08 → 2024-05-06 | sequence | -0.0095 | 2.382 | 1.992 | 7.50% | -1.75% | 5.00x |
-| 10 | 2023-11-04 → 2024-11-02 | sequence | 0.0036 | 1.427 | 1.209 | 2.93% | -2.32% | 2.69x |
-| 11 | 2024-05-02 → 2025-05-01 | sequence | 0.0207 | 0.137 | -0.362 | -1.39% | -4.65% | 5.48x |
-
-_Run `walk-forward-633816f4-8736-4724-9c4f-b69b3ccc0a61`, computed 2026-10-13 09:53 UTC._
-<!-- AQ:WALKFORWARD_FULL_STATS_END -->
-
-</details>
-
-### Offline vs Lean
-
-#### Lean vs Offline Books
-
-_Same dates, same Sharpe formula (no risk-free rate); refreshed by `aq evaluate --audit-backtest --period ...` (part of `--lean-report`)._
-
-<!-- AQ:LEANCMP_START -->
-_Not run yet: `aq evaluate --audit-backtest --backtest-dir <run> --period <backtest split> --period <holdout>`._
-<!-- AQ:LEANCMP_END -->
-
-#### Offline Evaluation
-
-_The cost-aware rank-book simulator on the backtest split with the installed models (`aq evaluate --all`)._
-
-<!-- AQ:EVAL_START -->
-| Metric | Multitask | Sequence |
-|---|---|---|
-| Gross Sharpe | -0.144 | -0.621 |
-| Net Sharpe | -0.252 | -0.866 |
-| Net total return | -1.92% | -7.87% |
-| Max drawdown | -9.23% | -10.82% |
-| Annualized turnover | 1.42 | 6.02 |
-| Cost drag (bps/yr) | 37.6 | 110.9 |
-| Capacity (USD) | 8,767,271 | 95,382 |
-
-_Backtest split, full history. Data computed 2026-11-03 17:37 UTC (rendered 2026-11-06 19:46 UTC) (auto-generated by `aq evaluate --all`)._
-<!-- AQ:EVAL_END -->
-
-<details>
-<summary><strong>Full offline evaluation</strong> (capacity sweep, cost stress 1x/2x/3x)</summary>
-
-<!-- AQ:EVAL_FULL_STATS_START -->
-**Multitask model**
-
-| Metric | Value |
-|---|---|
-| gross_sharpe | -0.14356675377928388 |
-| net_sharpe | -0.2515355271052922 |
-| gross_total_return | -0.011546015174196289 |
-| net_total_return | -0.019156272517279138 |
-| net_max_drawdown | -0.09233393502381027 |
-| annualized_turnover | 1.4155267423271503 |
-| cost_drag_annual_bps | 37.56021531233132 |
-| num_rebalances | 26 |
-| num_dates_used | 519 |
-| mean_names_long | 6.0 |
-| mean_names_short | 6.0 |
-
-
-Capacity: $8,767,271 (binding: XLMUSD)
-
-| top_n | Net Sharpe |
-|---|---|
-| 3 | -0.3046 |
-| 6 | -0.2515 |
-| 10 | -0.0205 |
-| 15 | -0.3541 |
-
-
-| Cost multiplier | Gross Sharpe | Net Sharpe | Cost drag (bps/yr) |
-|---|---|---|---|
-| 1.0x | -0.1436 | -0.2515 | 37.6 |
-| 2.0x | -0.1436 | -0.3595 | 75.1 |
-| 3.0x | -0.1436 | -0.4668 | 112.7 |
-
-**Sequence model**
-
-| Metric | Value |
-|---|---|
-| gross_sharpe | -0.6207836980703023 |
-| net_sharpe | -0.8656909315468927 |
-| gross_total_return | -0.0574197934709858 |
-| net_total_return | -0.07872452636541272 |
-| net_max_drawdown | -0.10823514139989221 |
-| annualized_turnover | 6.024809201357557 |
-| cost_drag_annual_bps | 110.90954473551697 |
-| num_rebalances | 26 |
-| num_dates_used | 519 |
-| mean_names_long | 6.0 |
-| mean_names_short | 6.0 |
-
-
-Capacity: $95,382 (binding: AAA)
-
-| top_n | Net Sharpe |
-|---|---|
-| 3 | -1.0427 |
-| 6 | -0.8657 |
-| 10 | 0.2151 |
-| 15 | 0.0128 |
-
-
-| Cost multiplier | Gross Sharpe | Net Sharpe | Cost drag (bps/yr) |
-|---|---|---|---|
-| 1.0x | -0.6208 | -0.8657 | 110.9 |
-| 2.0x | -0.6208 | -1.1023 | 221.8 |
-| 3.0x | -0.6208 | -1.3270 | 332.7 |
-<!-- AQ:EVAL_FULL_STATS_END -->
-
-</details>
-
-#### As-Live Book
-
-_The offline book run through `main.py`'s own decision functions (`aq evaluate --rank-book --as-live --split validation|backtest`)._
-
-<!-- AQ:ASLIVE_START -->
-The offline book run through the same decision functions as `main.py` (blended head, rank groups, spread / rolling-IC gates, kill switch, hysteresis, class sleeves and caps, one-bar lag). Sharpe subtracts no risk-free rate, and a split with few engaged rebalances is a thin estimate.
-
-| Split | Idealized Sharpe | **As-live Sharpe** | As-live net return | Max drawdown | Rebalances (vetoed) | With impact model |
-|---|---|---|---|---|---|---|
-| validation | +1.070 | **-1.056** | -4.60% | -6.37% | 148 (134) | -1.098 |
-| backtest | -0.866 | **+0.937** | +10.50% | -5.40% | 52 (27) | +0.903 |
-<!-- AQ:ASLIVE_END -->
-
-#### Benchmark Comparison
-
-_Naive baselines and public benchmarks on the same window and Sharpe formula as the rank book (`aq evaluate --benchmarks`)._
-
-<!-- AQ:BENCHMARK_START -->
-| Strategy | Net Sharpe | Total return | Note |
-|---|---|---|---|
-| **Rank book (sequence)** | -0.866 | -7.87% | the strategy being benchmarked |
-| **Rank book (multitask)** | -0.252 | -1.92% | the strategy being benchmarked |
-| momentum | 0.175 | -1.95% | naive strategy baseline |
-| mean_reversion | -0.119 | -26.83% | naive strategy baseline |
-| random_entry | -0.217 | -8.48% | naive strategy baseline |
-| sp500 | 0.882 | 23.52% | public benchmark |
-| 60_40 | 0.895 | 18.06% | public benchmark |
-
-_Same dataset window/split (`backtest`) as the rank-book simulation above; Sharpe formula identical across every row. Data computed 2026-11-03 17:28 UTC (rendered 2026-11-06 19:46 UTC) (auto-generated by `aq evaluate --benchmarks`)._
-<!-- AQ:BENCHMARK_END -->
-
-#### Cross-Checks
-
-_Lean against the offline estimates, the live book against an offline re-derivation, and the kill-switch replay. Every decision `main.py` shares with the simulator is one pure function ([parity contract](development/architecture.md#offlinelive-parity-contract-v550)); the offline Sharpe of a rank book is mostly market exposure (`aq evaluate --factor-exposure`)._
-
-<!-- AQ:OTHER_METRICS_START -->
-**Sharpe: real Lean backtest vs. offline estimates** — offline numbers are consistently more optimistic than the real backtest; treat the gap itself as the headline number, not either side alone.
-
-| Source | Sharpe |
-|---|---|
-| Real Lean backtest (2023-07-01 to 2026-11-02) | 0.633 |
-| Offline evaluation — sequence model (full backtest split) | -0.866 |
-| Offline evaluation — multitask model (full backtest split) | -0.252 |
-| Walk-forward mean (out-of-sample, per-window) | -0.158 |
-| Gap: sequence offline − real Lean | -1.499 |
-| Gap: walk-forward − real Lean | -0.791 |
-
-**Book-history reconciliation** (real Lean selections vs. a fresh offline re-derivation of the same dates)
-
-| Metric | Value |
-|---|---|
-| Dates reconciled | 431 |
-| Exact matches | 8 |
-| Mean overlap fraction | 80.25% |
-| Mean raw-score delta | 0.0067 |
-| Replay mode | replay_hysteresis |
-
-Book-member decision outcomes (1140 total, real Lean run):
-
-| Action | Count | Share |
-|---|---|---|
-| trade | 389 | 34.1% |
-| simulate | 383 | 33.6% |
-| reduce_risk | 358 | 31.4% |
-| observe | 10 | 0.9% |
-
-**Kill-switch: real trips vs. offline replay estimate**
-
-| Source | Trips | Locked days |
-|---|---|---|
-| Real Lean backtest (2023-07-01 to 2026-11-02) | _not measurable from a standalone backtest (see Disclaimer)_ | — |
-| Offline replay (approximation, see Disclaimer) | 224 | 87.7% |
-
-_Data computed 2026-11-03 17:44 UTC (rendered 2026-11-06 19:46 UTC) (auto-generated by `aq evaluate`)._
-<!-- AQ:OTHER_METRICS_END -->
-
-### Research and Audit
-
-_Pre-registered rules and audits, each refreshed by the command that produces it (`aq evaluate --ic-by-class | --audit-gates | --audit-heads | --audit-features`, `scripts/*_research.py`, `scripts/holdout_report.py`)._
-
-<!-- AQ:RESEARCH_START -->
-**Sleeves and overlays** (rule R-SLEEVE: ship at the researched budget when the variant is net-positive on both splits and costs the combined book <= 0.05 Sharpe; otherwise ship at the minimum cap with a loss guard). The Sharpe columns belong to the named variant (for a minimum-cap area the best-effort one, not the shipped cap); RL rows show the Sharpe gain over the same book without RL. A Lean run can overrule the offline branch (`lean_decision_overrides.json`); the row then names both.
-
-| Area | Rule branch | Shipped setting | Validation Sharpe | Backtest Sharpe | Book Sharpe cost |
-|---|---|---|---|---|---|
-| Forex sleeve | R-FX6: drop | off (`forex_risk.enabled` false; forex stays a feature class) | +0.449 | -0.175 | n/a |
-| Bond sleeve | lean_override_minimum_cap (offline: edge_pass) | gross 0.10 (minimum cap, ts_momentum k=2) after BT1: -$540 gross over 17 trades, the second Lean run in which bonds lost (Problems #164, #172) | +0.351 | +0.190 | -0.034 |
-| Crypto graduates and fees | R-CRYPTO: C5 | per-name 0.005, class gross 0.025; limit exits for crypto | -0.736 | -0.363 | n/a |
-| RL sizing | trade_anyway_minimum_range | range [0.9, 1.1] + shadow guard | +0.000 (gain) | +0.000 (gain) | n/a |
-| Learned topology | keep_on | learned topology ON (shrink-only 0.5..1.0) | +0.076 (ON mid vs OFF) | -0.297 (ON mid vs OFF) | n/a |
-
-**Offline simulator against Lean** — Rule R-CAL3 (daily correlation >= 0.50, annual return gap <= 2%, rebalance-decision agreement >= 80% on every window): **branch B** (not calibrated).
-
-| Window | Daily correlation | Return gap (annual) | Decision agreement | Verdict |
+| Search | Trials | Survivors | Nearest result | Entry |
 |---|---|---|---|---|
-| v62bt2_backtest | 0.79 | +1.3% | 78% | fail |
-| v62bt2_holdout | 0.70 | -3.0% | 94% | fail |
-
-**V6.1.0 rule chain** (each variant is one change, scored on every rebalance phase of both splits; the holdout is never used to select)
-
-| Stage | Adopted | Backtest-Sharpe gain per variant (median over rebalance phases) |
-|---|---|---|
-| model | none (incumbent stays) | ctl skipped (IC clauses failed), v9_reg skipped (IC clauses failed), v10_rolling skipped (IC clauses failed), v11_snr20 skipped (IC clauses failed) |
-| head | none (incumbent stays) | H2 -0.036, H1 -0.496 |
-| book | none (incumbent stays) | K1 +0.099, K2 -0.333, K3 -0.305 |
-| costs | none (incumbent stays) | N1 -0.001, N2 -0.001 |
-| legacy | none (incumbent stays) | L1 -0.028, L2 +0.147, L3 +0.007 |
-| gate | skipped | R-CAL2 branch B: the gates stay frozen as safety controls |
-
-**V6.2.0 rule chain** (pre-registered, the T-bill sweep off in every score so alpha is judged ex-carry)
-
-| Rule | Adopted | Median-Sharpe change per variant (every rebalance phase) |
-|---|---|---|
-| R-DEDUPE (crypto counted once in the gate) | none (double count stays) | once: backtest -0.090, validation +0.575 (gated) |
-| R-STAGGER (tranche book) | none (one book stays) | S2: backtest +0.516, validation +0.259 (fails validation_phase_range_cut_ge_25pct); S4: backtest +0.552, validation -0.182 (fails validation_not_worse_than_0.02, beats_base_median_on_60pct_of_phases, positive_median_on_both_splits, validation_phase_range_cut_ge_25pct) |
-| R-MODEL10 (regularised ensembles) | none (installed models stay) | 5 candidates fail the IC clauses (yardstick: resampled control ensembles) |
-
-**V6.3.0 rule chain** (pre-registered; the kill switch scored on the ungated book with its lock path perturbed by 0.5 bp noise; T-bill sweep off)
-
-| Rule | Adopted | Median-Sharpe change per variant (every rebalance phase) |
-|---|---|---|
-| R-KILL (kill-switch window / release band; KS0 lock stability 0.94) | branch C: none (KS0 stays) | KS1: backtest +0.237, validation +0.117, lock stability 0.97 (fails locks_ge_half_of_ks0_on_both_splits); KS2: backtest -0.063, validation +0.033, lock stability 0.99 (fails backtest_gain_ge_0.10, beats_base_median_on_60pct_of_phases); KS3: backtest +0.237, validation +0.093, lock stability 1.00 (fails locks_ge_half_of_ks0_on_both_splits) |
-| R-STAGGER2 (S2, second look) | none (one book stays) | backtest +0.516, validation +0.259 (fails validation_iqr_widening_le_25pct) |
-| R-GATE3 (rolling-IC floor / window) | skipped | R-CAL3 branch B: the gates stay frozen as safety controls |
-
-**V6.4.0 rule chain** (pre-registered in `scripts/v640_research.py` before any score; as-live unless a lead says ungated; the holdout is read only where a lead's bar names it)
-
-| Lead | Adopted | Median-Sharpe change per variant (every rebalance phase) |
-|---|---|---|
-| R-DEDUPE2 (crypto counted once in the gate; validation + backtest + holdout span) | none (twice stays) | backtest -0.104, validation +0.575 (fails backtest_gain_ge_0.10, beats_base_median_on_60pct_of_phases) |
-| L2 direction overlay (calibrated on validation) | none (direction = diagnostic only) | C1: backtest -0.370, validation +0.279 (fails backtest_gain_ge_0.10, beats_base_median_on_60pct_of_phases); C2: backtest -0.272, validation -0.174 (fails backtest_gain_ge_0.10, validation_not_worse_than_0.02, beats_base_median_on_60pct_of_phases); C3: backtest +0.000, validation +0.000 (fails backtest_gain_ge_0.10, beats_base_median_on_60pct_of_phases) |
-| L3a legacy budget | none (0.05 / 0.02 stays) | LG-off: backtest +0.013, validation +0.169 (fails backtest_gain_ge_0.10, beats_base_median_on_60pct_of_phases); LG-half: backtest -0.045, validation +0.078 (fails backtest_gain_ge_0.10, beats_base_median_on_60pct_of_phases); LG-double: backtest -0.175, validation -0.011 (fails backtest_gain_ge_0.10, beats_base_median_on_60pct_of_phases, validation_improves, legacy_component_positive_on_both_splits) |
-| L3b legacy as a model input (yardstick 0.034) | none (models unchanged) | the IC clauses failed, so no candidate directory was built |
-| L4 within-class ranks | none (pooled equity + crypto ranks stay) | W1: backtest -0.309, validation +0.873 (fails backtest_gain_ge_0.10, beats_base_median_on_60pct_of_phases, whole_book_non_inferior, engaged_equity_ic_up_on_both_splits, equity_sharpe_up_on_both_splits, holdout_loss_le_0.10); W2: backtest -0.538, validation +0.282 (fails backtest_gain_ge_0.10, beats_base_median_on_60pct_of_phases, whole_book_non_inferior, engaged_equity_ic_up_on_both_splits, equity_sharpe_up_on_both_splits, holdout_loss_le_0.10); W3: backtest -0.585, validation +0.213 (fails backtest_gain_ge_0.10, beats_base_median_on_60pct_of_phases, whole_book_non_inferior, engaged_equity_ic_up_on_both_splits, equity_sharpe_up_on_both_splits, holdout_loss_le_0.10) |
-| L5 rebalance / hold grid | R10/H20 | R10/H20: backtest +0.168, validation +0.596; R10/H40: backtest -0.298, validation +0.551 (fails backtest_gain_ge_0.10, beats_base_median_on_60pct_of_phases, median_not_below_base_on_both_splits, p25_not_below_base_on_both_splits); R10/H60: backtest +0.124, validation +0.096 (fails beats_base_median_on_60pct_of_phases); R20/H20: backtest +0.069, validation +0.180 (fails backtest_gain_ge_0.10); R20/H60: backtest -0.040, validation -0.207 (fails backtest_gain_ge_0.10, validation_not_worse_than_0.02, beats_base_median_on_60pct_of_phases, median_not_below_base_on_both_splits, p25_not_below_base_on_both_splits); R40/H20: backtest -0.230, validation -0.176 (fails backtest_gain_ge_0.10, validation_not_worse_than_0.02, beats_base_median_on_60pct_of_phases, median_not_below_base_on_both_splits, p25_not_below_base_on_both_splits); R40/H40: backtest -0.246, validation -0.384 (fails backtest_gain_ge_0.10, validation_not_worse_than_0.02, beats_base_median_on_60pct_of_phases, median_not_below_base_on_both_splits, p25_not_below_base_on_both_splits); R40/H60: backtest -0.425, validation -0.335 (fails backtest_gain_ge_0.10, validation_not_worse_than_0.02, beats_base_median_on_60pct_of_phases, median_not_below_base_on_both_splits, p25_not_below_base_on_both_splits) |
-| L8 expert ablation (legacy signal) | none disabled | no contribution on both splits: none; non-inferior: False |
-| L9 crypto graduates against core only | core only | graduates beat core-only: {'validation': True, 'backtest': False} |
-| L10 residual head blend | none (rank_20d / rank_5d stay) | R1: backtest -0.119, validation -0.421 (fails backtest_gain_ge_0.10, validation_not_worse_than_0.02, beats_base_median_on_60pct_of_phases, drawdown_within_1pp, verdict_as_live_passes); R2: backtest -0.315, validation -0.273 (fails backtest_gain_ge_0.10, validation_not_worse_than_0.02, beats_base_median_on_60pct_of_phases, verdict_as_live_passes); R3: backtest +0.024, validation -0.322 (fails backtest_gain_ge_0.10, validation_not_worse_than_0.02, beats_base_median_on_60pct_of_phases, drawdown_within_1pp, verdict_as_live_passes) |
-| R-LEAN13 (Lean confirm of the adopted L5 + L9 changes, run 2026-10-22_12-41-40 against 2026-10-22_10-56-13) | reverted | strategy Sharpe -1.12 against 0.35, max drawdown 5.20% against 4.33% (fails strategy_sharpe_within_0.10) |
-| R-LEAN14 BT7 (rebalance_every_bars 20 -> 10, max_holding_bars 40 -> 20 alone, run 2026-10-24_05-28-07 against 2026-10-22_10-56-13) | none (config unchanged) | strategy Sharpe -0.44 against 0.35, max drawdown 3.48% against 4.33% (fails strategy_sharpe_above_by_0.10) |
-| R-LEAN14 BT8 (class_weight_caps.crypto.core_only true alone, run 2026-10-24_18-50-22 against 2026-10-22_10-56-13) | none (config unchanged) | strategy Sharpe 0.46 against 0.35, max drawdown 6.00% against 4.33% (fails max_drawdown_within_1pp) |
-
-**L1: does the rank skill sit on the days the gate lets the book trade?**
-
-| Split | Dates engaged / vetoed | IC all | IC engaged | IC margin | Sharpe margin (median over phases) |
-|---|---|---|---|---|---|
-| validation | 227 / 134 | +0.006 | -0.003 | -0.009 | +0.009 |
-| backtest | 437 / 63 | +0.093 | +0.088 | -0.005 | +0.031 |
-| holdout (report only) | 175 / 132 | -0.004 | -0.034 | -0.031 | -1.169 |
-
-Bar (+0.02 IC and +0.15 Sharpe on both splits): **the gate hides weakness, not protects capital**.
-
-**L2: calibration of the direction heads** (fitted on validation only)
-
-| Head (direction_20d) | Validation ECE | Log-loss raw -> cross-fitted best | Backtest log-loss raw -> calibrated | Backtest balanced accuracy |
-|---|---|---|---|---|
-| multitask | 0.2088 | 0.8074 -> 0.7056 (temperature) | 0.6993 -> 0.6907 | 0.528 |
-| sequence (used) | 0.1702 | 0.7715 -> 0.6939 (temperature) | 0.7264 -> 0.6905 | 0.536 |
-
-**Where the rank edge sits** (pooled vs between-class vs within-class IC against the 20-day return)
-
-| Split | Pooled rank_20d IC | Between-class IC | Within-class IC (HAC t) |
-|---|---|---|---|
-| validation | +0.022 (t 0.64) | -0.033 | bond -0.042 (t -0.58), crypto +0.057 (t 1.18), equity +0.033 (t 1.12), forex +0.026 (t 0.30) |
-| backtest | +0.057 (t 2.35) | +0.032 | bond +0.084 (t 1.39), crypto +0.070 (t 1.65), equity +0.069 (t 1.89), forex -0.016 (t -0.24) |
-
-**Rolling-IC gate audit** (a false veto is a vetoed date whose realised book return was positive)
-
-| Split | Rebalance dates | Vetoed | False vetoes (of vetoes) | Forward IC on vetoed dates | Forward IC overall |
-|---|---|---|---|---|---|
-| validation | 355 | 45% | 56% | +0.039 | +0.004 |
-| backtest | 500 | 13% | 80% | +0.114 | +0.094 |
-
-**Head promotability** — **18/27** components pass their own gate; failing and read by the live path: `multitask.rank_5d`, `multitask.rank_20d`, `sequence.rank_5d`, `sequence.rank_20d`, `rl_sizing`.
-
-**Holdout (looked at once)** — Window 2025-07-01 .. 2026-11-01, 104 tickers: as-live Sharpe **+0.453** (+3.33%, drawdown -9.39%, 94/108 rebalances vetoed), idealized -0.303.
-<!-- AQ:RESEARCH_END -->
-
-**V6.4.3 research** (no retrain; rules written before any score, `ml/evaluation/v643/`, Problems #246-#249):
-
-- **R-MODEL11 (17 trials: five factors and a composite, ridge and gradient-boosting probes, blends with the installed score, a regime mix, the sector-neutral head as the live signal): nothing qualifies.** The grid's probability of backtest overfitting is **0.66** (CSCV, 12,870 splits; out-of-sample Sharpe falls 0.64 per unit of in-sample Sharpe): every candidate that beats the installed book as-live on one split loses on the other (the sector-neutral head: backtest +1.07 against +0.90, validation -0.76 against -0.51). The holdout was not read and no Lean run was spent.
-- **What the installed model knows:** its validation rank IC (0.004) is below an asset-identity prior (0.021) and an asset-class prior (0.066); the rank_20d heads keep none of their train IC (0.33-0.37 -> about 0), the sector-neutral heads 27-30% (`aq evaluate --overfit-report`, `--audit-leakage`). The whole-history beta in the residual and beta-neutral labels inflated their backtest IC by 0.007 / 0.022 (as-of labels: `features/asof_beta_labels.py`).
-- **Simulator against Lean (R-CAL4):** the calibrated simulator tracks BT5 / BT7 / BT8 at a daily correlation of 0.61 / 0.44 / 0.58 (branch B); the rebalance phase is the largest single gain (+0.10 to +0.23), the live-gate replicas lower it on every run, and dropping them gains +0.02 / +0.16 / +0.03 but misses the rule's +0.05 on BT5, the run it was chosen on, so no simulator option is adopted; replaying live's own gate decisions reaches 0.71-0.74 (`aq evaluate --calibrate-sim-lean`).
-
-**V6.4.4 research** (a retrain, a new alpha source and a proof of alpha; rules written before any score, `ml/evaluation/v644/`, Problems #258-#265):
-
-- **R-MODEL12 (a retrain on as-of labels: today's recipe, the sector-neutral head as the target, cross-sectionally ranked inputs, both, regularised, ListNet, append mode; seed 1 first): nothing qualifies.** No candidate reaches the identity / class priors; the best validation IC is 0.079 (ranked inputs, sector-neutral target, regularised), and every candidate's backtest as-live Sharpe is below the installed book's (+0.90). Grid PBO 0.37; the holdout was not read.
-- **The priors were mostly an artifact (#259):** percentile ranks in groups of different size have different means (bond 0.5227, forex 0.5333), so a pooled IC rewards knowing a name's group. On group-centred labels the sector-neutral priors fall to ~0 and the **installed** sector-neutral head beats them (0.026); **R-MODEL13** (the same grid judged on centred labels, written before any centred score) still finds nothing: the candidates' centred validation IC (best 0.033) stays below the installed model's + 0.034.
-- **R-TREND1 (a directional time-series-momentum sleeve on SPY, QQQ, IWM, EEM, TLT, IEF, USO at 3% target volatility): fails.** The 126-session sign wins on 2014-2023 (net Sharpe +0.40) but every variant loses on the 2023-07..2025-06 backtest (-0.33 to -0.61); the sleeve stays off.
-- **R-CAL5:** the research-default simulator tracks BT5 at a daily correlation of 0.73; re-deriving the live-gate replicas from the engine's fills found no option that helps (branch B).
-- **Lean (BT10 / BT11, 2023-07-01..2026-11-02):** BT10, the shipped book on the new data, repeats BT5 order for order through 2026-10-16; **BT11 re-applies the sector cap after the dollar-neutral step and passes R-LEAN16** (strategy Sharpe +0.268 against +0.263, drawdown 4.98% against 4.98%), so it ships and the README is pinned to it.
-- **Proof of alpha (`aq evaluate --alpha-proof`, R-ALPHA1): not demonstrated.** On the pinned run the strategy's alpha against SPY / AGG / BTC is +0.37%/yr (Newey-West t 0.13), its Sharpe +0.72 with a 95% interval of -0.46..+1.90, the deflated Sharpe 12.8% over 128 trials. By split: Sharpe 1.15 and alpha -0.7%/yr (t -0.18) in 2023-07..2025-06, Sharpe 0.06 and alpha +2.4%/yr (t 0.64) in 2025-07..2026-11, neither significant. Pre-2013 data cannot test this sleeve, because crypto had no bars; it tested multi-asset trend alone, which made Sharpe 0.33 on 2004-06..2012-12 (alpha t 0.83), with 6 of 20 placebos doing as well. V6.5.0's data ends on 2026-11-02, so later sessions are the forward test (RUNBOOK "Forward check").
+| Candidate pool, strict bar | 38 selection trials | 0; overfitting probability 0.53 ended verification | The installed sleeve, Lean Sharpe 0.63, by fallback rule R-LEAN19 | #279 |
+| Round 1: fundamentals, insiders, short volume, funding, point-in-time retrain, wide crypto | 28 | 0 | The sleeve itself scored -0.06 on unread coins | #300, #301 |
+| Round 2 | 8 | 0 | Sharpe 0.57 | #310 |
+| Round 3: pooled books, composites, published signs, quarterly accruals | 10 | 0 | Sharpe 0.58, second half 0.29 | #315 |
 
 ### Disclaimer
 
-- **The Lean backtest is the only ground truth here**; every offline number is an approximate reconstruction, read as better/worse than last time, not as a forecast (offline Sharpe has run 2-6 points above Lean, `development/Problems.md` #90-#95).
-- **Walk-forward windows train on less data** than the installed models, so they are conservative by design.
-- **The kill-switch replay over-estimates** lock-outs (cheapest triggers only, no bypass flags); real trips are not countable from a standalone backtest (the trip event goes to Redis only).
-- **Book-history reconciliation** compares live's path-dependent book with a fresh re-derivation: low overlap means divergence, not necessarily an error.
-- **Capacity is theoretical** (a participation cap on historical volume), never validated against real fills at size.
+- **Only the Lean backtest counts as ground truth.** Offline numbers are estimates.
+- **Capacity is theoretical.** It is a participation cap on historical volume, never tested against real fills at size.
+- **A backtest is not a forecast.** The record since the data freeze is the real test: `aq cycle status`, [`forward/` on the `forward-ledger` branch](https://github.com/leon1706-lol/Aether-quant/tree/forward-ledger/forward).
 
 ## Test Suite
 
-<!-- AQ:TEST_COUNT_START -->4785<!-- AQ:TEST_COUNT_END --> tests, one file per source module, run via:
-
-```powershell
-aq test
-```
-
-which, like the backtest chart above, automatically keeps the badge at
-the top of this README in sync with the real pass count every time you run
-it. See [`tests/README.md`](tests/README.md) for the suite's conventions.
+<!-- AQ:TEST_COUNT_START -->4816<!-- AQ:TEST_COUNT_END --> tests, one file per source module. `aq test` runs them and refreshes the badge above. Conventions: [`tests/README.md`](tests/README.md).
 
 ## CLI Reference
 
-Get the `aq` command from PyPI (`pip install aether-quant`, see
-[Download](#download)) or, for local development, straight from source
-(`pip install -e .`). Either way, `aq --help` gives the full command list.
-Every command except `aq trade-lock` and `aq fetch` is a thin `subprocess`
-wrapper around a command already documented elsewhere in this README:
+`aq --help` lists <!--fact:aq.commands-->28<!--/fact--> commands, and `aq <command> --help` gives every flag. Dry run is the default wherever a command writes data or config.
 
 #### `aq train`
 ```text
-aq train [--dataset-only|--init-only|--experts-only|--gating-only|--multitask-only|--sequence-only|--topology-only|--strategy-selector-only|--rl-sizing-only|--walk-forward] [--step-days N] [--mode rolling|expanding] [--resume-run-id ID] [--seed N] [--ranking-objective mse|soft_spearman|listnet]
+aq train [--dataset-only|--init-only|--experts-only|--gating-only|--multitask-only|--sequence-only|--topology-only|--strategy-selector-only|--rl-sizing-only]
+aq train --walk-forward [--step-days N] [--mode rolling|expanding] [--include-multitask] [--include-sequence] [--metrics M] [--resume-run-id ID]
+aq train [--seed N] [--ranking-objective mse|soft_spearman|listnet]
 ```
-**Builds the dataset and trains the models** (`train.py`). With no flags,
-trains everything (baseline + experts + gating + multitask + sequence) and
-installs it into the active `ml/` folder.
+Builds the dataset and trains the models into `ml/`.
 
-Scope flags (each trains just one piece, installs straight into `ml/`):
-- `--dataset-only` / `--init-only`: (re)build the dataset / refresh the data inventory, no training.
-- `--experts-only`: the 4 expert models (see `moe/README.md`).
-- `--gating-only`: the learned gating blend (`train_gating.py`, `moe/README.md`).
-- `--multitask-only`: the joint direction/magnitude/volatility + rank model (`train_multitask.py`, `risk/README.md`).
-- `--sequence-only`: the causal-TCN sequence encoder (`train_sequence.py`, `inference/README.md`).
-- `--topology-only`: the learned topology overlay (`train_topology.py`, `topology/README.md`). Different data source from every other flag here — fits over realized trading outcomes pulled from Postgres, needs `phase_v2.topology_learning.training.min_training_events` (default 500) accumulated events, and correctly no-ops ("skipped, active `ml/` left unchanged") rather than training on too little data.
-- `--strategy-selector-only`: the options multi-leg strategy-selector model (`train_strategy_selector.py`, V4.7) — needs real option outcome events from Postgres, so it no-ops until options actually trade (see Known Limitations).
-- `--rl-sizing-only`: the offline contextual-bandit sizing overlay (`train_rl_sizing.py`, default off at runtime) — reads `ml/datasets/*.csv` + a completed multitask model, not Postgres.
-
-Walk-forward (diagnostic, **never** touches active `ml/`):
-- `--walk-forward`: runs the whole pipeline once per rolling/expanding window instead of on the fixed `phase1.windows`; each window writes to `ml/versions/<run-id>/window_<i>/`. Trains multitask/sequence per window too by default (`phase_v2.retraining.walk_forward.train_multitask`/`train_sequence`, both `true`) — `--include-multitask`/`--include-sequence` only matter if you've turned either off in `config.json` and want it back on for one run; `--metrics` picks which dotted metric paths get tracked across windows.
-- `--step-days N` / `--mode rolling|expanding`: override `phase_v2.retraining.walk_forward`'s defaults. See `retraining/README.md`.
-- `--resume-run-id ID`: continue an interrupted `--walk-forward` run; windows whose `window_result.json` exists are loaded instead of retrained (a Codespace reboot then costs only the window in flight).
-- `--seed N` / `--ranking-objective mse|soft_spearman|listnet`: one-run overrides for `--multitask-only`/`--sequence-only`, for seed-ensembling or A/B-testing the ranking loss without editing `config.json` (default: `soft_spearman`, confirmed to beat MSE in a controlled comparison).
+- **No flag:** trains everything.
+- **`--*-only`:** one piece. `--topology-only` and `--strategy-selector-only` need outcome events in Postgres and skip cleanly without them.
+- **`--walk-forward`:** one diagnostic run per window, never touches the active models.
 
 #### `aq test`
 ```text
-aq test [--lean|--full] [--parallel] [--ruff] [--cli] [--risk] [--portfolio] [--features]
-        [--data-pipeline] [--webui] [--ml] [--retraining] [--notifications]
-        [--storage] [--live] [--audit] [--evaluation] [--formal] [--meta]
+aq test [--ruff] [--parallel] [--lean|--full]
+aq test [--cli] [--risk] [--portfolio] [--features] [--data-pipeline] [--webui] [--ml] [--retraining] [--notifications] [--storage] [--live] [--audit] [--evaluation] [--formal] [--meta]
 ```
-**Runs the pytest suite** and refreshes this README's test badge (only on a
-full, unfiltered run, a filtered run's count is a subset, never written to
-the badge).
+Runs pytest and refreshes the badge on a full run.
 
-- `--ruff`: (V5.3.10) run `ruff check .` **before** pytest — a lint failure fails fast without paying the full suite's wall-clock. Mirrors CI's python-lint job (single source of truth in `aq_cli.py::cmd_test`).
-- `--lean` / `--full`: also run the real `lean backtest .` integration test (`tests/test_lean_backtest_ml_coverage.py`, over an hour). Excluded by default since its own `skipif` only checks whether Lean is *installed* (it always is here), so it would otherwise run every time.
-- `--parallel`: run via `pytest-xdist` (`-n auto`). Off by default: multiple workers each importing PyTorch is a real OOM risk on low-memory machines.
-- Subsystem filters, `--cli`, `--risk`, `--portfolio`, `--features`, `--data-pipeline`, `--webui`, `--ml`, `--retraining`, `--notifications`, `--storage`, `--live`, `--audit`, `--evaluation`, `--formal` (V6.4.3: the Lean 4 differential cases and the proof findings), `--meta` (V5.5.0: repo-level guards - CI workflow shape, packaging lists, docs links, CI helper scripts) restrict the run to just those test files (combinable). `aq test --help` lists the exact file mapping.
+- **`--ruff`:** lint first and fail fast.
+- **`--parallel`:** xdist. Don't use it on a low-memory machine, because each worker imports torch.
+- **`--lean`, `--full`:** add the real Lean integration test, over an hour.
+- **Subsystem flags:** run only those test files; they combine.
 
 #### `aq backtest`
 ```text
 aq backtest [--image IMAGE]
 ```
-**Runs `lean backtest .`** and refreshes this README's [Backtest Statistics](#backtest-statistics) section from the real Lean output. Requires Docker Desktop running.
+Runs `lean backtest .` and refreshes [Backtest Statistics](#backtest-statistics). Needs Docker.
 
-- **Default:** `aq` builds `aether-quant-lean:17900` once from the pinned `quantconnect/lean:17900` base and installs the Redis runtime dependency inside that image. This avoids Lean CLI's Windows temporary-`requirements.txt` bind mount.
-- `--image IMAGE`: deliberately use another engine image. The default is the local project image, not the mutable `:latest` tag.
+- **`--image`:** use another engine image instead of the pinned local build.
 
 #### `aq profile`
 ```text
 aq profile [--iterations N] [--sort cumulative] [--batched] [--symbols-per-bar N] [--parallel] [--pool-workers N] [--no-gc] [--bucket-report]
-aq profile [--iterations N] [--sort cumulative] [--regime] [--topology] [--topology-cached] [--learned-topology] [--liquidity] [--gating] [--analyzer] [--indicators] [--options]
+aq profile [--regime] [--topology] [--topology-cached] [--learned-topology] [--liquidity] [--gating] [--analyzer] [--indicators] [--options]
 ```
-**Profiles the per-bar hot path** without needing a real backtest (which
-takes over an hour), reports a `pstats` breakdown plus wall-clock
-tail-latency percentiles (p50/p95/p99/max).
+Profiles the per-bar hot path without a backtest: a `pstats` breakdown plus p50/p95/p99 latency.
 
-- **Default (no subsystem flag)**: profiles the inference path (`inference/exported_model.py`) against real exported weights, writing to `scripts/profile_inference_output.txt`. Add `--batched` to profile the optimized production path (precomputed weight/stack caches, plus the sequence-encoder symbol-batching comparison, V4.9) instead of a per-expert loop. `--symbols-per-bar N` (default 74) controls the batching group size for both `--batched`'s sequence comparison and `--parallel` below. `--parallel` (V4.9) runs a real `ProcessPoolExecutor` benchmark of `inference/parallel_inference.py`'s `run_symbol_inference()` against a sequential baseline, answering that module's own never-measured IPC/pickling break-even question (`--pool-workers N`, default 4).
-- **Subsystem flags**: `--regime`, `--topology`, `--learned-topology`, `--liquidity`, `--gating`, `--analyzer`, `--indicators`, `--options` (V4.9 — `risk/asset_class_router.py::route_multi_leg_option_sizing()` end-to-end) profile the per-bar subsystems inference profiling never covered (combinable, e.g. `--regime --gating`). Writes to `scripts/profile_subsystems_output.txt`. `--topology-cached` profiles `build_market_topology()`'s correlation-stability embedding cache (`phase_v2.topology.cache_enabled`, Problems.md #36) specifically — needs slowly-drifting synthetic data, since `--topology`'s independent-per-iteration random returns can never show the cache's benefit.
-- `--iterations N`: default 10000 for inference, 200 for subsystems (`build_market_topology()` alone costs ~500-600ms/call, so 10k iterations would take over an hour). `--batched`/`--parallel` with a subsystem flag is rejected — batching/pooling is meaningless for those pure functions.
-
-Why this exists: it found `build_market_topology()`'s per-bar cost rivaling
-the *entire* inference step, and drove a combined −89.2% reduction (weight
-caching, `_conv1d_causal` vectorization, expert-loop batching). See
-`development/Problems.md` #36. `_build_model_input()` itself isn't directly
-profiled (it reads `self.*` state, not cleanly synthesizable); `--indicators`
-covers its pure primitives instead.
+- **No subsystem flag:** the inference path. `--batched` profiles the production path, `--parallel` benchmarks a process pool.
+- **Subsystem flags:** those pure functions; they combine.
 
 #### `aq report`
 ```text
 aq report <backtest-folder> <result-id>
 ```
-Generates Lean's own HTML backtest report (trade blotter, standard Lean
-charts) at `backtests/<backtest-folder>/report.html`.
+Writes Lean's own HTML report to `backtests/<backtest-folder>/report.html`.
 
 #### `aq cycle`
 ```text
@@ -1136,347 +638,210 @@ aq cycle retrain --host {local,codespace} [--procedure P] [--smoke] [--dry-run] 
 aq cycle promote --generation G --to {shadow,ramping,active,fading,winding_down,retired,rejected} [--ledger-file F]
 aq cycle schedule {show|install} [--platform {windows,linux}] [--host {local,codespace}] [--dry-run]
 ```
-The research cycle (V6.6.1): pre-registered rounds, model generations sharing the book, their decay, retraining on this machine or the training Codespace. `status` says what is due today. `retrain --host local` refuses a machine under 14 GB of RAM, and `--smoke` proves the plumbing anywhere. `promote` follows the admission rule R-ADMIT1 and never touches a broker setting. See RUNBOOK "Research cycle".
+The research cycle: rounds, generations, decay and retraining.
+
+- **`status`:** what is due today.
+- **`retrain --host local`:** refuses under 14 GB of RAM; `--smoke` proves the plumbing anywhere.
+- **`promote`:** follows R-ADMIT1 and never touches a broker setting.
 
 #### `aq api`
 ```text
 aq api
 ```
-Starts the FastAPI monitoring server on `:8001`.
+Starts the FastAPI monitoring server on port 8001.
 
 #### `aq webui`
 ```text
 aq webui
 ```
-Starts the webui dev server (`npm run dev`).
+Starts the dashboard dev server.
 
 #### `aq docker`
 ```text
 aq docker up [--lean|--all]
 aq docker build
 ```
-`up` starts local infrastructure (default: Redis + PostgreSQL only).
-`build` rebuilds the `aether-quant` app image.
+`up` starts Redis and PostgreSQL by default. `build` rebuilds the app image.
 
 #### `aq config`
 ```text
-aq config [get <dotted.key>|set <dotted.key> <value>|keys [<dotted.prefix>]]
+aq config [get <key>|set <key> <value>|keys [<prefix>]]
+aq config preset --list|--show <name>|--apply <name> [--dry-run]
 ```
-**Reads or edits `config.json` by dotted key path**, no manual file editing.
-
-- `aq config` (bare): pretty-print the whole file.
-- `aq config keys [<prefix>]`: list every leaf key path (find the right key in a deeply nested file).
-- `aq config get <key>`: print one value (a scalar, or a whole nested section as JSON).
-- `aq config set <key> <value>`: write it. The value is parsed as JSON first (`true`/`123`/`0.5`/`["a","b"]` become real types), falling back to a string. Every `set` backs up to `config.json.bak` and prints old → new; a type change (e.g. bool → string) warns but still writes, since this gives full access to every key.
-- `aq config preset --list|--show <name>|--apply <name> [--dry-run]`: applies a whole named bundle of dotted keys at once (`moderate`/`aggressive`, e.g. book size, liquidity thresholds, minimum net edge) — validates every key resolves before writing anything, so a partial config never lands. `aq evaluate --preset <name>` overlays the same bundle in memory only, for a free offline A/B before committing to one.
+Reads and edits `config.json` by dotted key. `set` parses JSON values and keeps a backup; `preset` applies a named bundle after validating every key.
 
 #### `aq lean`
 ```text
-aq lean [get <dotted.key>|set <dotted.key> <value>|keys [<dotted.prefix>]]
+aq lean [get <key>|set <key> <value>|keys [<prefix>]]
 ```
-The exact same `get`/`set`/`keys` tool as `aq config`, just pointed at
-`lean.json` (the QuantConnect Lean CLI's own config file, broker
-credentials, environments, data providers) instead. `aq lean set
-ib-trading-mode live`, `aq lean keys environments.live-paper`, etc.
+The same tool for `lean.json`.
+
+#### `aq docs`
+```text
+aq docs sync [--check]
+```
+Refreshes every marked fact in the docs from its source (`docs_facts.py`). `--check` changes nothing and exits 1 on drift, which is how CI catches stale numbers.
 
 #### `aq retrain`
 ```text
 aq retrain <plan|train|train_topology|train_gating|train_multitask|train_sequence|train_strategy_selector|validate|backtest|commit|promote|rollback|auto-rollback|status> [...]
 ```
-**Dispatches to `python -m retraining.orchestrator <stage> ...`** for a
-single manual pipeline stage, independent of the continuous worker.
+Runs one stage of the controlled retraining pipeline by hand.
 
-Stages (each usable standalone, in the order the worker itself runs them):
-- `plan`: decides whether a retraining cycle should even start — highest-priority eligible trigger, minimum observations, cooldown, daily cap.
-- `train`: trains a new candidate model in isolation, never touching the active `ml/` files.
-- `train_topology` / `train_gating` / `train_multitask` / `train_sequence` / `train_strategy_selector`: granular single-model variants of `train`, useful for retrying just one failed stage without re-running the whole pipeline.
-- `validate`: candidate-vs-active comparison (drawdown, Sharpe, validation-loss stability, overfitting gap, plus the ranking-quality/net-performance gates — see `development/architecture.md`'s Cost-Aware Cross-Sectional Ranking Contract).
-- `backtest`: a 3-way active/candidate/buy-and-hold comparison, plus an optional real Lean backtest if `lean` is on `PATH`.
-- `commit`: hashes and pushes the candidate's artifacts to Aether-Vault.
-- `promote`: makes a validated, committed candidate the active model, with rollback always available.
-- `rollback --to-version-id <id>`: manually restores a previous version as active.
-- `auto-rollback --status`: **read-only diagnostic**, not a mutation — reports whether the currently active model would be rolled back right now (and why/why not) without acting. The real enforcement runs inside the retraining worker's own poll loop, opt-in via `phase_v2.retraining.auto_rollback.enabled` (`false` by default — an automatic weight swap is the single most consequential action this system can take).
-- `status`: prints the current retraining status view (same content as `visualization/grafana/retraining_status.json`).
+- **`train`:** a candidate in isolation, never the active files.
+- **`validate`, `backtest`:** candidate against active.
+- **`promote`, `rollback --to-version-id <id>`:** switch the active model.
+- **`auto-rollback --status`:** a read-only check of whether the active model would roll back.
 
 #### `aq paper-readiness`
 ```text
 aq paper-readiness
 ```
-**Wraps `python -m execution.paper_readiness_report`** — a human-triggered
-gate to run before switching `phase_v2.runtime.mode` to `"paper"`. Checks
-broker config presence (`evaluate_paper_broker_config()`) and observation-mode
-health (`evaluate_observation_readiness()` — minimum observation count,
-`simulated_sharpe`/`simulated_max_drawdown` floors, no dominant
-`rejected_by_reason`); writes `visualization/grafana/paper_readiness_report.json`,
-also served at `/api/grafana/paper-readiness` and in `/api/state`.
+The check to run before switching to paper: broker config and observation-mode health.
 
 #### `aq trade-lock`
 ```text
 aq trade-lock --on|--off|--auto|--status
 ```
-**Manually overrides `main.py`'s sticky total-drawdown trade lock** (see
-`development/architecture.md`'s Manual Trade-Lock Override Contract).
-
-- `--on`: force trading paused.
-- `--off`: force trading resumed — deliberately clears an otherwise-permanent lock.
-- `--auto`: return to fully automatic behavior.
-- `--status`: print the current override state.
+Overrides the sticky drawdown lock. `--off` deliberately clears it.
 
 #### `aq kill-switch`
 ```text
 aq kill-switch --arm|--disarm|--auto|--status
 aq kill-switch --history [--limit N]
 ```
-**Inspects and overrides the automated production kill switch**
-(`risk/kill_switch.py`) — the same override-file convention as
-`aq trade-lock` above, so the two switches can never disagree. A trip
-feeds `main.py`'s existing trade lock; it never creates a second one.
-
-- `--arm`: force kill-switch evaluation on, even if `phase_v2.risk.kill_switch.enabled` is `false`.
-- `--disarm`: force kill-switch evaluation off, even if `enabled` is `true`.
-- `--auto`: defer entirely to `phase_v2.risk.kill_switch.enabled`.
-- `--status`: print the current override state.
-- `--history [--limit N]`: list past trips from the tamper-evident audit log (default 50 rows; needs `AETHER_POSTGRES_DSN`, same requirement as `aq audit-log` below).
+Overrides the kill switch through the same file as the trade lock, so the two can't disagree. `--history` reads past trips from the audit log (needs `AETHER_POSTGRES_DSN`).
 
 #### `aq clean`
-
-```bash
+```text
 aq clean ml [--keep-versions N] [--keep-backups N] [--strip-walk-forward-datasets] [--apply] [--json]
 ```
-
-- `ml`: (V5.8.0) lists what can be removed from `ml/` (old candidate versions not referenced by an active metrics file and not among the newest `--keep-versions`, `_backup_*` older than the newest `--keep-backups`, and with `--strip-walk-forward-datasets` the regenerable window datasets inside kept walk-forward runs). Dry run unless `--apply`; the active models are never listed.
+Lists what can be removed from `ml/`. Active models are never listed, and nothing is deleted without `--apply`.
 
 #### `aq evaluate`
 ```text
-aq evaluate --rank-book [--model sequence|multitask] [--head rank_20d] [--split backtest]
-aq evaluate --capacity | --stress | --calibrate-edge | --ablation [--variants a,b,c] | --all
-aq evaluate --calibrate-book-spread [--book-spread-percentile P]
-aq evaluate --calibrate-confidence-threshold [--confidence-threshold-percentile P]
-aq evaluate --calibrate-rolling-ic-floor [--rolling-ic-floor-percentile P]
-aq evaluate --reconcile-book-history [--book-history-path PATH] [--replay-hysteresis [--hysteresis-survives-veto]]
-            [--reconcile-run-index N | --reconcile-all-runs]
-aq evaluate --reconcile-features --symbol TICKER [--book-history-path PATH]
-aq evaluate --monte-carlo [--mc-runs N] [--mc-block-size B] [--mc-seed S] [--mc-method block|iid]
-aq evaluate --lean-monte-carlo [--backtest-dir backtests/<timestamp>] [--mc-runs N] [--mc-block-size B] [--mc-seed S]
-aq evaluate --lean-stats [--backtest-dir backtests/<timestamp>] [--interest-rate-file F] [--trading-days N]
-aq evaluate --backtest-stats [--backtest-dir backtests/<timestamp>]
-aq evaluate --alpha-proof [--backtest-dir backtests/<timestamp>]
-aq evaluate --lean-report [--backtest-dir backtests/<timestamp>]
-aq evaluate --classification-parity [--backtest-dir backtests/<timestamp>] [--dataset ml/datasets/full_dataset.csv]
-aq evaluate --paper-check --backtest-dir <run folder> [--reference-dir backtests/<timestamp>] [--start YYYY-MM-DD] [--end YYYY-MM-DD]
-aq evaluate --classification [--model sequence|multitask] [--split backtest]
-aq evaluate --benchmarks
-aq evaluate --rank-book --as-live
-aq evaluate --audit-backtest [--backtest-dir backtests/<timestamp>] [--book-history-path PATH] [--max-open-sessions N] [--period START..END]
-aq evaluate --audit-fills [--backtest-dir backtests/<timestamp>]
-aq evaluate --attribute-lean [--backtest-dir backtests/<timestamp>] [--book-history-file PATH] [--period START..END]
-aq evaluate --ic-by-class [--split S] [--dataset PATH]
-aq evaluate --audit-gates [--split S] [--dataset PATH]
-aq evaluate --audit-data [--data-root PATH]
-aq evaluate --audit-heads
-aq evaluate --audit-features [--permutation] [--dataset PATH]
-aq evaluate --audit-leakage [--dataset PATH]
-aq evaluate --overfit-report
-aq evaluate --pbo [--trial-returns PATH]
-aq evaluate --factor-spanning --signal CSV [--split S] [--dataset PATH]
-aq evaluate --calibrate-sim-lean --calibration-file PATH
-aq evaluate --factor-exposure
-aq evaluate --calibrate-volatility-threshold [--volatility-threshold-percentile P]
-aq evaluate --replay-kill-switch
-aq evaluate --replay-rolling-ic-gate
-aq evaluate --simulate-limit-fills [--limit-fill-offset-sweep 0.5,1.0,2.0]
-aq evaluate --walk-forward-summary [--run-id <id>]
-aq evaluate [--preset aggressive|moderate] [--json]
+aq evaluate <flag> [--backtest-dir backtests/<run>] [--json]
 ```
-**Runs the offline, cost-aware rank-book simulator** (`evaluation/`) — the
-torch-free mirror of the live decision path, so net Sharpe, turnover,
-capacity, and cost sensitivity can be measured without spending a Lean
-backtest.
+Offline evaluation and audits. Every Lean-reading flag uses `--backtest-dir`, else the README pin, else the newest finished run. Each writes `ml/evaluation/<name>.json`.
 
-- `--rank-book [--model sequence|multitask] [--head rank_20d] [--split backtest]`: simulate the constructed long/short book against realized returns for one model/head/dataset split — net/gross Sharpe, turnover, cost drag.
-- `--capacity`: sweep top-N breadth and estimate the participation-capped capacity ceiling.
-- `--stress`: re-run the simulation at 1x/2x/3x the configured cost.
-- `--calibrate-edge`: print an `edge_bps_per_rank_unit` calibrated from this split's realized rank-vs-return relationship — the one input `phase_v2.costs`'s net-edge gate needs before it can do anything (ships `enabled: false`/uncalibrated until this is run).
-- `--ablation [--variants a,b,c]`: isolate the contribution of neutrality, hysteresis, and the cost model by re-running the simulation with each turned off in turn (mechanisms with no offline equivalent, like gating or topology sizing, report an explicit "not measurable this way" result rather than a fabricated number). Not included in `--all`.
-- `--calibrate-book-spread [--book-spread-percentile P]`: print a `min_rank_confidence_spread` calibrated from this split's real per-date raw-score dispersion (default percentile 0.10) — the same "percentile of a real, achieved distribution" discipline as `--calibrate-edge`. Not included in `--all`.
-- `--calibrate-confidence-threshold [--confidence-threshold-percentile P]`: print a `min_confidence_to_trade` (and, when book-selection data is available, a separate book-selected threshold) calibrated from this split's real confidence-vs-forward-return relationship. Not included in `--all`.
-- `--calibrate-rolling-ic-floor [--rolling-ic-floor-percentile P]`: (V5.3.5) print a `phase_v2.rolling_ic_gate.min_rolling_mean_ic` calibrated from this split's real walk-forward rolling trailing-IC distribution (`portfolio/rolling_ic_gate.py`'s own aggregation, no lookahead). Not included in `--all`.
-- `--reconcile-book-history [--book-history-path PATH] [--replay-hysteresis] [--reconcile-run-index N | --reconcile-all-runs]`: compare a real Lean backtest's logged book selections (`phase_v2.diagnostics.book_history`) against a fresh offline re-derivation — ground truth for diagnosing live-vs-offline divergence. `--replay-hysteresis` walks forward carrying held allocations the way `main.py`'s live book does; the log is cumulative across runs, so by default only the LATEST run segment reconciles — `--reconcile-run-index N` (0-indexed, -1 = most recent) picks one, `--reconcile-all-runs` does each independently. Not included in `--all`.
-- `--hysteresis-survives-veto`: (V5.5.0) with `--reconcile-book-history --replay-hysteresis`, keep offline's hysteresis anchor across a date live **vetoed**. Off by default, which replays logs recorded before V5.5.0 (a veto wiped live's memory); pass it for a run recorded under V5.5.0+. Dates live vetoed are now reported separately (`live VETOED n/N dates`) and excluded from every match statistic instead of reading as 0% overlap.
-- `--reconcile-features --symbol TICKER [--book-history-path PATH]`: (V5.3.5.3) diff ONE symbol's logged live feature values (the allowlist-bounded `feature_snapshot` field written when `phase_v2.diagnostics.book_history.include_feature_snapshot` is on) against `full_dataset.csv`'s same (ticker, date) rows — per-feature deltas, worst offenders first, aggregated into `ml/evaluation/feature_reconciliation.json`. The tool that either names the exact diverging feature behind a live-vs-offline mismatch or rules the lead out cleanly. Not included in `--all`.
-- `--monte-carlo [--mc-runs N] [--mc-block-size B] [--mc-seed S] [--mc-method block|iid]`: (V5.3.8) Monte Carlo simulation testing layer — stationary-block bootstraps the base rank-book run's daily net returns into N alternative equity histories and refreshes the README's Monte Carlo section: all-run curves chart with the red average line + foldable deep-stat tables (return/Sharpe/maxDD percentiles, loss probability). Pinned seed by default so the README only changes when underlying results change. Implies the base `--rank-book` simulation; included in `--all`.
-- `--lean-monte-carlo [--backtest-dir backtests/<timestamp>]`: (V6.1.0) the same stationary-block bootstrap applied to a **finished Lean run's own daily equity returns** (default: the newest folder) -> `ml/evaluation/monte_carlo_lean.json`; the README's Monte Carlo block then shows it next to the offline book, with its source named. Reads only the run folder: no dataset, no model.
-- `--lean-stats [--backtest-dir backtests/<timestamp>] [--interest-rate-file F] [--trading-days N]`: (V6.2.0) a finished Lean run's printed Sharpe / Sortino / PSR next to an exact replica of Lean's formulas (`evaluation/lean_statistics.py`: compounded mean daily return, sample variance x days a year, the risk-free file averaged over every equity sample), priced on the shipped and the pre-V6.2 risk-free file at 252 and 365 days a year -> `ml/evaluation/lean_stats_<run>.json`. Reads only the run folder.
-- `--backtest-stats [--backtest-dir backtests/<timestamp>]`: (V6.3.0) the [Backtest Statistics](#backtest-statistics) of one finished Lean run (default: the README pin, else the newest run): general characteristics, performance, runs and drawdowns (HHI, 95th-percentile drawdown and time under water), implementation shortfall, efficiency (PSR, deflated Sharpe over `ml/evaluation/trial_registry.json`), classification scores and risk/return per asset class, each for the portfolio and for the strategy without its T-bill sweep -> `ml/evaluation/backtest_statistics.json`. Reads only the run folder, its book history and the data zips.
-- `--forward-ledger [--ledger-branch forward-ledger] [--ledger-file PATH]`: (V6.6.0) verify the forward ledger's hash chain, exit 1 if broken, and judge each frozen rule (sessions, Sharpe, alpha t, what this many sessions can show). RUNBOOK "Forward ledger".
-- `--data-dir DIR`: (V6.6.0) the Lean run's data root for `--alpha-proof`: `data_wide` or `data_crypto_wide`. Default `data`.
-- `--alpha-proof [--backtest-dir backtests/<timestamp>]`: (V6.4.4) proof of alpha for one finished Lean run: the strategy without its T-bill sweep per period (the whole run, backtest, holdout and the fresh weeks after 2026-10-16) - Sharpe with a stationary-bootstrap 95% interval, the alpha against SPY / AGG / BTC with a Newey-West t, PSR and the deflated Sharpe over the trial registry - and the descriptive R-ALPHA1 verdict -> `ml/evaluation/alpha_proof.json`.
-- `--lean-report [--backtest-dir backtests/<timestamp>]`: (V6.3.0) every run-folder tool in order (`--lean-stats`, `--lean-monte-carlo`, `--audit-backtest` with the config's backtest and holdout periods, `--attribute-lean`, `--audit-fills`, `--backtest-stats`, `--classification-parity`), each best-effort, then the README; an explicit `--backtest-dir` also pins the README to that run. `aq backtest` runs it automatically; use it after a run made on the DinD Codespace.
-- `--classification-parity [--backtest-dir backtests/<timestamp>] [--dataset PATH]`: (V6.4.0, rule R-L11) a Lean run's logged book-call probabilities (`phase_v2.diagnostics.book_history.include_probabilities`) against the same `direction_20d` head scored offline on the same rows, to a fixed tolerance (|accuracy delta| and |neg log-loss delta| <= 0.01, median |probability gap| <= 0.005) -> `ml/evaluation/classification_parity.json`. Exit code 1 when outside the tolerance; a run without logged probabilities reports that and passes.
-- `--paper-check --backtest-dir <run folder> [--reference-dir backtests/<timestamp>] [--start YYYY-MM-DD] [--end YYYY-MM-DD]`: (V6.4.0, lead L12) the paper-period checklist (veto rate, kill-switch lock share, strategy exposure, fills per rebalance, slippage, fee bps, strategy and T-bill P&L per day, hit ratio, turnover) of a paper or Lean run folder against the 5-95% bands of every contiguous 6-rebalance window of `--reference-dir` (default the README pin) -> `ml/evaluation/paper_check.json`. Success needs every metric inside its band, at least 6 rebalances and 120 trading days.
-- `--classification`: (V6.3.0) accuracy, precision, recall, F1 and negative log-loss of the `--model`'s `direction_20d` head on `--split` at a 0.5 threshold -> `ml/evaluation/classification_scores_<model>.json` (the offline rows of Classification Scores). Included in `--all`.
-- Every Lean-reading flag (`--audit-backtest`, `--attribute-lean`, `--audit-fills`, `--lean-stats`, `--lean-monte-carlo`, `--backtest-stats`, `--alpha-proof`) reads the same run: `--backtest-dir`, else the README pin, else the newest finished run.
-- `--benchmarks`: (V5.4.4) run every benchmark baseline over the SAME dataset window/split as the rank book — the momentum/mean-reversion/random-entry naive strategies plus the SP500 buy-and-hold and daily-rebalanced 60/40 SPY-TLT public benchmarks — writing `ml/evaluation/benchmark_comparison.json` and refreshing the README's Benchmark Comparison section. Included in `--all`.
-- `--as-live`: (V5.5.0) also run the rank book **as the live path actually runs it** (`evaluation/live_parity.py`) and report it next to the idealized run: the blended rank head (`phase_v2.rank_signal`, not the hard-coded `rank_20d`), percentile-unit hysteresis, the live confidence-spread and rolling-IC gates, a vetoed book that is **held** (live never liquidates on a veto) and re-attempted on the next bar, confidence-weighted sizing, forex/crypto features one day stale (their bars land after the equity tick), a one-bar entry lag, the `exits.max_holding_bars` age exit and the sector cap read from `phase_v2.portfolio_book`, with and without the Almgren impact model (`phase_v2.costs.impact_model`). Writes `ml/evaluation/rank_book_simulation_as_live.json`. V5.7.0 also models, with `main.py`'s own pure functions, the kill switch (a locked rebalance freezes members), the per-member sizing chain (volatility/cost multipliers, book weight floor), the liquidity gate, the net-edge gate and HRP weights, and charges impact per name on its traded notional. V6.1.0 adds the mechanisms the V6 Lean runs showed missing (the daily member pass between rebalances, a kill switch on the whole portfolio, weekend crypto, the 12-position cap, the live analyzer's verdicts and the legacy probability signal) through the R-CAL2 mode of `scripts/lean_calibration.py` and `scripts/v610_research.py`; this flag's own run keeps the V6.0.0 mechanisms. Not modeled: the predicted-volatility head. Opt-in, not included in `--all`.
-- `--audit-backtest [--backtest-dir backtests/<timestamp>] [--book-history-path PATH] [--book-run-index N]`: (V5.5.0) order-level audit of ONE finished Lean run (default: the newest folder) — exposure per asset class, book-member vs non-member entries, overlapping same-symbol limit orders, holding-period histogram, realized P&L and fee bps per asset class, Sharpe with and without a risk-free rate (Lean subtracts one, the offline tools do not), gate vetoes and the engine-log teardown outcome. Reads only the run folder and `visualization/book_history.jsonl`: no dataset, no model, no Docker. Writes `ml/evaluation/backtest_audit.json`. Run it after every backtest. V5.6.0 adds `pnl_by_entry_bucket` (book vs legacy-sleeve P&L net of fees); `--book-run-index N` (default -1 = the latest run, -2 = the one before) pairs an older run with its own segment of the cumulative `book_history.jsonl`. V5.8.0: P&L is split by the config's asset class (bond ETFs no longer hide in "equity"), and `--period START..END` (repeatable) adds a sub-period summary (return, drawdown, Sharpe, trades, P&L per class) — BT2 spans the backtest split and the holdout.
-- `--ic-by-class [--split S] [--dataset PATH]`: (V5.8.0) within- vs between-asset-class rank IC of the live blended score — pooled IC, the within-class IC of each class with >= 5 names, the between-class IC and the share of the pooled IC explained by class means. Writes `ml/evaluation/class_ic_audit.json`.
-- `--audit-gates [--split S] [--dataset PATH]`: (V5.8.0) the rolling-IC gate's own reading next to the fully resolved IC on every date, the veto share, the false-veto share (vetoed although the forward IC was positive) and the gate's lag. Writes `ml/evaluation/gate_audit.json`.
-- `--audit-data [--data-root PATH]`: (V5.8.0) every universe zip (coverage, gaps, suspicious moves, OHLC sanity, quote coverage, factor files) plus a size+SHA-256 manifest of the data root. Writes `ml/evaluation/data_audit.json`. No model.
-- `--audit-heads`: (V5.8.0) every model head and submodel against its own promotion gate, marking what the live path reads. Writes `ml/evaluation/head_audit.json`.
-- `--audit-features [--permutation] [--dataset PATH]`: (V5.8.0) model-input feature quality — ticker-ID suspects, class-constant features, per-split IC sign, optional multitask permutation drop. Writes `ml/evaluation/feature_quality_audit.json`.
-- `--audit-leakage [--dataset PATH]`: (V6.4.3) label/feature leakage audit (`evaluation/leakage_audit.py`) on the 50 scaled features: a feature NaN only on each ticker's last rows (a forward-looking window), any IC left after shuffling the target within dates, a single feature with an implausible |IC| > 0.15, and the IC an asset-identity prior carries. Writes `ml/evaluation/leakage_audit.json`.
-- `--overfit-report`: (V6.4.3) train / validation / backtest rank IC of every rank head of the installed models and how much of the train IC survives (`evaluation/overfit_diagnostics.py`, reads only `ml/*_training_metrics.json`). Writes `ml/evaluation/overfit_report.json`.
-- `--pbo [--trial-returns PATH]`: (V6.4.3) probability of backtest overfitting by CSCV (`evaluation/pbo.py`) over a table of daily returns with one column per trial (default `ml/evaluation/v643/trial_returns.parquet`, written by `scripts/v643_research.py`). Writes `ml/evaluation/pbo.json`.
-- `--factor-spanning --signal CSV [--split S]`: (V6.4.3) a signal's (date, ticker, score) top-minus-bottom quintile return regressed on five factor baselines (12-1 and 20-day momentum, 5-day reversal, low volatility, 52-week high) with Newey-West errors: the alpha is what the signal adds over plain factors (`evaluation/factor_spanning.py`). Writes `ml/evaluation/factor_spanning.json`.
-- `--calibrate-sim-lean --calibration-file PATH`: (V6.4.3, rule R-CAL4) the offline-vs-Lean gap of a `scripts/lean_calibration.py` report decomposed rung by rung (`evaluation/sim_lean_calibration.py`: what each live mechanism adds to the daily correlation). Writes `ml/evaluation/sim_lean_gap.json`.
-- `--audit-fills [--backtest-dir backtests/<timestamp>]`: (V5.7.0) every fill of ONE finished Lean run against the dataset's open AND the open in the Lean data zip itself, per asset class and order type, plus the dataset-vs-zip gap on the traded dates — separates real execution cost from a price-source gap. `--audit-backtest --max-open-sessions N` counts a limit order's age in weekday sessions (the unit `unfilled_timeout_bars` is counted in; default timeout + 1) instead of calendar days. Writes `ml/evaluation/fill_price_audit.json`. No dataset model, no Docker.
-- `--factor-exposure`: (V5.5.0) regress the base rank book's daily net returns on SPY and a long-short momentum factor — loadings, R², and the residual (alpha) Sharpe — to separate ranking skill from market/momentum exposure. Writes `ml/evaluation/factor_exposure.json`. Opt-in, not included in `--all`.
-- `--calibrate-volatility-threshold [--volatility-threshold-percentile P]`: (V5.5.0) per-asset-class percentile (default 0.80) of realized annualized volatility, using the topology's own 24-return statistic, with a suggested `phase_v2.topology.elevated_volatility_threshold` — crypto sits structurally above the global 0.45 cutoff, so every BTC/LTC signal was being cancelled as "elevated volatility". Writes `ml/evaluation/volatility_threshold_calibration.json`. Opt-in, not included in `--all`.
-- `--replay-kill-switch`: (V5.2.8) day-by-day OFFLINE replay of the kill-switch + sticky trade-lock state machine against the rank book's own return series — an explicitly approximate estimate of how much of a run would have been locked out, without spending a real Lean backtest. See `development/Problems.md` #94 for the caveats. Not included in `--all`.
-- `--replay-rolling-ic-gate`: (V5.3.5) day-by-day, no-lookahead offline replay of the rolling-IC gate's engagement decision at the live rebalance cadence, with a per-era breakdown against the known bad eras — the pre-flight check before flipping `phase_v2.rolling_ic_gate.enabled` on. Not included in `--all`.
-- `--simulate-limit-fills [--limit-fill-offset-sweep 0.5,1.0,2.0]`: (V5.3.1) offline counterfactual estimate of how often a real limit order would fill vs. time out, using the dataset's own high/low bars and `phase_v2.limit_orders`' pricing/timeout config. See `development/Problems.md` #34/#96 for the caveats. Not included in `--all`.
-- `--all`: run `--rank-book`, `--capacity`, `--stress`, `--calibrate-edge`, `--benchmarks`, `--monte-carlo` and `--classification` together.
-- `--walk-forward-summary [--run-id <id>]`: print an already-written `ml/versions/walk-forward-*/walk_forward_summary.json` (default: the most recent run) — never runs training itself, run `aq train --walk-forward` first.
-- `--preset aggressive|moderate`: overlay a named config preset (`phase_v2.presets`) in memory only, never writes `config.json`, for a free A/B comparison — see `aq config preset` above.
-- `--json`: print the full report as JSON instead of a summary.
+**A finished Lean run**
+
+| Flag | What it does |
+|---|---|
+| `--lean-report` | Runs every tool below that a run supports, then refreshes the README |
+| `--backtest-stats` | The tables in [Backtest Statistics](#backtest-statistics) |
+| `--alpha-proof [--data-dir DIR]` | Alpha, Sharpe interval and deflated Sharpe per period |
+| `--lean-monte-carlo` | Block bootstrap of the run's daily returns |
+| `--lean-stats [--interest-rate-file F] [--trading-days N]` | Lean's Sharpe, Sortino and PSR, replicated exactly |
+| `--audit-backtest [--period START..END] [--book-run-index N] [--max-open-sessions N]` | Order-level audit; run it after every backtest |
+| `--audit-fills` | Fills against the data's open: cost or price gap |
+| `--attribute-lean [--book-history-file PATH]` | P&L per asset class and component |
+| `--classification-parity` | Logged probabilities against the offline head |
+| `--paper-check [--reference-dir R] [--start D] [--end D]` | A paper run against a reference run's bands |
+| `--forward-ledger [--ledger-branch B] [--ledger-file F]` | Verifies the forward record's hash chain and judges each rule |
+
+**The offline book** (the retired rank book)
+
+| Flag | What it does |
+|---|---|
+| `--rank-book [--model M] [--head H] [--split S]` | Net and gross Sharpe, turnover, cost drag |
+| `--as-live` | The same book through the live path's decision functions |
+| `--all` | `--rank-book`, `--capacity`, `--stress`, `--calibrate-edge`, `--benchmarks`, `--monte-carlo`, `--classification` |
+| `--capacity` · `--stress` | Participation-capped capacity · 1x, 2x, 3x costs |
+| `--benchmarks` | Naive and public baselines on the same split |
+| `--monte-carlo [--mc-runs N] [--mc-block-size B] [--mc-seed S] [--mc-method block\|iid]` | Bootstrap of the book's returns |
+| `--classification` | Direction-head accuracy, F1, log-loss |
+| `--ablation [--variants a,b,c]` | Each mechanism switched off in turn |
+| `--factor-exposure` | Loadings on SPY and momentum, residual Sharpe |
+| `--preset NAME` | A config preset in memory only |
+| `--walk-forward-summary [--run-id ID]` | Print a finished walk-forward run |
+
+**Research and audits**
+
+| Flag | What it does |
+|---|---|
+| `--pbo [--trial-returns PATH]` | Probability of backtest overfitting |
+| `--factor-spanning --signal CSV` | What a signal adds over plain factors |
+| `--ic-by-class` · `--audit-gates` | Within- and between-class IC · the rolling-IC gate's vetoes |
+| `--audit-leakage` · `--overfit-report` | Label and feature leakage · IC kept out of sample |
+| `--audit-features [--permutation]` · `--audit-heads` | Feature quality · each head against its gate |
+| `--audit-data [--data-root PATH]` | Every universe zip, plus a hash manifest |
+| `--calibrate-sim-lean --calibration-file PATH` | Simulator-to-Lean gap, by mechanism |
+
+**Calibration and replay** (print a value, write nothing to config)
+
+| Flag | What it does |
+|---|---|
+| `--calibrate-edge` | `edge_bps_per_rank_unit` for the net-edge gate |
+| `--calibrate-book-spread [--book-spread-percentile P]` | The minimum rank spread |
+| `--calibrate-confidence-threshold [--confidence-threshold-percentile P]` | The minimum confidence |
+| `--calibrate-rolling-ic-floor [--rolling-ic-floor-percentile P]` | The rolling-IC floor |
+| `--calibrate-volatility-threshold [--volatility-threshold-percentile P]` | Per-class elevated volatility |
+| `--replay-kill-switch` · `--replay-rolling-ic-gate` | Day-by-day offline replays |
+| `--simulate-limit-fills [--limit-fill-offset-sweep 0.5,1.0,2.0]` | How often limit orders would fill |
+| `--reconcile-book-history [--book-history-path P] [--replay-hysteresis] [--hysteresis-survives-veto] [--reconcile-run-index N \| --reconcile-all-runs]` | Lean's book against an offline re-derivation |
+| `--reconcile-features --symbol TICKER` | One symbol's live features against the dataset |
+
+Shared by the flags above: `--dataset PATH`, `--split S`, `--json`.
 
 #### `aq research`
 ```text
 aq research --signal CSV [--dataset PATH] [--horizons 5,20] [--out PATH]
 ```
-**Scores any signal** (a CSV of `date,ticker,score`) against the dataset's per-date rank targets on the validation and backtest splits (V6.4.3, `evaluation/research_harness.py`): mean rank IC with its plain, non-overlapping and HAC t-stats, a date-block bootstrap CI, 90-day era stability, IC by year and the decay over horizons. A factor, a probe model and the installed model are judged by the same numbers as the pre-registered rules.
-
-- `--signal CSV`: the signal to score.
-- `--dataset PATH`: the dataset (default `ml/datasets/full_dataset.csv`; only the needed columns are read).
-- `--horizons 5,20`: the rank-target horizons.
-- `--out PATH`: the report (default `ml/evaluation/signal_report.json`).
+Scores any `date,ticker,score` CSV: rank IC, t-stats, bootstrap interval, era stability and decay. The same report judges this project's models.
 
 #### `aq prove`
 ```text
 aq prove [--module NAME] [--regen-cases] [--check-sorry]
 ```
-**Builds the Lean 4 proofs** in `formal/` (V6.4.3; needs elan and the Mathlib cache, `lake exe cache get` in `formal/`). The specs model the safety-critical pure functions (order gate, hash chain, book neutrality and construction, risk controls, kill switch, sizing, cost model, reconciliation, sleeve guard, JSON safety) over ordered fields; see [formal/README.md](formal/README.md).
+Builds the Lean 4 proofs in [`formal/`](formal/README.md) (needs elan and the Mathlib cache).
 
-- `--module NAME`: build one spec, e.g. `BookNeutrality` (default: all).
-- `--regen-cases`: also regenerate `aether_quant/_formal_cases/`, the Lean-computed inputs and outputs `tests/test_formal_differential_*.py` run the Python against (run it after any spec edit; `tests/test_formal_cases_drift.py` fails otherwise).
-- `--check-sorry`: only scan the specs for an unfinished proof (`sorry` / `admit`); needs no Lean install.
+- **`--regen-cases`:** regenerate the differential cases; run it after any spec edit.
+- **`--check-sorry`:** scan for unfinished proofs, no Lean install needed.
 
 #### `aq fetch`
 ```text
-aq fetch <crypto|stock> --ticker <TICKER> --start <YYYY-MM-DD> --end <YYYY-MM-DD> [--apply]
-aq fetch futures --ticker <TICKER> --start <YYYY-MM-DD> --end <YYYY-MM-DD> --expiry <YYYY-MM-DD> [--contract-month <YYYYMM>] [--family-ticker <ROOT>] [--apply]
-aq fetch options --ticker <TICKER> --start <YYYY-MM-DD> --end <YYYY-MM-DD> --expiry <YYYY-MM-DD> --strike <STRIKE> --right <call|put> [--family-ticker <ROOT>] [--apply]
+aq fetch <crypto|stock> --ticker T --start D --end D [--apply]
+aq fetch futures --ticker T --start D --end D --expiry D [--contract-month YYYYMM] [--family-ticker ROOT] [--apply]
+aq fetch options --ticker T --start D --end D --expiry D --strike K --right <call|put> [--family-ticker ROOT] [--apply]
 ```
-**Backfills historical data for a new ticker** and (with `--apply`) registers
-it in `config.json`'s `phase1.universe.assets[]`, no manual editing.
-
-- `crypto` / `stock`: fetch OHLCV from Yahoo Finance, written into Lean's zip/CSV layout (`data/crypto/coinbase/daily/<ticker>_trade.zip` or `data/equity/usa/daily/<ticker>.zip`).
-- `futures` / `options`: same, but source bars from Interactive Brokers (needs IB configured, see `aq ib status`; fails cleanly if not).
-- **Dry run by default**: without `--apply` it reports the plan and writes nothing. Never runs `train.py`: after `--apply`, run `python train.py --dataset-only` (then `python train.py`) yourself.
-
-Derivatives-only flags:
-- `--contract-month <YYYYMM>` (futures): fetch a specific dated contract instead of the continuous one, to build a real term structure (e.g. `ES_FRONT`/`ES_NEXT`, same root, different month).
-- `--family-ticker <ROOT>` (futures/options): tag the asset with its root (e.g. `"ES"`, `"SPY"`) so `train.py`'s derivatives-macro features can group same-family contracts for term-structure/put-call/IV-skew. IB's historical API is per-contract and rate-limited, so building a training set is a repeated manual process, see `data_pipeline/README.md`.
+Backfills one new ticker and, with `--apply`, registers it in `config.json`. Crypto and stocks come from Yahoo Finance, futures and options from Interactive Brokers.
 
 #### `aq backfill`
 ```text
-aq backfill <dividends|fred|yfinance> [--apply] [--tickers <TICKER> ...] [--series <SERIES> ...]
+aq backfill <dividends|fred|yfinance> [--apply] [--tickers T ...] [--series S ...] [--quotes]
 ```
-**Bulk-refreshes a whole data source across the entire configured universe**
-(Phase 4.8) — the opposite scope from `aq fetch` above, which is single-ticker/
-ad-hoc. Thin dispatcher to `python -m data_pipeline.<target>_backfill`; each
-target already has its own working `--apply`/`--tickers`/`--series` flags,
-passed through verbatim:
-- `dividends`: refreshes `data/reference/dividend_schedule/*.json` (real
-  ex-dividend history + a cadence-projected next ex-div date) via `yfinance` —
-  feeds the early-assignment-risk detector (`phase_v2.options_risk.assignment_risk_detector`).
-- `fred`: refreshes `data/reference/fred_series/*.csv` (Treasury yield curve /
-  credit spread series) — feeds `features/bond_features.py`'s real yield-curve
-  signals.
-- `yfinance`: refreshes thin local Lean zips (e.g. crypto tickers with sparse
-  history) via Yahoo Finance. Add `--quotes` to additionally derive a missing
-  `_quote.zip` for a crypto asset from its existing `_trade.zip` (V5.4.10 —
-  Lean's crypto subscription requests both feeds, but the pipeline only wrote
-  trade zips; see `development/Problems.md` #126), e.g.
-  `aq backfill yfinance --quotes --tickers LTCUSD --apply`.
-
-**Dry run by default**, same convention as `aq fetch`: add `--apply` to
-actually write the cache/zip files. Never touches `config.json`.
+Refreshes one data source across the whole universe: dividend schedules, FRED series, or thin Lean zips. `--quotes` derives a missing crypto quote zip. Never touches `config.json`.
 
 #### `aq ib`
 ```text
 aq ib status
 ```
-**Reports Interactive Brokers readiness** as one of three states:
-- **disabled**: `phase_v2.ib.enabled` is `false` (the default; equities/crypto/bonds are unaffected either way).
-- **enabled but credentials missing**: `phase_v2.ib.enabled` is `true` but `lean.json`'s `ib-account`/`ib-user-name` are empty (set with `aq lean set ib-account <ACCOUNT>` / `aq lean set ib-user-name <USERNAME>`).
-- **reachable**: a live connect/disconnect round-trip against your running TWS/IB Gateway succeeded.
-
-Credentials live entirely in `lean.json` (the same fields Lean's native
-`InteractiveBrokersBrokerage` uses); `phase_v2.ib` in `config.json` only adds
-the on/off switch plus the Gateway socket settings (`host`/`port`/`client_id`)
-for the offline `aq fetch futures`/`aq fetch options` backfill path. These are
-two distinct integrations on purpose: Lean's backtest engine never talks to IB
-(it only reads local data files), so historical futures/options bars must be
-backfilled separately before any backtest can use them, see
-`data_pipeline/README.md`.
+Interactive Brokers readiness: disabled, missing credentials, or reachable. Credentials live in `lean.json` (`aq lean set ib-account <ACCOUNT>`).
 
 #### `aq assets`
 ```text
 aq assets status
 ```
-**Full multi-asset-class readiness at a glance** (read-only), reports:
-- IB status (same three states as `aq ib status`).
-- Whether `phase_v2.futures_risk.enabled` / `phase_v2.options_risk.enabled` are on.
-- How many futures contract margin specs are loaded.
-- FRED yield-curve cache coverage (series count + most recent date).
-- How many futures/options assets are configured in the universe.
-
-Toggle any of these with the generic `aq config set
-phase_v2.{ib,futures_risk,options_risk}.enabled true|false`, there's no
-separate enable/disable subcommand.
+Multi-asset readiness at a glance: IB, futures and options flags, margin specs, FRED coverage.
 
 #### `aq render-lean-config`
 ```text
 aq render-lean-config [--base lean.json] [--out lean.live.json] [--env-file .env.live]
 ```
-**Renders the gitignored, secret-bearing `lean.live.json` from `.env.live`'s
-`AETHER_*` environment variables**, leaving the tracked `lean.json` template
-all-empty (`execution/lean_config_render.py`). Live/paper deploys pass Lean's
-own `--lean-config lean.live.json` to use the rendered file instead. Prints
-only the field *names* that were filled, never the secret values. Also emits
-a `credential_load` event to the tamper-evident audit log (see `aq
-audit-log` below) — a short-lived, one-shot `AuditQueue` push that never
-blocks or fails this command on a Redis hiccup.
+Renders the gitignored `lean.live.json` from `AETHER_*` variables, for Lean's `--lean-config`. Prints field names only, never secrets.
 
 #### `aq secrets-check`
 ```text
 aq secrets-check
 ```
-**Fails (non-zero exit) if a secret is about to be committed** — either a
-populated secret field in the tracked `lean.json` (should be empty; secrets
-belong in the gitignored `lean.live.json` above) or a real `.env` file that's
-somehow tracked by git. Pure detection logic lives in
-`execution/secret_scan.py`. Backs `.githooks/pre-commit` — this is what
-actually stops a secret from landing in a commit, not just a suggestion.
+Exits non-zero if a secret is about to be committed. Backs `.githooks/pre-commit`.
 
 #### `aq audit-log`
 ```text
 aq audit-log [--event-type order_placement|credential_load|live_mode_transition] [--since YYYY-MM-DD] [--limit N] [--verify]
 ```
-**Queries the tamper-evident audit log** (order placement, credential loads,
-live-mode transitions — `development/Problems.md` #42) — a separate,
-compliance-focused hash-chained event log from the trading `experience/`
-event stream. Requires `AETHER_POSTGRES_DSN` (same var every other
-Postgres-backed `aq` command uses), and the `audit-worker` docker-compose
-service must have drained at least one batch from Redis into Postgres
-(`python -m audit.postgres_worker`) for anything to show up.
-
-- Default (no flags): prints the most recent entries (`--limit`, default
-  100), optionally filtered by `--event-type` and/or `--since`.
-- `--verify`: walks the whole hash chain instead and reports the first
-  broken link, if any — the actual tamper-detection check, not just a log
-  viewer. An empty table is trivially valid.
+Queries the tamper-evident audit log (needs `AETHER_POSTGRES_DSN`). `--verify` walks the whole hash chain and reports the first broken link.
 
 #### `aq status`
 ```text
@@ -1486,70 +851,30 @@ Shows `git status`.
 
 ## Release Process
 
-A release is exactly one manual step, deliberately no automatic release on
-every push to `main`, only on an explicitly pushed version tag
-(`.github/workflows/release.yml`, triggered on `push: tags: ["v*.*.*"]`):
+A release happens only on a pushed version tag:
 
 ```powershell
-git tag v0.1.0
-git push origin v0.1.0
+git tag v6.6.2
+git push origin v6.6.2
 ```
 
-This then automatically runs (no manual version bump anywhere in the repo,
-`pyproject.toml` reads the version straight from the tag via
-`setuptools-scm`):
+The tag sets the version through `setuptools-scm`, then `.github/workflows/release.yml`:
 
-1. The test suite (`pytest`), a failure blocks the release entirely.
-2. PyPI publishing via Trusted Publishing (OIDC), no PyPI token is stored as a GitHub secret.
-3. Docker image build and push to `ghcr.io/leon1706-lol/aether-quant`, tagged with the version number and `:latest`.
-
-**One-time manual setup, before the first tag is ever pushed** (can't be
-done from here):
-
-- Create a "Trusted Publisher" on pypi.org for this project (pointing at `leon1706-lol/Aether-quant` + the `release.yml` workflow file).
-- After the very first tag push: check the **Packages** tab of this repo to see whether the new `aether-quant` package is private, and switch it to public if needed so `docker pull` works for everyone.
+- runs the test suite, and a failure blocks the release;
+- publishes to PyPI through Trusted Publishing, with no stored token;
+- pushes the Docker image to `ghcr.io/leon1706-lol/aether-quant`.
 
 ## Roadmap
 
-All finished work and changes can be found in
-[`development/Changelog.md`](development/Changelog.md), kept separate to keep this README short.
+History lives in [`development/Changelog.md`](development/Changelog.md); current objectives are in [`todo.md`](todo.md).
 
-
-### Next, open
-
-- **Interactive Brokers end-to-end verification** — the one blocker behind the README's Known Limitations; written and mock-tested, unverifiable without a key.
-- **A paper period** judged by `aq evaluate --paper-check` against the bands frozen from BT5 (Problems #228, RUNBOOK "Paper period protocol"): the only out-of-sample test left that no further backtest can give; it needs the IB paper account.
-- **A retrain that has to beat the priors first** (owner call, V6.4.3 #247): per-date cross-sectional inputs, the as-of labels (`phase1.target.ranking.beta_estimation: "asof"`), and a validation IC above the asset-identity and asset-class priors before any as-live or Lean test.
-- **Computing beyond GitHub Codespaces** (#53): Oracle Cloud Always Free + Remote-SSH as a more powerful, persistent free compute option; the Codespace budget now caps Lean runs and offline research (AGENTS.md rule 13).
-
-### Later (HFT)
-
-`development/architecture.md`'s own "Why This Is Not HFT, And What It
-Would Take" analysis is the honest starting point here, not marketing
-aspiration, but a concrete six-point gap list the system's own architecture
-docs already identify (daily bars everywhere, no tick/L1-L2 data, no
-slippage/latency-aware execution, offline batch retraining, polling
-infrastructure, no colocated broker connectivity). Its own conclusion is
-blunt: closing these gaps is **"closer to a second, parallel trading system
-than an incremental change."** Bolting HFT onto today's daily-bar
-architecture isn't realistic; it would need to be built alongside it, not
-on top of it.
-
-If pursued, sequence it as its own workstream, in this order:
-1. **Tick/L1-L2 market data pipeline**: a new storage layer entirely, replacing the daily Lean zip files.
-2. **A genuinely new short-horizon model**: using minute/second-resolution data for faster trades (not milliseconds), not a retrained version of today's daily classifier.
-3. **Execution/latency infrastructure**: slippage/latency-aware, queue-position-aware execution and a low-latency event-driven runtime, replacing the daily-bar `on_data()` callback and the 30s+ polling background workers.
-4. Further out: real broker/exchange connectivity beyond paper trading, continuous/online retraining, multi-timeframe ensembles, and reinforcement-learning-based position sizing/execution.
+- **Interactive Brokers and a crypto venue:** verify end to end, then run the paper period (`aq evaluate --paper-check`).
+- **Forward records:** judge the sleeve and any shadow generation at 60 and 252 sessions (`aq cycle status`).
+- **A candidate that passes selection:** the unread holdouts back one frozen candidate, once.
+- **Later, HFT:** tick data, short-horizon models and low-latency execution would be a second system alongside this one, not a change to it. See `development/architecture.md`.
 
 ---
 
 <p align="center">
   Built by <strong>Leon Schwarzkopf</strong>, <a href="mailto:leonschwarzkopf08@gmail.com">leonschwarzkopf08@gmail.com</a>
 </p>
-
----
-
-<div align="center">
-  <sub>Aether Quant</sub>
-</div>
-

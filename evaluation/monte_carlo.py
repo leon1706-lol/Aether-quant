@@ -33,13 +33,13 @@ def _max_drawdown(equity: np.ndarray) -> float:
     return float(drawdown.max()) if drawdown.size else 0.0
 
 
-def _annualized_sharpe(sampled_returns: np.ndarray) -> float:
+def _annualized_sharpe(sampled_returns: np.ndarray, periods_per_year: float = TRADING_DAYS_PER_YEAR) -> float:
     if sampled_returns.size < 2:
         return 0.0
     std = sampled_returns.std(ddof=1)
     if std == 0:
         return 0.0
-    return float(sampled_returns.mean() / std * np.sqrt(TRADING_DAYS_PER_YEAR))
+    return float(sampled_returns.mean() / std * np.sqrt(periods_per_year))
 
 
 def _resample_indices(n: int, block_size: int, method: str, rng: np.random.Generator) -> np.ndarray:
@@ -65,6 +65,7 @@ def run_monte_carlo(
     seed: int = 42,
     method: str = "block",
     n_plot_points: int = 500,
+    periods_per_year: float = TRADING_DAYS_PER_YEAR,
 ) -> dict[str, Any]:
     """Runs the bootstrap and returns a self-describing result dict:
 
@@ -85,7 +86,7 @@ def run_monte_carlo(
         "block_size": int(block_size),
         "seed": int(seed),
         "method": str(method),
-        "trading_days_per_year": TRADING_DAYS_PER_YEAR,
+        "trading_days_per_year": periods_per_year,
     }
     empty = {
         "config": config,
@@ -125,7 +126,7 @@ def run_monte_carlo(
     for run in range(int(n_runs)):
         sampled = returns[_resample_indices(n, block_size, method, rng)]
         equity = np.cumprod(1.0 + sampled)
-        sharpes[run] = _annualized_sharpe(sampled)
+        sharpes[run] = _annualized_sharpe(sampled, periods_per_year)
         drawdowns[run] = _max_drawdown(equity)
         final_returns[run] = equity[-1] - 1.0
         curves[run] = equity[plot_idx]

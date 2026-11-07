@@ -113,8 +113,8 @@ def test_nan_and_garbage_values_render_as_na(tmp_path):
     assert "head_audit" not in rr.build_research_markdown(tmp_path)  # renders, never raises
 
 
-def test_markers_exist_in_the_readme_exactly_once():
-    readme = (Path(__file__).resolve().parents[1] / "README.md").read_text(encoding="utf-8")
+def test_markers_exist_in_the_research_archive_exactly_once():
+    readme = (Path(__file__).resolve().parents[1] / "development" / "research_results.md").read_text(encoding="utf-8")
     for marker in (rr.AS_LIVE_MARKER_START, rr.AS_LIVE_MARKER_END, rr.RESEARCH_MARKER_START, rr.RESEARCH_MARKER_END,
                    rr.LEAN_COMPARE_MARKER_START, rr.LEAN_COMPARE_MARKER_END,
                    "<!-- AQ:BACKTEST_HISTORY_START -->", "<!-- AQ:BACKTEST_HISTORY_END -->"):

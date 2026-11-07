@@ -217,6 +217,7 @@ jobs:
           tests/test_lean_runtime_imports.py
           tests/test_packaging_modules.py
           tests/test_docs_links.py
+          tests/test_docs_facts.py
           tests/test_v550_parity_fixes.py
           tests/test_aq_cli.py::test_subsystem_test_files_maps_every_real_test_file_to_exactly_one_bucket
 

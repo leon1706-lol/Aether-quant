@@ -1,175 +1,72 @@
 # scripts
 
-Standalone developer tooling that isn't part of the runtime (`main.py`),
-the training pipeline (`train.py` and friends), or the `aq` CLI
-(`aq_cli.py`) — things you run by hand, occasionally, while working on the
-codebase.
+Tools run by hand, outside the runtime and the `aq` CLI. Most Lean-reading work is `aq evaluate` now; these are what remains.
 
-- `run_lean_cli_windows.py` — Windows-only compatibility launcher used
-  internally by `aq backtest`. It patches Lean CLI's temporary-directory
-  creation before the CLI imports so Docker Desktop can read Lean's generated
-  startup/config files on affected Windows hosts. Invoke `aq backtest`, not
-  this script directly.
+## Verification and packaging
 
-- `profile_inference.py` — cProfile + wall-clock harness for `main.py`'s
-  per-bar inference hot path (`inference/exported_model.py`), also
-  exposed as `aq profile` (see the main README's CLI Reference). Loads
-  the real exported model weights already on disk under `ml/` (never
-  synthetic weights — realistic layer shapes and call volume), feeds
-  correctly-shaped synthetic inputs generated outside the profiled region,
-  and writes a `pstats` dump plus independent wall-clock tail-latency
-  percentiles.
+| Script | What it does |
+|---|---|
+| `clean_checkout_test.ps1`, `codespace_clean_checkout_test.sh` | CI's pytest with no gitignored files |
+| `codespace_verify.ps1`, `codespace_verify.sh` | Every CI job on a Codespace |
+| `wheel_smoke.py` | Imports every shipped module from an installed wheel, and runs each `aq <command> --help` |
+| `check_test_count_drift.py` | The README's test count against `pytest --collect-only` |
+| `readme_freshness.py` | Every Backtest Statistics block with its date and run; fails on a stale one |
+| `feature_parity_audit.py` | Every offline feature has a runtime twin (`--synthetic-only` needs no data) |
 
-  ```powershell
-  aq profile --iterations 10000
-  aq profile --iterations 10000 --batched   # batched + stack-cached expert path + sequence-batching comparison
-  aq profile --parallel --pool-workers 4    # ProcessPoolExecutor IPC-overhead benchmark vs. sequential
-  ```
+## Codespaces
 
-  Output files (`profile_inference_output*.txt`) are gitignored —
-  regenerable, not source. See `development/Problems.md` #31/#32 for what
-  profiling found and fixed, and `inference/README.md` for the writeup.
+| Script | What it does |
+|---|---|
+| `codespace_sync.ps1` | Push, pull, status and stop for the training Codespace, hash-verified |
+| `codespace_lean_run.ps1`, `codespace_lean_dind.sh` | Lean on a temporary Docker-in-Docker Codespace: create, push, run, pull, delete |
+| `codespace_lean_parallel.sh` | Several Lean runs at once, each in its own project copy |
+| `codespace_engine_check.sh` | Builds the engine image and checks `GET /api/assets-status` |
+| `codespace_prove.sh` | `aq prove --regen-cases` off a small PC |
+| `codespace_keepalive.sh`, `codespace_status.sh`, `codespace_start_bg.sh`, `codespace_stop_jobs.sh` | Hold a session open; check, start and stop jobs |
+| `codespace_mem*.sh`, `codespace_diag.sh`, `codespace_wf_*.sh` | Memory, diagnostics and walk-forward progress |
+| `codespace_retrain_a.sh`, `codespace_retrain_b.sh` | Retrain: dataset and variants, then the winner's full stack |
+| `codespace_session_v*.sh`, `codespace_research_v*.sh`, `codespace_*_v*.sh` | One Codespace lifetime for a past phase's chain, kept as its record |
 
-- `profile_subsystems.py` — wall-clock breakdown of every per-bar
-  subsystem (features, inference, topology, regime, liquidity, analyzer)
-  against the real exported artifacts; the broader sibling of
-  `profile_inference.py`. Run via `aq profile --subsystems` if exposed, or
-  directly: `python scripts/profile_subsystems.py`.
+## Data
 
-- `feature_parity_audit.py` (V5.3.6) — audits that every feature computed
-  offline by `train.py` has a runtime twin in `main.py`'s feature build
-  (the train/inference parity contract), reporting per-feature match
-  status.
+| Script | What it does |
+|---|---|
+| `data_append_refresh.py`, `data_append_guard.py` | Append new bars; prove no stored row moved |
+| `build_holdout_data.py`, `build_holdout_dataset.py`, `splice_holdout_dataset.py` | Holdout bars and a memory-bounded dataset splice |
+| `build_wide_root.py`, `build_wide_info.py`, `build_crypto_wide_root.py`, `build_pre2013_root.py` | Research-only data roots (`build_wide_info.py` needs `AQ_SEC_CONTACT`) |
+| `coinbase_listing_dates.py`, `refresh_universe_availability.py` | Listing dates; each asset's window from its zip |
+| `fetch_cash_sweep_data.py`, `refresh_lean_interest_rate.py` | T-bill bars; Lean's risk-free file |
+| `compare_datasets.py` | Diffs two dataset builds |
 
-- `gate_sweep.py` / `gate_sweep_score_stage.py` (V5.3.6) — sweep the
-  rank-book engagement gates (`min_rank_confidence_spread` x
-  `hysteresis_rank_margin` grids) over the dataset, then score the swept
-  configurations; writes `ml/evaluation/gate_sweep_results.json` +
-  `gate_sweep_scored.csv`.
+## Research cycle and forward records
 
-- `overlap_vs_sharpe_analysis.py` (V5.3.6) — correlates live-vs-offline
-  book-selection overlap fractions against realized offline net Sharpe,
-  quantifying how much selection divergence costs.
+| Script | What it does |
+|---|---|
+| `cycle_daily.py`, `cycle_decide.py`, `cycle_retrain.py`, `cycle_lean.py` | Behind `aq cycle` and its workflow |
+| `daily_target_weights.py` | The day's weights for a paper run |
+| `forward_ledger.py`, `extend_frozen_weights.py` | The forward ledger; a frozen rule's weights on new sessions |
+| `freeze_run_config.py`, `vault_record.py` | Freeze a run's config; record a round in AetherVault |
+| `build_trial_registry.py` | Every scored variant, for the deflated Sharpe's trial count |
+| `ml_manifest.py` | SHA-256 of the installed models. Diff it across hosts and before a Lean run |
 
-- `promotion_gate_null_calibration.py` (V5.3.6) /
-  `promotion_gate_null_gate_scheme.py` (V5.3.7) — calibrate the promotion
-  gate's null distribution (shuffle-based) and evaluate alternative
-  gate schemes against it, so promotion thresholds are derived from real
-  data instead of guessed.
+## Analysis and profiling
 
-- `order_events_audit.py` (V5.3.1) — parses real Lean `order-events.json`
-  exports into fill-rate/slippage/casing statistics; the evidence base
-  behind the limit-order work in `execution/README.md`.
+| Script | What it does |
+|---|---|
+| `lean_calibration.py`, `predict_sweep_bt1.py` | The simulator against a Lean run, mechanism by mechanism |
+| `order_events_audit.py` | Fill rates and slippage from Lean's order events |
+| `as_live_levers.py` | One-lever attribution of the as-live book |
+| `gate_sweep.py`, `gate_sweep_score_stage.py`, `gate_research.py`, `gate_value_compare.py` | The rank book's gates |
+| `overlap_vs_sharpe_analysis.py`, `promotion_gate_null_calibration.py`, `promotion_gate_null_gate_scheme.py` | What selection divergence costs; the promotion gate's null |
+| `make_variant_configs.py`, `compare_training_variants.py`, `model_candidate_research.py` | Retrain variants, picked on validation IC |
+| `profile_inference.py`, `profile_subsystems.py` (`aq profile`), `profile_main_tick.py` | Hot-path timing |
+| `lean_smoke/`, `lean_teardown_smoke/` | Option, futures and teardown code against Lean's sample data |
 
-- `render_lean_credentials.py` — renders Lean's credential
-  configuration from local env/secret state (used by the `aq backtest`
-  flow on hosts where Lean needs explicit credentials).
+## Windows and Lean
 
-- `wheel_smoke.py` (V5.5.0) — smoke test of an **installed wheel**, run from
-  outside the checkout (CI `wheel-smoke`): imports every module of every shipped
-  package (a missing first-party module is a packaging bug; a missing
-  third-party extra is only noted) and runs every `aq <subcommand> --help` in a
-  fresh interpreter. `pip install -e .` hides this class entirely; the first run
-  found `risk_controls` missing from `py-modules`.
+- `run_lean_cli_windows.py`: used by `aq backtest` so Docker Desktop can read Lean's generated files. Don't invoke it directly.
+- `render_lean_credentials.py`: Lean credentials from local secrets.
 
-- `check_test_count_drift.py` (V5.5.0) — compares the README test-count badge
-  with `pytest --collect-only`; warn-only by default (`::warning::`), `--strict`
-  exits 1. The badge is only refreshed by an unfiltered local `aq test`.
+## Past research chains
 
-- `feature_parity_audit.py --synthetic-only` (V5.5.0) — runs just check 1
-  (replicas vs `train.py` on synthetic data), needs no dataset files and exits
-  non-zero when the check did not actually run. It had been silently dead (a
-  swallowed `ValueError`/`TypeError` reported as `SKIPPED`) until this round.
-
-- `codespace_sync.ps1` (V5.6.0) — push/pull/status/stop for the training Codespace over `ssh`/`scp`
-  with the `gh codespace ssh --config` route (`gh codespace cp` upload is broken). One tarball each
-  way, remote commands single-quoted, sha256 of key artifacts verified on both ends.
-- `codespace_retrain_a.sh` / `codespace_retrain_b.sh` — the V5.6.0 retrain on the Codespace: stage A
-  regenerates the dataset and trains the multitask control (2 seeds) plus four single-change variants;
-  stage B installs the winner and trains sequence, gating, RL sizing (penalty sweep) and the resumable
-  walk-forward.
-- `as_live_levers.py` - one-lever-at-a-time attribution of the as-live book (`--split`, `--only`); writes
-  `ml/evaluation/as_live_levers[_split].json`. V5.7.0: scoring is cached per split and model fingerprint
-  (`ml/evaluation/cache/`), the rolling-IC state is computed once per score set (seconds per variant), and the
-  `AsLiveHarness` class is reusable.
-- `lean_calibration.py` (V6.0.0, rule R-CAL) — the offline simulator against a Lean run's main-book component, rung by rung
-  (cadence, next-open fills, IB floor, live's resize / cooldown / trailing stop, topology sizing, replayed gate decisions);
-  `--predict` writes the calibrated prediction before a run -> `ml/evaluation/v600/calibration.json`, `bt1_prediction.json`.
-- `book_variant_research.py` (V6.0.0, rule R-BOOK), `crypto_fee_research.py` (R-CRYPTO), `forex_keep_or_drop.py` (R-FX6) —
-  the three pre-registered decisions of V6.0.0 on the calibrated simulator (heavy: run them on the Codespace through
-  `codespace_research_v600.sh`; `codespace_calibration_v600.sh` and `codespace_predict_v600.sh` do the same for R-CAL).
-- `v610_research.py` (V6.1.0) — the pre-registered rule chain R-MODEL9 -> R-HEAD2 -> R-BOOK2 -> R-LEGACY -> R-GATE on the V6.1.0
-- `v620_research.py` (V6.2.0) — the rule chain R-DEDUPE -> R-STAGGER -> R-MODEL10 on the V6.1 scoring (every phase, both splits), with an informational with / without T-bill sweep report; `codespace_session_v620.sh` (retrain: label noise, the train-chosen feature subset) and `codespace_research_v620.sh` (yardstick, candidates, chain) run it on the Codespace. Also V6.2.0: `select_feature_subset.py` (train split only), `fetch_cash_sweep_data.py` (BIL zip), `refresh_lean_interest_rate.py` (Lean's risk-free file from FRED DPCREDIT), `predict_sweep_bt1.py` (a run with the sweep predicted from a run without it), `clean_checkout_test.ps1` (CI's checkout locally), `codespace_keepalive.sh`.
-  simulator: every variant is one change, scored on **every rebalance phase** (median Sharpe, share of phases that beat the
-  incumbent) over both splits, then reported once on the holdout; resumable -> `ml/evaluation/v610/research.json`.
-  `lean_calibration.py --rcal2` (R-CAL2) scores the `v610` rung against the V6 BT2 stretches and the V5.8.0 BT2 stretch;
-  `build_legacy_probability.py` writes the legacy signal's `final_probability_up` per row; `model_candidate_research.py` scores
-  every retrained candidate, seed ensembles included (rank IC, HAC t, per-head); `prepare_v610_candidates.py` turns that into
-  scoreable candidate dirs, R-HEAD per candidate and the inference-latency ratio; `compare_datasets.py` diffs two dataset builds.
-- `v630_research.py` (V6.3.0) — the pre-registered chain R-KILL (kill-switch window / release band, lock-path stability under
-  0.5 bp noise) -> R-STAGGER2 (S2's second look, interquartile range and worst phase in place of the max-min range) -> R-GATE3
-  (only on R-CAL3 branch A); writes `ml/evaluation/v630/research.json` and `adopted_changes.json`. `lean_calibration.py --rcal3`
-  is R-CAL2's clauses on V6.2.0's BT2. `codespace_session_v630.sh` runs R-CAL3, the chain, applies the adopted changes and
-  recomputes every offline README block in ONE Codespace lifetime. `build_trial_registry.py` collects every scored variant
-  into `ml/evaluation/trial_registry.json` (the deflated Sharpe's N and Sharpe variance).
-- `v640_research.py` (V6.4.0) — the pre-registered chain for todo leads L1-L10 plus R-DEDUPE2 (the rules are in its docstring, written
-  before any score): engaged-day skill, expert ablation, direction calibration and overlays, the legacy budget and the legacy-input
-  retrain, within-class ranks, the rebalance / hold grid, the staggered book on phase spread, kill-switch confirmation and false
-  locks, crypto core vs graduates, the residual head; `--smoke` runs one variant per stage on two phases first. Resumable through
-  `research.memo.json` -> `ml/evaluation/v640/research.json`, `adopted_changes.json`. `codespace_session_v640.sh` is the one
-  Codespace lifetime (guards, dataset, legacy input, retrain, candidate IC, smoke, chain, offline blocks, suite).
-  `data_append_refresh.py` appends the latest bars in the stored vintage and `data_append_guard.py` proves no row up to the cutoff
-  moved (`snapshot` / `verify`); `build_legacy_probability.py --emit-components` writes the gating inputs the ablation recombines.
-- `v644_research.py` + `v644_make_configs.py` + `codespace_session_v644.sh` (V6.4.4) — rules R-MODEL12 (a two-stage retrain grid on
-  the as-of labels: priors, seed medians, an ensemble, as-live, PBO, walk-forward, one holdout read) and R-TREND1 (the trend
-  sleeve), written in `ml/evaluation/v644/rules.json` before any score; the session is one training-Codespace lifetime and
-  refuses to start when `rules.json` no longer matches `rules.sha256`. `v644_rcal5.py` audits the live-gate replicas against
-  the engine's fills and scores simulator options by R-CAL5.
-- `codespace_lean_run.ps1` + `codespace_lean_dind.sh` (V6.3.0) — Lean backtests on a temporary Docker-in-Docker Codespace:
-  create, push, run frozen configs in order, poll, pull, delete (`development/infrastructure.md` "Lean on a DinD Codespace").
-  A run whose config needs other models ships them in `ml/evaluation/run_artifacts/<run name>/` (V6.4.4): they replace the
-  matching `ml/` files for that run only, are restored and verified afterwards, and `run_artifacts_manifest.json` records them.
-  `codespace_engine_check.sh` builds the engine image there and checks `GET /api/assets-status`;
-  `codespace_clean_checkout_test.sh` runs CI's pytest on a tarball of exactly the files a commit would hold (the PC cannot
-  hold the suite; `clean_checkout_test.ps1` is the local equivalent). `readme_freshness.py` lists every Backtest Statistics
-  block with its date and source run and fails on a stale one (`--since`, `--allow`).
-- `codespace_session_v610.sh` (S1: datasets with Lean's forex holidays, multitask x5 / sequence x3 for the control and three
-  variants, candidate IC, the suite), `codespace_research_v610.sh` (S2: legacy probability, R-CAL2, candidates, the rule chain)
-  and `codespace_readme_v610.sh` (S3: the offline blocks of the README performance section): resumable (`RESUME=1`).
-  The Codespace stops on its idle timeout while a job runs: keep one `gh codespace ssh` session open for the whole job.
-- `profile_main_tick.py` (V6.0.0) — times the real `main.py` per-tick feature path outside Lean (`--repeat`, `--scalar-beta`
-  A/B switch, `--cprofile`).
-- `refresh_universe_availability.py` (V6.0.0) — sets each asset's `available_from/available_to` from its zip.
-- `lean_teardown_smoke/` (V6.0.0) — the 15-line Lean algorithm of Problems.md #104; `lean backtest scripts/lean_teardown_smoke --image <image>`.
-- `codespace_session_v600.sh` (V6.0.0) — the resumable S1 session: four-split dataset with the active scaler, the 60-day variant, the test suite.
-- `gate_research.py` (V5.7.0) — every gate / lever decision of todo.md findings 1-6 on BOTH splits with the full
-  as-live simulator, plus the R-GATE verdict per experiment -> `ml/evaluation/v570_gate_research.json`.
-- `build_holdout_data.py` / `build_holdout_dataset.py` (V5.7.0) — Yahoo bars for every universe asset into a staging
-  root (`--root`, default `data_v6_staging`; audited before it is copied over `data/`), then a dataset scaled with the
-  ACTIVE scaler (never refit). The dataset build runs on the Codespace. `data_holdout/` was deleted in V6.0.0: the
-  holdout is `phase1.windows.holdout` inside `data/` since V5.8.0.
-- `make_variant_configs.py` / `compare_training_variants.py` — write the per-variant configs and pick
-  the winner on VALIDATION IC against the control's seed spread (never the backtest split).
-- `overlap_vs_sharpe_analysis.py` — pairs each reconciled book-history run with the Lean Sharpe of the
-  matching backtest (ordinal; runs sharing a window stay separate points since V5.6.0).
-
-## V5.8.0 additions
-
-- Research (each writes `ml/evaluation/*.json` and refreshes the README research block): `class_sleeve_research.py` (forex / bond sleeves, rule R-SLEEVE), `rl_sizing_research.py`, `topology_sizing_research.py` (rule R-TOPO), `crypto_graduation_research.py`, `gate_research.py`, `holdout_report.py` (the one-look holdout), `active_baseline.py` (the shipped models on the new splits, for R-MODEL8).
-- `coinbase_listing_dates.py` — derives each crypto pair's listing date and suspensions from Coinbase's own daily candles into `data/reference/crypto_listing_dates.json`.
-- `ml_manifest.py` — SHA-256 manifest of the installed model files; diff the local and Codespace output before trusting an evaluation that ran on the other side, and before a Lean run to prove the models are frozen.
-- `codespace_*.sh` — the Codespace helpers (`codespace_retrain_v580.sh` stage A/B retrain, `codespace_start_bg.sh` / `codespace_stop_jobs.sh` relaunch and stop resumable jobs, `codespace_final_session.sh` the last code push + test run, `codespace_status.sh` / `codespace_wf_progress.sh` progress). Always push with `-CodeOnly` after a retrain: a full push overwrites the remote `ml/`.
-- `v650_*.py`, `daily_target_weights.py`, `build_pre2013_root.py`, `vault_record.py` (V6.5.0) — the phase's chain: `v650_write_rules.py` (rules before scores), `v650_research.py` (scores, placebos, gate, combination), `v650_lean.py` (freeze, pool, judge), `v650_instrument.py` (engine vs Lean), `v650_ml_scores.py` and `v650_make_recipe.py` (walk-forward score tables), `daily_target_weights.py` (a live row from the research functions), `build_pre2013_root.py` (the unread data root), `vault_record.py` (a gate as a local vault commit).
-- `codespace_lean_parallel.sh` (V6.5.0) — several Lean runs at once on one Codespace, each in its own project copy. `lean_smoke/` — the options and futures code against Lean's API on its sample data.
-
-## V6.6.0
-
-- `build_wide_root.py`, `build_wide_info.py`, `build_crypto_wide_root.py` — the wide data roots. `build_wide_info.py` is PC-only: it needs the SEC contact.
-- `v660_trials.py`, `v660_write_rules.py` — the trial list and the hashed rules.
-- `v660_build_panel.py`, `v660_research.py` — the model track's rows, and selection on the free cells.
-- `v660_codespace_crypto.sh`, `v660_codespace_selection.sh` — that work on the training Codespace; `v660_wait_codespace.sh` polls it.
-- `v660_round2.py` — the V6.6.0 addendum: eight more pre-registered trials on cell S (`rules_r2.json`), and the report-only analyses (rank IC by year, sector and liquidity; costs at 2x and NAV $25k; the installed sleeve on IB's coins). `v660_venue_coverage.py` — which public sources serve the sleeve's coins without an account.
-- `v660_verdict.py` — R-CRYPTO1, the per-trial table of what the search excludes, and how far the spliced coins moved the crypto numbers. `v660_sanity.py` — can the wide path see an edge at all (oracle, reversal, random; enters no ledger). `v660_crypto_splices.py` — price breaks in `data_crypto_wide`.
-- `v660_lean.py` — the instrument batch and R-INSTR2, and verification. `v660_rescore_v650.py`, `v660_venue_study.py` — report only.
-- `extend_frozen_weights.py`, `forward_ledger.py` — the forward check and the forward record.
-- `lean_smoke/main_option_order.py`, `lean_smoke/run_main_option_order.sh` — `main.py`'s own option order, forced once on the sample chain.
+`v610_research.py` through `v661_*.py`, and `*_research.py` for sleeves and crypto, are each phase's pre-registered chain, kept so its result can be rerun. Results are in [`development/research_results.md`](../development/research_results.md), and rules are in each `ml/evaluation/<phase>/`. New rounds go through `aq cycle research`.

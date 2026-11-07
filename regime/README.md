@@ -1,57 +1,15 @@
 # regime
 
-Owns market-regime detection:
+Quantitative market-regime detection: pure, testable, and used by Lean and training alike.
 
-- bullish / bearish / sideways state
-- high / low volatility state
-- risk-on / risk-off state
-- later LLM regime-vector adapters
+- **Trend:** bullish, bearish or sideways, from 5- and 20-day momentum.
+- **Volatility:** low, normal or high, from rolling daily volatility.
+- **Risk:** `risk_on`, `risk_neutral` or `risk_off`, combining trend, volatility, drawdown and the asset's cluster correlation.
+- **`primary_regime`:** the label behind expert routing.
 
-The implementation is quantitative and offline-friendly.
+## A model input, not just a label
 
-Current behavior:
-
-- detects trend state from 5-day and 20-day momentum
-- classifies volatility from rolling daily volatility
-- combines trend, volatility, drawdown and correlation into `risk_on`, `risk_neutral` or `risk_off` — `average_correlation` is genuinely live: `main.py` passes `topology_by_symbol[symbol]["correlation_strength"]` (the asset's real mean peer correlation within its topology cluster, computed once per bar before the per-symbol loop)
-- emits a `primary_regime` label for MoE expert routing
-- keeps the interface pure and testable so Lean runtime, training and future LLM adapters can reuse it
-
-## Genuine model input feature
-
-Regime is not just a downstream consumer of the model's own
-prediction — it is also a genuine *input* the model itself sees, alongside
-liquidity and topology (`liquidity/README.md`, `topology/README.md`).
-
-- `train.py::add_regime_features()` calls `build_market_regime_vector()`
-  row-wise on each historical row's own already-engineered momentum/
-  volatility columns (`portfolio_drawdown=0.0` — no live portfolio
-  state exists at dataset-build time). `average_correlation` reads each row's
-  own real `topology_correlation_strength` (the asset's mean pairwise
-  correlation within its topology cluster on that date) instead of a
-  constant — `add_regime_features()` runs *after* `build_topology_features_by_date()`
-  in `train.py::build_feature_dataset()`'s pipeline, and
-  `train_gating.py::build_gating_training_rows()` applies the identical fix.
-  This makes `classify_risk_regime()`'s "correlated crash → risk_off" rule
-  reachable in offline training (see `development/Problems.md` #71 for the
-  measured effect). Adds 9 one-hot columns
-  (`regime_trend_bullish/bearish/sideways`,
-  `regime_volatility_low/normal/high`, `regime_risk_on/off/neutral`,
-  unscaled model inputs, same treatment as asset-context one-hots) plus 3
-  continuous columns — `regime_signal_confidence`/`regime_signal_trend_score`/
-  `regime_signal_risk_score` (StandardScaler-scaled, part of
-  `phase1.features.input_set`).
-- **Named `regime_signal_*`, not `regime_*`** — deliberately:
-  `experts/expert_datasets.py::annotate_dataset_with_regimes()` already
-  writes `regime_confidence`/`regime_trend_score`/`regime_risk_score`
-  columns (a separate regime-annotation pass used only for
-  expert dataset *filtering*); the prefix avoids a real naming collision.
-- `main.py::_build_model_input()` computes `regime_payload` *before*
-  running any model — the same regime one-hot/
-  confidence/trend_score/risk_score values feed the model as input AND
-  get reused (not recomputed) for gating/analyzer/dashboard, so what the
-  model saw and what the rest of the system sees are always identical.
-
-## V5.8.0: the models read a drawdown-free regime
-
-`build_model_input_regime_vector()` is `build_market_regime_vector()` with the portfolio drawdown pinned to 0.0. The dataset has no account state, so its `regime_*` features were always built that way; live used to pass the real drawdown, which moved the model's inputs (and the top/bottom-6 of the blended score) exactly when the book was already losing (Problems.md #173). `train.py::_encode_regime_row` and `main.py::_build_model_input` both call it; risk decisions keep using the real-drawdown vector. `tests/test_regime_model_input.py` pins the equality.
+- **Dataset:** `train.py::add_regime_features()` builds 9 one-hot columns (`regime_trend_*`, `regime_volatility_*`, `regime_risk_*`) and 3 scaled ones (`regime_signal_confidence`, `_trend_score`, `_risk_score`), after topology, so a correlated crash can reach `risk_off`.
+- **Naming:** `regime_signal_*` avoids colliding with the expert datasets' `regime_*` annotations.
+- **Runtime:** `main.py::_build_model_input()` computes the regime before any model, so the model and the rest of the system see one value.
+- **Drawdown-free:** `build_model_input_regime_vector()` pins portfolio drawdown at 0.0, because a dataset has no account state. Parity needs the same at runtime (#173).

@@ -1,115 +1,22 @@
 # features
 
-Pure, dependency-light feature-computation functions shared between the
-offline training pipeline (`train.py`) and the Lean runtime (`main.py`) —
-every function here is called from both places for train/inference parity
-by construction, never re-derived independently in either one.
+Pure feature functions called by both `train.py` and `main.py`, so training and runtime can't drift. Each is neutral when its input is missing.
 
-- `technical_indicators.py` — RSI, ATR%, Bollinger %B, volume z-score,
-  MACD histogram, distance-from-52w-high, cross-sectional momentum rank.
-- `cross_asset_timing.py` (V5.6.0, Problems.md #135) — what a cross-asset payload (topology,
-  peer returns, macro proxies, `cs_momentum_rank_20`) may see. Live builds those at the START of a
-  tick, before the tick's own bars join `symbol_windows`, and a daily bar exists once its period closed
-  (US equity: that day's close; crypto/forex: the next midnight). `cross_asset_inputs()` is the one
-  window → (returns, momentum) construction `main.py` calls; `CrossAssetTimeline` replays the same
-  rule over raw per-ticker history for `train.py`, so a dataset row sees exactly the bars live would
-  have. `tests/test_cross_asset_timing.py` replays `main.py`'s tick order and compares to the offline
-  builders to 1e-12.
-- `macro_features.py` — cross-asset "macro" signals derived from bond-ETF/
-  crypto price momentum (yield-curve slope proxy, credit spread proxy,
-  crypto risk appetite proxy), computed once per date/bar and broadcast
-  identically to every asset's model input.
-- `bond_features.py` — the real-data sibling of `macro_features.py`'s
-  proxies: actual FRED Treasury-yield/credit-spread series
-  (`data_pipeline/fred_backfill.py`, no API key required) instead of
-  price-momentum proxies, plus an empirically-regressed per-ETF duration
-  beta (`empirical_duration_beta()`). All 5 features broadcast to every
-  asset, not just bonds — the mechanism making real yield-curve signal
-  usable for equity/crypto predictions too.
-- `options_greeks.py` — real Black-Scholes-Merton pricing, greeks (delta/
-  gamma/theta/vega/rho), and implied volatility (safeguarded Newton-
-  Raphson + bisection). Verified against Hull's textbook example and
-  put-call parity (`tests/test_options_greeks.py`). Consumed by
-  `portfolio/options_strategy.py` for greeks-sized options position
-  construction — see `risk/README.md`/`portfolio/README.md`.
-- `alt_data_features.py` (Phase 4.12, `development/Problems.md` #71) —
-  options-implied volatility level/term-structure (`VIXCLS`/`VXVCLS`, via
-  `data_pipeline/fred_backfill.py`, same no-API-key FRED endpoint as the
-  bond series) and a 4-week financial-conditions change (`NFCI`),
-  broadcast to every asset like `bond_features.py`/`macro_features.py`
-  above. Added specifically to target the COVID-crash era in the
-  cross-sectional rank-IC promotion gate's era-sign-instability diagnosis
-  — VIX *is* options-implied volatility, the most direct available
-  discriminator of that regime. Publication-lag-aware (`series_value_asof()`/
-  `series_change_asof()` in `data_pipeline/fred_backfill.py` — NFCI is
-  Friday-dated but not released until the following Wednesday; a naive
-  same-day join would be lookahead), with a dedicated test asserting a
-  feature value at date T only ever uses observations dated ≤ T.
-- `derivatives_macro_features.py` — futures term-structure slope and
-  options put/call-ratio (a bounded skew, not a raw ratio)/IV-skew,
-  broadcast to every asset like the macro/bond features above. Fully
-  wired into both pipelines but always neutral (`0.0`) until
-  `config.json`'s universe contains futures/options assets shaped for a
-  real front/next-month or chain-aggregate lookup — see
-  `train.py::build_derivatives_macro_features_by_date()`'s docstring and
-  `development/Problems.md` #29.
-- `cross_asset_sensitivity.py` (V5.1 Phase 2/F2) — per-asset macro
-  **sensitivity betas** (rolling regression of each asset's return against
-  ΔVIX/Δreal-rate/Δcredit/Δdollar) so macro actually varies
-  cross-sectionally instead of shifting every asset equally — broadcast-
-  constant macro features are rank-invariant and can never move the
-  cross-sectional ranking. Imported by BOTH `train.py` and `main.py` for
-  train/inference parity by construction.
-- `sector_map.py` (V5.1 Phase 0, `development/Problems.md` #75) —
-  `load_sector_mapping()`, reading `data/reference/sector_mapping.json`
-  (a `"Forex"` pseudo-sector covers all 15 forex pairs). `train.py::load_sector_mapping()`
-  is a thin delegate
-  to this module — `main.py` cannot import `train.py` (torch), so the
-  file-read/comment-stripping logic lives here where both callers can
-  share it. Consumed by `portfolio/book_neutrality.py` and
-  `evaluation/rank_book_simulator.py` for sector-neutral book
-  construction (offline and, from Phase 1, live).
+**Neutral default:** missing data returns `0.0`, so "no data" reads as "neutral today", never a crash. The exception is `empirical_duration_beta()`, which returns `None` below its minimum observations, to keep "unknown" apart from "zero".
 
-## Neutral-default convention
-
-Every function here returns a documented neutral default (almost always
-`0.0`) when its inputs are missing — a reference ticker not yet trading, a
-FRED series never backfilled, no futures/options data configured — rather
-than raising. This is deliberate: "no data available" must be
-indistinguishable from "the signal happens to be neutral today" in the
-model's input, never a crash. The one exception is
-`bond_features.py::empirical_duration_beta()`, which returns `None` (not
-`0.0`) below its minimum-observation floor — an unknown duration
-sensitivity must stay distinguishable from a genuinely-zero one; callers
-are responsible for substituting the neutral default at the point they
-assign a model-input feature value.
-
-## FX carry — `fx_carry.py` (V5.7.0)
-
-`fx_carry_3m(ticker, asset_class, date, fred_series)`: the 3-month rate differential (base minus quote, percentage points) of a forex pair
-from the FRED OECD interbank series (`aq backfill fred --group fx`) and the daily US 3-month bill, through the publication-lag-aware
-`series_value_asof` (45 days for the monthly series). 0.0 for every non-forex row and when a rate is not yet published. One definition for
-`train.py::build_fx_carry_features` and `main.py`; the model sees it only once a retrain lists it in `phase1.features.input_set`.
-
-## V5.8.0 additions
-
-- `fx_signals.py` — `fx_sleeve_scores(signal, ...)`: the forex (and bond) sleeve can rank by `model_rank`, `carry` (3-month rate differential, point-in-time), `ts_momentum` (vol-scaled 60/120-day return) or `carry_momentum`; `main.py` and the research scripts call the same function.
-- `bond_features.py` — `rolling_duration_beta` / `rolling_duration_beta_series` replace the full-history OLS slope (a future-data leak that also acted as a ticker ID) with a trailing window; `train.py` and the live path compute it from the same function, mode via `resolve_bond_duration_beta_mode`.
-
-## V6.1.0 additions
-
-- `cross_asset_timing.py` — `lean_market_holidays` (Lean's market-hours database), `resolve_forex_lean_holidays` (`phase1.features.forex_lean_holidays`): on a Lean forex holiday no bar is delivered and none is filled forward, so `fill_forward_open_forex_days(..., holidays)`, `CrossAssetTimeline.from_frames(..., forex_holidays=)` and the dataset builder skip those days and drop the zip's own bar there.
-
-## V6.4.3 additions
-
-- `cross_sectional_norm.py` — `cross_sectional_rank(frame, columns, group_column=None)`: per-date (per-group) percentile ranks centred to [-0.5, 0.5].
-- `cross_sectional_inputs.py` (V6.4.4) — ranked model inputs behind `phase1.features.cross_sectional_inputs` (default off): each `*_scaled` input replaced by (`mode: "replace"`) or joined by (`"append"`, `<name>_csr`) its percentile rank within (bar, asset class), centred to [-0.5, 0.5]; non-finite values and groups below `min_group_size` give 0.0. `rank_input_matrix` (lists, main.py's tick) and `rank_input_frame` / `apply_cross_sectional_inputs` (pandas, `train_multitask.py` and `aq_cli._blend_raw_scores_for_dataset`) give identical values; groups are classes because each class's bars reach live on their own tick. Multitask only; `train_multitask.py` stamps the setting into its feature schema.
-- `asof_beta_labels.py` — `asof_rolling_beta` (trailing OLS slope of realised daily returns, no lookahead), `build_asof_rank_labels` (`target_beta_neutral_rank_{h}d_asof`, `target_residual_rank_{h}d_asof`: train.py's definitions with the as-of beta instead of one whole-history beta per asset) and `cross_sectional_residualize` (now shared with train.py). `train.py` uses the as-of beta when `phase1.target.ranking.beta_estimation` is `"asof"` (default `"full_history"`).
-
-## V6.6.0 additions
-
-- `wide_panel.py` — the wide universe's price and information features and its label, each known at that session's close; the label's market is SPY, never a market built from the panel's names.
-
-## V6.6.1
-
-`training_splits.py`: the split walls, label purges, purged folds, yearly windows and ranked inputs, moved unchanged from `train.py` and `train_cross_sectional.py` so the library can offer them without torch or sklearn. `wide_panel.extended_info_features`: accruals on trailing twelve months, net operating assets and capex growth.
+| Module | What |
+|---|---|
+| `technical_indicators.py` | RSI, ATR%, Bollinger %B, volume z-score, MACD histogram, distance from the 52-week high, cross-sectional momentum rank |
+| `cross_asset_timing.py` | **The one definition of what a tick may see.** A daily bar exists once its period closed: equity at the close, crypto and forex at the next midnight. `CrossAssetTimeline` replays it for `train.py`, so a dataset row sees what live would (#135). Handles Lean's forex holidays |
+| `macro_features.py` | Yield-curve slope, credit spread and crypto risk-appetite proxies, from prices |
+| `bond_features.py` | Real FRED yield and credit series, and a rolling duration beta |
+| `alt_data_features.py` | VIX level and term structure, financial-conditions change. Publication-lag aware (`series_value_asof()`) |
+| `derivatives_macro_features.py` | Futures term structure, put/call skew. Neutral until such assets are in the universe (#29) |
+| `cross_asset_sensitivity.py` | Rolling betas to VIX, real rate, credit and dollar, so macro varies cross-sectionally |
+| `options_greeks.py` | Black-Scholes pricing, greeks and implied volatility |
+| `fx_carry.py`, `fx_signals.py` | 3-month rate differentials; sleeve scores by `model_rank`, `carry`, `ts_momentum` or `carry_momentum` |
+| `sector_map.py` | `load_sector_mapping()`, from `data/reference/sector_mapping.json` |
+| `cross_sectional_norm.py`, `cross_sectional_inputs.py` | Per-date percentile ranks; ranked model inputs (`phase1.features.cross_sectional_inputs`, off by default) |
+| `asof_beta_labels.py` | Trailing betas with no lookahead, and the labels built on them |
+| `training_splits.py` | Split walls, label purges, purged folds, yearly windows, with no torch or sklearn |
+| `wide_panel.py` | The research universe's features and label, each known at that session's close |

@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import numpy as np
+import pytest
 
 from evaluation.monte_carlo import run_monte_carlo
 
@@ -118,3 +119,11 @@ def test_n_plot_points_larger_than_series_is_handled():
     assert result["status"] == "OK"
     curves = result["runs_curves"]
     assert curves.shape[1] == 30  # clamped to series length
+
+
+def test_sharpe_is_annualized_by_the_series_own_calendar():
+    returns = np.random.default_rng(1).normal(0.001, 0.01, 400)
+    daily = run_monte_carlo(returns, n_runs=20, seed=3)
+    calendar = run_monte_carlo(returns, n_runs=20, seed=3, periods_per_year=365)
+    assert calendar["config"]["trading_days_per_year"] == 365
+    assert calendar["sharpe"]["p50"] == pytest.approx(daily["sharpe"]["p50"] * (365 / 252) ** 0.5, rel=1e-3)

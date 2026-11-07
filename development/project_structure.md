@@ -1,75 +1,53 @@
 # Project Structure
 
-`Dockerfile.lean` is the project-local Lean engine layer used by `aq backtest`;
-it installs only Lean-runtime dependencies from `requirements/lean-runtime.txt`.
-
-The repository is organized as a set of single-responsibility Python packages
-(one concern per folder, each with its own README), a handful of top-level
-entry-point scripts (`main.py` for the Lean algorithm, `train*.py` for the
-offline trainers, `aq_cli.py` for the CLI), and the runtime config
-(`config.json` / `lean.json`). The full per-module index, with a one-line
-description and a link to each package's own README, is in the root README's
-[Module Documentation](../README.md#module-documentation) table.
+Each folder has one concern and its own README. Module index: the root README's [Module Documentation](../README.md#module-documentation).
 
 ```text
 aether-quant/
-├── .devcontainer/                 # Codespaces / Dev Container definition (+ README)
-├── .githooks/                     # Opt-in pre-commit secret-scan hook (+ README)
-├── .github/                       # CI workflows (tests, guards, wheel smoke, webui build, release) + Dependabot
-├── development/                   # Architecture docs, changelog, problems log, backtest chart
-├── data/                        # Local Lean data folder (equities, crypto, bonds, Forex)
-├── data_pipeline/                # Lean-data contract + Yahoo Finance / FRED (bond + alt-data) / IB historical backfill + V5.8.0 data audit and price overrides
-├── analyzer/                    # Central market analyzer (final per-asset decision layer)
-├── moe/                         # Mixture-of-Experts gating network
-├── experts/                     # Bullish / bearish / sideways / volatility expert models
-├── features/                    # Shared feature-computation functions (train.py + main.py parity) + V6.4.3 cross-sectional ranks and as-of beta labels + V6.4.4 ranked model inputs (`cross_sectional_inputs.py`)
-├── formal/                      # V6.4.3 Lean 4 + Mathlib proofs of the shared pure functions, and the differential-case generator (+ README)
-├── aether_quant/                # V6.4.3 library facade: re-exports of the pure modules, research tools, the Lean-computed cases (+ README)
-├── examples/                    # V6.4.3 aether_quant quickstart
-├── evaluation/                  # Offline, cost-aware rank-book simulation (net Sharpe, capacity, ablation) + V5.5.0 as-live parity, backtest audit, volatility calibration + V5.8.0 audits (class IC, gates, heads, features), `aq clean ml` plan, README research blocks + V6.1.0 simulator replicas of the live mechanisms (daily member pass, whole-portfolio kill switch, legacy signal) and Lean attribution by opener + V6.4.4 proof of alpha, the trend-sleeve simulator and the gate-replica audit
-├── portfolio/                   # Stage-2 cross-sectional long/short book construction + neutrality + options sizing + V5.5.0 legacy-signal sleeve + V5.8.0 class sleeves (forex, bonds) and their loss guard + V6.4.4 trend sleeve (default off, offline only)
-├── regime/                      # Market regime detection (+ V5.8.0 drawdown-free vector the models read)
-├── topology/                    # 3D market topology (deterministic SMACOF + learned overlay)
-├── liquidity/                   # Liquidity / market-impact engine
-├── risk/                        # Dynamic position sizing, leverage, drawdown controls
-├── execution/                   # Order gating, paper/live broker readiness, config caching
-├── inference/                   # Vectorized neural-network forward-pass interpreter
-├── cpp_inference_ext/           # Optional C++/pybind11 accelerator (builds the "cpp_inference" module)
-├── experience/                  # Redis -> PostgreSQL observation/decision history pipeline
-├── audit/                       # Tamper-evident hash-chained audit log (Redis -> PostgreSQL)
-├── performance/                 # Performance trigger system (drawdown, Sharpe, regime-shift, ...)
-├── retraining/                  # Controlled retraining: plan/train/validate/backtest/promote
-├── monitoring/                  # FastAPI JSON API serving runtime state to the webui
-├── notifications/               # Telegram alerting worker
-├── visualization/               # Shared runtime-state JSON/CSV exports
-├── webui/                       # React/Vite dashboard (Overview, Risk, Topology, Neural Network, Tracing)
-├── ml/                          # Model weights, datasets, versioned retraining candidates
-├── storage/                     # Reserved for future persistent artifact storage
-├── scripts/                     # Standalone dev tooling (profile_inference.py, wheel_smoke.py, check_test_count_drift.py, feature_parity_audit.py) + V5.8.0 research scripts, ml_manifest.py and the Codespace helpers + V6.1.0 rule chain (`v610_research.py`), R-CAL2 calibration, legacy-probability replay, candidate scoring and the S1-S3 Codespace sessions + V6.4.4 rule chains R-MODEL12/13 and R-TREND1 (`v644_research.py`), R-CAL5 and the training-Codespace sessions
-├── requirements/                # All requirements*.txt variants
-├── tests/                       # Full pytest suite (one file per source module)
-├── backtests/                   # Lean backtest run outputs (gitignored)
-├── Aether-quant-Obsidian-Vault/ # Auto-generated code-graph / architecture vault
-├── main.py                      # Lean algorithm: inference, signal engine, risk controls
-├── train.py                     # Training pipeline: dataset build, model training, validation
-├── train_topology.py            # Offline trainer for the learned topology overlay
-├── train_gating.py              # Offline trainer for the learned gating blend
-├── train_multitask.py           # Offline trainer for the joint direction+magnitude+volatility model
-├── train_sequence.py            # Offline trainer for the causal-TCN sequence encoder
-├── train_rl_sizing.py           # Offline trainer for the RL sizing overlay (contextual bandit, default off)
-├── train_strategy_selector.py   # Offline trainer for the options strategy-selector model (dormant until options trade)
-├── generate_backtest_report.py  # Regenerates the Overview of the README's Backtest Statistics (chart, headline, run history)
-├── generate_evaluation_report.py # Regenerates the README's evaluation sections (Monte Carlo chart, benchmarks, ...)
-├── risk_controls.py             # (V6.0.0: + `resolve_benchmark_ticker`) Pure position-scaling / exit-tracking / forex-units helpers (+ V5.5.0 cooldown exemption, pending-quantity projection, exit adoption)
-├── performance_probe.py         # V5.5.0 stdlib-only timing probe + Lean teardown diagnostics/cleanup experiment
-├── todo.md                      # Owner's live objectives canvas (read first; rewritten as objectives change)
-├── aq_cli.py                    # `aq` convenience CLI
-├── config.json                  # Runtime configuration (phase1 / phase_v2 blocks)
-├── lean.json                    # Lean engine + brokerage configuration
-├── docker-compose.yml           # Local infrastructure (Lean, Redis, PostgreSQL, workers)
-├── Dockerfile                   # Consolidated app/worker image (`aether-quant-engine`)
-├── Dockerfile.lean              # Project-local Lean engine layer used by `aq backtest`
-├── RUNBOOK.md                   # Incident procedures (Symptoms -> Diagnosis -> Resolution)
-├── REPRODUCIBILITY.md           # Exact re-run recipe for the published numbers
-└── pyproject.toml               # Package metadata, `aq` entry point, pytest/ruff/coverage config
+├── aether_quant/        # The library: a facade over every subsystem
+├── examples/            # Runnable library tours
+├── formal/              # Lean 4 proofs of the safety-critical functions
+├── main.py              # The Lean algorithm
+├── aq_cli.py            # The `aq` CLI
+├── docs_facts.py        # Numbers the docs quote, read from their sources
+├── risk_controls.py     # Position-scaling, drawdown and exit helpers
+├── json_safety.py       # Finite-safe JSON
+├── performance_probe.py # Opt-in timing and teardown probes
+├── train.py, train_*.py # Dataset build and trainers
+├── generate_backtest_report.py, generate_evaluation_report.py  # Generated doc blocks
+│
+├── risk/                # Sizing, kill switch, asset-class routing
+├── portfolio/           # Target weights, book construction, sleeves, options
+├── execution/           # Order gate, cost model, reconciliation, readiness
+├── analyzer/            # The final per-asset action
+├── features/            # Feature functions shared by training and runtime
+├── inference/           # The numpy forward pass
+├── cpp_inference_ext/   # Optional C++ accelerator
+├── moe/, experts/       # Gating and the four experts
+├── regime/, topology/, liquidity/  # Market state
+│
+├── evaluation/          # Simulators, audits, statistics, the research cycle
+├── retraining/          # Candidate gates, promotion, rollback
+├── performance/         # Performance triggers
+├── experience/, audit/  # Redis-to-Postgres history; the hash-chained log
+├── monitoring/, webui/, visualization/, notifications/  # API, dashboard, exports, alerts
+├── data_pipeline/       # Backfills and research sources
+│
+├── data/                # Lean data (gitignored)
+├── ml/                  # Models and evidence; ml/generations/ is tracked
+├── backtests/           # Lean run output (gitignored)
+├── storage/             # Reserved
+│
+├── tests/               # The pytest suite
+├── scripts/             # Hand-run tools
+├── requirements/        # Dependency sets
+├── development/         # Records and design docs
+├── Aether-quant-Obsidian-Vault/  # Generated code graph (gitignored)
+├── .github/, .devcontainer/, .githooks/
+│
+├── config.json, lean.json       # Runtime and Lean config
+├── pyproject.toml               # Package, pytest, ruff, coverage
+├── docker-compose.yml, Dockerfile, Dockerfile.lean
+├── README.md, AGENTS.md, CONTRIBUTING.md, RUNBOOK.md, REPRODUCIBILITY.md, SECURITY.md, CODE_OF_CONDUCT.md
+└── todo.md                      # The owner's current objectives
 ```

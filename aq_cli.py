@@ -580,6 +580,18 @@ def _train_rl_sizing_only() -> int:
     return 0
 
 
+def _sync_doc_facts_best_effort() -> None:
+    """A full `aq test` also refreshes the numbers the docs quote; a scratch README under test leaves the real docs alone."""
+    if README_PATH != ROOT_DIR / "README.md":
+        return
+    try:
+        import docs_facts
+
+        docs_facts.sync_docs(docs_facts.tracked_docs(ROOT_DIR), docs_facts.compute_facts(ROOT_DIR))
+    except Exception as error:  # noqa: BLE001 - a docs refresh must never fail `aq test`
+        print(f"warning: docs facts not refreshed ({error})", file=sys.stderr)
+
+
 def _update_readme_test_badge(passed: int, failed: int) -> None:
     """Atomically rewrites the shields.io test-count badge AND every
     AQ:TEST_COUNT-marked "N tests" prose mention (Test Suite section,
@@ -853,7 +865,7 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         # V6.2.0 - Lean's statistics reproduced exactly (risk-free file, day count, counterfactual returns).
         "test_lean_statistics.py",
         # V6.3.0 - the README's Backtest Statistics (evaluation/backtest_statistics.py, evaluation/lean_report.py).
-        "test_backtest_statistics.py", "test_lean_report.py", "test_readme_statistics.py", "test_build_trial_registry.py",
+        "test_backtest_statistics.py", "test_lean_benchmarks.py", "test_lean_report.py", "test_readme_statistics.py", "test_build_trial_registry.py",
         "test_v620_cash_sweep_parity.py",
         "test_v620_dedupe.py", "test_v620_tranche_book.py", "test_v620_research.py",
         # V6.3.0 - the R-KILL / R-STAGGER2 clauses and the release-band parity round.
@@ -894,7 +906,7 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         "test_formal_differential_json_safety.py", "test_v643_formal_findings.py", "test_formal_differential_generation_blend.py", "test_formal_differential_generation_glide.py",
     ],
     "meta": [
-        "test_ci_workflows.py", "test_aq_test_ruff_flag.py", "test_packaging_modules.py", "test_docs_links.py",
+        "test_ci_workflows.py", "test_aq_test_ruff_flag.py", "test_packaging_modules.py", "test_docs_links.py", "test_docs_facts.py",
         # V6.4.3 - the aether_quant library's public surface and quickstart.
         "test_aether_quant_api.py", "test_aether_quant_quickstart.py",
         "test_ci_scripts.py", "test_codespace_lean_scripts.py", "test_lean_smoke_scripts.py", "test_v644_fixes.py", "test_readme_freshness.py",
@@ -965,6 +977,7 @@ def cmd_test(args: argparse.Namespace) -> int:
         passed = int(passed_match.group(1))
         failed = (int(failed_match.group(1)) if failed_match else 0) + (int(error_match.group(1)) if error_match else 0)
         _update_readme_test_badge(passed, failed)
+        _sync_doc_facts_best_effort()
 
     return exit_code
 
@@ -2428,8 +2441,12 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
         report = alpha_proof_report(run_dir, config, ROOT_DIR,
                                     trial_sharpes=load_trial_sharpes(ML_DIR / "evaluation" / "trial_registry.json"),
                                     deflation=_phase_deflation_inputs(), data_dir=getattr(args, "data_dir", None) or "data")
+        from datetime import datetime, timezone
+
+        report["computed_at"] = datetime.now(tz=timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
         out_path = ML_DIR / "evaluation" / "alpha_proof.json"
         _write_evaluation_json(out_path, report)
+        _write_evaluation_json(ML_DIR / "evaluation" / f"alpha_proof_{run_dir.name}.json", report)
         if args.json:
             print(json.dumps(report, indent=2, default=str))
         else:
@@ -2645,11 +2662,19 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
         equity = daily_equity_from_chart(lean_result)
         configured_start, configured_end = configured_run_window(lean_result)
         returns = [after / before - 1.0 for (_, before), (_, after) in zip(equity, equity[1:]) if before > 0]
+        from evaluation.alpha_proof import measured_annualization
+
         mc = run_monte_carlo(
             returns, n_runs=int(getattr(args, "mc_runs", 1000)), block_size=int(getattr(args, "mc_block_size", 20)),
             seed=int(getattr(args, "mc_seed", 42)), method=str(getattr(args, "mc_method", "block")),
+            periods_per_year=measured_annualization([day for day, _ in equity[1:]], fallback=365.0),
         )
         payload = {key: value for key, value in mc.items() if key != "runs_curves"}
+        if mc.get("runs_curves") is not None:
+            import numpy as np
+
+            (ML_DIR / "evaluation").mkdir(parents=True, exist_ok=True)
+            np.savez_compressed(ML_DIR / "evaluation" / "monte_carlo_lean_curves.npz", runs_curves=mc["runs_curves"])
         payload.update(source="lean", run=run_dir.name,
                        first_date=configured_start.date().isoformat() if configured_start else (equity[0][0] if equity else None),
                        last_date=configured_end.date().isoformat() if configured_end else (equity[-1][0] if equity else None),
@@ -4375,6 +4400,18 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_docs_sync(args: argparse.Namespace) -> int:
+    import docs_facts
+
+    report = docs_facts.sync_docs(docs_facts.tracked_docs(ROOT_DIR), docs_facts.compute_facts(ROOT_DIR), check=args.check)
+    for line in report["unknown"]:
+        print(f"unknown fact - {line}", file=sys.stderr)
+    for line in report["changed"]:
+        print(f"{'stale' if args.check else 'updated'} - {line}")
+    print(f"{len(report['changed'])} fact(s) {'stale' if args.check else 'updated'}, {len(report['unknown'])} unknown")
+    return 1 if report["unknown"] or (args.check and report["changed"]) else 0
+
+
 def cmd_status(_args: argparse.Namespace) -> int:
     return _run(["git", "status"])
 
@@ -5255,6 +5292,12 @@ def build_parser() -> argparse.ArgumentParser:
     audit_log_parser.add_argument("--limit", type=int, default=100, help="Max entries to show (default: 100)")
     audit_log_parser.add_argument("--verify", action="store_true", help="Walk the whole hash chain and report the first break, if any")
     audit_log_parser.set_defaults(func=cmd_audit_log)
+
+    docs_parser = subparsers.add_parser("docs", help="Keep the numbers quoted in the docs true")
+    docs_subparsers = docs_parser.add_subparsers(dest="docs_command", required=True)
+    docs_sync_parser = docs_subparsers.add_parser("sync", help="Rewrite every <!--fact:key--> value from its source")
+    docs_sync_parser.add_argument("--check", action="store_true", help="Change nothing; exit 1 if a value is stale")
+    docs_sync_parser.set_defaults(func=cmd_docs_sync)
 
     status_parser = subparsers.add_parser("status", help="Show git status")
     status_parser.set_defaults(func=cmd_status)

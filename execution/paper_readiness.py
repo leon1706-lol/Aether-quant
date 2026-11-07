@@ -139,8 +139,8 @@ def evaluate_velocity_decision(config: dict) -> tuple[bool, str]:
 
 
 def evaluate_observation_readiness(summary: dict, thresholds: dict) -> dict:
-    """Turns 4 of the 5 bullets in development/infrastructure.md's "Bereit
-    fuer Paper Trading?" checklist into code, given an already-computed
+    """Turns 4 of the 5 bullets in development/infrastructure.md's "Paper"
+    checklist into code, given an already-computed
     observation summary (experience.observation_metrics.compute_observation_summary()
     output) and threshold config. The 5th bullet (manual review of trade
     history for plausible entry/exit prices) is deliberately NOT automated -

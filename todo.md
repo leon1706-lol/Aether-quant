@@ -6,6 +6,8 @@ The owner's live brief for what to do next; rewritten as objectives change (hist
 -----
 # Current objective: next phase — owner to write
 
+V6.6.2 was a documentation pass (Problems #327-#330), with no change to the book, `config.json` or `main.py`'s behaviour.
+
 V6.6.1 (Problems #313-#322) found no verified alpha: zero of ten more pre-registered trials survived on cell S, so nothing was frozen and the holdouts stay unread (#315). It built the research cycle: up to four generations that share a book, each one's share computed from its record and moving smoothly (R-GLIDE2 adopted it, R-BLEND2 passed in Lean with three at once, #319, #323), a library over every subsystem (#322), and retraining anyone can run (#321). The book is still the V6.5.0 long-only crypto sleeve, on paper only: `config.json` and `main.py` are unchanged, and `ml/generations/policy.json` is `enabled: false`.
 
 ## Do first: nothing automatic runs until you push

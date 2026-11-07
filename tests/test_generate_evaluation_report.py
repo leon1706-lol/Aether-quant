@@ -578,3 +578,30 @@ def test_walk_forward_blocks_carry_the_run_date_not_the_render_time(tmp_path, mo
     assert summary["_computed_at"] == "2025-10-12 20:13 UTC"
     assert "computed 2025-10-12 20:13 UTC (rendered " in _build_walk_forward_compact_markdown(summary)
     assert "computed 2025-10-12 20:13 UTC" in _build_walk_forward_full_stats_markdown(summary)
+
+
+def test_lean_monte_carlo_replaces_the_offline_book_in_the_block(tmp_path, monkeypatch):
+    import generate_evaluation_report as report_module
+
+    monkeypatch.setattr(report_module, "EVALUATION_DIR", tmp_path)
+    stats = {"p5": 1.0, "p25": 2.0, "p50": 3.0, "p75": 4.0, "p95": 5.0}
+    lean = {"status": "OK", "run": "run_a", "config": {"n_runs": 10, "block_size": 20, "seed": 42, "method": "block"}, "final_return_pct": stats, "sharpe": stats,
+            "max_drawdown": stats, "prob_negative_return": 0.1, "num_daily_returns": 100, "first_date": "a", "last_date": "b", "observed_total_return_pct": 5.0}
+    offline = {**lean, "model_kind": "sequence"}
+    body = report_module._build_monte_carlo_compact_markdown(offline, lean)
+    assert "run_a" in body and "offline rank book" not in body and "| Final return | 1.0% | 3.0% | 5.0% |" in body
+    assert "offline rank book" in report_module._build_monte_carlo_compact_markdown(offline, None)
+
+
+def test_generated_blocks_are_written_to_the_research_archive_beside_a_readme(tmp_path, monkeypatch):
+    import generate_evaluation_report as report_module
+
+    monkeypatch.setattr(report_module, "EVALUATION_DIR", tmp_path)
+    readme = tmp_path / "README.md"
+    readme.write_text("<!-- AQ:STATUS_START -->x<!-- AQ:STATUS_END -->\n", encoding="utf-8")
+    archive = tmp_path / "development" / "research_results.md"
+    archive.parent.mkdir()
+    archive.write_text("<!-- AQ:EVAL_START -->x<!-- AQ:EVAL_END -->\n", encoding="utf-8")
+    assert report_module.update_readme_evaluation_sections(readme) is True
+    assert "x<!-- AQ:EVAL_END" not in archive.read_text(encoding="utf-8")
+    assert "x<!-- AQ:STATUS_END" not in readme.read_text(encoding="utf-8")

@@ -1,316 +1,56 @@
 # risk
 
-Dynamic, per-asset-class risk control: volatility-adjusted position sizing,
-leverage caps, drawdown-aware sizing, liquidity checks, market-impact/slippage
-controls, and asset-class dispatch (equity/crypto/bond, futures, options,
-forex). Equity/crypto/bond flow through the shared volatility-scaled sizer;
-futures/options/forex get dedicated sizers behind one dispatch point
-(`asset_class_router.py`) so downstream consumers stay asset-class-agnostic.
+Per-asset-class risk control: sizing, leverage, the kill switch and manual overrides. Pure functions, shared by `main.py` and the simulators. `risk_controls.py` at the repo root holds the position-scaling and drawdown helpers.
 
-## Base sizing — `position_sizing.py`
+## Base sizing: `position_sizing.py`
 
-`build_dynamic_position_sizing(...)` → `PositionSizingDecision`.
-`classify_volatility_regime()` buckets `rolling_volatility_20d` into
-low/normal/high, driving `volatility_multiplier` (shrinks in high-vol,
-expands in low-vol toward a target daily volatility). Full chain:
+`build_dynamic_position_sizing()` returns a `PositionSizingDecision`: `volatility_multiplier * confidence_multiplier * topology * rank * rl`, then the cost multiplier. It never flips a trade or exceeds its cap (proved in `formal/AetherFormal/PositionSizing.lean`). Each optional multiplier is a strict no-op unless its flag is on and its model output exists.
 
-`volatility_multiplier × confidence_multiplier(0.5+0.5*confidence) ×
-topology_multiplier × rank_multiplier × rl_multiplier`, then
-`cost_sizing_multiplier()` on top. Every optional multiplier below is a
-strict `1.0` no-op unless its own config flag is on and its model output is
-present.
-
-| Multiplier | Function | Config flag (default) | Bounds / shape |
+| Multiplier | Function | Config | Shape |
 |---|---|---|---|
-| Volatility source swap | `_resolve_effective_volatility()` | `phase_v2.dynamic_risk.use_predicted_volatility` (`false`) | swaps `rolling_volatility_20d` → predicted |
-| Topology | `topology_sizing_multiplier()` | `phase_v2.dynamic_risk.topology_sizing_enabled` (`true`) | `[min,1.0]`, shrink-only |
-| Rank | `rank_sizing_multiplier()` | `phase_v2.dynamic_risk.rank_sizing_enabled` (`false`) | `[0.75,1.25]`, can amplify |
-| RL overlay | `rl_sizing.py::rl_sizing_multiplier()` | `phase_v2.dynamic_risk.rl_sizing_enabled` (`false`) | `[0.6,1.0]`, shrink-only |
-| Cost | `cost_sizing_multiplier()` | `phase_v2.costs.cost_sizing_enabled` (`false`) | `<=1.0`, shrink-only |
+| Volatility source | `_resolve_effective_volatility()` | `phase_v2.dynamic_risk.use_predicted_volatility` | Swaps rolling for predicted volatility |
+| Topology | `topology_sizing_multiplier()` | `phase_v2.dynamic_risk.topology_sizing_enabled` | `[min, 1.0]`, shrink-only, needs a learned source |
+| Rank | `rank_sizing_multiplier()` | `phase_v2.dynamic_risk.rank_sizing_enabled` | Bounded, keeps direction |
+| RL overlay | `rl_sizing.py::rl_sizing_multiplier()` | `phase_v2.dynamic_risk.rl_sizing_enabled` | Bounded; a non-finite score is a no-op |
+| Cost | `cost_sizing_multiplier()` | `phase_v2.costs.cost_sizing_enabled` | Shrink-only |
 
-### Predicted volatility
+The target-weights path takes its weights from the file and skips this chain.
 
-`build_dynamic_position_sizing(..., predicted_volatility=None,
-use_predicted_volatility=False)` swaps the number driving
-`volatility_regime`/`annualized_volatility`/`volatility_multiplier` from
-trailing `rolling_volatility_20d` to the forward-looking `volatility` head of
-the multi-task model (`train_multitask.py`/`AetherNetMultiTask`).
-`_resolve_effective_volatility()` falls back to rolling whenever the flag is
-off or the prediction is `None`. `PositionSizingDecision.volatility_source`
-(`"rolling"`/`"predicted"`) records which was used. Fed from
-`gating_payload["final_volatility"]` (`moe/gating.py::_weighted_blend()`,
-also includes the sequence encoder when `phase_v2.gating_network.sequence_weight`
-is on — see `moe/README.md`), not the raw multitask output directly. Wired
-via `main.py::_build_dynamic_sizing_payload(..., predicted_volatility=...)`.
-Sizing only, never routing — `analyzer/market_analyzer.py` never reads it.
+## Multi-asset-class risk dispatch: `asset_class_router.py`
 
-### Topology multiplier (shrink-only)
+`route_position_sizing()` is the single dispatch point, adapted to one decision shape so everything downstream stays class-agnostic.
 
-`topology_sizing_multiplier(topology_source, topology_confidence,
-topology_disagreement, min_topology_multiplier=0.5,
-max_topology_multiplier=1.0)`. No-op unless `topology_source == "learned"`
-(the `topology/learned_topology.py` overlay's own confidence-gated label);
-otherwise `multiplier = min + (max-min) * confidence * (1-disagreement)`,
-always `<= max`. Config: `phase_v2.dynamic_risk.topology_sizing_enabled`
-(`true`), `min_topology_multiplier`/`max_topology_multiplier` (`0.5`/`1.0`)
-— independent of `phase_v2.topology_learning.enabled` (gates the unrelated
-dashboard/retrain consumers). Wired via
-`main.py::_build_dynamic_sizing_payload(..., topology=...)`. Not wired into
-`analyzer/market_analyzer.py`'s trade decision — changes size only.
+- **Equity, crypto, bond:** `build_dynamic_position_sizing()`.
+- **Futures (`futures_risk.py`):** margin-utilization targets, integer contracts. Specs come from `data/reference/futures_contract_specs.json`, or Lean's buying-power model with `phase_v2.futures_risk.margin_source: "live"`, falling back to static.
+- **Forex (`forex_risk.py`):** leverage-utilization targets, with `cap_forex_target_to_book_weight()` as a ceiling for book members. `phase_v2.forex_risk.enabled` is false.
+- **Options:** chain-aware, in [`portfolio/`](../portfolio/README.md). Three paradigms: vega budget, margin (backtest only) and equity ratio. `classify_volatility_view()` gates long-vol and short-vol shapes.
+- **`resolve_asset_class_enabled()`, `should_liquidate_disabled_asset_class_position()`:** disabling a class liquidates what it holds. `book_candidate_trading_eligible()` is the book-side twin.
 
-### Rank multiplier (bounded, direction-preserving)
+## Existing positions
 
-`rank_sizing_multiplier(rank_prediction, rank_sizing_enabled,
-min_rank_multiplier=0.75, max_rank_multiplier=1.25)`. Source: `rank_20d`
-head (predicted cross-sectional percentile rank, [0,1], `train.py::compute_rank_ic()`).
-`multiplier = min + (max-min) * rank_prediction` — rank near `1.0` scales up,
-near `0.0` scales down, `0.5` is a no-op; can amplify (unlike topology). No-op
-if disabled or prediction is `None` (model unloaded, inference failed, or
-universe below `train.py`'s `min_universe_size`). Config:
-`phase_v2.dynamic_risk.rank_sizing_enabled` — **default `false`**: full-series
-backtest is significant (sequence model, mean rank-IC 0.073, t-stat 4.40) but
-the 28-window non-overlapping subsample isn't yet independently significant
-(t-stat 1.20). `PositionSizingDecision.rank_multiplier`/`.rank_sizing_reason`.
-Wired via `main.py::_build_dynamic_sizing_payload(..., predicted_rank_20d=...)`
-— sequence model's head preferred, multitask model's as fallback.
+Gated by `phase_v2.functionality.position_scaling` (off by default):
 
-### RL sizing overlay (Phase 4.12 — ships disabled)
+- **`should_scale_position()`:** a churn guard, resubmitting only when the target moved past a threshold.
+- **`compute_incremental_order_quantity()`:** the signed delta for discrete contracts, so an absolute target can't stack.
+- **`projected_signed_quantity()`:** sizes against held plus still-open quantity.
 
-`rl_sizing.py::rl_sizing_multiplier(model, state, rl_sizing_enabled,
-min_rl_multiplier=0.6, max_rl_multiplier=1.0)` — an offline **contextual
-bandit**, not online/off-policy RL (no exploration data exists;
-`train_rl_sizing.py` docstring). `build_rl_sizing_state()` assembles
-`RL_SIZING_STATE_KEYS` (rank confidence, predicted volatility, regime,
-topology risk, liquidity) from `base_features`/`confidence`; returns `None`
-(no-op) if any key is missing or the flag is off. `_softmax_argmax_index()`
-is deterministic — argmax over the trained policy, never samples at runtime.
-Trained by `train_rl_sizing.py`: softmax policy-gradient over
-`ml/datasets/validation_dataset.csv`, reward = realized PnL net of fees
-(asymmetrically weighted so oversizing is punished more than undersizing —
-the V5.4.1 fix for an earlier reward that made the policy look honestly
-negative). `aq train --rl-sizing-only` wires it like `_train_topology_only()`.
-**Ships
-disabled** pending a retrain demonstrating positive expected reward over
-the constant-`1.0` baseline (see `development/Problems.md` #71 and the
-V5.4.1 changelog entry).
-`PositionSizingDecision.rl_multiplier`/`.rl_sizing_reason`. All chain
-multipliers render in the webui's `AssetSizingTable.tsx` as a `label×value`
-chip, muted at `1.0`.
+## Kill switch: `kill_switch.py`
 
-### Cost-scaled sizing
+`evaluate_kill_switch(metrics, config)` runs per bar over rolling return, drawdown velocity, live rank IC, consecutive losses, slippage divergence, model age and reconciliation breaches.
 
-`cost_sizing_multiplier()` shrinks (never grows) sized weight when expected
-edge doesn't clear expected round-trip cost (`execution/cost_model.py`) —
-same shrink-only contract as topology. Config:
-`phase_v2.costs.cost_sizing_enabled` (default off).
+- **One lock:** a trip feeds `main.py`'s sticky trade lock, never a second one.
+- **Liquidates:** in paper and live a trip liquidates instead of freezing the book (#289).
+- **Options:** `release_rolling_sharpe` holds a trip until recovery, and `trip_confirm_bars` asks for consecutive readings. Every threshold defaults to a value it can't cross.
+- **Rule sleeves:** a sleeve no longer trips on a model's age.
 
-## Multi-asset-class dispatch — `asset_class_router.py`
+`manual_override.py` reads and writes the overrides behind `aq trade-lock` and `aq kill-switch`. See `development/architecture.md`.
 
-`route_position_sizing()` is the single dispatch point. Equity/crypto/bond →
-`build_dynamic_position_sizing()` unchanged (bonds get better features via
-`features/bond_features.py`, not a new sizing formula). `future`/`option` →
-dedicated modules below, adapted onto the same `PositionSizingDecision` shape
-so `portfolio/book_construction.py`, liquidity, analyzer, and
-`main.py::_apply_signal()` stay asset-class-agnostic.
+## Backtest-only bypass flags (`risk_controls.py`)
 
-`book_candidate_trading_eligible()` (V5.6.0) is the book-side twin of `resolve_asset_class_enabled()`: a symbol of a disabled class (e.g. forex with `forex_risk.enabled=false`) is not a book candidate, live (`main.py`) or in the as-live simulation (`aq_cli._universe_asset_metadata`), so it cannot hold a slot or neutrality weight it will never trade.
+Backtest only, off by default, and always false in paper and live:
 
-### Futures — `futures_risk.py`
+- **`phase_v2.backtest.bypass_sticky_trade_lock`:** clears a drawdown or kill-switch lock at session rollover, because an unattended backtest has no human to clear it.
+- **`phase_v2.backtest.bypass_regime_drawdown_gate`:** removes the regime's drawdown threshold.
+- **`phase_v2.backtest.bypass_safety_gates`:** both of the above, kept for compatibility.
 
-`build_futures_position_sizing()` — margin-utilization-targeted, not
-volatility-of-notional. Max contracts at `max_margin_utilization` (hard
-ceiling), scales toward `target_margin_utilization` by confidence, floors to
-integer `contract_count`. Specs via `load_futures_contract_specs()` from
-`data/reference/futures_contract_specs.json` (static fallback, always
-available). **Live margin source (opt-in, Problems.md #67)**:
-`phase_v2.futures_risk.margin_source` (`"static"` default / `"live"`,
-`resolve_futures_margin_source()`) attaches Lean's IB-calibrated
-`BuyingPowerModel` per-security (`main.py::_add_asset()`, never a global
-`SetBrokerageModel()`), queried via `main.py::_resolve_futures_contract_spec()`/
-`build_live_contract_spec()`. "Live" = Lean's local calc, no network
-round-trip; falls back to static file on any failure. Code-complete,
-Lean-API-unverified. `rollover_due()` is a diagnostic date check only —
-rollover itself is Lean's native `add_future()` + `SetFilter()`. Config:
-`phase_v2.futures_risk.{enabled,target_margin_utilization,
-max_margin_utilization,margin_source}`, off by default.
-
-### Options — `portfolio/options_strategy.py` (lives in `portfolio/`, needs the option chain)
-
-Sizing for options is chain-aware, so the modules live in `portfolio/` —
-see `portfolio/README.md` for the full options design (the 43-strategy
-registry, held-position sizing, combo limit orders, assignment risk).
-The sizing-relevant summary:
-
-- **3 sizing paradigms**, dispatched by strategy shape: vega budget
-  (`build_options_position_sizing()` single-leg / `build_multi_leg_position_sizing()`
-  for bounded-risk multi-leg shapes, sized by `abs(net_vega)`); margin
-  (`portfolio/options_margin_sizing.py` — naked/uncovered-leg/
-  bounded-max-loss margin, hard-gated to `runtime_mode == "backtest"`);
-  equity-ratio (`build_covered_protective_position_sizing()` — option
-  legs sized off the held equity quantity).
-- **Volatility-view gating**: `classify_volatility_view()` classifies
-  `predicted_volatility` against chain ATM IV into
-  long_vol/short_vol/neutral — gates straddle/strangle/iron-condor/
-  butterfly selection only.
-- **Strategy selection**: `phase_v2.options_risk.enabled_strategy_names`
-  is an ordered priority list (first match that sizes wins) +
-  `risk_tier_preference` (defined-risk-first by default) + optional
-  per-asset override. A trained strategy-selector model can rerank the
-  list (`route_multi_leg_option_sizing(..., strategy_selector_scores=...)`,
-  dormant by default).
-- Config: `phase_v2.options_risk.{enabled,target_delta_at_full_confidence,
-  max_vega_budget_pct_of_equity,risk_free_rate,spread_strategy,
-  multi_leg_strategies_enabled,max_positions_per_underlying,
-  rotation_cooldown_bars,arbitrage_detector}`, off by default.
-- **Verification status**: every combo-order path is code-complete but
-  Lean-API-unverified — no real Lean backtest has placed a combo option
-  order.
-
-### Forex — `forex_risk.py`
-
-`build_forex_position_sizing()` mirrors `futures_risk.py`'s soft-target/
-hard-ceiling shape, leverage-utilization-targeted (margin = `lot_size * price
-* margin_pct`). Specs via `load_forex_pair_specs()` from
-`data/reference/forex_pair_specs.json` (15 pairs — EURUSD, GBPUSD, USDJPY,
-AUDUSD, USDCAD, USDCHF, NZDUSD, EURGBP, EURJPY, GBPJPY, EURCHF, EURAUD,
-AUDJPY, CADJPY, GBPCAD — via `aq fetch forex`, `data_pipeline/fetch.py`, in
-`config.json`'s universe; see `development/asset_universe.md`).
-`asset_class_router.py::_forex_decision_to_position_sizing()` adapts the
-result; `resolve_asset_class_enabled()` takes `forex_risk_enabled`.
-Quote-bar (bid/ask, not trade-bar) data: additive fallback in
-`main.py::on_data()` consulting `slice.quote_bars` only for
-`security_type == "forex"` with no `TradeBar` that bar. Config:
-`phase_v2.forex_risk.enabled`, default `false` — nothing technically blocks
-enabling (`aq config set phase_v2.forex_risk.enabled true`). Code-complete,
-IB-unverified for live.
-
-Individual-bond trading is infeasible under this Lean version (no
-`SecurityType.Bond`) — reframed as bond-ETF duration/convexity in
-`features/bond_features.py` (`portfolio/README.md`).
-
-### Forex vs the book (V5.5.0)
-
-`build_forex_position_sizing` is margin-driven, so its `target_weight` is several
-x NAV; only direction came from the book. `cap_forex_target_to_book_weight()` makes
-it a ceiling for a book member (`phase_v2.portfolio_book.forex_cap_to_book_weight`).
-`main.py` also sizes against held + still-open order quantity
-(`risk_controls.projected_signed_quantity`), resizes only on rebalance bars with a
-`forex_resize_min_fraction` deadband, and gives forex shorts their own
-`max_forex_short_exposure` budget. `rl_sizing_multiplier` returns a strict no-op
-(`rl_sizing_non_finite_score`) when any action score is NaN/inf - NaN at index 0
-used to select the most aggressive shrink (0.6x).
-
-## Adding to / rotating an existing position
-
-`risk_controls.py` (repo root) governs whether an already-open position may
-be scaled toward a fresh target, instead of either fully blocking
-(equity/crypto/bond) or restacking an absolute target as an incremental
-order every bar (futures/options):
-
-- `should_scale_position(current_weight, target_weight,
-  rebalance_threshold_weight=0.03)` — equity/crypto/bond churn guard: resubmit
-  `SetHoldings()` only when target moved ≥ threshold from current weight.
-- `compute_incremental_order_quantity(target_quantity, current_quantity)` —
-  signed delta a `MarketOrder`/`self.Buy` submits to converge a
-  discrete-contract instrument (futures/options/spreads) toward its fresh
-  absolute target (churn guard is "integer delta rounds to nonzero").
-
-Gated by `phase_v2.functionality.position_scaling.{enabled,rotate_on_drift}`,
-both off by default (`enabled` = may top up an open matching position;
-`rotate_on_drift` = a drifted option contract/spread is rotated
-`Liquidate()` → fresh entry same bar — independent of `enabled` because a
-same-bar reenter carries real transient margin/vega exposure). Scale-down:
-single-leg negative delta sells via `MarketOrder(contract_symbol, delta)`;
-multi-leg via `self.Sell(strategy, abs(delta))`.
-
-## Liquidating positions when an asset class is disabled
-
-Flipping `phase_v2.futures_risk.enabled`/`phase_v2.options_risk.enabled` to
-`False` mid-run zeroes new *sizing* but previously left an already-open
-position untouched (equity/crypto/bond have no enable/disable flag — this
-only applies to futures/options).
-
-- `asset_class_router.py::resolve_asset_class_enabled(asset_class,
-  futures_risk_enabled, options_risk_enabled, forex_risk_enabled=True)` —
-  pure lookup: `True` for equity/crypto/bond/unrecognized always;
-  future/option/forex follow their flags.
-- `asset_class_router.py::should_liquidate_disabled_asset_class_position(
-  asset_class_enabled, is_invested)` — pure predicate:
-  `(not asset_class_enabled) and is_invested`.
-- `main.py::_liquidate_positions_for_disabled_asset_classes()` — per-bar
-  sweep called right after `_refresh_risk_state()`. Liquidates via real
-  `_liquidate_position()` or simulated
-  `experience/simulated_portfolio.py::SimulatedPortfolioState.exit_using_last_known_price()`;
-  logs via `self.Debug()` only.
-
-## Kill switch and manual overrides
-
-`kill_switch.py::evaluate_kill_switch(runtime_metrics, config)` →
-`KillSwitchDecision` — automated production circuit breaker. Pure per-bar
-function over tracked runtime state (rolling return history, drawdown
-velocity, live rank-IC, consecutive losing sessions, slippage divergence,
-model age, a reconciliation-breach flag); trips `main.py`'s existing sticky
-trade lock (never a second one) if any of 7 independently config-gated
-conditions fires. Every threshold defaults to a value it can never cross —
-strict no-op until configured. V6.3.0: `release_rolling_sharpe` (default
-`null`) holds a rolling-Sharpe trip until the Sharpe recovers above it, when
-the caller passes the previous verdict as `rolling_sharpe_tripped_last_bar`
-(`KillSwitchDecision.rolling_sharpe_tripped`); main.py and the simulator do.
-V6.4.0: `trip_confirm_bars` (default 1 = a trip on the first reading below
-the floor) asks for N consecutive readings (`rolling_sharpe_below_run_last_bar`
-in, `KillSwitchDecision.rolling_sharpe_below_run` out); a latched trip is still
-held by the release band. One function, carried bar to bar by `main.py`, the
-simulator and `kill_switch_replay`.
-
-`manual_override.py`: `read_manual_trade_lock_override()`/
-`write_manual_trade_lock_override()` (pre-existing trade-lock override);
-`read_kill_switch_manual_override()`/`write_kill_switch_manual_override()`
-(matching `kill_switch_manual_override` key, same read/write/cache shape).
-Both driven by `aq kill-switch --arm|--disarm|--auto|--status|--history`.
-
-See `development/architecture.md`'s Kill-Switch, Reconciliation, and
-Auto-Rollback Contract, including `execution/reconciliation.py` and
-`retraining/auto_rollback.py`.
-
-## Backtest safety-gate bypass flags (`risk_controls.py`)
-
-Three flags, all backtest-only (`runtime_mode == "backtest"`, else always
-`False`) and off by default. The legacy flag still works standalone; the
-two split flags both OR the legacy flag in for backward compatibility:
-
-- `is_backtest_safety_bypass_active(runtime_mode, bypass_flag)` —
-  **legacy/combined**, `phase_v2.backtest.bypass_safety_gates` (covers both
-  behaviors below at once; kept for backward compatibility).
-- `is_sticky_trade_lock_bypass_active(...)` — backtesting with
-  `phase_v2.backtest.bypass_sticky_trade_lock` OR the legacy flag. Controls
-  **only** `main.py`'s session-rollover clear of a
-  `total_drawdown_limit_breached`/`kill_switch_*` sticky lock — never the
-  regime drawdown branch. (Rationale: `kill_switch_*` locks are exempt from
-  the normal daily auto-clear — correct for live/paper where a human
-  decides — but an unattended backtest has no human to clear it.)
-- `is_regime_drawdown_bypass_active(...)` — backtesting with
-  `phase_v2.backtest.bypass_regime_drawdown_gate` OR the legacy flag.
-  Controls **only** `main.py::_build_regime_payload()`'s
-  `risk_off_drawdown_threshold` override (set to infinity when active) —
-  never the sticky trade-lock clear. The two flags are deliberately
-  independent: unsticking a stuck kill-switch lock shouldn't force
-  disabling the unrelated regime-drawdown protection too.
-
-## RL sizing with its own state-key list (V5.7.0)
-
-`rl_sizing_multiplier(..., expected_state_keys=)` and `build_rl_sizing_state(base_features, confidence, state_keys, extra_state)` let a
-second policy carry its own inputs: `FOREX_RL_SIZING_STATE_KEYS` adds `fx_carry_3m` and `log_order_notional` (log of base book weight x NAV,
-supplied by the caller). A model whose `state_keys` differ from what the caller built is refused (`rl_sizing_state_key_mismatch`, a strict
-1.0 no-op), never silently misaligned. The forex policy (`ml/rl_sizing_forex_model.json`, trained by `train_rl_sizing.py` with
-`reward_mode: "book_member_20d"`) may choose 0 (skip) and sizes above 1 within `forex_sleeve.rl_min/max_multiplier`; `main.py` applies it
-to ENTRIES only.
-
-## V5.8.0 additions
-
-- `asset_class_router.py` — `load_venue_listing_dates` / `asset_listed_on_venue`: a crypto pair takes no order before its Coinbase listing or during a suspension (XRP, Jan 2021 - Jul 2023); data from `scripts/coinbase_listing_dates.py`, switch `phase_v2.venue_listing_guard`. `book_candidate_trading_eligible` also keeps a class that a sleeve governs out of the main pool.
-- `rl_sizing.py` — `rl_excess_return`, `rl_shadow_guard_allows`: the RL multiplier falls back to 1.0 when it trails the constant-1.0 counterfactual over the guard window (`phase_v2.dynamic_risk.rl_shadow_guard`); the shipped range is [0.9, 1.1].
-
-## V6.4.3 additions
-
-- `risk_controls.cap_target_weight` blocks a non-finite target (`(0.0, True)`); a NaN target used to come out as a full short of the remaining capacity.
-- `position_sizing.build_dynamic_position_sizing` sizes a non-finite base target to 0 and clamps the sized magnitude at 0, so a misconfigured negative multiplier bound can no longer flip the trade or escape `max_position_weight`. Both proved in `formal/AetherFormal/{RiskControls,PositionSizing}.lean`.
+The target-weights path's velocity lock stays off by rule R-VEL1, recorded and enforced by paper readiness (#303).

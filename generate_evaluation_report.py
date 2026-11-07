@@ -1,30 +1,8 @@
-"""Regenerates README.md's Offline Evaluation, Walk-Forward Training/Testing,
-and Other Metrics subsections (siblings of Lean Backtest, which
-generate_backtest_report.py already owns) from whatever `aq evaluate`/`aq
-train --walk-forward` last wrote to ml/evaluation/ and ml/versions/.
+"""Rewrites the generated blocks of README.md (the shipped book) and development/research_results.md (the retired rank book
+and past rule chains) from whatever `aq evaluate` and `aq train --walk-forward` last wrote to ml/evaluation/ and ml/versions/.
 
-Same practical-substitute-for-live-update approach as generate_backtest_report.py:
-`aq evaluate` calls this module after any of --rank-book/--capacity/--stress/
---all/--reconcile-book-history/--replay-kill-switch/--walk-forward-summary,
-and it rewrites the relevant marker-delimited sections in-place. Every
-section degrades gracefully (an em-dash placeholder table row, not a
-crash/traceback) when its source file doesn't exist yet - a fresh checkout
-that has never run `aq evaluate` still gets a readable README, matching
-monitoring/evaluation_state.py's own "not_evaluated" contract.
-
-Data sources (all optional, independently missing-tolerant):
-- ml/evaluation/rank_book_simulation_{sequence,multitask}.json (this
-  module's own additive per-model copies - see aq_cli.py::cmd_evaluate())
-- ml/evaluation/capacity_report_{sequence,multitask}.json
-- ml/evaluation/cost_stress_report_{sequence,multitask}.json
-- ml/versions/walk-forward-*/walk_forward_summary.json (newest by mtime)
-- ml/evaluation/book_history_reconciliation.json
-- ml/evaluation/kill_switch_replay.json
-- The latest real Lean backtest result JSON (reuses
-  generate_backtest_report.py's own loader - same "latest complete run"
-  definition, so the Lean-vs-offline comparison in Other Metrics never
-  compares against a stale/different backtest than what Lean Backtest
-  itself displays).
+A block lives in whichever file carries its markers, and degrades to a not-run line when its source doesn't exist, so a fresh
+checkout still gets a readable page.
 
 Usage:
     python generate_evaluation_report.py [--readme README.md]
@@ -49,14 +27,15 @@ from evaluation.readme_research import (
     build_lean_vs_offline_markdown,
     build_research_markdown,
 )
+from evaluation.readme_statistics import ALPHA_MARKERS, STATUS_MARKERS, build_alpha_block, build_backtest_statistics_blocks, build_status_block
 from evaluation.readme_statistics import MARKERS as BTSTATS_MARKERS
-from evaluation.readme_statistics import build_backtest_statistics_blocks
 from generate_backtest_report import (
     README_PATH,
     _atomic_write,
     _replace_between_markers,
     find_latest_backtest_result_json,
     load_backtest_summary,
+    research_doc_beside,
 )
 
 ROOT_DIR = Path(__file__).resolve().parent
@@ -479,7 +458,21 @@ def load_monte_carlo() -> tuple[dict | None, object]:
     return summary, runs
 
 
-def _render_monte_carlo_chart(runs, avg_curve: list[float], config: dict, out_path: Path) -> bool:
+def load_lean_monte_carlo() -> tuple[dict | None, object]:
+    """ml/evaluation/monte_carlo_lean.json and its curves: (summary, runs), summary None unless the bootstrap succeeded."""
+    summary = _load_json(EVALUATION_DIR / "monte_carlo_lean.json")
+    if not isinstance(summary, dict) or summary.get("status") != "OK":
+        return None, None
+    try:
+        import numpy as np
+
+        with np.load(EVALUATION_DIR / "monte_carlo_lean_curves.npz") as payload:
+            return summary, payload["runs_curves"]
+    except Exception:
+        return summary, None
+
+
+def _render_monte_carlo_chart(runs, avg_curve: list[float], config: dict, out_path: Path, num_days: int | None = None) -> bool:
     """Draws every resampled run as a faint line plus the red average -
     regenerated on every evaluate run so the README visual is always in sync."""
     try:
@@ -493,13 +486,13 @@ def _render_monte_carlo_chart(runs, avg_curve: list[float], config: dict, out_pa
     if runs is None or getattr(runs, "size", 0) == 0 or not avg_curve:
         return False
     fig, ax = plt.subplots(figsize=(11, 6), dpi=140)
-    x = np.arange(runs.shape[1])
+    x = np.linspace(0, num_days, runs.shape[1]) if num_days else np.arange(runs.shape[1])
     for row in runs:
         ax.plot(x, row, color="#6f9fc4", alpha=0.05, lw=0.5, zorder=1)
     ax.plot(x, avg_curve, color="red", lw=2.4, zorder=3,
             label=f"Average of all {config.get('n_runs', '?')} runs")
     ax.axhline(1.0, color="black", lw=0.8, ls="--", zorder=2, label="Start (1.0x)")
-    ax.set_xlabel("Trading days (resampled)")
+    ax.set_xlabel("Days resampled")
     ax.set_ylabel("Equity multiple (start = 1.0x)")
     ax.set_title(
         f"Monte Carlo equity curves - {config.get('n_runs')} runs, "
@@ -513,49 +506,49 @@ def _render_monte_carlo_chart(runs, avg_curve: list[float], config: dict, out_pa
     return True
 
 
-def _build_monte_carlo_compact_markdown(summary: dict | None, lean_summary: dict | None = None) -> str:
-    if not isinstance(summary, dict):
-        return (
-            "Monte Carlo simulation has not been run yet - generate it with\n"
-            "`aq evaluate --rank-book --monte-carlo` (see CLI Reference)."
-        )
-    fr = summary["final_return_pct"]
-    sh = summary["sharpe"]
-    md = summary["max_drawdown"]
-    cfg = summary["config"]
-    lines = [
-        f"{cfg['n_runs']}-run stationary-block bootstrap of the offline rank book's daily net returns",
-        f"(method=`{cfg['method']}`, block={cfg['block_size']}d, seed={cfg['seed']}). The red line marks the"
-        "\naverage of all generated runs; faint lines are individual resampled histories.",
-        "",
-        f"![Monte Carlo equity curves]({MONTECARLO_CHART_PATH.relative_to(ROOT_DIR).as_posix()})",
-        "",
+def _monte_carlo_table(summary: dict) -> list[str]:
+    fr, sh, md = summary["final_return_pct"], summary["sharpe"], summary["max_drawdown"]
+    return [
         "| Metric | p5 | p50 | p95 |",
         "|---|---|---|---|",
         f"| Final return | {fr['p5']}% | {fr['p50']}% | {fr['p95']}% |",
         f"| Annualized Sharpe | {sh['p5']} | {sh['p50']} | {sh['p95']} |",
         f"| Max drawdown | {md['p5']}% | {md['p50']}% | {md['p95']}% |",
         f"| P(negative total return): **{summary['prob_negative_return']}** |||",
+    ]
+
+
+def _build_monte_carlo_compact_markdown(summary: dict | None, lean_summary: dict | None = None) -> str:
+    if isinstance(lean_summary, dict) and lean_summary.get("status") == "OK":
+        cfg = lean_summary.get("config", {})
+        return "\n".join([
+            f"![Monte Carlo equity curves]({MONTECARLO_CHART_PATH.relative_to(ROOT_DIR).as_posix()})",
+            "",
+            *_monte_carlo_table(lean_summary),
+            "",
+            f"_{cfg.get('n_runs', '?')} block-bootstrapped histories (block {cfg.get('block_size', '?')} days, seed {cfg.get('seed', '?')}) of Lean run "
+            f"`{lean_summary.get('run', '?')}`'s {lean_summary.get('num_daily_returns', '?')} daily returns, {lean_summary.get('first_date', '?')} to "
+            f"{lean_summary.get('last_date', '?')}. The run itself returned {lean_summary.get('observed_total_return_pct', 'n/a')}%; "
+            f"computed {_updated_at('monte_carlo_lean.json')}._",
+        ])
+    if not isinstance(summary, dict):
+        return (
+            "Monte Carlo simulation has not been run yet - generate it with\n"
+            "`aq evaluate --rank-book --monte-carlo` (see CLI Reference)."
+        )
+    cfg = summary["config"]
+    return "\n".join([
+        f"{cfg['n_runs']}-run stationary-block bootstrap of the offline rank book's daily net returns",
+        f"(method=`{cfg['method']}`, block={cfg['block_size']}d, seed={cfg['seed']}). The red line marks the"
+        "\naverage of all generated runs; faint lines are individual resampled histories.",
+        "",
+        f"![Monte Carlo equity curves]({MONTECARLO_CHART_PATH.relative_to(ROOT_DIR).as_posix()})",
+        "",
+        *_monte_carlo_table(summary),
         "",
         f"_Source: the offline idealized rank book, model `{summary.get('model_kind', '?')}`, head `{summary.get('head', '?')}`, "
         f"split `{summary.get('split', '?')}`, computed {_updated_at('monte_carlo.json')} (a simulation at the configured book cadence, not the engine)._",
-    ]
-    if isinstance(lean_summary, dict) and lean_summary.get("status") == "OK":
-        lfr, lsh, lmd = lean_summary["final_return_pct"], lean_summary["sharpe"], lean_summary["max_drawdown"]
-        lines += [
-            "",
-            f"**The Lean run's own equity curve** (`{lean_summary.get('run', '?')}`, {lean_summary.get('first_date', '?')} .. "
-            f"{lean_summary.get('last_date', '?')}, {lean_summary.get('num_daily_returns', '?')} daily returns, same bootstrap; "
-            f"the run itself returned {lean_summary.get('observed_total_return_pct', 'n/a')}%):",
-            "",
-            "| Metric | p5 | p50 | p95 |",
-            "|---|---|---|---|",
-            f"| Final return | {lfr['p5']}% | {lfr['p50']}% | {lfr['p95']}% |",
-            f"| Annualized Sharpe | {lsh['p5']} | {lsh['p50']} | {lsh['p95']} |",
-            f"| Max drawdown | {lmd['p5']}% | {lmd['p50']}% | {lmd['p95']}% |",
-            f"| P(negative total return): **{lean_summary['prob_negative_return']}** |||",
-        ]
-    return "\n".join(lines)
+    ])
 
 
 def _build_monte_carlo_full_stats_markdown(summary: dict | None) -> str:
@@ -642,12 +635,14 @@ def _build_benchmark_markdown(summary: dict | None, eval_summary: dict[str, dict
 
 
 def update_readme_evaluation_sections(readme_path: Path = README_PATH) -> bool:
-    """Idempotently rebuilds Offline Evaluation, Walk-Forward Training/
-    Testing, and Other Metrics from whatever currently exists on disk -
-    never raises (mirrors generate_backtest_report.py::
-    update_readme_backtest_section()'s own contract), so a report-
-    generation bug never fails the `aq evaluate`/`aq train` command that
-    triggered it. Returns True if the README was actually modified."""
+    """Rebuilds every generated block of the README and, beside it, of `development/research_results.md` (a block lives in
+    whichever file carries its markers). Never raises, so a report bug never fails the `aq evaluate`/`aq train` command that
+    triggered it. Returns True if a file was modified."""
+    changed = _update_evaluation_blocks(readme_path)
+    return _update_evaluation_blocks(research_doc_beside(readme_path)) or changed
+
+
+def _update_evaluation_blocks(readme_path: Path) -> bool:
     if not readme_path.exists():
         return False
     text = readme_path.read_text(encoding="utf-8")
@@ -669,14 +664,17 @@ def update_readme_evaluation_sections(readme_path: Path = README_PATH) -> bool:
     # render (10 flat runs, 2-point x-axis): every full test-suite run
     # silently clobbered it, and the README showed only the red average
     # line until the next `aq evaluate --monte-carlo` regenerated it.
+    lean_mc, lean_runs = load_lean_monte_carlo()
+    chart_summary, chart_runs = (lean_mc, lean_runs) if lean_runs is not None else (mc_summary, mc_runs)
     if (
-        mc_summary is not None
-        and mc_summary.get("status") == "OK"
+        chart_summary is not None
+        and chart_summary.get("status") == "OK"
         and readme_path.resolve() == README_PATH.resolve()
     ):
-        _render_monte_carlo_chart(mc_runs, mc_summary.get("avg_curve", []), mc_summary.get("config", {}), MONTECARLO_CHART_PATH)
+        _render_monte_carlo_chart(chart_runs, chart_summary.get("avg_curve", []), chart_summary.get("config", {}), MONTECARLO_CHART_PATH,
+                                  num_days=chart_summary.get("num_daily_returns"))
 
-    updated = _replace_between_markers(text, MONTECARLO_MARKER_START, MONTECARLO_MARKER_END, _build_monte_carlo_compact_markdown(mc_summary, _load_json(EVALUATION_DIR / "monte_carlo_lean.json")))
+    updated = _replace_between_markers(text, MONTECARLO_MARKER_START, MONTECARLO_MARKER_END, _build_monte_carlo_compact_markdown(mc_summary, lean_mc))
     if updated is not None:
         text, changed = updated, True
 
@@ -699,7 +697,7 @@ def update_readme_evaluation_sections(readme_path: Path = README_PATH) -> bool:
         text,
         MONTECARLO_FULL_STATS_MARKER_START,
         MONTECARLO_FULL_STATS_MARKER_END,
-        _build_monte_carlo_full_stats_markdown(mc_summary),
+        _build_monte_carlo_full_stats_markdown(lean_mc if lean_mc is not None else mc_summary),
     )
     if updated is not None:
         text, changed = updated, True
@@ -753,6 +751,11 @@ def update_readme_evaluation_sections(readme_path: Path = README_PATH) -> bool:
     if updated is not None:
         text, changed = updated, True
 
+    for markers, body in ((ALPHA_MARKERS, build_alpha_block(EVALUATION_DIR)), (STATUS_MARKERS, build_status_block(EVALUATION_DIR))):
+        updated = _replace_between_markers(text, *markers, body)
+        if updated is not None:
+            text, changed = updated, True
+
     for section, body in build_backtest_statistics_blocks(EVALUATION_DIR).items():
         start_marker, end_marker = BTSTATS_MARKERS[section]
         updated = _replace_between_markers(text, start_marker, end_marker, body)
@@ -766,7 +769,7 @@ def update_readme_evaluation_sections(readme_path: Path = README_PATH) -> bool:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Regenerate README.md's Offline Evaluation / Walk-Forward / Other Metrics sections."
+        description="Regenerate the generated blocks of README.md and development/research_results.md."
     )
     parser.add_argument("--readme", type=Path, default=README_PATH)
     args = parser.parse_args()

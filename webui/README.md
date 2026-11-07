@@ -1,133 +1,27 @@
 # webui
 
-React/Vite single-page dashboard that replaced the earlier `dashboard.html`
-and `volatility_dashboard.html`. Polls `monitoring/api_server.py`'s
-`/api/state` (plus `/api/scene`, `/api/topology`) every 5 seconds via
-TanStack React Query (`src/api/hooks.ts`'s `useRuntimeState()`).
+The React/Vite dashboard over `monitoring/api_server.py`. Runtime state is polled every 5 seconds through TanStack Query (`src/api/hooks.ts`), and Tracing feeds every 15.
 
-Pages (`src/pages/`):
+| Page (`src/pages/`) | Shows |
+|---|---|
+| `Overview.tsx` | Scorecards, 3D market scene, heatmap, signal board, positions |
+| `OperationsPage.tsx` | Kill switch, reconciliation, triggers, retraining, generations, paper readiness, multi-asset readiness, audit log |
+| `RiskPage.tsx` | Per-asset sizing with multiplier chips and book role, macro snapshot |
+| `OptionsStrategyPage.tsx` | The strategy registry and selector scores |
+| `TopologyPage.tsx` | The 3D topology and clusters |
+| `NeuralNetworkPage.tsx` | Each exported network, and per-head ranking gates |
+| `EvaluationPage.tsx` | `aq evaluate` reports, from `/api/evaluation` |
+| `TracingPage.tsx` | Equity curves, asset performance and metrics, from `/api/grafana/*` |
 
-- `Overview.tsx` — scorecards, 3D market scene, asset heatmap (left) and the
-  trading-side stack: Observation Mode, signal board, positions,
-  strategy/risk cards (right). V4-W1 moved the operational/health panels
-  out to `OperationsPage.tsx`; this page had grown to 11 stacked panels in
-  a single column.
-- `OperationsPage.tsx` (V4-W1) — the operational/health half of the old
-  Overview, in a balanced two-column layout: Kill Switch
-  (`KillSwitchPanel.tsx`) and Reconciliation (`ReconciliationPanel.tsx`)
-  lead the left column, followed by Performance Triggers, Retraining
-  Status (V2-17, now including an Auto-Rollback block), Paper Trading
-  Readiness, Multi-Asset-Class Readiness; Audit Log, Monitoring Feeds, Raw
-  State (right).
-- `RiskPage.tsx` — risk core panel, asset volatility/sizing table (with a
-  per-multiplier chip breakdown — confidence/topology/rank/RL/cost), liquidity and
-  execution-impact panel, a Macro & Alt-Data Snapshot panel
-  (`MacroSnapshotPanel.tsx` — real Treasury yield-curve/credit-spread and
-  VIX-derived options-implied-vol/financial-conditions numbers,
-  `main.py::_write_state()`'s `state["macro"]`), a derivatives-macro panel
-  (`DerivativesMacroPanel.tsx` — futures term-structure/options sentiment
-  features), plus (V5.1) Rank Signal
-  (`RankSignalPanel.tsx`, the resolved head-blend policy), Net Edge
-  (`NetEdgePanel.tsx`, expected-edge-vs-cost per symbol), Book Neutrality
-  (`BookNeutralityPanel.tsx`, dollar/sector-neutral diagnostics from the
-  last rebalance), and Sensitivity (`SensitivityPanel.tsx`, per-symbol
-  macro betas).
-- `EvaluationPage.tsx` (V5.1) — the offline, cost-aware evaluation of the
-  active model (`GET /api/evaluation`), eight panels: rank-book performance
-  (gross-vs-net Sharpe, turnover, cost drag), capacity/cost-stress,
-  walk-forward stability (per-metric mean/CI/sign-flip across windows),
-  ablation (Δ net Sharpe vs. a static buy-and-hold baseline
-  per mechanism, with unmeasurable mechanisms shown muted rather than
-  omitted), book-spread calibration, book-history reconciliation,
-  Monte Carlo simulation (distribution table + inline average-curve/p95
-  band SVG) and the benchmark comparison panel (`BenchmarkPanel.tsx`,
-  V5.4.4 — the rank book's net Sharpe vs. momentum/mean-reversion/random
-  strategy baselines and SPY/60-40 public benchmarks).
-- `OptionsStrategyPage.tsx` (Phase 4.8) — held multi-leg option positions
-  with per-leg dividend-driven assignment-risk scores, a dividend-schedule
-  summary, the learned strategy-selector model's per-symbol scores (a
-  dormant-state message when no model is loaded - realistically permanent
-  in this environment, see `train_strategy_selector.py`'s own module
-  docstring), same-bar corporate-action/split events, a static 43-strategy
-  catalog browser (`GET /api/strategies`, its own hook - not part of
-  `/api/state`, since the catalog is useful even with no backtest ever
-  run), and a Forex pair-spec detail panel. All 6 components live under
-  `components/optionsstrategy/`. Surfaces V4.7 data
-  (`main.py::_write_state()`'s `signals[symbol_key].bond_analytics`/
-  `assignment_risk`/`dividend_schedule`/`strategy_selector_scores`/
-  `corporate_action`) that was computed but never reached `state.json`
-  before this.
-- `TopologyPage.tsx` — 3D cluster view with regime/risk colouring.
-- `TracingPage.tsx` (V2-18) — runtime metrics snapshot, backtest equity
-  curve (per-ticker selector, strategy vs buy-and-hold) and
-  observation-mode equity/drawdown curves stacked in the wider left
-  column; asset performance (diverging Sharpe bars) alone in the right.
-  V4-W2 chose that split so the interactive charts get the width while the
-  asset table — which grows a row per asset — has room to grow downward.
-  Replaces the Grafana instance that used to be the only consumer of these
-  feeds — Grafana has been removed from `docker-compose.yml` entirely.
-- `NeuralNetworkPage.tsx` — interactive 3D diagram
-  (`components/neuralnet/NeuralNetworkScene3D.tsx`) plus a stats panel
-  (`NeuralNetworkStatsPanel.tsx`) of every trained network's layer/node/edge
-  structure: the baseline model, the 4 MoE experts, and the optional
-  learned gating blend (`moe/gating.py`'s `ml/gating_model.json`, once
-  `train_gating.py`/`aq train --gating-only` has produced one), plus the
-  learned topology overlay's training recipe (`TrainingRecipePanel.tsx`).
-  Fetches
-  `GET /api/neural-network` on its own hook (`useNeuralNetwork()`), not the
-  shared `/api/state` blob. The scene's `NETWORK_ORDER` array controls
-  which networks actually render and in what order — a new network
-  returned by the backend needs adding there too, or it silently appears
-  only in the stats panel's list. `topology/learned_topology.py`'s KMeans
-  cluster prototypes are the one thing deliberately left out entirely (not
-  a layered network), shown instead as a labelled `excluded` entry.
-  `NeuralNetworkStatsPanel.tsx`'s `RankingQualityGate` sub-component
-  renders the promotion-gate
-  verdict for **all three** ranking heads (`rank_5d`/`rank_20d`/
-  `sector_neutral_rank_20d`), each with a
-  collapsible per-era diagnostic table (era window, n, mean IC, t-stat,
-  opposite-sign/insufficient-data flagged) sourced from
-  `train.py::assess_ranking_quality_from_predictions()`'s `observed.per_era`.
-
-Monitoring panels live under `src/components/monitoring/`
-(`PerformanceTriggersPanel.tsx`, `RetrainingStatusPanel.tsx`,
-`ObservationPanel.tsx`, `MonitoringFeeds.tsx`, `CountTable.tsx`,
-`RawStateViewer.tsx`) and all read nested fields off the single
-`/api/state` blob.
-
-Tracing panels live under `src/components/tracing/`
-(`MetricsSnapshotPanel.tsx`, `AssetPerformancePanel.tsx`,
-`BacktestEquityPanel.tsx`, `ObservationEquityPanel.tsx`) and fetch the
-`/api/grafana/*` routes directly (`src/api/hooks.ts`'s `useMetricsSnapshot()`,
-`useEquityCurves()`, `useAssetPerformance()`, `useObservationEquityCurve()`,
-each on a 15s refresh). `LineChart.tsx` and `DivergingBarChart.tsx` in the
-same folder are small dependency-free SVG chart primitives shared by those
-panels — no charting library was added.
-
-Runtime types for the `/api/state` payload live in `src/types/state.ts`;
-tracing feed types live in `src/types/tracing.ts`.
-
-## Local dev
+## Develop
 
 ```powershell
+aq api          # backend on :8001
 npm install
-npm run dev
+npm run dev     # http://localhost:3002, proxying /api to :8001
 ```
 
-Serves on `http://localhost:3002` (moved from 3000 in V2-17 so a local
-Aether-Quant stack never collides with the separate Aether-Vault sibling
-project's own webui, which also defaults to 3000). `/api` calls proxy to
-`http://localhost:8001` (`vite.config.ts`) — start the backend locally with:
-
-```powershell
-uvicorn monitoring.api_server:app --port 8001 --reload
-```
-
-In Docker, the same build is instead bundled into and served by the
-`aether-quant-engine` container (the `engine` service) itself on port
-8001 — no separate webui container or port.
-
-## Build / lint / test
+In Docker the same build is served by the `engine` service on port 8001.
 
 ```powershell
 npm run build   # tsc -b && vite build
@@ -135,39 +29,12 @@ npm run lint    # oxlint
 npm run test    # vitest run
 ```
 
-Vitest + Testing Library were added in V4-W1 (this was the first frontend
-test infrastructure in the project). `src/test/setup.ts` globally stubs
-`@react-three/fiber` and `@react-three/drei`, since jsdom has no WebGL and
-the page-composition tests care about which panels render, not about the
-renderer. Suites include `src/pages/pages.test.tsx` (V4-W1/W2 — which
-panels live on which page, nav-pill routing),
-`src/components/topology/TopologyScene3D.test.tsx` (V4-W3 — the 2D/3D
-embedding-mode legend switch), chart primitive tests
-(`LineChart.test.tsx`/`DivergingBarChart.test.tsx`), `src/lib/format.test.ts`,
-and — added V4.12.2 for `development/Problems.md` #71's webui integration
-fixes — `components/risk/AssetSizingTable.test.tsx` (the multiplier-chip
-breakdown), `components/neuralnet/NeuralNetworkStatsPanel.test.tsx` (the
-per-head ranking-quality gates + per-era table), and
-`components/risk/MacroSnapshotPanel.test.tsx` (the new macro panel's
-empty/populated states).
+- **Tests:** Vitest and Testing Library. `src/test/setup.ts` stubs `@react-three/fiber` and `drei`, because jsdom has no WebGL.
+- **Low memory:** if workers time out, use `npx vitest run --no-file-parallelism`.
 
-**Local-machine note**: on a memory-constrained dev machine, `npm run test`
-(vitest's default multi-fork pool) can hit worker-spawn timeouts under RAM
-pressure — a resource symptom of this environment, not a test-correctness
-issue (see `development/Problems.md` #50/#52). `npx vitest run
---no-file-parallelism` is the reliable fallback.
+## Topology modes
 
-## Topology 3D modes (V4-W3)
+`TopologyScene3D.tsx` reads the backend's `dimensions.depth`:
 
-`TopologyScene3D.tsx`'s `toVec3()` reads the backend's declared
-`dimensions.depth` to tell the two embedding modes apart:
-
-- `depth === 1` — 2D mode (the default). x/y are the SMACOF
-  correlation-distance embedding, z is the volatility encoding, mapped on
-  a deliberately shallower scale.
-- `depth === 100` — 3D mode
-  (`phase_v2.topology.embedding_dimensions: 3`). All three axes are a real
-  distance-preserving embedding, so z maps with the *same* factor as x/y —
-  scaling it differently would squash the very distances the embedding
-  exists to preserve. Volatility is carried by node radius, which already
-  encoded it in both modes.
+- **`depth === 1` (default):** x and y are the embedding, and z encodes volatility on a shallower scale.
+- **`depth === 100` (`phase_v2.topology.embedding_dimensions: 3`):** all three axes are the embedding, on one scale, and node radius carries volatility.

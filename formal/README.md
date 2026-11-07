@@ -1,4 +1,4 @@
-# formal/ — Lean 4 proofs of the safety-critical pure functions (V6.4.3)
+# formal
 
 A Lake project (`AetherFormal`, Lean 4 + Mathlib) that models the pure Python functions the live order path and the
 offline simulator share, proves their invariants, and computes differential test cases from the same models. The
@@ -50,7 +50,7 @@ book-construction and neutrality functions).
 | `SleeveGuard.lean` | `portfolio/sleeve_guard.py` | `trailingDrawdown_nonneg`, `trailingDrawdown_nonpos_lookback`, `trailingDrawdown_le_losses` |
 | `JsonSafety.lean` | `json_safety.sanitize_json_finite` | `sanitize_finite`, `sanitize_idem`, `sanitizeObj_keys` |
 
-## Findings (Problems.md, V6.4.3)
+## Findings
 
 - **Sector cap after the dollar step:** a sector holding a long and a short can end above `sector_max_net_weight`
   (`sector_cap_counterexample`). New option `phase_v2.portfolio_book.neutrality.reapply_sector_cap_after_dollar_neutral`

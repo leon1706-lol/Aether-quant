@@ -7,11 +7,11 @@ labels: ["bug"]
 
 ## What happened
 
-<!-- One or two sentences. Lead with the observable failure. -->
+<!-- Lead with the observable failure. -->
 
 ## Where
 
-<!-- File(s)/module(s)/CLI command(s) involved, e.g. `aq evaluate --rank-book`, portfolio/book_construction.py -->
+<!-- File, module or command, e.g. `aq evaluate --rank-book`. -->
 
 ## Expected vs actual
 
@@ -20,31 +20,17 @@ labels: ["bug"]
 
 ## Reproduction
 
-<!--
-  Minimal steps from a clean clone. Include the exact command(s) and any
-  config.json keys involved (`aq config get <dotted.key>` output helps).
--->
-
 ```text
-<commands / steps>
+<steps from a clean clone; `aq config get <key>` output helps>
 ```
 
 ## Evidence
 
-<!-- Test output, log excerpt, or backtest artifact reference. Paste the
-smallest relevant slice; link large files instead of pasting them. -->
-
 ```text
-<output>
+<smallest relevant output>
 ```
 
 ## Environment
 
-- OS:
-- Python version:
-- Commit / tag:
-
-## Checklist
-
-- [ ] I ran `aq test` and can name the failing/passing state
-- [ ] I checked `development/Problems.md` for a known entry covering this
+- OS, Python version, commit or tag:
+- [ ] I checked `development/Problems.md` for a known entry

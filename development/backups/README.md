@@ -1,24 +1,12 @@
 # development/backups
 
-Pre-condensation snapshots of the two large append-only development
-records, kept so a condensing pass can never lose history. These are
-**frozen restore points, not living documents** — never edit them; if a
-condensation goes wrong, copy the file back over the live one and redo it.
+Full text of `Changelog.md` and `Problems.md` from before each condensing pass, so condensing can never lose history. Frozen restore points: never edit them.
 
-| File | What it is |
+| Suffix | Taken at |
 |---|---|
-| `Changelog.md.bak_pre_condense` (368KB) | Full Changelog before the V5.2.8 condensation pass |
-| `Problems.md.bak_pre_condense` (479KB) | Full Problems.md before the V5.2.8 condensation pass |
-| `Changelog.md.bak_pre_condense_v54` (187KB) | Full Changelog as of V5.3.5.3 (2026-08-21), before the second condensation pass started |
-| `Problems.md.bak_pre_condense_v54` (158KB) | Full Problems.md as of V5.3.5.3 (2026-08-21), before its second condensation pass |
-| `Changelog.md.bak_pre_condense_v63` (180KB) | Full Changelog as of V6.3.0 (2026-10-18), before the third condensation pass |
-| `Problems.md.bak_pre_condense_v63` (338KB) | Full Problems.md as of V6.3.0 (2026-10-18), before its third condensation pass |
+| `.bak_pre_condense` | V5.2.8 |
+| `.bak_pre_condense_v54` | V5.3.5.3 |
+| `.bak_pre_condense_v63` | V6.3.0 |
+| `.bak_pre_condense_v662` | V6.6.1, before the V6.6.2 pass |
 
-Naming convention: `<file>.bak_pre_condense` for the first pass,
-`.bak_pre_condense_<tag>` for later passes (suffix = the version round the
-snapshot was taken in). New condensation passes add a new snapshot here
-first and never overwrite an existing one.
-
-The current, maintained versions live one level up:
-[`development/Changelog.md`](../Changelog.md) and
-[`development/Problems.md`](../Problems.md).
+New passes add a snapshot here first and never overwrite one.

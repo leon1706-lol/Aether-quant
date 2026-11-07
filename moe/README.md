@@ -1,153 +1,17 @@
 # moe
 
-Owns the V2 Mixture-of-Experts layer:
+The Mixture-of-Experts layer. `gating.py::build_gating_decision()` blends the four experts and the baseline into one probability. It feeds the legacy signal's `final_probability_up`; the book ranks on the rank heads, and the shipped sleeve skips this path.
 
-- gating network
-- expert routing
-- expert weight blending
-- final MoE signal composition
+**The default blend**
 
-This package builds on the existing `train.py` feature pipeline and `main.py` Lean inference loop.
+- Scores each expert on quality status, regime alignment and validation and backtest performance.
+- `stable` and `watchlist` experts contribute; `disabled_for_gating` ones don't. `phase_v2.gating_network.disabled_experts` excludes more, and the rest renormalize.
+- Missing artifacts fall back to the baseline.
+- Magnitude and volatility blend the same way, over experts that have a head (#121). `_weighted_blend()` returns `None` when no expert has a value, so "no data" never reads as zero.
 
-Core behavior:
+**Optional layers, each falling back**
 
-- `moe/gating.py` scores expert models with quality status, regime alignment and validation/backtest performance
-- magnitude/volatility blends renormalize over the experts that actually have a head (V5.4.7 #121 - a missing optional head no longer deflates the blend toward oversizing)
-- `stable` and `watchlist` experts can contribute to the final signal
-- `disabled_for_gating` experts are ignored by the manager
-- `main.py` loads local expert JSON exports from `ml/expert_models/<expert>/model_weights.json`
-- runtime state includes `moe_gating`, expert probabilities and the final MoE probability per asset
-- if expert artifacts are missing, the runtime falls back to the baseline model
+- **Learned gating (`phase_v2.gating_network.learned_model_enabled`):** scores a 26-feature vector with a trained model through `run_exported_model()`, and `decision_source` becomes `learned_gating`. Any failure silently uses the default blend. It's direction-only. Train with `aq train --gating-only`, on the validation split replayed through the exported models, to avoid stacking circularity.
+- **Sequence blend (`phase_v2.gating_network.sequence_weight`, default 0):** applied last, `w * sequence + (1 - w) * existing`, each field independently. `GatingDecision.sequence_blended` records whether it contributed.
 
-## Real learned gating weights (optional, additive, always-falls-back)
-
-The hardcoded quality/performance/regime-alignment blend above is no
-longer the only option — `moe/gating.py` can now optionally score a
-trained model instead, without changing anything about the fallback path:
-
-- `build_gating_model_features(regime, baseline_probability_up, weights)`
-  builds a fixed 26-dim feature vector (`GATING_MODEL_FEATURE_KEYS`): each
-  expert's probability/quality-multiplier/performance-score/regime-alignment
-  ×4, the baseline probability, and one-hot trend/volatility/risk regime.
-  Every value is already a bounded `[0,1]` probability or a one-hot flag,
-  so — unlike `topology/learned_topology.py`'s z-scored prototypes — no
-  scaler/feature_stats is needed.
-- `build_gating_decision(..., gating_model=None, gating_feature_schema=None)`
-  gains two optional params. When both are present, the hardcoded blend is
-  still computed first (unchanged), then the learned model scores the
-  feature vector via the existing `inference/exported_model.py::run_exported_model()`
-  interpreter — no new inference code. On success, `decision_source`
-  becomes `"learned_gating"` (joining `"baseline_fallback"`,
-  `"experts_only"`, `"baseline_and_experts"`). Any exception (missing key,
-  unsupported layer type, malformed export) is caught and silently falls
-  back to the hardcoded blend — a degraded/missing learned model must
-  never crash a bar or block a decision, only forfeit the improvement it
-  would have added, mirroring `topology/learned_topology.py`'s per-node
-  fallback isolation.
-- `main.py::_load_gating_model()` loads `ml/gating_model.json` +
-  `ml/gating_feature_schema.json` (optional artifact pair, same
-  graceful-degrade contract as `_load_learned_topology_model()`), gated by
-  `phase_v2.gating_network.learned_model_enabled` (default `true`).
-- **Training:** `train_gating.py` (repo root, sibling of
-  `train_topology.py`) trains the blend on the dataset's `validation`
-  split replayed through the exported baseline+expert models (avoids
-  stacking circularity — `train` already fit those models), evaluated once
-  on the `backtest` split. Run it directly, via `aq train --gating-only`
-  (installs straight into active `ml/`), or let the retraining pipeline's
-  best-effort `train_gating()` stage produce a versioned candidate
-  automatically.
-- **Sizing, not routing:** a learned gating model changes which
-  probability wins, not how large the resulting trade is — that's a
-  separate, also-optional layer; see `risk/README.md`'s learned-topology
-  sizing section.
-
-## Multi-task model (direction + magnitude + volatility) now routes through gating
-
-**Follow-up, same session as the note below's original writing:** per-expert
-multitask heads now exist (`train.py::_train_expert_multitask()`, writing
-`ml/expert_models/<name>/multitask_model.json` as a sibling to each
-expert's direction-only `model_weights.json`), so `GatingDecision` gains
-`final_magnitude`/`final_volatility` after all — the scope decision this
-section originally documented was resolved, not abandoned.
-
-- `build_gating_decision(..., expert_magnitudes=None, expert_volatilities=None,
-  baseline_magnitude=None, baseline_volatility=None)` gains four optional
-  params (parallel to `expert_probabilities`/`baseline_probability_up`).
-  New `_weighted_blend()` generalizes the exact weighted-average pattern
-  `expert_probability` already uses (`weight.weight × value`, summed over
-  experts with a non-`None` value), with one deliberate difference: it
-  returns `None` (not `0.0`) when no expert has a value at all — a
-  spurious `0.0` would misrepresent "no data" as "predicted zero
-  magnitude/volatility".
-- Same baseline-anchor blend shape `final_probability_up` already uses:
-  `baseline_weight × baseline_value + (1 − baseline_weight) × expert_average`
-  when both sides have a value, falling back to whichever single side
-  does when the other is `None`. The `baseline_fallback` branch (no
-  experts eligible at all) uses `baseline_magnitude`/`baseline_volatility`
-  directly, matching how it already uses `baseline_probability_up`
-  directly there.
-- The learned-gating override (`gating_model`/`gating_feature_schema`,
-  above) stays **direction-only** — it predicts a single probability, not
-  magnitude/volatility, so `final_magnitude`/`final_volatility` are
-  unaffected by `decision_source` switching to `"learned_gating"`.
-- `main.py::_run_expert_multitask_models()` loads and runs each expert's
-  optional multitask export (same per-expert graceful-degradation
-  contract as `_run_expert_models()` — a missing/failed expert
-  contributes `None` to both dicts, never blocks the bar).
-  `predicted_return_magnitude`/`predicted_volatility` (threaded into
-  `signal_payload`, the market analyzer and position sizing — see
-  `analyzer/README.md`/`risk/README.md`) now come from
-  `gating_payload["final_magnitude"/"final_volatility"]` — the full blend
-  — instead of directly from the single baseline-scale multitask model,
-  the same treatment `probability_up` itself already got from gating.
-
-See `development/Changelog.md`'s "Phase 1 remainder + Phase 2" entry for
-the full writeup.
-
-## Phase 2 sequence encoder now optionally blends into the gating decision
-
-The sequence encoder (`train.py::AetherNetSequenceMultiTask`, see
-`inference/README.md`) blends into the gating decision — gating was chosen
-over the market analyzer (which stays the one fully deterministic decision
-layer, see `analyzer/README.md`) or position sizing (which already consumes
-`final_volatility` transitively) because gating is the single funnel every
-other prediction source already passes through, so analyzer and sizing
-benefit automatically with no duplicate code paths.
-
-- `build_gating_decision(..., sequence_prediction=None, sequence_weight=0.0)`
-  gains two new optional params. `sequence_prediction` is the exact
-  `{"direction", "magnitude", "volatility"}` dict
-  `main.py::_run_sequence_model()` already produces (or `None`). The
-  blend is applied **last**, after the hardcoded blend or the learned-
-  gating override has already produced `final_probability_up`/
-  `final_magnitude`/`final_volatility` — same "anchor blend" shape
-  `baseline_weight` already uses (`sequence_weight × sequence_value + (1 −
-  sequence_weight) × existing_value`), so it works identically regardless
-  of `decision_source`. Each of the 3 fields blends independently — a
-  partial `sequence_prediction` (e.g. only `direction` present) still
-  blends whichever fields are non-`None`.
-- New `GatingDecision.sequence_blended: bool` (default `False`) flags
-  whether the sequence model actually contributed to this bar's decision
-  — `True` only when `sequence_prediction` was present and
-  `sequence_weight > 0`. Kept as its own orthogonal field rather than a
-  new `decision_source` value, matching how `final_magnitude`/
-  `final_volatility` already don't have their own `decision_source`
-  variants either.
-- **Off by default** (`phase_v2.gating_network.sequence_weight: 0.0`) —
-  byte-identical whenever it's `0.0` or `sequence_prediction` is `None`
-  (model not loaded, or the per-symbol 30-bar history buffer isn't full
-  yet). Set a nonzero weight (e.g. `0.2`, the same order of magnitude as
-  `baseline_weight`'s default `0.25`) to actually exercise it in a
-  backtest.
-- Wired via `main.py`: `self.gating_sequence_weight` (config-parsed
-  alongside `self.gating_baseline_weight`) and the already-computed
-  `sequence_prediction` (from `self._run_sequence_model()`) are both
-  passed into `build_gating_decision(...)`. The runtime state's
-  `config.model.sequence.informational_only` flag now reflects this —
-  `True` only while `sequence_weight` stays at its default `0.0`.
-
-## V6.4.0: excluded experts
-
-`build_gating_decision(excluded_experts=)` (default none; `phase_v2.gating_network.disabled_experts`) treats the named
-experts as having no probability, so the others renormalise: the ablation switch for lead L8 (Problems #224). The experts
-and the gating blend only feed the legacy signal's `final_probability_up`; the main book ranks on the rank heads.
+Gating changes which probability wins, not how large the trade is: see [`risk/README.md`](../risk/README.md).

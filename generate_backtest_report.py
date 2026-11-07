@@ -48,6 +48,7 @@ from evaluation.backtest_audit import configured_run_window
 ROOT_DIR = Path(__file__).resolve().parent
 BACKTESTS_DIR = ROOT_DIR / "backtests"
 README_PATH = ROOT_DIR / "README.md"
+RESEARCH_DOC_RELATIVE = Path("development") / "research_results.md"
 CHART_PATH = ROOT_DIR / "development" / "backtest_equity_chart.png"
 DAILY_SPY_ZIP = ROOT_DIR / "data" / "equity" / "usa" / "daily" / "spy.zip"
 LEAN_EQUITY_PRICE_SCALE = 10_000.0
@@ -116,7 +117,12 @@ def set_pinned_run(run_dir: Path | None, pin_path: Path | None = None) -> None:
         pin_path.unlink(missing_ok=True)
         return
     pin_path.parent.mkdir(parents=True, exist_ok=True)
-    pin_path.write_text(json.dumps({"run": Path(run_dir).name}), encoding="utf-8")
+    # a companion long-window run belongs to this pin, and goes with it when the pin moves to another run
+    previous = json.loads(pin_path.read_text(encoding="utf-8")) if pin_path.exists() else {}
+    payload = {"run": Path(run_dir).name}
+    if previous.get("run") == payload["run"] and previous.get("long_run"):
+        payload["long_run"] = previous["long_run"]
+    pin_path.write_text(json.dumps(payload), encoding="utf-8")
 
 
 def find_latest_backtest_result_json(backtests_dir: Path = BACKTESTS_DIR) -> Path | None:
@@ -368,7 +374,7 @@ def run_status(run_name: str, pinned_run: str | None, verdicts: list[dict]) -> s
     return ", ".join(labels) or "-"
 
 
-def build_history_markdown(backtests_dir: Path = BACKTESTS_DIR, limit: int = HISTORY_LIMIT, verdicts: list[dict] | None = None) -> str:
+def build_history_markdown(backtests_dir: Path = BACKTESTS_DIR, limit: int = HISTORY_LIMIT, verdicts: list[dict] | None = None, judged_only: bool = False) -> str:
     """One row per finished Lean run, newest first: the README's main table shows only the latest run, so two runs on
     different windows (the backtest window, then backtest + holdout) would otherwise overwrite each other."""
     pinned = pinned_run_dir(backtests_dir)
@@ -383,6 +389,8 @@ def build_history_markdown(backtests_dir: Path = BACKTESTS_DIR, limit: int = HIS
         if len(rows) >= limit and candidate.parent.name != pinned_name:
             continue
         pinned_listed = pinned_listed or candidate.parent.name == pinned_name
+        if judged_only and pinned_name and run_status(candidate.parent.name, pinned_name, verdicts) == "-":
+            continue
         try:
             summary = load_backtest_summary(candidate)
         except (OSError, ValueError, IndexError):
@@ -402,9 +410,14 @@ def build_history_markdown(backtests_dir: Path = BACKTESTS_DIR, limit: int = HIS
     computed = datetime.now(tz=timezone.utc).date().isoformat()
     return "\n".join([
         "| Run | Window | Sharpe | Net profit | Drawdown | Orders | Status |", "|---|---|---|---|---|---|---|", *rows,
-        "", f"_The newest finished Lean runs and the README pin ({len(rows)} rows), computed {computed}; Status from the README pin and the "
+        "", f"_{len(rows)} rows, computed {computed}; Status from the README pin and the "
         "`evaluation.lean_verdict` files (`ml/evaluation/*/r_lean*.json`)._",
     ])
+
+
+def research_doc_beside(readme_path: Path) -> Path:
+    """The archive that carries the retired book's generated blocks; a scratch README in a test has none."""
+    return Path(readme_path).parent / RESEARCH_DOC_RELATIVE
 
 
 def update_readme_backtest_section(
@@ -436,6 +449,11 @@ def update_readme_backtest_section(
         history_text = _replace_between_markers(text, HISTORY_MARKER_START, HISTORY_MARKER_END, history_markdown)
         if history_text is not None:
             text = history_text
+        research_doc = research_doc_beside(readme_path)
+        if research_doc.exists():
+            research_text = _replace_between_markers(research_doc.read_text(encoding="utf-8"), HISTORY_MARKER_START, HISTORY_MARKER_END, history_markdown)
+            if research_text is not None:
+                _atomic_write(research_doc, research_text)
 
     _atomic_write(readme_path, text)
     return True
@@ -466,7 +484,7 @@ def update_readme_from_latest_backtest(
         return False
     summary = with_daily_benchmark_fallback(load_backtest_summary(result_json_path))
     generate_equity_chart(summary, chart_path)
-    return update_readme_backtest_section(summary, readme_path, chart_path, build_history_markdown(backtests_dir))
+    return update_readme_backtest_section(summary, readme_path, chart_path, build_history_markdown(backtests_dir, judged_only=True))
 
 
 def main() -> int:

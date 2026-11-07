@@ -22,6 +22,7 @@ exactly the bug this comment exists to prevent from being reintroduced.
 import json
 import sys
 from datetime import date
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
@@ -36,6 +37,28 @@ def _no_real_lean_report():
     wiring (tests/test_lean_report.py covers the report itself)."""
     with patch("aq_cli._run_lean_report", return_value=0) as report:
         yield report
+
+
+@pytest.fixture(autouse=True)
+def _no_real_doc_facts_sync(request):
+    """A full `aq test` rewrites the repository's doc facts through `git ls-files`; under test neither may happen."""
+    if request.node.name.startswith("test_doc_facts_sync"):
+        yield
+        return
+    with patch("aq_cli._sync_doc_facts_best_effort"):
+        yield
+
+
+def test_doc_facts_sync_leaves_the_real_docs_alone_for_a_scratch_readme(tmp_path):
+    with patch("aq_cli.README_PATH", tmp_path / "README.md"), patch("docs_facts.sync_docs") as sync:
+        aq_cli._sync_doc_facts_best_effort()
+    sync.assert_not_called()
+
+
+def test_doc_facts_sync_never_fails_the_test_run(capsys):
+    with patch("docs_facts.compute_facts", side_effect=OSError("no config")), patch("docs_facts.tracked_docs", return_value=[]):
+        aq_cli._sync_doc_facts_best_effort()
+    assert "docs facts not refreshed" in capsys.readouterr().err
 
 
 @pytest.fixture(autouse=True)
@@ -4061,5 +4084,6 @@ def test_evaluate_alpha_proof_writes_the_report_for_the_resolved_run(tmp_path):
         "evaluation.alpha_proof.alpha_proof_report", return_value=report
     ), patch("aq_cli._write_evaluation_json", side_effect=lambda path, payload: written.update({str(path): payload})):
         assert aq_cli.cmd_evaluate(args) == 0
-    (path, payload), = written.items()
-    assert path.endswith("alpha_proof.json") and payload["r_alpha1"]["verdict"] == "not demonstrated"
+    by_name = {Path(path).name: payload for path, payload in written.items()}
+    assert set(by_name) == {"alpha_proof.json", f"alpha_proof_{tmp_path.name}.json"}
+    assert by_name["alpha_proof.json"]["r_alpha1"]["verdict"] == "not demonstrated" and by_name["alpha_proof.json"]["computed_at"]

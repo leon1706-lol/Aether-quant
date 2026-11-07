@@ -1,37 +1,23 @@
-<!-- Title style: `V<version> <short what-and-why>` for release-bound PRs,
-     matching the repo's commit history; otherwise a plain descriptive title. -->
+<!-- Title: `V<version> <what and why>` for release-bound PRs, otherwise plain and descriptive. -->
 
-## What & why
+## What and why
 
-<!-- One paragraph: what changed and the problem/round it belongs to.
-     Reference development/Problems.md entries (#N) where applicable. -->
+<!-- One paragraph. Reference development/Problems.md entries (#N) where they apply. -->
 
-## Changes
+## Behaviour
 
--
--
-
-## Behavior contract
-
-<!-- This repo's hard rule: prove what changed and for whom. -->
-
-- [ ] Default behavior is byte-identical when new flags/params are absent (`None`-default / default-off convention), **or** the behavior change is intentional and listed below:
-  - <!-- intentional changes here -->
-- New config keys: <!-- `phase_v2.*` keys + defaults, or "none" -->
+- [ ] Unchanged when new flags are absent, **or** the change is intentional and listed here:
+- New config keys and defaults: <!-- or "none" -->
 
 ## Verification
 
-<!-- How was this confirmed? The suite must be green before review. -->
+- [ ] `aq test` green (N passed)
+- New tests: <!-- files, and what they pin -->
+- Manual checks: <!-- dry runs, real-data spot checks -->
 
-- [ ] `aq test` green (N passed): <!-- paste count -->
-- New tests: <!-- files + what they pin down -->
-- Manual checks: <!-- CLI dry-runs, real-data spot checks -->
-- Real Lean backtest: <!-- not run in PRs by convention; note if one is required before merge -->
+## Docs
 
-## Docs updated
-
-- [ ] README / sub-package README
-- [ ] `development/Changelog.md` (append-only entry)
-- [ ] `development/Problems.md` (if a bug was found/fixed)
-- [ ] `development/architecture.md` / `development/infrastructure.md` (if structure/services changed)
-- [ ] Obsidian vault regenerated (`generate_code_graph.py` → `regenerate_vault.py --append-handoff`)
+- [ ] README or package README
+- [ ] `development/Changelog.md`, and `development/Problems.md` if a bug was found
+- [ ] `development/architecture.md` or `infrastructure.md` if structure or services changed
+- [ ] `aq docs sync`, and the vault regenerated

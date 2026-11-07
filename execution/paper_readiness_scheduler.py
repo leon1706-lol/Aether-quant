@@ -18,8 +18,7 @@ Hard boundary (Phase 7's scope, per the user's explicit instruction): this
 module NEVER touches phase_v2.paper_trading's config flags
 (live_data_provider_configured/manual_review_confirmed) and never changes
 main.py's actual order-routing behavior - it only keeps the readiness
-REPORT fresh. See execution/README.md's "Activating real paper-trading
-fills — manual step" section for what a human must still do to actually
+REPORT fresh. See RUNBOOK.md's "Deploy checklist" for what a human must still do to actually
 go live.
 """
 

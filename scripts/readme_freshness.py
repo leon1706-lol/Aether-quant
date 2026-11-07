@@ -29,12 +29,12 @@ SOURCES = {
     "RESEARCH": ["v630/research.json", "v630/calibration.json", "head_audit.json", "holdout_report.json",
                  "v640/research.json", "v640/r_lean13.json", "v642/r_lean14_bt7.json", "v642/r_lean14_bt8.json"],
     "BACKTEST_HISTORY": [],
-    "MONTECARLO_FULL_STATS": ["monte_carlo.json"],
+    "MONTECARLO_FULL_STATS": ["monte_carlo_lean.json"],
     "EVAL_FULL_STATS": ["rank_book_simulation_sequence.json", "rank_book_simulation_multitask.json"],
     "WALKFORWARD_FULL_STATS": [],
 }
-LEAN_BLOCKS = ("BACKTEST_HISTORY", "BTSTATS_GENERAL", "BTSTATS_PERFORMANCE", "BTSTATS_RUNS", "BTSTATS_SHORTFALL",
-               "BTSTATS_EFFICIENCY", "BTSTATS_CLASSIFICATION", "BTSTATS_ATTRIBUTION")
+LEAN_BLOCKS = ("BTSTATS_GENERAL", "BTSTATS_PERFORMANCE", "BTSTATS_RUNS", "BTSTATS_SHORTFALL", "BTSTATS_EFFICIENCY",
+               "BTSTATS_ATTRIBUTION", "BTSTATS_BENCHMARKS", "ALPHA", "MONTECARLO")
 MODEL_BOUND = ("WALKFORWARD", "WALKFORWARD_FULL_STATS")
 # the installed models the model-bound blocks describe (ml/, written by a retrain)
 MODEL_FILES = ("model_weights.json", "multitask_model.json", "sequence_model.json")

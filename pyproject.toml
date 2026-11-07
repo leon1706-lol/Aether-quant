@@ -78,7 +78,7 @@ train = ["numpy", "pandas", "pyarrow", "scikit-learn", "torch"]
 # `risk_controls` because evaluation/kill_switch_replay.py imports it (found
 # by scripts/wheel_smoke.py against a real built wheel - `aq evaluate
 # --replay-kill-switch` raised ModuleNotFoundError for wheel users).
-py-modules = ["aq_cli", "generate_backtest_report", "generate_evaluation_report", "json_safety", "performance_probe", "risk_controls"]
+py-modules = ["aq_cli", "docs_facts", "generate_backtest_report", "generate_evaluation_report", "json_safety", "performance_probe", "risk_controls"]
 # V6.4.3: `aether_quant` - the library facade (re-exports of the pure modules above, research tools, formal cases).
 # V6.6.1: the library covers every subsystem, so these ship too.
 packages = ["risk", "execution", "data_pipeline", "evaluation", "portfolio", "features", "audit", "inference", "analyzer", "monitoring", "topology", "liquidity", "experience", "aether_quant", "moe", "regime", "retraining", "notifications", "experts", "performance"]

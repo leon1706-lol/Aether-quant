@@ -1,163 +1,98 @@
-# AGENTS.md — guidance for AI coding agents working in this repository
+# AGENTS.md: guidance for AI coding agents
 
-**Aether Quant**: self-adapting algorithmic trading system on QuantConnect Lean +
-PyTorch. An ensemble predicts direction, return magnitude, volatility, and
-cross-sectional rank per asset per day, driving a market-neutral long/short book with a
-kill switch, position reconciliation, and controlled retraining in front of live
-trading. Read this before changing anything.
+**Aether Quant** is a self-adapting trading system on QuantConnect Lean and PyTorch, and a toolkit (`aether_quant`, `aq`) for building other algorithms. The shipped book is a long-only crypto trend sleeve, on paper, with no verified edge. A model stack, research cycle, kill switch, reconciliation and controlled retraining surround it. Read this before changing anything.
 
 ## Before touching anything
 
-- **[`todo.md`](todo.md)** (repo root) — owner's live planning canvas, current
-  objective(s) in plain language. Check first. Not a permanent backlog — it gets
-  rewritten/cleared as objectives change, so an empty file isn't "nothing to do": ask,
-  or fall back to `development/Changelog.md`'s latest phase for context.
-- **Sub-readmes** — every folder has one; read it before editing that folder.
-- **`development/*.md`** — structure/plan/known-problems context, read all of them.
-- **`Aether-quant-Obsidian-Vault/`** — generated dependency/function graph for
-  orientation; can be stale, always verify against source.
+- **[`todo.md`](todo.md):** the owner's current objectives. Check it first. It gets rewritten, so if it's empty, ask, or read `development/Changelog.md`'s latest phase.
+- **Sub-readmes:** every folder has one; read it before editing that folder.
+- **`development/*.md`:** structure and problems context.
+- **`Aether-quant-Obsidian-Vault/`:** a generated code graph for orientation. It can be stale, so verify against source.
 
 ## Commands
 
 ```powershell
-pip install -e .          # register `aq` CLI from source (pyproject.toml)
-aq test                   # full suite, refreshes badge   (aq test --risk etc. = subsystem only)
-#                         # no --parallel on a low-memory machine: each xdist worker imports torch (OOM-killed a run)
-aq evaluate               # offline rank evaluation
-aq cycle status           # the research cycle: generations, shares, decay, what is due (RUNBOOK "Research cycle")
-aq backtest               # real Lean backtest (Docker, ~1hr+) — owner runs this, never agents
+pip install -e .          # register `aq` from source (pyproject.toml)
+aq test                   # full suite, refreshes the badge and doc facts (aq test --risk etc. = one subsystem)
+#                         # no --parallel on a low-memory machine: each xdist worker imports torch
+aq evaluate               # offline evaluation
+aq cycle status           # generations, shares, decay, what is due (RUNBOOK "Research cycle")
+aq docs sync              # refresh numbers quoted in the docs
+aq backtest               # real Lean backtest (Docker, ~1hr+): the owner runs this, never agents
 ruff check .              # must be clean before commit
 ```
 
 ## Non-negotiables
 
-1. **Pure, testable modules over `main.py` logic.** `main.py` only runs inside Lean:
-   its order-path methods are driven against a minimal `AlgorithmImports` stub
-   (`tests/test_main_wiring.py`), but `on_data()` itself is not covered — anything needing
-   tests is a pure function importable by both `main.py` and `tests/`.
-2. **Nothing is done until verified.** Run `aq test` after every code change (never bare
-   `pytest` from root — `development/Problems.md` #8, `tests/README.md`); ruff clean.
-   Never commit with a red suite. Debug manually where unit tests don't reach.
-3. **Fail safe, degrade gracefully.** Never assume Redis / Postgres / IB is available
-   (the suite runs without them). Never let NaN / inf / None pass silently through
-   feature pipelines — use `json_safety` helpers and explicit guards.
-4. **No secrets** in commits. No `aq backtest` in any automated gate or agent session.
-5. **New top-level `.py` module** → add to `pyproject.toml` `py-modules` (or, if `aq` never
-   imports it, to `INTENTIONALLY_NOT_SHIPPED` in `tests/test_packaging_modules.py`), then
-   `pip install -e .`. A stale editable install breaks `aq` with
-   `ModuleNotFoundError` — reinstall after pulling new modules.
-6. **Offline/live parity.** Any change to the live trading path (`main.py` signal,
-   book, sizing, gates, orders) must reuse the same pure function the offline
-   simulator (`evaluation/rank_book_simulator.py`) calls, or ship a parity test proving
-   both agree. Live-only logic needs a one-line justification in
-   `development/architecture.md`'s Offline/Live Parity Contract.
-7. **Evidence comes from the engine log.** Lean teardown/exit claims are checked in
-   `backtests/<run>/log.txt` (engine), never only `<id>-log.txt` (algorithm) — #104 was
-   wrongly marked clean from the algorithm log.
-8. **Every owner-run backtest gets written up** (Problems.md + Changelog.md entry and an
-   `aq evaluate --audit-backtest` report) before further work builds on it.
-9. **New `config.json` keys default to current behaviour.** Behaviour flips are owner
-   decisions, recorded in the Changelog.
-10. **`main.py` lives behind Lean's `from AlgorithmImports import *`**, which exports names like `time`
-    (`datetime.time`) over any stdlib module of the same name, and `Exception` (.NET's, which no Python error matches, #276):
-    never `import time` there (use `from time import perf_counter as _perf_counter` after the star import), and keep
-    `from builtins import Exception`. `tests/test_main_ensure_ready_smoke.py`
-    runs the real first-bar setup - run it after touching `main.py`'s imports or config reads. And read the
-    **engine** log of any backtest, even a crashed one, before calling the failure understood (#132).
-11. **Latency-aware.** Hot-path code (`main.py` per-bar, `inference/`) allocates nothing
-    new per bar without need, does no per-bar disk I/O, and keeps optional diagnostics
-    behind default-off flags. Heavy imports (torch) stay out of Lean startup (#16).
-12. **Data parity is checked against live, not against code.** A dataset row sees the bars live would have at that tick
-    (`features/cross_asset_timing.py` is the one definition; forex carries Lean's fill-forward calendar), and local `data/` and
-    the Codespace's must be file-for-file identical (a push overlays, never deletes — three FRED files once existed only on the
-    Codespace). After any feature/dataset change, compare a backtest's `feature_snapshot` with `aq evaluate --reconcile-features`.
-    Don't run a heavy process (evaluation, tests) during `aq backtest` on the PC: `import main` runs under Lean's
-    `algorithm-creation-timeout` (600 s in `lean.json`, 90 s before V6.4.2, #16) and CPU contention can still trip it. CI runs
-    Python 3.11, the dev PC 3.14 (lazy annotations), the Codespaces pandas 3: test with the stub guards, not by intuition.
-13. **Codespaces bill the owner's monthly budget: on only while a job runs.** Run `gh codespace list` at the start and end
-    of every session and stop anything not in active use (`gh codespace stop -c <name>`). Anything that fits on the dev
-    PC (offline research, `aq evaluate`, tests) runs locally. Create every Codespace with `--idle-timeout 30m`; never
-    hold one open "just in case" or while waiting for the owner. The training Codespace is started for one job and
-    stopped right after its results are pulled. A Lean DinD Codespace is temporary: bundle every Lean run and Docker
-    check of a phase into one lifetime, pull (run folder, logs, `visualization/book_history/`), then
-    `gh codespace delete` it in the same session (its ~20 GB image is billed storage). Record each Codespace's on/off
-    times in the phase's Changelog "Hosts" bullet.
+1. **Pure, testable modules over `main.py` logic.** `main.py` only runs inside Lean: its order paths are stub-tested (`tests/test_main_wiring.py`), but `on_data()` isn't. Anything needing tests is a pure function both `main.py` and `tests/` can import.
+2. **Nothing is done until verified.** Run `aq test` after every code change (never bare `pytest` from the root, #8), with ruff clean. Never commit a red suite.
+3. **Fail safe, degrade gracefully.** Never assume Redis, Postgres or IB is available. Never let NaN, inf or None pass silently through feature pipelines: use `json_safety` helpers and explicit guards.
+4. **No secrets in commits. No `aq backtest` in any automated gate or agent session.**
+5. **New top-level `.py` module:** add it to `pyproject.toml` `py-modules` (or, if `aq` never imports it, to `INTENTIONALLY_NOT_SHIPPED` in `tests/test_packaging_modules.py`), then `pip install -e .`. A stale editable install breaks `aq` with `ModuleNotFoundError`.
+6. **Offline/live parity.** Any change to the live path (`main.py` signal, book, sizing, gates, orders) reuses the pure function the offline simulator calls, or ships a parity test. Live-only logic needs a one-line justification in `development/architecture.md`'s Offline/Live Parity Contract.
+7. **Evidence comes from the engine log.** Lean teardown claims are checked in `backtests/<run>/log.txt`, never only `<id>-log.txt` (#104).
+8. **Every owner-run backtest gets written up** (Problems.md, Changelog.md, `aq evaluate --lean-report`) before further work builds on it.
+9. **New `config.json` keys default to current behaviour.** Behaviour flips are owner decisions, recorded in the Changelog.
+10. **`main.py` lives behind Lean's `from AlgorithmImports import *`,** which exports `time` (`datetime.time`) and `Exception` (.NET's, which no Python error matches, #276). Never `import time` there (use `from time import perf_counter as _perf_counter` after the star import), and keep `from builtins import Exception`. Run `tests/test_main_ensure_ready_smoke.py` after touching its imports or config reads. Read the **engine** log of any backtest before calling a failure understood (#132).
+11. **Latency-aware.** Hot-path code (`main.py` per-bar, `inference/`) allocates nothing new per bar without need, does no per-bar disk I/O, and keeps diagnostics behind default-off flags. Heavy imports stay out of Lean startup (#16).
+12. **Data parity is checked against live, not against code.** A dataset row sees the bars live would have at that tick (`features/cross_asset_timing.py`), and local `data/` and the Codespace's must be file-for-file identical (a push overlays, never deletes). After any feature or dataset change, compare a backtest's `feature_snapshot` with `aq evaluate --reconcile-features`. Don't run a heavy process during `aq backtest` on the PC: `import main` runs under `algorithm-creation-timeout`. CI runs Python 3.11, the dev PC 3.14, the Codespaces pandas 3: test with the stub guards, not by intuition.
+13. **Codespaces bill the owner's budget: on only while a job runs.**
+    - Run `gh codespace list` at the start and end of every session, and stop anything idle.
+    - Anything that fits on the dev PC runs locally. Create every Codespace with `--idle-timeout 30m`.
+    - The training Codespace is started for one job and stopped once results are pulled.
+    - A Lean DinD Codespace bundles every Lean run of a phase into one lifetime, then `gh codespace delete` in the same session (its ~20 GB image is billed storage).
+    - Record on and off times in the phase's Changelog "Hosts" bullet.
 
 ## Where things live
 
 | Path | What lives here |
 |---|---|
-| `main.py` | Lean algorithm entry point (order paths stub-tested, `on_data()` not) |
-| `risk/` · `portfolio/` · `execution/` | Sizing, kill switch · book construction, HRP, options · order gate, cost model, reconciliation |
-| `features/` · `inference/` · `moe/` | Pure feature functions · model loading/batch inference · gating/routing |
-| `train.py` · `train_*.py` | Core training loop · specialized trainers |
-| `evaluation/` · `retraining/` | Offline eval, Monte Carlo, research rounds, the generations' registry and ledger · candidate promotion gates, artifact versioning |
-| `ml/generations/` | Which generations exist, the glide's policy, their lifecycle log, the once-only holdout ledger (tracked; nothing in Lean reads it) |
-| `aether_quant/` | The library: a facade over the pure functions of every subsystem, pinned by `tests/data/aether_quant_api.json` |
-| `experience/` · `audit/` · `monitoring/` · `notifications/` | Redis/Postgres pipeline · hash-chained audit log · FastAPI + dashboards · Telegram |
-| `data_pipeline/` · `regime/` · `topology/` | Backfills, bar synthesis · regime detection · topology overlay |
-| `json_safety.py` · `performance_probe.py` · `aq_cli.py` | Finite-safe JSON helpers · opt-in timing/teardown probes (stdlib-only) · CLI entry point + subsystem test routing |
-| `tests/` · `development/` · `webui/` | pytest suite · docs/Changelog/Problems · React dashboard |
+| `main.py` | Lean algorithm entry point |
+| `risk/` · `portfolio/` · `execution/` | Sizing, kill switch · target weights, book construction, HRP, options · order gate, cost model, reconciliation |
+| `features/` · `inference/` · `moe/` | Pure features · model loading and batch inference · gating |
+| `train.py` · `train_*.py` | Training loop · specialized trainers |
+| `evaluation/` · `retraining/` | Offline eval, research rounds, generations' registry and ledger · candidate gates, versioning |
+| `ml/generations/` | Generations, glide policy, lifecycle log, the once-only holdout ledger (tracked; nothing in Lean reads it) |
+| `aether_quant/` | The library, pinned by `tests/data/aether_quant_api.json` |
+| `experience/` · `audit/` · `monitoring/` · `notifications/` | Redis and Postgres pipeline · hash-chained audit log · FastAPI · Telegram |
+| `data_pipeline/` · `regime/` · `topology/` | Backfills · regime detection · topology overlay |
+| `docs_facts.py` · `json_safety.py` · `performance_probe.py` · `aq_cli.py` | Doc facts · finite-safe JSON · opt-in probes · the CLI |
+| `tests/` · `development/` · `webui/` | The suite · docs and logs · React dashboard |
 
 ## Conventions
 
-- **One test file per source module.** Cross-module regressions go in round files
-  (`test_v543_new_features.py`, `test_rl_sizing_v541.py`, …), committed together with
-  their fix — never separately.
-- **Register every new test file** in `aq_cli.py`'s `_SUBSYSTEM_TEST_FILES` immediately,
-  or subsystem-filtered runs (`aq test --risk`, `--portfolio`, …) silently skip it.
-- **Docs move with code:** README + sub-readmes, `development/` (Changelog.md,
-  Problems.md, architecture.md, infrastructure.md), `aq --help` for new/changed flags.
-- **Problems.md and Changelog.md entries: condensed, not narrated.** Problems: title +
-  severity/status marker + **Problem**/**Fix**/**Verification**, each ~1–3 sentences.
-  Changelog: `## Phase N — Title` + bold-led bullets, one per unique task/fix, ~2
-  sentences each — what changed and why it matters, not file lists or investigation
-  narrative. Condense at write time; don't write long and trim later.
-- **Problems.md status markers** — update when closing an entry:
-  🟢 `fixed` (code changed + verified, nothing pending) ·
-  🟡 `partial` (shipped, verification pending: backtest / live deploy / user confirmation) ·
-  🔴 `closed` (no code fix: declined / won't-fix / moot / superseded).
-- **Comments: short and precise.** Keep a comment only if it tells the reader something
-  the code can't — a non-obvious *why*, an invariant, a real gotcha. Delete ones that
-  restate the code or narrate process ("found live", "see Problems.md #N"); that history
-  belongs in git log / Changelog / Problems.
+- **One test file per source module.** Cross-module regressions go in round files (`test_v660_fixes.py`), committed with their fix.
+- **Register every new test file** in `aq_cli.py`'s `_SUBSYSTEM_TEST_FILES`, or subsystem runs silently skip it.
+- **Docs move with code:** README and sub-readmes, `development/`, `aq --help` for new flags.
+- **Numbers in docs are facts, not text.** A count, window or version goes through `<!--fact:key-->` (`docs_facts.py`) or a generated `AQ:*` block. `tests/test_docs_facts.py` also fails on a path, `phase_v2` key, `aq` command or problem number that no longer exists in a living doc.
+- **The README's Backtest Statistics shows the shipped book only.** The retired book's blocks live in `development/research_results.md`.
+- **Problems.md and Changelog.md entries are condensed.**
+  - Problems: `### N. Title`, then a status and severity line, then **Problem:** / **Fix:** / **Verification:**, each 1-3 sentences.
+  - Changelog: `## Phase N — Title`, then one bold-led bullet per fix, about 2 sentences: what changed and why.
+  - A condensing pass snapshots to `development/backups/` first.
+- **Problems.md status markers:** 🟢 `fixed` (changed and verified) · 🟡 `partial` (shipped, verification pending) · 🔴 `closed` (no code fix: declined, moot, superseded).
+- **Comments: short and precise.** Keep one only if it says what the code can't: a non-obvious why, an invariant, a gotcha. Process history belongs in git log, Changelog and Problems.
 
 ## Model training
 
-Train on the Codespace `aq-Training-Ground-Fixed` via the CLI, or locally only on a host that
-passes `aq cycle retrain`'s RAM preflight (14 GB; the dev PC's 4 GB refuses, and `--smoke` proves
-the plumbing anywhere). Sync the full local project first (including gitignored files); keep the
-codespace OFF when idle (rule 13: `gh codespace stop` as soon as the job's results are pulled);
-afterwards bring model, data, and extra files back locally for testing.
+Train on the Codespace `aq-Training-Ground-Fixed` through the CLI, or locally only on a host that passes `aq cycle retrain`'s RAM preflight (14 GB; `--smoke` proves the plumbing anywhere). Sync the full local project first, including gitignored files; bring model, data and extra files back afterwards.
 
-Lean backtests run on a temporary Docker-in-Docker Codespace
-(`scripts/codespace_lean_run.ps1`, `development/infrastructure.md` "Lean on a DinD Codespace"):
-the dev PC cannot start Docker Desktop reliably. Delete that Codespace when its runs are pulled.
+Lean backtests run on a temporary DinD Codespace (`scripts/codespace_lean_run.ps1`, `development/infrastructure.md`). Delete it when its runs are pulled.
 
 ## CI
 
-`forward-ledger.yml` and `research-cycle.yml` run each session on free runners and write only to branch `forward-ledger`. `.github/workflows/ci.yml` (Python 3.11): `python-tests` (ubuntu + windows, 80% coverage
-gate), `python-lint` (ruff, `py_compile main.py`), `dependency-audit` (pip-audit),
-`webui-tests`, `cli-smoke`, `workflows-lint` (actionlint), plus the V5.5.0 guard jobs
-(fast-guards — which also runs the docs-link check —, subsystem-matrix, wheel-smoke, python-compat,
-docker-checks, secret-scan, parity-smoke, test-count-drift). `tests/test_ci_workflows.py` pins the shape — update it with
-any workflow change. No Lean backtest in CI; the badge is refreshed locally by `aq test`.
-Docker rebuild is required before any paper/live deploy once material code changes land.
+`forward-ledger.yml` and `research-cycle.yml` run each session on free runners and write only to branch `forward-ledger`.
+
+`.github/workflows/ci.yml` (Python 3.11): `python-tests` (ubuntu and windows, 80% coverage gate), `python-lint`, `dependency-audit`, `webui-tests`, `cli-smoke`, `workflows-lint`, and the guard jobs: fast-guards, subsystem-matrix, wheel-smoke, python-compat, docker-checks, secret-scan, parity-smoke, test-count-drift. `tests/test_ci_workflows.py` pins the shape: update it with any workflow change. No Lean backtest in CI. A Docker rebuild is required before any paper or live deploy once material code lands.
 
 ## Wrap-up checklist
 
-After every code change: tests added → `aq test` + ruff green → docs updated (see
-Conventions) → vault regenerated. Before handing over a commit, also run
-`scripts/clean_checkout_test.ps1` (CI's checkout has no gitignored files), or on the 4 GB dev PC
-`scripts/codespace_verify.ps1 -Start`, which runs every CI job on a Codespace:
+After every code change: tests added, `aq test` and ruff green, docs updated, `aq docs sync`, vault regenerated. Before handing over a commit, also run `scripts/clean_checkout_test.ps1` (CI has no gitignored files), or on the 4 GB dev PC `scripts/codespace_verify.ps1 -Start`, which runs every CI job on a Codespace.
 
 ```powershell
 cd Aether-quant-Obsidian-Vault
 python scripts/generate_code_graph.py --repo-root .. --vault .
-python scripts/regenerate_vault.py --repo-root .. --vault . --append-handoff \
-  --agent ox-alpha --action completed --summary "..." --files file1.py file2.py
+python scripts/regenerate_vault.py --repo-root .. --vault . --append-handoff --agent ox-alpha --action completed --summary "..." --files file1.py file2.py
 ```
 
-Then **ask, don't act:** tell the user whether the Docker image needs rebuilding, whether
-a git commit should be saved, and whether an `aq backtest` is needed — do none of these
-unprompted.
+Then **ask, don't act:** tell the user whether the Docker image needs rebuilding, whether a commit should be saved, and whether an `aq backtest` is needed. Do none of these unprompted.
