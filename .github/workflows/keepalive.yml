@@ -1,0 +1,26 @@
+name: Keep the schedules alive
+
+# GitHub disables a scheduled workflow after 60 days without repo activity, and a missed session can't be backfilled (RUNBOOK). Once a month this re-enables
+# the two ledger workflows and itself. GitHub doesn't document that enabling an already-enabled workflow resets its timer, so `aq cycle status` still warns
+# when a ledger falls behind. No commit, no secret: the job's own token and one permission.
+on:
+  schedule:
+    - cron: "17 4 1 * *"
+  workflow_dispatch:
+
+permissions:
+  actions: write
+
+jobs:
+  enable:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - name: Enable the ledger workflows and this one
+        run: |
+          for workflow in forward-ledger.yml research-cycle.yml keepalive.yml; do
+            gh workflow enable "$workflow"
+          done

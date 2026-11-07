@@ -1,6 +1,6 @@
 # Changelog
 
-What each phase built and why, oldest first (the newest phase is <!--fact:changelog.latest-->V6.6.3<!--/fact-->, and `README.md` has the current status). The evidence lives in [`Problems.md`](Problems.md); entries describe what was true at the time. Full text of older phases: [`backups/`](backups/README.md).
+What each phase built and why, oldest first (the newest phase is <!--fact:changelog.latest-->V6.6.4<!--/fact-->, and `README.md` has the current status). The evidence lives in [`Problems.md`](Problems.md); entries describe what was true at the time. Full text of older phases: [`backups/`](backups/README.md).
 
 ## V1 — Finished
 
@@ -880,3 +880,10 @@ What each phase built and why, oldest first (the newest phase is <!--fact:change
 - **A guard for the class:** a test requires every example to insert the repo root before its first `aether_quant` import, since a child process doesn't inherit pytest's `pythonpath`.
 - **Hosts:** none. No Codespace and no Lean run; `main.py`, `config.json` and the book are unchanged.
 - **Verification:** the old example fails and the fixed one runs with the editable-install finder removed; the failing test, the docs and packaging guards, and `ruff check .` pass locally. The full CI run is on the push.
+
+## Phase V6.6.4 — Everything open that needs no broker key: a fourth alpha round, the open problems, verification of every kind
+
+- **Late runs record their session.** The forward ledger lost session 2026-11-06 when GitHub fired the schedule after midnight UTC; `resolve_session` now records the newest session on or before today, and a run with nothing to write fails loudly instead of exiting green (#332).
+- **One bad coin can't void a session.** Coins are fetched one at a time; a failure is named in the row, and a decision day with a failed coin holds the weights (#333).
+- **Silent stops raise alarms.** `aq evaluate --forward-ledger` and `aq cycle status` see a stale or never-started record, and `keepalive.yml` re-enables the schedules monthly (#334).
+- **EOS leaves the forward definition.** Coinbase delisted EOS-USD, so the forward candidate is now `t3_crypto_trend_blend_x_eos` with a new `definition_sha256`, and g0001 took it with a lifecycle row; the book and its Lean pin follow in this phase (#311).

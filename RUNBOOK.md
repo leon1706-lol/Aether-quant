@@ -67,8 +67,10 @@ The only tests nothing has been fitted on.
 
 **Forward ledger.** `forward-ledger.yml` appends one hash-chained row per session to the branch `forward-ledger` for each frozen rule in `ml/forward/candidates.json`. A missed session can't be backfilled, which is the point.
 
+- **A late run still records its session:** a run records the newest session on or before today, so a schedule delayed past midnight UTC (it happened on 2026-11-06, #332) or a weekend dispatch writes the session it was for. It never fills an older gap. A run with no session to write exits non-zero, so GitHub emails you.
+
 - **Read it:** `aq evaluate --forward-ledger` verifies the chain (exit 1 if broken). Judge at 60 and 252 sessions.
-- **Keep it alive:** GitHub disables a schedule after 60 days without repo activity. Re-enable with `gh workflow enable forward-ledger.yml`, then `gh workflow run forward-ledger.yml`.
+- **Keep it alive:** GitHub disables a schedule after 60 days without repo activity. `keepalive.yml` re-enables both ledger workflows monthly, but GitHub doesn't document that this resets the timer, so `aq cycle status` still warns. By hand: `gh workflow enable forward-ledger.yml`, then `gh workflow run forward-ledger.yml`.
 - **`no_data` rows:** a blocked price source, or a candidate that needs a model. Run those from a PC: `python scripts/forward_ledger.py --ledger <worktree>/forward/ledger.jsonl`.
 - **Changing a rule starts a new record:** every row carries its `definition_sha256`. Never edit a candidate in place.
 - **Don't compare generations here:** this older file credits a crypto decision one bar it never earns (#313). Use `forward/generations.jsonl`.
@@ -89,7 +91,7 @@ Research a pre-registered round, freeze one candidate, read the holdouts once, s
 | Step | How | Where |
 |---|---|---|
 | Every session | `research-cycle.yml` appends returns, states and shares to `forward/generations.jsonl` | GitHub, free |
-| A generation needing fundamentals or a model | `aq cycle decide --generation G --weights <csv> --ledger-file <worktree>/forward/decisions.jsonl --session D`, then push the branch before the next open | A host with the data |
+| A generation needing fundamentals or a model | `aq cycle decide --generation G --weights <csv> --ledger-file <worktree>/forward/decisions.jsonl --session D`, then push the branch before that session's 22:45 UTC run (a decision pushed after it is missed, and is good for 25 sessions) | A host with the data |
 | Weekly | `aq cycle status` (also feeds `GET /api/generations`) | Anywhere |
 | A new idea | Write a round file, `aq cycle research rules --round <file> --draft <json>`, `scripts/vault_record.py`, then `score`, `placebo`, `gate`, `pbo`, `report`. A survivor: `freeze`, `hold`, R-LEAN21, R-EDGE2 | Training Codespace, or 14 GB of RAM |
 | Retrain | `aq cycle retrain --host codespace --procedure k06` | See below |

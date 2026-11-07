@@ -813,7 +813,7 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         "test_research_harness.py", "test_pbo.py", "test_factor_spanning.py", "test_overfit_diagnostics.py",
         "test_leakage_audit.py", "test_research_probes.py", "test_sim_lean_calibration.py", "test_trial_registry.py",
         # V6.4.4 - the trend sleeve simulator and the alpha proof.
-        "test_trend_sleeve_backtest.py", "test_alpha_proof.py", "test_gate_replica_audit.py", "test_forward_ledger.py",
+        "test_trend_sleeve_backtest.py", "test_alpha_proof.py", "test_gate_replica_audit.py", "test_forward_ledger.py", "test_v664_late_session.py",
         "test_research_runners.py",
         "test_rank_book_simulator.py", "test_book_neutrality.py", "test_cost_model.py",
         "test_model_predictions.py", "test_evaluation_state.py", "test_sector_map.py",
@@ -1236,6 +1236,9 @@ def _cycle_ledger_rows(args: argparse.Namespace) -> list[dict]:
 
     if getattr(args, "ledger_file", None):
         return read_ledger(Path(args.ledger_file))
+    fetched = subprocess.run(["git", "fetch", "--quiet", "origin", "forward-ledger:forward-ledger"], cwd=ROOT_DIR, capture_output=True, text=True, encoding="utf-8")
+    if fetched.returncode != 0:
+        print("warning: could not fetch origin/forward-ledger: reading the local branch, which may be old", file=sys.stderr)
     result = subprocess.run(["git", "show", "forward-ledger:forward/generations.jsonl"], cwd=ROOT_DIR, capture_output=True, text=True, encoding="utf-8")
     return [json.loads(line) for line in result.stdout.splitlines() if line.strip()] if result.returncode == 0 else []
 
@@ -1264,7 +1267,7 @@ def _cycle_status(args: argparse.Namespace, *, write: bool = True) -> dict:
 
         behind = int(np.busday_count(session, _datetime.datetime.now(_datetime.timezone.utc).date().isoformat()))
     actions = due_actions(
-        entries, judged, session=session, sessions_behind=behind, sessions_since_retrain=sessions_since_retrain(ML_DIR / "cycle", sessions), broker_keys=keys, policy_enabled=bool(policy.get("enabled")),
+        entries, judged, session=session, sessions_behind=behind, sessions_since_retrain=sessions_since_retrain(ML_DIR / "cycle", sessions), broker_keys=keys, record_started=bool(rows), policy_enabled=bool(policy.get("enabled")),
     )
     view = status_view(entries, judged, actions, session=session, policy=policy)
     if write:
@@ -2426,7 +2429,15 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
     if getattr(args, "forward_ledger", False):
         from evaluation.forward_ledger import judge_ledger
 
-        report = judge_ledger(_forward_ledger_rows(args))
+        import datetime as _datetime
+
+        import numpy as np
+
+        ledger_rows = _forward_ledger_rows(args)
+        today = _datetime.datetime.now(_datetime.timezone.utc).date()
+        last_session = max((row["payload"]["session"] for row in ledger_rows), default=None)
+        weekdays = [str(day) for day in np.arange(np.datetime64(last_session) + 1, np.datetime64(today.isoformat()) + 1, dtype="datetime64[D]") if np.is_busday(day)] if last_session else []
+        report = judge_ledger(ledger_rows, today_sessions=weekdays)
         print(json.dumps(report, indent=2, default=str))
         return 0 if report["chain_valid"] else 1
 

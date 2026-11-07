@@ -11,7 +11,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/python-3.11-FF8C00?style=flat-square&labelColor=1A1A1A&logo=python&logoColor=white" alt="Python 3.11">
   <img src="https://img.shields.io/badge/%F0%9F%93%84%20license-PolyForm%20Noncommercial%201.0.0-8B5CF6?style=flat-square&labelColor=1A1A1A" alt="License: PolyForm Noncommercial 1.0.0">
-  <!-- AQ:TEST_BADGE_START --><img src="https://img.shields.io/badge/tests-4809%2F4809%20passing-brightgreen?style=flat-square&labelColor=1A1A1A" alt="4809 of 4809 tests passing"><!-- AQ:TEST_BADGE_END -->
+  <!-- AQ:TEST_BADGE_START --><img src="https://img.shields.io/badge/tests-4827%2F4827%20passing-brightgreen?style=flat-square&labelColor=1A1A1A" alt="4827 of 4827 tests passing"><!-- AQ:TEST_BADGE_END -->
   <img src="https://img.shields.io/pypi/v/aether-quant?style=flat-square&labelColor=1A1A1A&color=FF8C00&logo=pypi&logoColor=white" alt="PyPI version">
   <img src="https://img.shields.io/badge/docker-ghcr.io%2Faether--quant-2496ED?style=flat-square&labelColor=1A1A1A&logo=docker&logoColor=white" alt="Docker image on GHCR">
 </p>
@@ -574,7 +574,7 @@ Each search used rules written before any score. Details are in [`development/Pr
 
 ## Test Suite
 
-<!-- AQ:TEST_COUNT_START -->4817<!-- AQ:TEST_COUNT_END --> tests, one file per source module. `aq test` runs them and refreshes the badge above. Conventions: [`tests/README.md`](tests/README.md).
+<!-- AQ:TEST_COUNT_START -->4827<!-- AQ:TEST_COUNT_END --> tests, one file per source module. `aq test` runs them and refreshes the badge above. Conventions: [`tests/README.md`](tests/README.md).
 
 ## CLI Reference
 

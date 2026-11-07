@@ -2,7 +2,7 @@
  "note": "Frozen rules the forward ledger records. Changing an entry starts a new record: its definition_sha256 changes in every later row.",
  "candidates": [
   {
-   "id": "t3_crypto_trend_blend",
+   "id": "t3_crypto_trend_blend_x_eos",
    "kind": "time_series",
    "family": "crypto_trend",
    "universe": [
@@ -19,7 +19,6 @@
     "BCHUSD",
     "BTCUSD",
     "DOGEUSD",
-    "EOSUSD",
     "ETCUSD",
     "ETHUSD",
     "LINKUSD",
@@ -33,7 +32,6 @@
     "BCHUSD": "crypto",
     "BTCUSD": "crypto",
     "DOGEUSD": "crypto",
-    "EOSUSD": "crypto",
     "ETCUSD": "crypto",
     "ETHUSD": "crypto",
     "LINKUSD": "crypto",

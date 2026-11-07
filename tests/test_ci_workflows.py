@@ -46,6 +46,18 @@ def test_research_cycle_runs_daily_shares_the_ledgers_lock_and_writes_only_its_o
     assert "secrets." not in (ROOT / ".github" / "workflows" / "research-cycle.yml").read_text(encoding="utf-8")
 
 
+def test_keepalive_re_enables_the_ledger_workflows_with_one_permission_and_no_secret():
+    path = ROOT / ".github" / "workflows" / "keepalive.yml"
+    workflow = _load(path)
+    on = workflow["on"] if "on" in workflow else workflow[True]
+    assert on["schedule"][0]["cron"] == "17 4 1 * *" and "workflow_dispatch" in on
+    assert workflow["permissions"] == {"actions": "write"}, "it may enable workflows and nothing else"
+    text = "\n".join(str(step.get("run", "")) for step in workflow["jobs"]["enable"]["steps"])
+    for name in ("forward-ledger.yml", "research-cycle.yml", "keepalive.yml"):
+        assert name in text
+    assert "secrets." not in path.read_text(encoding="utf-8") and "git push" not in text
+
+
 def test_ci_triggers_on_main_push_and_prs():
     ci = _load(CI)
     on = ci["on"] if "on" in ci else ci[True]  # PyYAML parses bare `on` as True

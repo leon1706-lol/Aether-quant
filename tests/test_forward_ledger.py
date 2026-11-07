@@ -199,13 +199,14 @@ def test_a_candidate_this_runner_cannot_compute_logs_why(tmp_path):
     assert by_name[DEFINITION["id"]]["status"] == "ok"
 
 
-def test_not_a_session_writes_nothing(tmp_path):
+def test_a_weekend_run_records_the_last_session_once(tmp_path):
     import forward_ledger
 
     ledger = tmp_path / "ledger.jsonl"
     saturday = datetime.datetime(2024, 9, 28, 22, 30, tzinfo=datetime.timezone.utc)
+    written = forward_ledger.run(_candidates(tmp_path), ledger, get_json=_fake_api(), now=saturday)
+    assert [row["payload"]["session"] for row in written] == ["2024-09-27"]
     assert forward_ledger.run(_candidates(tmp_path), ledger, get_json=_fake_api(), now=saturday) == []
-    assert not ledger.exists()
 
 
 def test_a_rebalance_day_decides_and_charges_its_turnover(tmp_path):
@@ -230,9 +231,9 @@ def test_todays_unfinished_bar_is_not_read():
 def test_the_installed_candidate_file_is_the_frozen_rule():
     path = ROOT / "ml" / "forward" / "candidates.json"
     candidates = json.loads(path.read_text(encoding="utf-8"))["candidates"]
-    installed = next(item for item in candidates if item["id"] == "t3_crypto_trend_blend")
+    installed = next(item for item in candidates if item["id"] == "t3_crypto_trend_blend_x_eos")
     assert installed["anchor_date"] == "2026-10-28" and installed["rebalance_every"] == 5
-    assert len(installed["tickers"]) == 12 and installed["params"] == {"lookback_a": 20, "lookback_b": 60, "lookback_c": 120}
+    assert len(installed["tickers"]) == 11 and "EOSUSD" not in installed["tickers"] and installed["params"] == {"lookback_a": 20, "lookback_b": 60, "lookback_c": 120}
 
 
 def test_the_newest_session_counts_before_yahoo_has_adjusted_it():

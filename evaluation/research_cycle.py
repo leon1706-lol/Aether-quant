@@ -72,11 +72,14 @@ def retrain_due(*, sessions_since_retrain: int | None, decay_states: Mapping[str
 
 def due_actions(
     generations: Mapping[str, Mapping], judged: Mapping, *, session: str | None, sessions_behind: int = 0, sessions_since_retrain: int | None = None, broker_keys: bool = False, policy_enabled: bool = False,
+    record_started: bool = True,
 ) -> list[dict]:
     """What a person or a job should do next, most urgent first."""
     actions: list[dict] = []
     if judged.get("chain_valid") is False:
         actions.append({"action": "investigate", "why": f"the generations' chain is broken at row {judged.get('first_broken_row')}: no figure from it can be used", "urgency": "now"})
+    if not record_started:
+        actions.append({"action": "gh workflow run research-cycle.yml", "why": "record not started: the generations' ledger has no row, and a missed session can't be backfilled", "urgency": "now"})
     if sessions_behind > STALE_LEDGER_SESSIONS:
         actions.append({"action": "gh workflow enable research-cycle.yml", "why": f"the last row is {sessions_behind} sessions old: GitHub disables a schedule after 60 days of no repo activity", "urgency": "now"})
     latest = judged.get("latest_allocation") or {}

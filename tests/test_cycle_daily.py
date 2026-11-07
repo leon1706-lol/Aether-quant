@@ -18,7 +18,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 from cycle_daily import latest_decision, marks_for, run, summary_lines  # noqa: E402
 from cycle_decide import read_weights, write_decision  # noqa: E402
 
-from evaluation.forward_ledger import read_ledger  # noqa: E402
+from evaluation.forward_ledger import NoSessionToRecord, read_ledger  # noqa: E402
 from evaluation.generation_ledger import ALLOCATION_ID, judge_generations  # noqa: E402
 from evaluation.generation_registry import Generation, load_registry, save_registry  # noqa: E402
 
@@ -75,9 +75,10 @@ def test_a_rerun_of_the_day_appends_nothing(world):
     assert ledger.read_bytes() == before
 
 
-def test_a_day_that_is_no_session_writes_nothing(world):
+def test_a_day_that_is_no_session_fails_loudly_and_writes_nothing(world):
     registry, policy, ledger = world
-    assert run(registry, policy, ledger, get_json=_get_json, now=NOW, session_override="2030-01-01") == []
+    with pytest.raises(NoSessionToRecord):
+        run(registry, policy, ledger, get_json=_get_json, now=NOW, session_override="2030-01-01")
     assert not ledger.exists()
 
 
@@ -177,5 +178,5 @@ def test_a_damaged_weight_file_never_reaches_the_record(tmp_path):
 def test_the_installed_generation_is_the_forward_ledgers_rule():
     registry = load_registry(ROOT / "ml" / "generations" / "registry.json")
     candidates = json.loads((ROOT / "ml" / "forward" / "candidates.json").read_text(encoding="utf-8"))["candidates"]
-    assert registry["g0001"].definition == next(entry for entry in candidates if entry["id"] == "t3_crypto_trend_blend")
+    assert registry["g0001"].definition == next(entry for entry in candidates if entry["id"] == "t3_crypto_trend_blend_x_eos")
     assert registry["g0001"].stage == "active" and registry["g0001"].tier == "installed"

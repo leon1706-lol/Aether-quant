@@ -29,8 +29,11 @@ from evaluation.forward_ledger import (  # noqa: E402
     definition_sha256,
     has_session,
     is_rebalance,
+    NoSessionToRecord,
     last_row_for,
     read_ledger,
+    resolve_session,
+    session_for_outage,
     session_return,
     turnover,
 )
@@ -45,6 +48,20 @@ def coinbase_closes(product: str, get_json: Callable[[str], object]) -> dict[str
     """{bar date: close}. A row is [time, low, high, open, close, volume], newest first, at most 300 rows."""
     rows = get_json(COINBASE_URL.format(product=product))
     return {datetime.datetime.fromtimestamp(int(row[0]), datetime.timezone.utc).strftime("%Y-%m-%d"): float(row[4]) for row in rows}
+
+
+def crypto_closes_guarded(tickers, get_json: Callable[[str], object]) -> tuple[dict[str, dict[str, float]], list[str]]:
+    """Each coin's closes, one fetch at a time: a coin whose fetch fails gets an empty series (a NaN column) and is named, so one delisted product can't void every coin's session.
+    A row is `no_data` only if a held name is among the failed ones, since `session_return` returns None for a held name with no mark."""
+    closes: dict[str, dict[str, float]] = {}
+    failed: list[str] = []
+    for ticker in tickers:
+        try:
+            closes[ticker] = coinbase_closes(crypto_product(ticker), get_json)
+        except Exception:
+            closes[ticker] = {}
+            failed.append(ticker)
+    return closes, failed
 
 
 def yahoo_closes(symbol: str, get_json: Callable[[str], object]) -> dict[str, float]:
@@ -102,7 +119,6 @@ def run(candidates_path: Path, ledger_path: Path, *, get_json: Callable[[str], o
     """One row per candidate for the session, or none if already written: a rerun of the day appends nothing."""
     candidates = json.loads(Path(candidates_path).read_text(encoding="utf-8"))["candidates"]
     created_at = now.replace(microsecond=0).isoformat()
-    today = session_override or now.date().isoformat()
     written = []
     failure = None
     series: dict[str, dict[str, float]] = {}
@@ -111,9 +127,9 @@ def run(candidates_path: Path, ledger_path: Path, *, get_json: Callable[[str], o
     except Exception as error:  # a blocked fetch is a row, not a crash
         failure = f"Yahoo chart: {type(error).__name__}"
     sessions = sorted(series.get("SPY", {}))
-    if failure is None and today not in sessions:
-        print(f"{today} is not a session yet: nothing to write")
-        return written
+    today = (session_override or session_for_outage(now)) if failure is not None else resolve_session(sessions, now.date().isoformat(), session_override)
+    if today is None:
+        raise NoSessionToRecord(f"{session_override or now.date().isoformat()} is not a session this run may write")
     benchmarks: dict[str, float] = {}
     if failure is None and len(sessions) >= 2:
         position = sessions.index(today)
@@ -134,7 +150,11 @@ def run(candidates_path: Path, ledger_path: Path, *, get_json: Callable[[str], o
             reason = f"needs {definition['needs']}, absent on this runner: run this row from the PC (RUNBOOK)"
         if reason is None:
             try:
-                closes = {ticker: coinbase_closes(crypto_product(ticker), get_json) for ticker in definition["tickers"]}
+                closes, failed = crypto_closes_guarded(definition["tickers"], get_json)
+                decision_day = is_rebalance(sessions, today, anchor=str(definition["anchor_date"]), every=int(definition["rebalance_every"]))
+                if failed and (len(failed) == len(definition["tickers"]) or decision_day):
+                    # a decision must not silently leave a coin out: hold the weights, as a blocked source always has
+                    raise RuntimeError(f"Coinbase fetch failed for {', '.join(sorted(failed))}")
                 marks = known_crypto(closes, sessions)
                 btc = marks["BTCUSD"] if "BTCUSD" in marks.columns else None
                 if btc is not None and today in btc.index and sessions.index(today) > 0:
@@ -142,6 +162,8 @@ def run(candidates_path: Path, ledger_path: Path, *, get_json: Callable[[str], o
                     if np.isfinite(previous) and previous > 0.0 and np.isfinite(btc.at[today]):
                         benchmarks = {**benchmarks, "BTCUSD": float(btc.at[today]) / float(previous) - 1.0}
                 payload = row_for(definition, rows, today, sessions, marks, benchmarks)
+                if failed and payload["status"] != "ok":
+                    payload["reason"] = f"{payload['reason']} (Coinbase fetch failed for {', '.join(sorted(failed))})"
             except Exception as error:
                 reason = f"{type(error).__name__}: {error}"[:200]
         if reason is not None:
@@ -170,7 +192,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--session", default=None, help="the session to write (default: today, UTC)")
     args = parser.parse_args(argv)
     now = datetime.datetime.now(datetime.timezone.utc)
-    written = run(Path(args.candidates), Path(args.ledger), get_json=_get_json, now=now, session_override=args.session)
+    try:
+        written = run(Path(args.candidates), Path(args.ledger), get_json=_get_json, now=now, session_override=args.session)
+    except NoSessionToRecord as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 1
     for row in written:
         payload = row["payload"]
         print(f"{payload['session']} {payload['candidate']}: {payload['status']} return {payload['session_return']} rebalance {payload['rebalance']} {payload.get('reason') or ''}")

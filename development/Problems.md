@@ -2,7 +2,7 @@
 
 Every bug and infrastructure issue found in this codebase, oldest first, with how it was fixed or why it stayed open. Numbers never change, because code and docs cite them; #73-76 don't exist, and #88 and #112 appear twice.
 
-**Entries:** <!--fact:problems.total-->329<!--/fact--> up to #<!--fact:problems.last-->331<!--/fact-->: <!--fact:problems.fixed-->293<!--/fact--> 🟢 `fixed` (changed and verified), <!--fact:problems.partial-->15<!--/fact--> 🟡 `partial` (shipped, verification pending), <!--fact:problems.closed-->18<!--/fact--> 🔴 `closed` (no code fix: declined, moot or superseded). Severity runs from 1 (cosmetic) to 10 (data loss or safety). Full text of older entries: [`backups/`](backups/README.md).
+**Entries:** <!--fact:problems.total-->332<!--/fact--> up to #<!--fact:problems.last-->334<!--/fact-->: <!--fact:problems.fixed-->296<!--/fact--> 🟢 `fixed` (changed and verified), <!--fact:problems.partial-->15<!--/fact--> 🟡 `partial` (shipped, verification pending), <!--fact:problems.closed-->18<!--/fact--> 🔴 `closed` (no code fix: declined, moot or superseded). Severity runs from 1 (cosmetic) to 10 (data loss or safety). Full text of older entries: [`backups/`](backups/README.md).
 
 **Open now** (each needs a broker key, a forward record or an owner decision):
 
@@ -1668,3 +1668,18 @@ Every bug and infrastructure issue found in this codebase, oldest first, with ho
 🟢 `fixed` · 4/10
 
 **Problem:** both `python-tests` jobs failed on one test, `test_the_cycle_example_hands_over_and_takes_risk_off`, with `ModuleNotFoundError: No module named 'aether_quant'`. The test runs `examples/aether_quant_cycle.py` in a child process, which doesn't see pytest's `pythonpath`, and CI doesn't install the package. It passed on the dev PC and the Codespace because both have an editable install, so neither the local suite nor `codespace_verify.ps1` could catch it. **Fix:** the example inserts the repo root on `sys.path` like the quickstart, and a test requires that of every example. **Verification:** with the editable finder removed the old example fails with CI's exact error and the fixed one runs; the CI logs show this was the only failing test (1 failed, 4,781 passed on ubuntu).
+
+### 332. A forward-ledger run that fired after midnight UTC recorded nothing, and the record lost a session (V6.6.4)
+🟢 `fixed` · 7/10
+
+**Problem:** the scheduled run of Friday 2026-11-06 fired 3 h 41 min late, at 02:11 UTC Saturday. Both ledger scripts took "today" from the clock, found 2026-11-07 was no session, logged "not a session yet" and exited green, so session 2026-11-06 has no row, against the "never a gap" promise (#299). Any delay past midnight repeats it, and the 22:30 run has only 90 minutes of margin. **Fix:** `evaluation.forward_ledger.resolve_session` records the newest session on or before today (an override must be a real session), `session_for_outage` dates a no-calendar outage row by the last closed weekday, and a run with no session to write raises `NoSessionToRecord`, which exits non-zero. It records only the newest session and never fills an older gap. **Verification:** `tests/test_v664_late_session.py`, `tests/test_forward_ledger.py` (a weekend run records Friday once), `tests/test_cycle_daily.py`. The definition hash covers the rule, not the script, so no new record starts.
+
+### 333. One coin whose Coinbase fetch failed turned every coin's session into `no_data` (V6.6.4)
+🟢 `fixed` · 5/10
+
+**Problem:** both ledger scripts fetched all coins in one expression, so one failing product (EOS-USD was delisted, #311) raised for the whole candidate. **Fix:** `crypto_closes_guarded` fetches coin by coin and gives a failed coin an empty series; the row stays `ok` unless a held name has no mark, and a decision day with a failed coin holds the weights and says which coin, so a decision never silently leaves a coin out. The generations' path leaves a NaN column, which its 98% coverage rule turns into `no_data`, and raises only when every coin failed. **Verification:** `tests/test_v664_late_session.py`, `tests/test_forward_ledger.py::test_coinbase_blocked_keeps_the_weights_held`.
+
+### 334. A record that stopped or never started raised no alarm (V6.6.4)
+🟢 `fixed` · 5/10
+
+**Problem:** `aq evaluate --forward-ledger` never passed a calendar, so its stale-ledger warning could not fire. `aq cycle status` read the local branch without fetching it. A ledger with no rows read as "0 sessions behind". Nothing re-enabled a schedule GitHub disables after 60 days. **Fix:** the evaluate flag builds the weekday calendar since the last row, `aq cycle status` fetches `origin/forward-ledger` first (a failed fetch warns), an empty ledger reports `record not started` with an action to dispatch `research-cycle.yml`, and `.github/workflows/keepalive.yml` re-enables both ledger workflows monthly with one permission and no secret. **Verification:** `tests/test_v664_late_session.py`, `tests/test_ci_workflows.py` (the new workflow is pinned). GitHub doesn't document that enabling an enabled workflow resets the timer, so the warning stays.

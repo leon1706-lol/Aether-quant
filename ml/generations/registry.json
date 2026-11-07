@@ -10,7 +10,6 @@
      "BCHUSD": "crypto",
      "BTCUSD": "crypto",
      "DOGEUSD": "crypto",
-     "EOSUSD": "crypto",
      "ETCUSD": "crypto",
      "ETHUSD": "crypto",
      "LINKUSD": "crypto",
@@ -25,7 +24,7 @@
      "Yahoo chart API"
     ],
     "family": "crypto_trend",
-    "id": "t3_crypto_trend_blend",
+    "id": "t3_crypto_trend_blend_x_eos",
     "initial_weights": {
      "ADAUSD": 0.00787402,
      "BCHUSD": 0.00620842,
@@ -52,7 +51,6 @@
      "BCHUSD",
      "BTCUSD",
      "DOGEUSD",
-     "EOSUSD",
      "ETCUSD",
      "ETHUSD",
      "LINKUSD",
@@ -70,8 +68,8 @@
    "id": "g0001",
    "kind": "rule",
    "needs": null,
-   "note": "t3_crypto_trend_blend, the installed V6.5.0 sleeve: not verified. It scored Sharpe -0.06 on never-read coins (Problems #301), so it is expected to earn nothing, and stays on paper by the owner's decision.",
-   "procedure_sha256": "1df9d9e2732df4716ec25e0af2e32ce3ed89b3702487075b9cce1180799eecd4",
+   "note": "t3_crypto_trend_blend_x_eos, the installed V6.5.0 sleeve without EOS (Coinbase delisted it, #311): not verified. It scored Sharpe -0.06 on never-read coins (Problems #301), so it is expected to earn nothing, and stays on paper by the owner's decision.",
+   "procedure_sha256": "5827af3cccc60d8384c48fd2985c540b1e0ed93f06a93fe2647df371566b8de0",
    "stage": "active",
    "tier": "installed",
    "vintages": []

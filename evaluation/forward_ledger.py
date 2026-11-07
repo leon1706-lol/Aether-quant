@@ -10,6 +10,7 @@ A candidate that needs a model or fresh fundamentals can't compute on a bare run
 
 from __future__ import annotations
 
+import datetime
 import hashlib
 import json
 import math
@@ -32,6 +33,27 @@ TRADING_DAYS = 252.0
 
 def definition_sha256(definition: Mapping) -> str:
     return hashlib.sha256(json.dumps(definition, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()
+
+
+class NoSessionToRecord(RuntimeError):
+    """The run found no session it may write (an override that is not a session, or an empty calendar). A scheduled run must fail loudly on this: a silent exit is how a record loses a session."""
+
+
+def resolve_session(sessions: Sequence[str], now_date: str, override: str | None = None) -> str | None:
+    """The session a run records. An override must be a real session. Otherwise the newest session on or before today, so a schedule delayed past midnight UTC, or a
+    weekend dispatch, still records the session it was for. Never a future date, and never an older gap: only the newest session can be written."""
+    if override:
+        return override if override in sessions else None
+    earlier = [day for day in sessions if day <= now_date]
+    return max(earlier) if earlier else None
+
+
+def session_for_outage(now: datetime.datetime) -> str:
+    """With no calendar (the fetch failed), the last weekday whose US close has passed. Dating an outage row by the calendar day would let a run at 02:00 UTC use up that day's own session."""
+    day = (now - datetime.timedelta(hours=21)).date()
+    while day.weekday() >= 5:
+        day -= datetime.timedelta(days=1)
+    return day.isoformat()
 
 
 def is_rebalance(sessions: Sequence[str], date: str, *, anchor: str, every: int) -> bool:
@@ -138,6 +160,8 @@ def judge_ledger(rows: Sequence[dict], *, today_sessions: Sequence[str] = ()) ->
     if not valid:
         return report
     report["candidates"] = {name: judge_candidate(rows, name) for name in sorted({row["payload"].get("candidate") for row in rows})}
+    if not rows:
+        report["warning"] = "record not started: no row has been written yet (RUNBOOK: dispatch the workflow once)"
     if rows and today_sessions:
         last = max(row["payload"]["session"] for row in rows)
         behind = sum(1 for day in today_sessions if day > last)

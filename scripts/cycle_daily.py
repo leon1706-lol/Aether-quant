@@ -23,9 +23,9 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from forward_ledger import BENCHMARK_SYMBOLS, _get_json, coinbase_closes, crypto_product, known_crypto, yahoo_closes  # noqa: E402
+from forward_ledger import BENCHMARK_SYMBOLS, _get_json, crypto_closes_guarded, known_crypto, yahoo_closes  # noqa: E402
 
-from evaluation.forward_ledger import definition_sha256, read_ledger  # noqa: E402
+from evaluation.forward_ledger import NoSessionToRecord, definition_sha256, read_ledger, resolve_session, session_for_outage  # noqa: E402
 from evaluation.generation_ledger import (  # noqa: E402
     ALLOCATION_EVENT,
     ALLOCATION_ID,
@@ -52,11 +52,13 @@ MAX_YAHOO_NAMES = 700
 def marks_for(generation: Generation, sessions: list[str], get_json: Callable[[str], object], *, pause: Callable[[], None] = lambda: None) -> pd.DataFrame:
     """Session x ticker marks, per class: crypto from Coinbase, a bar being known only once it has closed; equities from Yahoo. A name with no price yet is a NaN column: coverage decides."""
     classes = generation.definition.get("asset_class") or {}
-    crypto, others = {}, {}
+    crypto_names = [ticker for ticker in generation.definition.get("tickers") or [] if classes.get(ticker) == "crypto"]
+    crypto, failed = crypto_closes_guarded(crypto_names, get_json)
+    if crypto_names and len(failed) == len(crypto_names):
+        raise RuntimeError(f"Coinbase fetch failed for every coin: {', '.join(sorted(failed))}")  # a part failure leaves NaN columns, which the 98% coverage rule turns into no_data
+    others = {}
     for ticker in generation.definition.get("tickers") or []:
-        if classes.get(ticker) == "crypto":
-            crypto[ticker] = coinbase_closes(crypto_product(ticker), get_json)
-        else:
+        if classes.get(ticker) != "crypto":
             if len(others) >= MAX_YAHOO_NAMES:
                 raise ValueError("too many names to mark from one runner")
             others[ticker] = yahoo_closes(ticker, get_json)
@@ -90,7 +92,6 @@ def run(
     policy_raw = json.loads(Path(policy_path).read_text(encoding="utf-8"))
     policy = resolve_glide_policy(policy_raw.get("glide"))
     created_at = now.replace(microsecond=0).isoformat()
-    today = session_override or now.date().isoformat()
     failure = None
     series: dict[str, dict[str, float]] = {}
     try:
@@ -98,9 +99,9 @@ def run(
     except Exception as error:  # a blocked fetch is a row, not a crash
         failure = f"Yahoo chart: {type(error).__name__}"
     sessions = sorted(series.get("SPY", {}))
-    if failure is None and today not in sessions:
-        print(f"{today} is not a session yet: nothing to write")
-        return []
+    today = (session_override or session_for_outage(now)) if failure is not None else resolve_session(sessions, now.date().isoformat(), session_override)
+    if today is None:
+        raise NoSessionToRecord(f"{session_override or now.date().isoformat()} is not a session this run may write")
     benchmarks: dict[str, float] = {}
     if failure is None and sessions.index(today) > 0:
         prior = sessions[sessions.index(today) - 1]
@@ -214,7 +215,11 @@ def main(argv: list[str] | None = None) -> int:
             shutil.copyfile(ledger, scratch)
         ledger = scratch
     spent = (ROOT / "ml" / "generations" / "holdout_ledger.jsonl").exists()
-    written = run(Path(args.registry), Path(args.policy), ledger, get_json=_get_json, now=now, session_override=args.session, decisions_path=Path(args.decisions) if args.decisions else None, holdouts_spent=spent)
+    try:
+        written = run(Path(args.registry), Path(args.policy), ledger, get_json=_get_json, now=now, session_override=args.session, decisions_path=Path(args.decisions) if args.decisions else None, holdouts_spent=spent)
+    except NoSessionToRecord as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 0 if args.dry_run else 1
     lines = summary_lines(written, ledger) if ledger.exists() else ["nothing written"]
     print("\n".join(lines))
     summary = os.environ.get("GITHUB_STEP_SUMMARY")
