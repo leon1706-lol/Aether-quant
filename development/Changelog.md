@@ -1,6 +1,6 @@
 # Changelog
 
-What each phase built and why, oldest first (the newest phase is <!--fact:changelog.latest-->V6.6.2<!--/fact-->, and `README.md` has the current status). The evidence lives in [`Problems.md`](Problems.md); entries describe what was true at the time. Full text of older phases: [`backups/`](backups/README.md).
+What each phase built and why, oldest first (the newest phase is <!--fact:changelog.latest-->V6.6.3<!--/fact-->, and `README.md` has the current status). The evidence lives in [`Problems.md`](Problems.md); entries describe what was true at the time. Full text of older phases: [`backups/`](backups/README.md).
 
 ## V1 — Finished
 
@@ -874,3 +874,9 @@ What each phase built and why, oldest first (the newest phase is <!--fact:change
 - **Hosts:** training Codespace `aq-Training-Ground-Fixed` for the full CI check, 2026-11-07 12:22-13:04 local, then stopped. No DinD Codespace and no Lean run: the pinned run is unchanged.
 - **Verification:** `scripts/codespace_verify.ps1`, every CI job: 32 stages passed, 0 failed. Suite 4,779 passed in a clean checkout and 4,809 in the real tree, coverage 86%, `ruff check .` clean.
 
+## Phase V6.6.3 — CI repair: the cycle example needed an installed package
+
+- **Why CI was red since V6.6.1 (#331):** `tests/test_aether_quant_quickstart.py` runs each example in a child process. `examples/aether_quant_cycle.py` imported `aether_quant` without putting the repo root on `sys.path`, which only worked where `pip install -e .` had run (the dev PC, the Codespace), so both `python-tests` jobs failed on V6.6.1 and V6.6.2 while every other job passed. The example now adds the root itself, as the quickstart already did.
+- **A guard for the class:** a test requires every example to insert the repo root before its first `aether_quant` import, since a child process doesn't inherit pytest's `pythonpath`.
+- **Hosts:** none. No Codespace and no Lean run; `main.py`, `config.json` and the book are unchanged.
+- **Verification:** the old example fails and the fixed one runs with the editable-install finder removed; the failing test, the docs and packaging guards, and `ruff check .` pass locally. The full CI run is on the push.

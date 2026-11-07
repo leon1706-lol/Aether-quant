@@ -2,7 +2,7 @@
 
 Every bug and infrastructure issue found in this codebase, oldest first, with how it was fixed or why it stayed open. Numbers never change, because code and docs cite them; #73-76 don't exist, and #88 and #112 appear twice.
 
-**Entries:** <!--fact:problems.total-->328<!--/fact--> up to #<!--fact:problems.last-->330<!--/fact-->: <!--fact:problems.fixed-->292<!--/fact--> 🟢 `fixed` (changed and verified), <!--fact:problems.partial-->15<!--/fact--> 🟡 `partial` (shipped, verification pending), <!--fact:problems.closed-->18<!--/fact--> 🔴 `closed` (no code fix: declined, moot or superseded). Severity runs from 1 (cosmetic) to 10 (data loss or safety). Full text of older entries: [`backups/`](backups/README.md).
+**Entries:** <!--fact:problems.total-->329<!--/fact--> up to #<!--fact:problems.last-->331<!--/fact-->: <!--fact:problems.fixed-->293<!--/fact--> 🟢 `fixed` (changed and verified), <!--fact:problems.partial-->15<!--/fact--> 🟡 `partial` (shipped, verification pending), <!--fact:problems.closed-->18<!--/fact--> 🔴 `closed` (no code fix: declined, moot or superseded). Severity runs from 1 (cosmetic) to 10 (data loss or safety). Full text of older entries: [`backups/`](backups/README.md).
 
 **Open now** (each needs a broker key, a forward record or an owner decision):
 
@@ -1664,3 +1664,7 @@ Every bug and infrastructure issue found in this codebase, oldest first, with ho
 
 **Problem:** `benchmark_daily_returns` aligns BTC to a run's daily samples but not SPY or AGG, so the strategy's correlation to SPY reads 0.05 as-is against 0.30 lagged one session (Lean's own figure is 0.29). **Fix:** none. Lagging the equity columns moves the pinned run's alpha t from 0.13 to 0.08, and R-ALPHA1 stays "not demonstrated". The README's benchmark table leaves correlation out for this reason. Changing it is the owner's call, because it alters a pre-registered measure. **Verification:** computed on the pinned run during this phase.
 
+### 331. CI failed on V6.6.1 and V6.6.2: an example only ran where the package was installed (V6.6.3)
+🟢 `fixed` · 4/10
+
+**Problem:** both `python-tests` jobs failed on one test, `test_the_cycle_example_hands_over_and_takes_risk_off`, with `ModuleNotFoundError: No module named 'aether_quant'`. The test runs `examples/aether_quant_cycle.py` in a child process, which doesn't see pytest's `pythonpath`, and CI doesn't install the package. It passed on the dev PC and the Codespace because both have an editable install, so neither the local suite nor `codespace_verify.ps1` could catch it. **Fix:** the example inserts the repo root on `sys.path` like the quickstart, and a test requires that of every example. **Verification:** with the editable finder removed the old example fails with CI's exact error and the fixed one runs; the CI logs show this was the only failing test (1 failed, 4,781 passed on ubuntu).

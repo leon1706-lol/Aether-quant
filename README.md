@@ -574,7 +574,7 @@ Each search used rules written before any score. Details are in [`development/Pr
 
 ## Test Suite
 
-<!-- AQ:TEST_COUNT_START -->4816<!-- AQ:TEST_COUNT_END --> tests, one file per source module. `aq test` runs them and refreshes the badge above. Conventions: [`tests/README.md`](tests/README.md).
+<!-- AQ:TEST_COUNT_START -->4817<!-- AQ:TEST_COUNT_END --> tests, one file per source module. `aq test` runs them and refreshes the badge above. Conventions: [`tests/README.md`](tests/README.md).
 
 ## CLI Reference
 

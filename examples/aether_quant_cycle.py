@@ -5,9 +5,14 @@
 
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
 import numpy as np
 
-from aether_quant.cycle import DecayConfig, GlidePolicy, blend_generation_rows, decay_state, update_generation_shares
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from aether_quant.cycle import DecayConfig, GlidePolicy, blend_generation_rows, decay_state, update_generation_shares  # noqa: E402
 
 POLICY = GlidePolicy(glide_sessions=252, entry_share=0.30, retire_share=0.05)
 OLD_ROW = {"BTCUSD": 0.02, "ETHUSD": 0.01}
