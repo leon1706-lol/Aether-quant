@@ -18,6 +18,7 @@ MARKER = "# aether-quant pre-commit wrapper"
 WRAPPER = f"""#!/bin/sh
 {MARKER}: runs .githooks/pre-commit (secrets check and the library gate). Reinstall with `python scripts/install_hooks.py`.
 repo_root=$(git rev-parse --show-toplevel)
+[ -f "$repo_root/.githooks/pre-commit" ] || exit 0  # a worktree of a data-only branch (forward-ledger) has no script to run
 exec sh "$repo_root/.githooks/pre-commit" "$@"
 """
 
