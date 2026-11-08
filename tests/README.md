@@ -2,7 +2,7 @@
 
 The pytest suite for everything except `webui`. The count is on the root README's badge, which `aq test` refreshes.
 
-**Run with an explicit path, never bare `pytest`:** `aq test`, or `pytest tests/`. A bare run crawls the code each Lean run copies into `backtests/` and collides on module names (#8).
+**Run `aq test`, or `pytest` from the repo root:** `testpaths` in `pyproject.toml` points it at `tests/`, which is what CI does. Pointing pytest at `.` crawls the code each Lean run copies into `backtests/` and collides on module names (#8).
 
 ## Conventions
 
@@ -31,6 +31,13 @@ def _make_conn_mock():
   - `test_docs_facts.py`: quoted numbers, the README's library example, and paths, config keys, commands and problem numbers in living docs.
   - `test_ci_scripts.py`: CI helper scripts.
   - `test_aether_quant_api.py`: the library's public surface, and that importing it loads nothing heavy.
+  - `test_aether_quant_coverage.py`: the library gate (`scripts/library_gate.py`): every public name is exported or explained, and the backlog only shrinks.
+  - `test_module_has_test.py`: one test file per source module, against a frozen list that only shrinks.
+  - `test_verification_matrix.py`: `development/verification.md` has a row for every CI job, workflow, Lean smoke and formal target.
+  - `test_formal_no_sorry.py`: no `sorry`, every spec built and listed.
+- **Property tests:** `test_v664_properties.py` (hypothesis, derandomized) states invariants of the order gate, admission, session resolution, generation shares, weight caps, the hash chain and JSON safety, and checks them on generated inputs.
+- **`on_data()`:** `test_main_on_data_target_weights.py` drives the real entry point for a week of sessions on the stub and compares its orders with the pure rebalance function.
+- **Mutation check:** `scripts/mutation_check.py` (on a Codespace; `test_mutation_check.py` tests the tool) changes one thing at a time in seven safety and ledger modules and counts what their tests miss. `test_v664_mutation_safety.py` and `test_v664_mutation_ledgers.py` are the boundary tests it called for: every threshold in the kill switch, order gate, risk controls, admission rules, forward ledger, research cells and generation blend is tested exactly at its edge and one step past it.
 - **Formal cases (`aq test --formal`):** `test_formal_differential_<target>.py` runs each verified function on the inputs Lean 4 generated and compares exact outputs. `test_formal_cases_drift.py` fails when a spec changed after its cases were generated. No Lean install is needed.
 
 ## Before a commit

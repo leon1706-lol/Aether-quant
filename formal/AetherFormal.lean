@@ -11,5 +11,8 @@ import AetherFormal.SleeveGuard
 import AetherFormal.JsonSafety
 import AetherFormal.GenerationBlend
 import AetherFormal.GenerationGlide
+import AetherFormal.Admission
+import AetherFormal.SessionResolve
+import AetherFormal.HoldoutOnce
 import AetherFormal.Real
 import AetherFormal.GenCases

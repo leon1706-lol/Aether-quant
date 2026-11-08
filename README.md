@@ -11,7 +11,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/python-3.11-FF8C00?style=flat-square&labelColor=1A1A1A&logo=python&logoColor=white" alt="Python 3.11">
   <img src="https://img.shields.io/badge/%F0%9F%93%84%20license-PolyForm%20Noncommercial%201.0.0-8B5CF6?style=flat-square&labelColor=1A1A1A" alt="License: PolyForm Noncommercial 1.0.0">
-  <!-- AQ:TEST_BADGE_START --><img src="https://img.shields.io/badge/tests-4827%2F4827%20passing-brightgreen?style=flat-square&labelColor=1A1A1A" alt="4827 of 4827 tests passing"><!-- AQ:TEST_BADGE_END -->
+  <!-- AQ:TEST_BADGE_START --><img src="https://img.shields.io/badge/tests-5103%2F5103%20passing-brightgreen?style=flat-square&labelColor=1A1A1A" alt="5103 of 5103 tests passing"><!-- AQ:TEST_BADGE_END -->
   <img src="https://img.shields.io/pypi/v/aether-quant?style=flat-square&labelColor=1A1A1A&color=FF8C00&logo=pypi&logoColor=white" alt="PyPI version">
   <img src="https://img.shields.io/badge/docker-ghcr.io%2Faether--quant-2496ED?style=flat-square&labelColor=1A1A1A&logo=docker&logoColor=white" alt="Docker image on GHCR">
 </p>
@@ -36,19 +36,19 @@ The book trading today is simpler than the stack around it: a long-only crypto t
 <!-- AQ:STATUS_START -->
 | Lean Sharpe | Net profit | Max drawdown | Sharpe without T-bill carry | Alpha t | Deflated Sharpe |
 |---|---|---|---|---|---|
-| 0.63 | 33.850% | 7.83% | 0.72 | 0.13 | 4.01% |
+| 0.65 | 34.379% | 7.82% | 0.74 | 0.15 | 5.12% |
 
-_Lean run `2026-11-04_18-10-49`, 2023-07-01 to 2026-11-02, computed 2026-11-07 12:22 UTC. Details: [Backtest Statistics](#backtest-statistics)._
+_Lean run `2026-11-07_17-54-01`, 2023-07-01 to 2026-11-02, computed 2026-11-07 18:27 UTC. Details: [Backtest Statistics](#backtest-statistics)._
 <!-- AQ:STATUS_END -->
 
 ## Known Limitations
 
 - **No demonstrated edge.** The sleeve is mostly crypto exposure, and almost all of its result came before mid-2025. See [Alpha by Period](#alpha-by-period).
-- **Nothing has survived selection.** All 46 pre-registered trials of the last three rounds failed, so the holdouts stay unread. See [Research Record](#research-record).
-- **Hindsight in the universe.** The 12 coins are today's survivors. The same rule scored Sharpe -0.06 on coins no rule had read (#301), and Coinbase has delisted EOS (#311).
+- **Nothing has survived selection.** All 71 pre-registered trials of the last six rounds failed, so the holdouts stay unread. See [Research Record](#research-record).
+- **Hindsight in the universe.** The 11 coins are today's survivors. The same rule scored Sharpe -0.06 on coins no rule had read (#301). EOS, which Coinbase delisted, left the book on 2026-11-07 (#311).
 - **Paper only, and no broker yet.** Interactive Brokers cannot fill this sleeve, and the crypto venue (Coinbase assumed) needs an API key (#192). See RUNBOOK "When the keys arrive".
 - **IB is unverified end to end.** Connection, live futures margin and all <!--fact:options.structures-->43<!--/fact--> option structures have only met Lean's samples, never a real Gateway. Futures and options stay data-empty until a key is connected (`aq ib status`).
-- **Safety is not field-tested.** The kill switch, reconciliation and auto-rollback have run in unit tests and Lean backtests, never against a live broker and Postgres.
+- **Safety is only partly field-tested.** `main.py` has run in Lean's paper mode on a fake feed, survived Redis and then Postgres being stopped under it, restarted, and its audit chain verified on a real Postgres (#228). The kill switch, reconciliation and auto-rollback have still never run against a live broker over paper hours.
 - **Packages lag the repo.** PyPI and the Docker image are at the last release tag (5.4.x), before the library existed. Install from source for now.
 
 ## Table of Contents
@@ -92,6 +92,7 @@ _Lean run `2026-11-04_18-10-49`, 2023-07-01 to 2026-11-02, computed 2026-11-07 1
   - [`aq config`](#aq-config)
   - [`aq lean`](#aq-lean)
   - [`aq docs`](#aq-docs)
+  - [`aq verify`](#aq-verify)
   - [`aq retrain`](#aq-retrain)
   - [`aq paper-readiness`](#aq-paper-readiness)
   - [`aq trade-lock`](#aq-trade-lock)
@@ -115,7 +116,7 @@ _Lean run `2026-11-04_18-10-49`, 2023-07-01 to 2026-11-02, computed 2026-11-07 1
 
 ## The `aether_quant` Library
 
-One importable package over the same pure functions the live algorithm and the research chain call: <!--fact:library.names-->690<!--/fact--> public names across <!--fact:library.modules-->24<!--/fact--> modules.
+One importable package over the same pure functions the live algorithm and the research chain call: <!--fact:library.names-->803<!--/fact--> public names across <!--fact:library.modules-->24<!--/fact--> modules.
 
 ```powershell
 pip install "aether-quant[research] @ git+https://github.com/leon1706-lol/Aether-quant"
@@ -208,7 +209,7 @@ aq cycle status                 # what is due today
 
 ## Requirements
 
-- **Python <!--fact:python.ci-->3.11<!--/fact-->**, which CI runs. Package metadata says <!--fact:python.requires-->>=3.10<!--/fact-->, but `evaluation/lean_statistics.py` needs 3.11 (#326).
+- **Python <!--fact:python.ci-->3.11<!--/fact-->**, which CI runs. Package metadata says <!--fact:python.requires-->>=3.10<!--/fact-->, and a first-party check (`vermin -t=3.10-`) in CI keeps the sources importable on 3.10 (#326).
 - **For backtests:** Docker and the Lean CLI (`pip install lean`). The first run pulls the pinned engine image, <!--fact:lean.engine-->quantconnect/lean:17900<!--/fact-->, about 40 GB.
 - **For the infrastructure:** Docker Compose (Redis, Postgres, workers). Everything degrades gracefully without it.
 - **For the dashboard:** Node.js.
@@ -263,7 +264,7 @@ flowchart LR
 
 ## Universe Size
 
-<!--fact:universe.total-->104<!--/fact--> assets in `config.json`: <!--fact:universe.equity-->55<!--/fact--> equities and broad ETFs, <!--fact:universe.bond-->22<!--/fact--> bond ETFs, <!--fact:universe.crypto-->12<!--/fact--> crypto pairs, <!--fact:universe.forex-->15<!--/fact--> forex pairs. The shipped book trades the crypto pairs; the rest feed the models.
+<!--fact:universe.total-->103<!--/fact--> assets in `config.json`: <!--fact:universe.equity-->55<!--/fact--> equities and broad ETFs, <!--fact:universe.bond-->22<!--/fact--> bond ETFs, <!--fact:universe.crypto-->11<!--/fact--> crypto pairs, <!--fact:universe.forex-->15<!--/fact--> forex pairs. The shipped book trades the crypto pairs; the rest feed the models.
 
 | Split | Dates |
 |---|---|
@@ -308,6 +309,7 @@ Single-responsibility Python packages, each with its own README, a few top-level
 |---|---|
 | [`development/architecture.md`](development/architecture.md) | Subsystem contracts and the offline/live parity contract |
 | [`development/infrastructure.md`](development/infrastructure.md) | Docker, ports, Codespaces, database inspection |
+| [`development/verification.md`](development/verification.md) | Every way the project is verified, and when each is required (`aq verify`) |
 | [`development/research_results.md`](development/research_results.md) | Generated results of the retired model book and past rule chains |
 | [`development/project_structure.md`](development/project_structure.md) | The directory tree |
 | [`development/asset_universe.md`](development/asset_universe.md) | The tickers |
@@ -344,13 +346,13 @@ The shipped book's numbers from the real Lean engine. Every table is generated, 
 | Metric | Value |
 |---|---|
 | Backtest window | 2023-07-01 to 2026-11-02 |
-| Sharpe Ratio | 0.633 |
-| Net Profit | 33.850% |
-| Compounding Annual Return | 9.100% |
+| Sharpe Ratio | 0.651 |
+| Net Profit | 34.379% |
+| Compounding Annual Return | 9.229% |
 | Drawdown | 7.800% |
-| Total Orders | 1012 |
+| Total Orders | 987 |
 | Win Rate | 61% |
-| Last updated | 2026-11-07 10:54 UTC (auto-generated by `aq backtest`) |
+| Last updated | 2026-11-07 18:25 UTC (auto-generated by `aq backtest`) |
 <!-- AQ:BACKTEST_END -->
 
 ### Benchmarks
@@ -358,14 +360,14 @@ The shipped book's numbers from the real Lean engine. Every table is generated, 
 <!-- AQ:BTSTATS_BENCHMARKS_START -->
 | Series | Total return | Annual return | Volatility | Sharpe | Max drawdown |
 |---|---|---|---|---|---|
-| **Portfolio** (with the T-bill sweep) | +34.25% | +9.26% | 7.68% | 1.19 | 7.83% |
-| **Strategy** (without the sweep) | +18.95% | +5.36% | 7.68% | 0.72 | 9.88% |
+| **Portfolio** (with the T-bill sweep) | +34.78% | +9.39% | 7.66% | 1.21 | 7.82% |
+| **Strategy** (without the sweep) | +19.44% | +5.49% | 7.67% | 0.73 | 9.88% |
 | SPY | +76.55% | +18.64% | 14.91% | 1.22 | 18.76% |
 | 60/40 SPY/AGG, rebalanced daily | +48.09% | +12.53% | 9.63% | 1.27 | 11.27% |
 | Bitcoin, buy and hold | +157.01% | +32.83% | 46.20% | 0.84 | 53.06% |
-| The book's 12 coins, equal weight | +107.25% | +24.50% | 65.38% | 0.66 | 61.95% |
+| The book's 11 coins, equal weight | +156.78% | +32.79% | 65.28% | 0.76 | 57.09% |
 
-_Run `2026-11-04_18-10-49` · computed 2026-11-07 12:22 UTC · same sessions to the last equity close, no risk-free rate_
+_Run `2026-11-07_17-54-01` · computed 2026-11-07 18:27 UTC · same sessions to the last equity close, no risk-free rate_
 <!-- AQ:BTSTATS_BENCHMARKS_END -->
 
 ### Alpha by Period
@@ -373,14 +375,16 @@ _Run `2026-11-04_18-10-49` · computed 2026-11-07 12:22 UTC · same sessions to 
 <!-- AQ:ALPHA_START -->
 | Period | Dates | Sharpe | 95% interval | Alpha per year | Alpha t | Deflated Sharpe |
 |---|---|---|---|---|---|---|
-| Whole run | 2023-07-02 to 2026-11-04 | 0.72 | -0.46 to 1.90 | +0.37% | 0.13 | 4.01% |
-| First half | 2023-07-02 to 2025-06-30 | 1.15 | -0.48 to 2.73 | -0.69% | -0.18 | 22.89% |
-| Second half | 2025-07-01 to 2026-11-02 | 0.06 | -1.58 to 1.66 | +2.43% | 0.64 | 3.18% |
-| Long run, same rule | 2014-12-02 to 2026-11-04 | 0.91 | 0.26 to 1.51 | +1.30% | 0.83 | 0.42% |
+| Whole run | 2023-07-02 to 2026-11-04 | 0.74 | -0.44 to 1.93 | +0.40% | 0.15 | 5.12% |
+| First half | 2023-07-02 to 2025-06-30 | 1.17 | -0.43 to 2.76 | -0.68% | -0.18 | 26.05% |
+| Second half | 2025-07-01 to 2026-11-02 | 0.07 | -1.57 to 1.67 | +2.49% | 0.66 | 3.65% |
+| Long run, same rule | 2014-12-02 to 2026-11-04 | 0.94 | 0.28 to 1.55 | +1.48% | 0.95 | 0.88% |
 
 **Proof of alpha (R-ALPHA1): not demonstrated** (full-window alpha t < 2.0; deflated Sharpe < 0.95).
 
-_Run `2026-11-04_18-10-49` · computed 2026-11-07 10:55 UTC · alpha against SPY / AGG / BTCUSD with a Newey-West t · deflated over 192 ledger trials_
+_With SPY and AGG read a session late, as the crypto series is, the full-window alpha t is 0.12 (#330). R-ALPHA1 reads the figure in the table._
+
+_Run `2026-11-07_17-54-01` · computed 2026-11-07 18:27 UTC · alpha against SPY / AGG / BTCUSD with a Newey-West t · deflated over 206 ledger trials_
 <!-- AQ:ALPHA_END -->
 
 ### General Characteristics
@@ -390,23 +394,23 @@ _Run `2026-11-04_18-10-49` · computed 2026-11-07 10:55 UTC · alpha against SPY
 |---|---|---|---|
 | Time range | 2023-07-01 to 2026-11-02 |  |  |
 | Years | 3.35 |  |  |
-| Average AUM | $121,732 |  |  |
+| Average AUM | $122,140 |  |  |
 | Capacity (Lean estimate) | $37,000,000 |  | lowest-capacity asset XLMUSD 2XR |
 | Leverage, mean (gross exposure / NAV) | 0.96x | 0.11x |  |
 | Leverage, max | 1.04x | 0.20x |  |
-| Maximum dollar position | — | $7,463 | BCHUSD on 2026-01-03 |
-| Ratio of longs (share of bets) | — | 100.00% |  |
-| Longs : shorts (bets) | — | 126 : 0 |  |
-| Frequency of bets (per year) | — | 37.6 |  |
-| Average holding period (days, notional-weighted) | — | 32.0 |  |
-| Annualized turnover (traded notional / AUM) | 2.79x | 2.36x |  |
-| Correlation to underlying (SPY, daily) | 0.293 | 0.294 |  |
+| Maximum dollar position | — | $7,493 | BCHUSD on 2026-01-03 |
+| Ratio of longs (share of bets) | — | 86.27% |  |
+| Longs : shorts (bets) | — | 132 : 21 |  |
+| Frequency of bets (per year) | — | 45.7 |  |
+| Average holding period (days, notional-weighted) | — | 32.3 |  |
+| Annualized turnover (traded notional / AUM) | 2.77x | 2.34x |  |
+| Correlation to underlying (SPY, daily) | 0.290 | 0.291 |  |
 | Start equity | $100,000 |  |  |
-| End equity | $133,850 |  |  |
-| Total orders | 1,012 |  |  |
-| Lean portfolio turnover (daily mean) | 0.790% |  |  |
+| End equity | $134,379 |  |  |
+| Total orders | 987 |  |  |
+| Lean portfolio turnover (daily mean) | 0.780% |  |  |
 
-_Run `2026-11-04_18-10-49` · computed 2026-11-07 12:22 UTC_
+_Run `2026-11-07_17-54-01` · computed 2026-11-07 18:27 UTC_
 <!-- AQ:BTSTATS_GENERAL_END -->
 
 ### Performance
@@ -414,23 +418,23 @@ _Run `2026-11-04_18-10-49` · computed 2026-11-07 12:22 UTC_
 <!-- AQ:BTSTATS_PERFORMANCE_START -->
 | Metric | Portfolio | Strategy |
 |---|---|---|
-| PnL | +$33,850 | +$19,351 |
-| PnL from the T-bill sweep (carry) | +$14,499 |  |
-| PnL from long positions (closed bets, net of fees) | — | +$19,388 |
+| PnL | +$34,379 | +$19,855 |
+| PnL from the T-bill sweep (carry) | +$14,524 |  |
+| PnL from long positions (closed bets, net of fees) | — | +$19,891 |
 | PnL from short positions (closed bets, net of fees) | — | +$0 |
-| Annualized rate of return | +9.10% | +5.43% |
-| Hit ratio (closed bets net of fees) | — | 48.82% |
-| Average return from hits | — | +39.96% |
-| Average return from misses | — | -16.09% |
-| Time-weighted return (no external flows: the chained return) | +33.85% | +19.35% |
-| Net profit (Lean) | 33.850% |  |
+| Annualized rate of return | +9.23% | +5.56% |
+| Hit ratio (closed bets net of fees) | — | 48.79% |
+| Average return from hits | — | +39.97% |
+| Average return from misses | — | -13.96% |
+| Time-weighted return (no external flows: the chained return) | +34.38% | +19.85% |
+| Net profit (Lean) | 34.379% |  |
 | Win rate / loss rate (Lean, all trades) | 61% / 39% |  |
 | Average win / average loss (Lean) | 0.13% / -0.11% |  |
-| Profit-loss ratio (Lean) | 1.16 |  |
-| Expectancy (Lean) | 0.329 |  |
-| Unrealized at the end (Lean) | +$12,331 |  |
+| Profit-loss ratio (Lean) | 1.21 |  |
+| Expectancy (Lean) | 0.344 |  |
+| Unrealized at the end (Lean) | +$12,378 |  |
 
-_Run `2026-11-04_18-10-49` · computed 2026-11-07 12:22 UTC_
+_Run `2026-11-07_17-54-01` · computed 2026-11-07 18:27 UTC_
 <!-- AQ:BTSTATS_PERFORMANCE_END -->
 
 ### Runs and Drawdowns
@@ -440,17 +444,17 @@ _Run `2026-11-04_18-10-49` · computed 2026-11-07 12:22 UTC_
 |---|---|---|
 | HHI of positive returns | 0.002 | 0.002 |
 | HHI of negative returns | 0.002 | 0.002 |
-| HHI of time between bets (bets per month) | — | 0.032 |
-| 95-percentile drawdown | 4.67% | 7.13% |
-| 95-percentile time under water (days) | 229.1 | 240.5 |
-| Maximum drawdown | 7.83% | 10.82% |
+| HHI of time between bets (bets per month) | — | 0.026 |
+| 95-percentile drawdown | 4.78% | 7.05% |
+| 95-percentile time under water (days) | 227.8 | 240.8 |
+| Maximum drawdown | 7.82% | 10.81% |
 | Longest time under water (days) | 393 | 393 |
-| Drawdown episodes | 32 | 26 |
+| Drawdown episodes | 33 | 25 |
 | Drawdown (Lean) | 7.800% |  |
 | Drawdown recovery (Lean, days) | 243 |  |
-| Maximum drawdown duration (Lean) | 159.00:00:00 |  |
+| Maximum drawdown duration (Lean) | 152.00:00:00 |  |
 
-_Run `2026-11-04_18-10-49` · computed 2026-11-07 12:22 UTC_
+_Run `2026-11-07_17-54-01` · computed 2026-11-07 18:27 UTC_
 <!-- AQ:BTSTATS_RUNS_END -->
 
 ### Implementation Shortfall
@@ -458,15 +462,15 @@ _Run `2026-11-04_18-10-49` · computed 2026-11-07 12:22 UTC_
 <!-- AQ:BTSTATS_SHORTFALL_START -->
 | Metric | Portfolio | Strategy |
 |---|---|---|
-| Traded notional | $1,138,044 | $961,478 |
-| Broker fees | $7,753 | $7,692 |
-| Broker fees per turnover (bps of traded notional) | 68.1 bps | 80.0 bps |
+| Traded notional | $1,133,700 | $957,535 |
+| Broker fees | $7,726 | $7,660 |
+| Broker fees per turnover (bps of traded notional) | 68.2 bps | 80.0 bps |
 | Average slippage per turnover (bps vs the bar's open) | 8.6 bps | 10.0 bps |
-| Dollar performance per turnover (bps) | 297.4 bps | 201.3 bps |
-| Return on execution costs (net PnL / (fees + slippage)) | 3.88x | 2.24x |
-| Total fees (Lean) | $7,753 |  |
+| Dollar performance per turnover (bps) | 303.2 bps | 207.4 bps |
+| Return on execution costs (net PnL / (fees + slippage)) | 3.95x | 2.30x |
+| Total fees (Lean) | $7,726 |  |
 
-_Run `2026-11-04_18-10-49` · computed 2026-11-07 12:22 UTC_
+_Run `2026-11-07_17-54-01` · computed 2026-11-07 18:27 UTC_
 <!-- AQ:BTSTATS_SHORTFALL_END -->
 
 ### Return/Risk Efficiency
@@ -474,22 +478,22 @@ _Run `2026-11-04_18-10-49` · computed 2026-11-07 12:22 UTC_
 <!-- AQ:BTSTATS_EFFICIENCY_START -->
 | Metric | Portfolio | Strategy | Note |
 |---|---|---|---|
-| Annualized Sharpe ratio (Lean: risk-free rate subtracted) | 0.633 |  |  |
-| Annualized Sharpe ratio (no risk-free rate) | 1.204 | 0.720 |  |
-| Information ratio vs SPY | -0.625 | -0.874 |  |
-| Information ratio (Lean) | -0.715 |  |  |
-| Probabilistic Sharpe ratio (P[true Sharpe > 0]) | 98.76% | 90.85% |  |
-| Probabilistic Sharpe ratio (Lean, vs its benchmark) | 21.770% |  |  |
-| Deflated Sharpe ratio | 26.45% | 6.40% | 173 registered trials, expected best Sharpe 1.54 |
-| Sortino ratio (Lean) | 0.973 |  |  |
-| Alpha / beta (Lean) | 0.025 / 0.147 |  |  |
+| Annualized Sharpe ratio (Lean: risk-free rate subtracted) | 0.651 |  |  |
+| Annualized Sharpe ratio (no risk-free rate) | 1.221 | 0.737 |  |
+| Information ratio vs SPY | -0.616 | -0.864 |  |
+| Information ratio (Lean) | -0.706 |  |  |
+| Probabilistic Sharpe ratio (P[true Sharpe > 0]) | 98.86% | 91.38% |  |
+| Probabilistic Sharpe ratio (Lean, vs its benchmark) | 22.668% |  |  |
+| Deflated Sharpe ratio | 27.51% | 6.81% | 173 registered trials, expected best Sharpe 1.54 |
+| Sortino ratio (Lean) | 1.004 |  |  |
+| Alpha / beta (Lean) | 0.027 / 0.146 |  |  |
 | Annual standard deviation (Lean) | 0.075 |  |  |
 | Annual variance (Lean) | 0.0060 |  |  |
 | Tracking error (Lean) | 0.146 |  |  |
-| Treynor ratio (Lean) | 0.322 |  |  |
-| Sharpe, Lean formula (shipped rate file/365) | 0.633 |  |  |
+| Treynor ratio (Lean) | 0.334 |  |  |
+| Sharpe, Lean formula (shipped rate file/365) | 0.651 |  |  |
 
-_Run `2026-11-04_18-10-49` · computed 2026-11-07 12:22 UTC_
+_Run `2026-11-07_17-54-01` · computed 2026-11-07 18:27 UTC_
 <!-- AQ:BTSTATS_EFFICIENCY_END -->
 
 ### Attribution
@@ -497,11 +501,11 @@ _Run `2026-11-04_18-10-49` · computed 2026-11-07 12:22 UTC_
 <!-- AQ:BTSTATS_ATTRIBUTION_START -->
 | Class | Net PnL | Return on AUM (annual) | Volatility (annual) | Sharpe | Max drawdown (on AUM) | Risk share | Fees |
 |---|---|---|---|---|---|---|---|
-| cash_sweep | +$14,499 | +3.56% | 0.28% | 12.86 | 0.30% | 0.27% | $61 |
-| crypto | +$19,353 | +4.75% | 7.48% | 0.72 | 11.36% | 99.73% | $7,692 |
+| cash_sweep | +$14,524 | +3.55% | 0.28% | 12.85 | 0.30% | 0.27% | $66 |
+| crypto | +$19,856 | +4.86% | 7.47% | 0.74 | 11.35% | 99.73% | $7,660 |
 | unattributed (Lean minus rebuilt) | -$1 | | | | | | |
 
-_Run `2026-11-04_18-10-49` · computed 2026-11-07 12:22 UTC_
+_Run `2026-11-07_17-54-01` · computed 2026-11-07 18:27 UTC_
 <!-- AQ:BTSTATS_ATTRIBUTION_END -->
 
 ### Robustness
@@ -513,12 +517,12 @@ _Run `2026-11-04_18-10-49` · computed 2026-11-07 12:22 UTC_
 
 | Metric | p5 | p50 | p95 |
 |---|---|---|---|
-| Final return | 4.410409% | 32.631471% | 78.613024% |
-| Annualized Sharpe | 0.21697 | 1.176288 | 2.203949 |
-| Max drawdown | 5.024% | 7.980479% | 13.315981% |
-| P(negative total return): **0.028** |||
+| Final return | 4.787522% | 33.146986% | 79.410487% |
+| Annualized Sharpe | 0.235344 | 1.195824 | 2.213417 |
+| Max drawdown | 4.985192% | 7.883263% | 13.205712% |
+| P(negative total return): **0.026** |||
 
-_1000 block-bootstrapped histories (block 20 days, seed 42) of Lean run `2026-11-04_18-10-49`'s 1222 daily returns, 2023-07-01 to 2026-11-02. The run itself returned 33.85%; computed 2026-11-07 11:00 UTC (rendered 2026-11-07 12:22 UTC)._
+_1000 block-bootstrapped histories (block 20 days, seed 42) of Lean run `2026-11-07_17-54-01`'s 1222 daily returns, 2023-07-01 to 2026-11-02. The run itself returned 34.38%; computed 2026-11-07 18:25 UTC (rendered 2026-11-08 02:03 UTC)._
 <!-- AQ:MONTECARLO_END -->
 
 <details>
@@ -531,23 +535,23 @@ Deeper distribution statistics across all Monte Carlo runs:
 
 | p5 | p25 | p50 | p75 | p95 |
 |---|---|---|---|---|
-| 4.410409 | 19.770973 | 32.631471 | 47.866705 | 78.613024 |
+| 4.787522 | 20.277565 | 33.146986 | 48.34783 | 79.410487 |
 
 **Annualized Sharpe**
 
 | p5 | p25 | p50 | p75 | p95 |
 |---|---|---|---|---|
-| 0.21697 | 0.77705 | 1.176288 | 1.565803 | 2.203949 |
+| 0.235344 | 0.796524 | 1.195824 | 1.587901 | 2.213417 |
 
 **Max drawdown (%)**
 
 | p5 | p25 | p50 | p75 | p95 |
 |---|---|---|---|---|
-| 5.024 | 6.358014 | 7.980479 | 9.887616 | 13.315981 |
+| 4.985192 | 6.350005 | 7.883263 | 9.734714 | 13.205712 |
 
-- Best run total return: **142.5662%**
-- Worst run total return: **-12.8344%**
-- Probability of a negative total return: **0.028**
+- Best run total return: **143.6281%**
+- Worst run total return: **-12.2954%**
+- Probability of a negative total return: **0.026**
 - Config: n_runs=1000, method=`block`, block_size=20d, seed=42 (pinned - the section only changes when underlying results change)
 
 The red line in the chart above is the element-wise AVERAGE of all run equity curves; faint blue lines are the individual bootstrap histories.
@@ -565,6 +569,9 @@ Each search used rules written before any score. Details are in [`development/Pr
 | Round 1: fundamentals, insiders, short volume, funding, point-in-time retrain, wide crypto | 28 | 0 | The sleeve itself scored -0.06 on unread coins | #300, #301 |
 | Round 2 | 8 | 0 | Sharpe 0.57 | #310 |
 | Round 3: pooled books, composites, published signs, quarterly accruals | 10 | 0 | Sharpe 0.58, second half 0.29 | #315 |
+| Round 4C: crypto risk, liquidity and trend filters, a boosted model | 14 | 0; overfitting probability 0.58 | Idiosyncratic volatility, Sharpe 0.62 (halves 0.39, 0.69) | #336 |
+| Round 4E: EDGAR filings, seasonality, insiders, cash profitability, ETF trend, macro timing | 9, two voided by a runner defect | 0 | Cash profitability, Sharpe 0.39 | #336 |
+| Round 4F: the two voided trials again | 2 | 0 | SPY on term and credit, Sharpe 0.75 on one name, failed the placebo | #336 |
 
 ### Disclaimer
 
@@ -574,11 +581,11 @@ Each search used rules written before any score. Details are in [`development/Pr
 
 ## Test Suite
 
-<!-- AQ:TEST_COUNT_START -->4827<!-- AQ:TEST_COUNT_END --> tests, one file per source module. `aq test` runs them and refreshes the badge above. Conventions: [`tests/README.md`](tests/README.md).
+<!-- AQ:TEST_COUNT_START -->5103<!-- AQ:TEST_COUNT_END --> tests, one file per source module. `aq test` runs them and refreshes the badge above. Conventions: [`tests/README.md`](tests/README.md).
 
 ## CLI Reference
 
-`aq --help` lists <!--fact:aq.commands-->28<!--/fact--> commands, and `aq <command> --help` gives every flag. Dry run is the default wherever a command writes data or config.
+`aq --help` lists <!--fact:aq.commands-->29<!--/fact--> commands, and `aq <command> --help` gives every flag. Dry run is the default wherever a command writes data or config.
 
 #### `aq train`
 ```text
@@ -681,6 +688,12 @@ The same tool for `lean.json`.
 aq docs sync [--check]
 ```
 Refreshes every marked fact in the docs from its source (`docs_facts.py`). `--check` changes nothing and exits 1 on drift, which is how CI catches stale numbers.
+
+#### `aq verify`
+```text
+aq verify [--list] [--quick] [--record FILE] [--write-doc]
+```
+Every way the project is verified, in one table ([`development/verification.md`](development/verification.md)): `--list` prints it, `--quick` runs what a 4 GB machine can (ruff, doc facts, the library gate, the sorry scan, secrets, the guard tests), `--record` also writes the results as JSON, and `--write-doc` regenerates the table in the doc.
 
 #### `aq retrain`
 ```text

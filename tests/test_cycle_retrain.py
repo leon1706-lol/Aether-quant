@@ -80,7 +80,8 @@ def test_a_procedure_is_never_free_form():
         main(["--host", "local", "--procedure", "rm -rf /"])
 
 
-def test_local_stages_run_the_scripts_with_this_python(tmp_path):
+def test_local_stages_run_the_scripts_with_this_python(tmp_path, monkeypatch):
+    monkeypatch.setenv("AQ_SEC_CONTACT", "a contact for this test")
     seen = []
 
     def runner(command, **_):
@@ -114,9 +115,17 @@ def test_a_refit_registers_a_vintage_and_promotes_nothing(tmp_path):
     assert registered["procedure"] == "k06" and len(registered["procedure_sha256"]) == 64 and registered["vintage"] == tmp_path.name
 
 
+@pytest.fixture
+def powershell_present(monkeypatch):
+    """The push script needs PowerShell, which a Linux runner lacks; these tests drive the Codespace through a fake runner and don't care which shell it names."""
+    import cycle_retrain
+    monkeypatch.setattr(cycle_retrain, "sync_shell", lambda: "powershell")
+
+
 LISTED = '[{"name": "aq-real-name-1", "displayName": "aq-Training-Ground-Fixed", "state": "Available"}]'
 
 
+@pytest.mark.usefixtures("powershell_present")
 def test_the_codespace_is_addressed_by_its_real_name_and_a_failed_stop_is_loud(tmp_path, capsys):
     seen = []
 
@@ -178,6 +187,7 @@ def test_the_codespace_stops_however_the_run_ends(tmp_path, failing):
     assert seen[-1][:3] == ["gh", "codespace", "stop"]
 
 
+@pytest.mark.usefixtures("powershell_present")
 def test_the_codespace_stops_after_a_good_run_too(tmp_path):
     seen = []
 
@@ -201,6 +211,7 @@ def test_the_codespace_job_runs_the_same_script_locally_there():
     assert not any(" " in part or '"' in part for part in command), "Windows OpenSSH strips quotes from a command line"
 
 
+@pytest.mark.usefixtures("powershell_present")
 def test_a_dropped_session_resumes_and_a_lasting_failure_still_stops_the_codespace(tmp_path):
     runs = []
 
@@ -237,3 +248,68 @@ def test_the_smoke_panel_is_what_the_trainer_reads(tmp_path):
     smoke_panel(path)
     frame, features = load_panel_frame(path, feature_set="fundamental", target="target_wide_20d")
     assert sorted(features) == sorted(FUNDAMENTAL_SIGNS) and frame["_label"].notna().all()
+
+
+# --- V6.6.4 (Problems #321): a refit records its vintage, the scores come home, and the shell and contact are checked up front ------------------------------
+
+def test_a_refit_of_a_frozen_procedure_adds_its_vintage_once_and_a_candidate_adds_nothing(tmp_path):
+    import json
+
+    from cycle_retrain import register_vintage
+    from evaluation.generation_registry import Generation, lifecycle_is_intact, load_registry, save_registry
+
+    registry, lifecycle = tmp_path / "registry.json", tmp_path / "lifecycle.jsonl"
+    save_registry(registry, {"g1": Generation(id="g1", kind="model", tier="tier1", stage="active", born="2026-11-07", procedure_sha256="abc")})
+    first = register_vintage(registry, lifecycle, "abc", "retrain_20261108_x", created_at="2026-11-08T00:00:00+00:00")
+    assert first == {"added": True, "generation": "g1"} and load_registry(registry)["g1"].vintages == ("retrain_20261108_x",)
+    assert register_vintage(registry, lifecycle, "abc", "retrain_20261108_x", created_at="2026-11-08T00:00:01+00:00")["added"] is False
+    candidate = register_vintage(registry, lifecycle, "someone-elses-sha", "retrain_y", created_at="2026-11-08T00:00:02+00:00")
+    assert candidate["added"] is False and "candidate" in candidate["reason"]
+    assert lifecycle_is_intact(lifecycle)[0] is True and len(lifecycle.read_text(encoding="utf-8").splitlines()) == 1
+    assert json.loads(lifecycle.read_text(encoding="utf-8").splitlines()[0])["payload"]["event"] == "vintage_added"
+    assert register_vintage(tmp_path / "missing.json", lifecycle, "abc", "v", created_at="t")["added"] is False
+
+
+def test_the_sync_shell_is_found_or_the_error_says_what_to_do(monkeypatch):
+    import cycle_retrain
+
+    monkeypatch.setattr(cycle_retrain.shutil, "which", lambda name: "/bin/pwsh" if name == "pwsh" else None)
+    assert cycle_retrain.sync_shell() == "/bin/pwsh"
+    monkeypatch.setattr(cycle_retrain.shutil, "which", lambda name: "C:/ps/powershell.exe" if name == "powershell" else None)
+    assert cycle_retrain.sync_shell() == "C:/ps/powershell.exe"
+    monkeypatch.setattr(cycle_retrain.shutil, "which", lambda name: None)
+    with pytest.raises(RuntimeError, match="--on-codespace"):
+        cycle_retrain.sync_shell()
+
+
+def test_the_bootstrap_stage_refuses_up_front_without_a_sec_contact(tmp_path, monkeypatch):
+    monkeypatch.delenv("AQ_SEC_CONTACT", raising=False)
+    actions = local_actions("k06", PROCEDURES["k06"], run_dir=tmp_path, runner=lambda *a, **k: SimpleNamespace(returncode=0, stdout="", stderr=""))
+    with pytest.raises(RuntimeError, match="AQ_SEC_CONTACT"):
+        actions["bootstrap_data"]()
+
+
+def test_the_codespace_run_brings_the_scores_back_with_the_state(tmp_path, monkeypatch):
+    import json
+
+    import cycle_retrain
+
+    monkeypatch.setattr(cycle_retrain, "sync_shell", lambda: "pwsh")
+    state = {"done": {"score": {"result": {"scores": "ml/cycle/retrain_r1/k06.csv", "sha256": "x"}}}}
+    seen = []
+
+    def runner(command, cwd=None, capture_output=None, text=None):
+        seen.append(list(command))
+        joined = " ".join(map(str, command))
+        if "list" in command:
+            return SimpleNamespace(returncode=0, stdout=json.dumps([{"name": "cs-1", "displayName": "aq-Training-Ground-Fixed", "state": "Available"}]), stderr="")
+        if "state.json" in joined:
+            return SimpleNamespace(returncode=0, stdout=json.dumps(state), stderr="")
+        if joined.endswith("k06.csv"):
+            return SimpleNamespace(returncode=0, stdout="date,ticker,score\n2024-01-02,A,0.5\n", stderr="")
+        return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    result = drive_codespace("k06", PROCEDURES["k06"], run_id="r1", smoke=False, runner=runner, scratch=tmp_path, emit=lambda line: None, sleep=lambda seconds: None)
+    assert result["ran"] is True
+    assert (tmp_path / "k06.csv").read_text(encoding="utf-8").startswith("date,ticker,score"), "the scores came home"
+    assert any(command[:2] == ["gh", "codespace"] and "stop" in command for command in seen), "and the Codespace still stopped"

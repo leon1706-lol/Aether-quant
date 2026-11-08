@@ -19,8 +19,17 @@ rm -rf .lake
 lake exe cache get > "${STATE}/cache.log" 2>&1
 mark "CACHE exit $?"
 cd .. || exit 1
+fail=0
 python3 aq_cli.py prove --check-sorry > "${STATE}/sorry.log" 2>&1
-mark "SORRY exit $?"
+code=$?; mark "SORRY exit ${code}"; [ "${code}" -ne 0 ] && fail=1
+rm -rf "${STATE}/cases_before"; cp -r aether_quant/_formal_cases "${STATE}/cases_before"
 python3 aq_cli.py prove --regen-cases > "${STATE}/prove.log" 2>&1
-mark "PROVE exit $?"
-mark PROVE_DONE
+code=$?; mark "PROVE exit ${code}"; [ "${code}" -ne 0 ] && fail=1
+# the regenerated cases must equal the committed ones: a spec change that moved a case shows here
+diff -r "${STATE}/cases_before" aether_quant/_formal_cases > "${STATE}/cases.diff" 2>&1
+code=$?; mark "CASES_UNCHANGED exit ${code}"; [ "${code}" -ne 0 ] && fail=1
+# every theorem rests on the standard axioms only (scripts/check_axioms.py)
+python3 scripts/check_axioms.py > "${STATE}/axioms.log" 2>&1
+code=$?; mark "AXIOMS exit ${code}"; [ "${code}" -ne 0 ] && fail=1
+mark "PROVE_DONE fail=${fail}"
+exit "${fail}"

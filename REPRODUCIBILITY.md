@@ -13,12 +13,12 @@ How to reproduce every number in the README. The tables there are generated, so 
 From a finished Lean run folder alone, with no model or dataset:
 
 ```powershell
-aq evaluate --lean-report --backtest-dir backtests/2026-11-04_18-10-49
+aq evaluate --lean-report --backtest-dir backtests/2026-11-07_17-54-01
 ```
 
-- **Frozen config:** `ml/evaluation/run_configs/2026-11-04_18-10-49.json`.
+- **Frozen config:** `ml/evaluation/run_configs/2026-11-07_17-54-01.json`.
 - **Weights:** `ml/target_weights.csv`, pinned by `phase_v2.target_weights.weights_sha256`.
-- **Long-window row:** `aq evaluate --alpha-proof --backtest-dir backtests/2026-11-04_18-11-31`, named as `long_run` in `ml/evaluation/readme_lean_run.json`.
+- **Long-window row:** `aq evaluate --alpha-proof --backtest-dir backtests/2026-11-07_17-56-48`, named as `long_run` in `ml/evaluation/readme_lean_run.json`.
 
 To rerun the Lean engine itself, see [`development/infrastructure.md`](development/infrastructure.md) ("Lean on a DinD Codespace"), or `aq backtest` on a machine with Docker.
 

@@ -116,7 +116,8 @@ def test_asset_class_mapping_covers_the_universe_and_matches_the_dataset_one_hot
         first = chunk.drop_duplicates("ticker")
         for _, row in first.iterrows():
             seen.setdefault(str(row["ticker"]), one_hots[int(np.argmax(row[one_hots].to_numpy(dtype=float)))][len("asset_class_"):])
-        if len(seen) >= len(classes):
+        if set(classes) <= set(seen):
             break
-    mismatched = {ticker: (cls, classes.get(ticker)) for ticker, cls in seen.items() if classes.get(ticker) != cls}
+    # a dataset built before a ticker left the universe (EOSUSD, V6.6.4) still carries it; only tickers still in the config must agree
+    mismatched = {ticker: (cls, classes.get(ticker)) for ticker, cls in seen.items() if ticker in classes and classes.get(ticker) != cls}
     assert mismatched == {}

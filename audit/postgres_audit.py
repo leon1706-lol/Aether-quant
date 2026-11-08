@@ -12,6 +12,8 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
+from .hash_chain import canonical_timestamp
+
 _COLUMNS = (
     "event_id",
     "created_at",
@@ -24,7 +26,9 @@ _COLUMNS = (
 
 
 def _row_to_dict(row: tuple) -> dict[str, Any]:
-    return dict(zip(_COLUMNS, row))
+    out = dict(zip(_COLUMNS, row))
+    out["created_at"] = canonical_timestamp(out["created_at"])  # the text the row was hashed as (Problems #339)
+    return out
 
 
 def fetch_recent_events(
@@ -45,17 +49,27 @@ def fetch_recent_events(
         query += " AND event_type = %(event_type)s"
         params["event_type"] = event_type
     query += " ORDER BY id DESC LIMIT %(limit)s;"
-    with conn.cursor() as cur:
-        cur.execute(query, params)
-        rows = cur.fetchall()
+    rows = _select(conn, query, params)
     return [_row_to_dict(row) for row in rows]
+
+
+def _select(conn, query: str, params: dict | None = None) -> list:
+    """Run a read; a database no audit worker has written to has no `audit_log` table yet (Problems #339, found on a real Postgres), which reads as no entries, not a crash.
+    Any other database error still raises."""
+    try:
+        with conn.cursor() as cur:
+            cur.execute(query, params) if params is not None else cur.execute(query)
+            return cur.fetchall()
+    except Exception as exc:
+        if type(exc).__name__ != "UndefinedTable":
+            raise
+        conn.rollback()
+        return []
 
 
 def fetch_all_events_ordered(conn) -> list[dict]:
     """Every audit_log row, oldest-first - the shape audit.hash_chain.verify_chain()
     expects. Only ever used by `aq audit-log --verify`; not paginated
     (verification is meaningless over a partial chain)."""
-    with conn.cursor() as cur:
-        cur.execute(f"SELECT {', '.join(_COLUMNS)} FROM audit_log ORDER BY id ASC;")
-        rows = cur.fetchall()
+    rows = _select(conn, f"SELECT {', '.join(_COLUMNS)} FROM audit_log ORDER BY id ASC;")
     return [_row_to_dict(row) for row in rows]

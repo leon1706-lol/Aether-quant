@@ -47,7 +47,7 @@ suite() { cd "${CLEAN}" && python3 -m pytest -m "not lean_backtest" -ra -n 3 --c
 lint() { cd "${CLEAN}" && python3 -m pip install --quiet "ruff==0.16.4" && ruff check . && python3 -m py_compile main.py; }
 guards() {
   cd "${CLEAN}" && python3 -m pytest -q -p no:cacheprovider tests/test_cli_help_surface.py tests/test_ci_workflows.py tests/test_dockerignore_secrets.py tests/test_lean_runtime_imports.py \
-    tests/test_packaging_modules.py tests/test_docs_links.py tests/test_v550_parity_fixes.py "tests/test_aq_cli.py::test_subsystem_test_files_maps_every_real_test_file_to_exactly_one_bucket"
+    tests/test_packaging_modules.py tests/test_docs_links.py tests/test_docs_facts.py tests/test_aether_quant_coverage.py tests/test_v550_parity_fixes.py "tests/test_aq_cli.py::test_subsystem_test_files_maps_every_real_test_file_to_exactly_one_bucket"
 }
 bucket() { cd "${CLEAN}" && python3 aq_cli.py test "--$1"; }
 actionlint_job() {

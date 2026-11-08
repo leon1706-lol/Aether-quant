@@ -11,6 +11,7 @@ re-verify an already-fetched list of rows through verify_chain() below.
 
 from __future__ import annotations
 
+import datetime
 import hashlib
 import json
 
@@ -18,6 +19,25 @@ import json
 # a fixed, well-known genesis value rather than None/empty-string, so an
 # empty prev_hash column can never be confused with "chain not yet verified".
 GENESIS_HASH = "0" * 64
+
+
+def canonical_timestamp(value) -> str:
+    """The text a row's timestamp is hashed as, and read back as (Problems #339). Postgres stores `created_at` in a TIMESTAMPTZ column and returns a `datetime`, while the hash was taken over
+    the producer's string, so a chain read back from a real database could not be verified: `verify_chain` raised on the datetime, and would have mismatched on the offset's spelling even if
+    it had not. A datetime, or an ISO 8601 string that parses, is written in UTC as `YYYY-MM-DDTHH:MM:SSZ` (with microseconds only when there are some); anything else is returned as it is.
+    `build_audit_event` already writes that form, so rows hashed before this existed verify unchanged."""
+    moment = value
+    if isinstance(value, str):
+        try:
+            moment = datetime.datetime.fromisoformat(value.replace("Z", "+00:00") if value.endswith("Z") else value)
+        except ValueError:
+            return value
+    if not isinstance(moment, datetime.datetime):
+        return str(value)
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=datetime.timezone.utc)
+    moment = moment.astimezone(datetime.timezone.utc)
+    return moment.strftime("%Y-%m-%dT%H:%M:%S.%fZ") if moment.microsecond else moment.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def compute_entry_hash(prev_hash: str, event_type: str, created_at: str, payload: dict) -> str:

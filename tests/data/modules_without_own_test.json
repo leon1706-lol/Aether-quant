@@ -1,0 +1,29 @@
+{
+ "note": "Shipped modules with no tests/test_<name>.py when the check was added (V6.6.4); each is exercised by a round or cross-module file. It can only shrink.",
+ "modules": [
+  "audit.redis_queue",
+  "data_pipeline.bar_synthesis",
+  "data_pipeline.cftc_cot",
+  "data_pipeline.edgar_facts",
+  "data_pipeline.factor_library",
+  "data_pipeline.finra_short_volume",
+  "data_pipeline.sec_form345",
+  "data_pipeline.v2_manifest",
+  "evaluation.audit_runners",
+  "evaluation.benchmark_comparison",
+  "evaluation.factor_neutralization_check",
+  "evaluation.tranche_book",
+  "evaluation.wide_context",
+  "experience.redis_queue",
+  "features.training_splits",
+  "features.wide_panel",
+  "moe.gating",
+  "portfolio.book_construction",
+  "portfolio.hrp_allocation",
+  "retraining.artifacts",
+  "retraining.orchestrator",
+  "retraining.planning",
+  "retraining.postgres_registry",
+  "retraining.worker"
+ ]
+}

@@ -1,0 +1,5503 @@
+{
+ "target": "holdout_once",
+ "spec_files": [
+  "AetherFormal/HoldoutOnce.lean"
+ ],
+ "cases": [
+  {
+   "input": {
+    "ledger": [
+     "V3",
+     "V2"
+    ],
+    "cells": [
+     "P"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V3",
+     "V2",
+     "P"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "CS",
+     "CV"
+    ],
+    "cells": [
+     "CV",
+     "V3"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "CS",
+     "CV"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "CS"
+    ],
+    "cells": [
+     "P"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "CS",
+     "P"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "CV"
+    ],
+    "cells": [
+     "V1",
+     "V2",
+     "V3"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "CV",
+     "V1",
+     "V2",
+     "V3"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V3",
+     "V2"
+    ],
+    "cells": [
+     "V1"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V3",
+     "V2",
+     "V1"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "P"
+    ],
+    "cells": [
+     "P",
+     "V2"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "P"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "CS",
+     "V2"
+    ],
+    "cells": [
+     "P",
+     "V1"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "CS",
+     "V2",
+     "P",
+     "V1"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "P",
+     "V2",
+     "V1"
+    ],
+    "cells": [
+     "CS",
+     "V3",
+     "V1"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "P",
+     "V2",
+     "V1"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [],
+    "cells": [
+     "V3"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V3"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V1",
+     "V2"
+    ],
+    "cells": [
+     "CV",
+     "P"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V1",
+     "V2",
+     "CV",
+     "P"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V2"
+    ],
+    "cells": [
+     "CV"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V2",
+     "CV"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [],
+    "cells": [
+     "CV",
+     "CS"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "CV",
+     "CS"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [],
+    "cells": [
+     "V2",
+     "V1"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V2",
+     "V1"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "CS",
+     "V3"
+    ],
+    "cells": [
+     "V1",
+     "CV"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "CS",
+     "V3",
+     "V1",
+     "CV"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [],
+    "cells": [
+     "P"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "P"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [],
+    "cells": [
+     "V2",
+     "CS",
+     "V3"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V2",
+     "CS",
+     "V3"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V3",
+     "V2"
+    ],
+    "cells": [
+     "CS"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V3",
+     "V2",
+     "CS"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [],
+    "cells": [
+     "V3",
+     "P"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V3",
+     "P"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [],
+    "cells": [
+     "V2"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V2"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V1"
+    ],
+    "cells": [
+     "CS",
+     "V2"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V1",
+     "CS",
+     "V2"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [],
+    "cells": [
+     "CS",
+     "V3"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "CS",
+     "V3"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [],
+    "cells": [
+     "CV",
+     "CS",
+     "V2"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "CV",
+     "CS",
+     "V2"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [],
+    "cells": [
+     "CV",
+     "V1"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "CV",
+     "V1"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V1",
+     "P"
+    ],
+    "cells": [
+     "CS"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V1",
+     "P",
+     "CS"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V1",
+     "V2"
+    ],
+    "cells": [
+     "CS",
+     "V2"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "V1",
+     "V2"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V2",
+     "CS",
+     "V1"
+    ],
+    "cells": [
+     "V3",
+     "V2"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "V2",
+     "CS",
+     "V1"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V2",
+     "V3",
+     "CV"
+    ],
+    "cells": [
+     "V2",
+     "V1"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "V2",
+     "V3",
+     "CV"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [],
+    "cells": [
+     "V1",
+     "CV",
+     "V2"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V1",
+     "CV",
+     "V2"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V1",
+     "CV"
+    ],
+    "cells": [
+     "V3",
+     "P"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V1",
+     "CV",
+     "V3",
+     "P"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "P",
+     "CV"
+    ],
+    "cells": [
+     "CS"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "P",
+     "CV",
+     "CS"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V2",
+     "CV"
+    ],
+    "cells": [
+     "CV",
+     "P"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "V2",
+     "CV"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "CV",
+     "V3"
+    ],
+    "cells": [
+     "P",
+     "V1"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "CV",
+     "V3",
+     "P",
+     "V1"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "CS",
+     "V1"
+    ],
+    "cells": [
+     "CS",
+     "P",
+     "V3"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "CS",
+     "V1"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [],
+    "cells": [
+     "V1",
+     "P",
+     "V2"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V1",
+     "P",
+     "V2"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V2"
+    ],
+    "cells": [
+     "CS"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V2",
+     "CS"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V3",
+     "V1"
+    ],
+    "cells": [
+     "CV",
+     "V2"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V3",
+     "V1",
+     "CV",
+     "V2"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V1",
+     "P",
+     "CS"
+    ],
+    "cells": [
+     "V2",
+     "V1"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "V1",
+     "P",
+     "CS"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V1",
+     "CS"
+    ],
+    "cells": [
+     "V2"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V1",
+     "CS",
+     "V2"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [],
+    "cells": [
+     "P",
+     "V1"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "P",
+     "V1"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "CV",
+     "V1"
+    ],
+    "cells": [
+     "V1"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "CV",
+     "V1"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [],
+    "cells": [
+     "V1",
+     "V2"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V1",
+     "V2"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [],
+    "cells": [
+     "V3",
+     "V2"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V3",
+     "V2"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "CS",
+     "V2",
+     "P"
+    ],
+    "cells": [
+     "CS",
+     "V2",
+     "CV"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "CS",
+     "V2",
+     "P"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V1"
+    ],
+    "cells": [
+     "V1",
+     "V2",
+     "CS"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "V1"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V2",
+     "P"
+    ],
+    "cells": [
+     "CV",
+     "V2",
+     "V1"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "V2",
+     "P"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V3",
+     "CV"
+    ],
+    "cells": [
+     "CS",
+     "V2"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V3",
+     "CV",
+     "CS",
+     "V2"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [],
+    "cells": [
+     "CS",
+     "CV"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "CS",
+     "CV"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V3",
+     "P",
+     "CS"
+    ],
+    "cells": [
+     "P"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "V3",
+     "P",
+     "CS"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [],
+    "cells": [
+     "P",
+     "V3"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "P",
+     "V3"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "CV",
+     "CS"
+    ],
+    "cells": [
+     "CS",
+     "P",
+     "CV"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "CV",
+     "CS"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V3"
+    ],
+    "cells": [
+     "V1",
+     "CV"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V3",
+     "V1",
+     "CV"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [],
+    "cells": [
+     "V1",
+     "CS"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V1",
+     "CS"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V3",
+     "V2"
+    ],
+    "cells": [
+     "V2",
+     "V3"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "V3",
+     "V2"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V3",
+     "CS",
+     "P"
+    ],
+    "cells": [
+     "V3",
+     "V1"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "V3",
+     "CS",
+     "P"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V3"
+    ],
+    "cells": [
+     "V2"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V3",
+     "V2"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V1",
+     "CS"
+    ],
+    "cells": [
+     "CV"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V1",
+     "CS",
+     "CV"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [],
+    "cells": [
+     "V1"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V1"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "CV"
+    ],
+    "cells": [
+     "V1",
+     "CS"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "CV",
+     "V1",
+     "CS"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V2"
+    ],
+    "cells": [
+     "V3",
+     "V1"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V2",
+     "V3",
+     "V1"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "CV"
+    ],
+    "cells": [
+     "P",
+     "V3",
+     "V1"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "CV",
+     "P",
+     "V3",
+     "V1"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V3"
+    ],
+    "cells": [
+     "V2"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V3",
+     "V2"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V3",
+     "CV"
+    ],
+    "cells": [
+     "CV",
+     "V2"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "V3",
+     "CV"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "CV",
+     "V1",
+     "V2"
+    ],
+    "cells": [
+     "V3",
+     "P"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "CV",
+     "V1",
+     "V2",
+     "V3",
+     "P"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "P"
+    ],
+    "cells": [
+     "V1"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "P",
+     "V1"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "P",
+     "V2"
+    ],
+    "cells": [
+     "CV"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "P",
+     "V2",
+     "CV"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "CV"
+    ],
+    "cells": [
+     "V1",
+     "V2"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "CV",
+     "V1",
+     "V2"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "CV"
+    ],
+    "cells": [
+     "CS",
+     "V1"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "CV",
+     "CS",
+     "V1"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "CV",
+     "V2"
+    ],
+    "cells": [
+     "CV",
+     "V1",
+     "CS"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "CV",
+     "V2"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "CV"
+    ],
+    "cells": [
+     "V3",
+     "V2"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "CV",
+     "V3",
+     "V2"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [],
+    "cells": [
+     "V3",
+     "CV",
+     "CS"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V3",
+     "CV",
+     "CS"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V3"
+    ],
+    "cells": [
+     "V2",
+     "V1"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V3",
+     "V2",
+     "V1"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V2",
+     "V1"
+    ],
+    "cells": [
+     "CS",
+     "V3"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V2",
+     "V1",
+     "CS",
+     "V3"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [],
+    "cells": [
+     "P",
+     "V3"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "P",
+     "V3"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "CS"
+    ],
+    "cells": [
+     "V2",
+     "CV"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "CS",
+     "V2",
+     "CV"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "P",
+     "V1",
+     "V3"
+    ],
+    "cells": [
+     "V1"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "P",
+     "V1",
+     "V3"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V1"
+    ],
+    "cells": [
+     "V2"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V1",
+     "V2"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [],
+    "cells": [
+     "V1"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V1"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V1",
+     "V2"
+    ],
+    "cells": [
+     "V2",
+     "V3",
+     "CS"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "V1",
+     "V2"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "CV",
+     "V3"
+    ],
+    "cells": [
+     "V2",
+     "V1"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "CV",
+     "V3",
+     "V2",
+     "V1"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V3",
+     "V2"
+    ],
+    "cells": [
+     "CS",
+     "V1",
+     "V3"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "V3",
+     "V2"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "CS",
+     "V1",
+     "CV"
+    ],
+    "cells": [
+     "V1",
+     "V3",
+     "CS"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "CS",
+     "V1",
+     "CV"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V3"
+    ],
+    "cells": [
+     "P",
+     "V1",
+     "CV"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V3",
+     "P",
+     "V1",
+     "CV"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "CS",
+     "V1",
+     "V2"
+    ],
+    "cells": [
+     "V2",
+     "V3"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "CS",
+     "V1",
+     "V2"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V3",
+     "CS"
+    ],
+    "cells": [
+     "V1",
+     "CV",
+     "V2"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V3",
+     "CS",
+     "V1",
+     "CV",
+     "V2"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "P",
+     "V1"
+    ],
+    "cells": [
+     "CV",
+     "P"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "P",
+     "V1"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V2"
+    ],
+    "cells": [
+     "V2",
+     "P",
+     "V3"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "V2"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V1",
+     "CV"
+    ],
+    "cells": [
+     "CS",
+     "V3"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V1",
+     "CV",
+     "CS",
+     "V3"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "CV",
+     "P"
+    ],
+    "cells": [
+     "CS",
+     "V3"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "CV",
+     "P",
+     "CS",
+     "V3"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "P"
+    ],
+    "cells": [
+     "P",
+     "V2",
+     "V1"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "P"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [],
+    "cells": [
+     "P",
+     "V3"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "P",
+     "V3"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [],
+    "cells": [
+     "P"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "P"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V2",
+     "P"
+    ],
+    "cells": [
+     "P",
+     "CS"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "V2",
+     "P"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [],
+    "cells": [
+     "P"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "P"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "CS"
+    ],
+    "cells": [
+     "CS",
+     "V3",
+     "V2"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "CS"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [],
+    "cells": [
+     "V3",
+     "V1",
+     "CS"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V3",
+     "V1",
+     "CS"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [],
+    "cells": [
+     "CV"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "CV"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [],
+    "cells": [
+     "CV"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "CV"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V3"
+    ],
+    "cells": [
+     "CV"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V3",
+     "CV"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [],
+    "cells": [
+     "CV",
+     "P"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "CV",
+     "P"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "CS",
+     "V3",
+     "V2"
+    ],
+    "cells": [
+     "P"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "CS",
+     "V3",
+     "V2",
+     "P"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "P",
+     "V1"
+    ],
+    "cells": [
+     "P"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "P",
+     "V1"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V2"
+    ],
+    "cells": [
+     "V1",
+     "CV"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V2",
+     "V1",
+     "CV"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V2"
+    ],
+    "cells": [
+     "CV"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V2",
+     "CV"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V3",
+     "P"
+    ],
+    "cells": [
+     "V1"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V3",
+     "P",
+     "V1"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V3"
+    ],
+    "cells": [
+     "CS"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V3",
+     "CS"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [],
+    "cells": [
+     "V2",
+     "V3"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V2",
+     "V3"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "CS"
+    ],
+    "cells": [
+     "CS"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "CS"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V3",
+     "P"
+    ],
+    "cells": [
+     "V2"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V3",
+     "P",
+     "V2"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V1"
+    ],
+    "cells": [
+     "V2",
+     "V1"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "V1"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V2",
+     "CS",
+     "P"
+    ],
+    "cells": [
+     "V3",
+     "P",
+     "V2"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "V2",
+     "CS",
+     "P"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [],
+    "cells": [
+     "V3"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V3"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [],
+    "cells": [
+     "V2"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V2"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [],
+    "cells": [
+     "V1"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V1"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V3"
+    ],
+    "cells": [
+     "V3"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "V3"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "P",
+     "V2"
+    ],
+    "cells": [
+     "CV",
+     "CS"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "P",
+     "V2",
+     "CV",
+     "CS"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [],
+    "cells": [
+     "V1",
+     "CS"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V1",
+     "CS"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "CS",
+     "V2",
+     "V1"
+    ],
+    "cells": [
+     "V2"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "CS",
+     "V2",
+     "V1"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "P",
+     "V2",
+     "V3"
+    ],
+    "cells": [
+     "V1",
+     "CV"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "P",
+     "V2",
+     "V3",
+     "V1",
+     "CV"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "CS"
+    ],
+    "cells": [
+     "CS"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "CS"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "CV",
+     "V3"
+    ],
+    "cells": [
+     "P",
+     "CS"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "CV",
+     "V3",
+     "P",
+     "CS"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "CV",
+     "CS"
+    ],
+    "cells": [
+     "V1",
+     "CV"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "CV",
+     "CS"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "CV",
+     "V3",
+     "CS"
+    ],
+    "cells": [
+     "P",
+     "V2",
+     "CS"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "CV",
+     "V3",
+     "CS"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [],
+    "cells": [
+     "V2",
+     "CV",
+     "V1"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V2",
+     "CV",
+     "V1"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V1"
+    ],
+    "cells": [
+     "CS",
+     "V3",
+     "V1"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "V1"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V3"
+    ],
+    "cells": [
+     "V3"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "V3"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V2"
+    ],
+    "cells": [
+     "CS"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V2",
+     "CS"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [],
+    "cells": [
+     "P",
+     "CS"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "P",
+     "CS"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V3",
+     "V2"
+    ],
+    "cells": [
+     "V2"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "V3",
+     "V2"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [],
+    "cells": [
+     "CS"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "CS"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [],
+    "cells": [
+     "CV"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "CV"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "CV"
+    ],
+    "cells": [
+     "P",
+     "CS",
+     "V1"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "CV",
+     "P",
+     "CS",
+     "V1"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V1",
+     "V3"
+    ],
+    "cells": [
+     "V2",
+     "V3"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "V1",
+     "V3"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V1",
+     "V2"
+    ],
+    "cells": [
+     "V3",
+     "V2",
+     "V1"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "V1",
+     "V2"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V3",
+     "CV",
+     "P"
+    ],
+    "cells": [
+     "V3",
+     "V1"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "V3",
+     "CV",
+     "P"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "CV"
+    ],
+    "cells": [
+     "V1",
+     "V2"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "CV",
+     "V1",
+     "V2"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V1",
+     "P",
+     "V3"
+    ],
+    "cells": [
+     "V3",
+     "CV"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "V1",
+     "P",
+     "V3"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "CS",
+     "V3",
+     "V2"
+    ],
+    "cells": [
+     "V2",
+     "CV"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "CS",
+     "V3",
+     "V2"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V2",
+     "CV",
+     "V3"
+    ],
+    "cells": [
+     "CS",
+     "V3"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "V2",
+     "CV",
+     "V3"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "P"
+    ],
+    "cells": [
+     "CS",
+     "P",
+     "V3"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "P"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V2"
+    ],
+    "cells": [
+     "V1",
+     "CV"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V2",
+     "V1",
+     "CV"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V1",
+     "CS"
+    ],
+    "cells": [
+     "V1",
+     "V3",
+     "CV"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "V1",
+     "CS"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [],
+    "cells": [
+     "CS",
+     "P",
+     "CV"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "CS",
+     "P",
+     "CV"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V3"
+    ],
+    "cells": [
+     "P"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V3",
+     "P"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V1",
+     "CS"
+    ],
+    "cells": [
+     "CV",
+     "CS",
+     "V3"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "V1",
+     "CS"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [],
+    "cells": [
+     "CV",
+     "V2",
+     "P"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "CV",
+     "V2",
+     "P"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [],
+    "cells": [
+     "CV"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "CV"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V3",
+     "CV"
+    ],
+    "cells": [
+     "V1"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V3",
+     "CV",
+     "V1"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "P",
+     "V1"
+    ],
+    "cells": [
+     "P"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "P",
+     "V1"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "CS"
+    ],
+    "cells": [
+     "V3",
+     "V1",
+     "CV"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "CS",
+     "V3",
+     "V1",
+     "CV"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "CV"
+    ],
+    "cells": [
+     "V3",
+     "P"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "CV",
+     "V3",
+     "P"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V2",
+     "P"
+    ],
+    "cells": [
+     "V1"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V2",
+     "P",
+     "V1"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [],
+    "cells": [
+     "CV"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "CV"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [],
+    "cells": [
+     "CS"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "CS"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V1",
+     "V3"
+    ],
+    "cells": [
+     "CV",
+     "V3"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "V1",
+     "V3"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V1"
+    ],
+    "cells": [
+     "CS"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V1",
+     "CS"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "P",
+     "CV"
+    ],
+    "cells": [
+     "P",
+     "V1"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "P",
+     "CV"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V3",
+     "P"
+    ],
+    "cells": [
+     "V1"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V3",
+     "P",
+     "V1"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V3"
+    ],
+    "cells": [
+     "CS"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V3",
+     "CS"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "CV"
+    ],
+    "cells": [
+     "CS"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "CV",
+     "CS"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "P",
+     "CS"
+    ],
+    "cells": [
+     "V1",
+     "V3"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "P",
+     "CS",
+     "V1",
+     "V3"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [],
+    "cells": [
+     "V1",
+     "V3",
+     "CS"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V1",
+     "V3",
+     "CS"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "CV"
+    ],
+    "cells": [
+     "V2",
+     "CS"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "CV",
+     "V2",
+     "CS"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V1"
+    ],
+    "cells": [
+     "CV",
+     "V2",
+     "V1"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "V1"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [],
+    "cells": [
+     "V1",
+     "P"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V1",
+     "P"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V1"
+    ],
+    "cells": [
+     "CV"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V1",
+     "CV"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "CV",
+     "V3"
+    ],
+    "cells": [
+     "CS",
+     "CV"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "CV",
+     "V3"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V2",
+     "V3"
+    ],
+    "cells": [
+     "CV"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V2",
+     "V3",
+     "CV"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V1"
+    ],
+    "cells": [
+     "V3"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V1",
+     "V3"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V3"
+    ],
+    "cells": [
+     "CV",
+     "P",
+     "V2"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V3",
+     "CV",
+     "P",
+     "V2"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "P",
+     "CS",
+     "CV"
+    ],
+    "cells": [
+     "CV",
+     "P"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "P",
+     "CS",
+     "CV"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "CV",
+     "CS"
+    ],
+    "cells": [
+     "CV",
+     "V2"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "CV",
+     "CS"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "CV"
+    ],
+    "cells": [
+     "V1",
+     "V3",
+     "CV"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "CV"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V1",
+     "CV",
+     "V2"
+    ],
+    "cells": [
+     "V1"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "V1",
+     "CV",
+     "V2"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "CS",
+     "CV"
+    ],
+    "cells": [
+     "V3",
+     "P"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "CS",
+     "CV",
+     "V3",
+     "P"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "P",
+     "CV",
+     "CS"
+    ],
+    "cells": [
+     "CV",
+     "P",
+     "V1"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "P",
+     "CV",
+     "CS"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V1",
+     "CS"
+    ],
+    "cells": [
+     "V3"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V1",
+     "CS",
+     "V3"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "CS"
+    ],
+    "cells": [
+     "CS",
+     "V3"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "CS"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V3"
+    ],
+    "cells": [
+     "V3",
+     "V2"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "V3"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "CS",
+     "V3",
+     "V2"
+    ],
+    "cells": [
+     "P"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "CS",
+     "V3",
+     "V2",
+     "P"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V2"
+    ],
+    "cells": [
+     "P",
+     "V1",
+     "V3"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V2",
+     "P",
+     "V1",
+     "V3"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "CV",
+     "V2"
+    ],
+    "cells": [
+     "V2"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "CV",
+     "V2"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V2",
+     "V3"
+    ],
+    "cells": [
+     "V1",
+     "CV"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V2",
+     "V3",
+     "V1",
+     "CV"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [],
+    "cells": [
+     "P",
+     "V2",
+     "CS"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "P",
+     "V2",
+     "CS"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "CV"
+    ],
+    "cells": [
+     "V3"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "CV",
+     "V3"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "P",
+     "V3",
+     "CS"
+    ],
+    "cells": [
+     "V1"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "P",
+     "V3",
+     "CS",
+     "V1"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V1",
+     "V3"
+    ],
+    "cells": [
+     "V2",
+     "V1"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "V1",
+     "V3"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [],
+    "cells": [
+     "V2",
+     "CV"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V2",
+     "CV"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "CS",
+     "V2"
+    ],
+    "cells": [
+     "V1",
+     "V2"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "CS",
+     "V2"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [],
+    "cells": [
+     "V1",
+     "CV",
+     "CS"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V1",
+     "CV",
+     "CS"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "CS",
+     "CV"
+    ],
+    "cells": [
+     "P",
+     "V3"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "CS",
+     "CV",
+     "P",
+     "V3"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "P",
+     "CS"
+    ],
+    "cells": [
+     "V2",
+     "P"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "P",
+     "CS"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [],
+    "cells": [
+     "V2"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V2"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "CS",
+     "V1"
+    ],
+    "cells": [
+     "V3",
+     "V2"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "CS",
+     "V1",
+     "V3",
+     "V2"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "CS",
+     "V3"
+    ],
+    "cells": [
+     "V1",
+     "CS"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "CS",
+     "V3"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V3"
+    ],
+    "cells": [
+     "CS",
+     "V2"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V3",
+     "CS",
+     "V2"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "CV"
+    ],
+    "cells": [
+     "CS",
+     "CV"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "CV"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V2"
+    ],
+    "cells": [
+     "V2"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "V2"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "CS"
+    ],
+    "cells": [
+     "V1"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "CS",
+     "V1"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V1",
+     "V2",
+     "CS"
+    ],
+    "cells": [
+     "V1",
+     "V2"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "V1",
+     "V2",
+     "CS"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "CS",
+     "V3"
+    ],
+    "cells": [
+     "V2",
+     "P",
+     "V3"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "CS",
+     "V3"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "P",
+     "V3"
+    ],
+    "cells": [
+     "CV",
+     "V1"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "P",
+     "V3",
+     "CV",
+     "V1"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V2",
+     "V1"
+    ],
+    "cells": [
+     "V2",
+     "CS"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "V2",
+     "V1"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [],
+    "cells": [
+     "V2",
+     "V3",
+     "CS"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V2",
+     "V3",
+     "CS"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "CS"
+    ],
+    "cells": [
+     "CS",
+     "V2"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "CS"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [],
+    "cells": [
+     "V3"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V3"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V3",
+     "V2"
+    ],
+    "cells": [
+     "P",
+     "CV"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V3",
+     "V2",
+     "P",
+     "CV"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "CV",
+     "V1"
+    ],
+    "cells": [
+     "CV",
+     "V2"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "CV",
+     "V1"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "P",
+     "CS"
+    ],
+    "cells": [
+     "CV"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "P",
+     "CS",
+     "CV"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "CS",
+     "CV"
+    ],
+    "cells": [
+     "V2"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "CS",
+     "CV",
+     "V2"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "CV",
+     "CS",
+     "V1"
+    ],
+    "cells": [
+     "CS"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "CV",
+     "CS",
+     "V1"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [],
+    "cells": [
+     "CS"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "CS"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V2"
+    ],
+    "cells": [
+     "CS",
+     "V2"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "V2"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "P"
+    ],
+    "cells": [
+     "P"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "P"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "CV",
+     "V1"
+    ],
+    "cells": [
+     "CV",
+     "V1"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "CV",
+     "V1"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V2"
+    ],
+    "cells": [
+     "P",
+     "V2",
+     "V3"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "V2"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [],
+    "cells": [
+     "V1",
+     "V2"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V1",
+     "V2"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V3"
+    ],
+    "cells": [
+     "CV",
+     "CS"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V3",
+     "CV",
+     "CS"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [],
+    "cells": [
+     "V1",
+     "P"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V1",
+     "P"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V2",
+     "CV"
+    ],
+    "cells": [
+     "P",
+     "V1",
+     "V2"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "V2",
+     "CV"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "CS",
+     "V2"
+    ],
+    "cells": [
+     "CV"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "CS",
+     "V2",
+     "CV"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V2",
+     "V3"
+    ],
+    "cells": [
+     "CV"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V2",
+     "V3",
+     "CV"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V1",
+     "CS"
+    ],
+    "cells": [
+     "CS",
+     "CV"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "V1",
+     "CS"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "P",
+     "V3"
+    ],
+    "cells": [
+     "P",
+     "V2"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "P",
+     "V3"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "CV"
+    ],
+    "cells": [
+     "CS",
+     "V2",
+     "V3"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "CV",
+     "CS",
+     "V2",
+     "V3"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [],
+    "cells": [
+     "CV",
+     "V2"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "CV",
+     "V2"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V2",
+     "V3",
+     "CS"
+    ],
+    "cells": [
+     "CS"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "V2",
+     "V3",
+     "CS"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "CS",
+     "P",
+     "CV"
+    ],
+    "cells": [
+     "CV"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "CS",
+     "P",
+     "CV"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [],
+    "cells": [
+     "V2"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V2"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "CS"
+    ],
+    "cells": [
+     "V1",
+     "CS"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "CS"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "CV",
+     "V2",
+     "CS"
+    ],
+    "cells": [
+     "V1",
+     "V2",
+     "V3"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "CV",
+     "V2",
+     "CS"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [],
+    "cells": [
+     "V1",
+     "V3"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V1",
+     "V3"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V3"
+    ],
+    "cells": [
+     "P"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V3",
+     "P"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V3",
+     "CV"
+    ],
+    "cells": [
+     "P",
+     "V2",
+     "V1"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V3",
+     "CV",
+     "P",
+     "V2",
+     "V1"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [],
+    "cells": [
+     "V1"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V1"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [],
+    "cells": [
+     "V1"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V1"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [],
+    "cells": [
+     "P",
+     "V3",
+     "V2"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "P",
+     "V3",
+     "V2"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V2",
+     "CS"
+    ],
+    "cells": [
+     "V2"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "V2",
+     "CS"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "P",
+     "V1"
+    ],
+    "cells": [
+     "CS"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "P",
+     "V1",
+     "CS"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "CS"
+    ],
+    "cells": [
+     "CV",
+     "V2"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "CS",
+     "CV",
+     "V2"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "CS"
+    ],
+    "cells": [
+     "V3"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "CS",
+     "V3"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "P"
+    ],
+    "cells": [
+     "P"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "P"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [],
+    "cells": [
+     "CV",
+     "P"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "CV",
+     "P"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [],
+    "cells": [
+     "CV",
+     "P"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "CV",
+     "P"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "CS",
+     "P"
+    ],
+    "cells": [
+     "CS",
+     "V1",
+     "P"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "CS",
+     "P"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V2",
+     "P",
+     "CV"
+    ],
+    "cells": [
+     "V1",
+     "CS"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V2",
+     "P",
+     "CV",
+     "V1",
+     "CS"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V1"
+    ],
+    "cells": [
+     "V3",
+     "CS"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V1",
+     "V3",
+     "CS"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V2"
+    ],
+    "cells": [
+     "CS",
+     "CV",
+     "V2"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "V2"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [],
+    "cells": [
+     "CV",
+     "V1"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "CV",
+     "V1"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "P"
+    ],
+    "cells": [
+     "CV",
+     "P",
+     "CS"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "P"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V1",
+     "P"
+    ],
+    "cells": [
+     "P"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "V1",
+     "P"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [],
+    "cells": [
+     "V2",
+     "V1",
+     "CV"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V2",
+     "V1",
+     "CV"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V3"
+    ],
+    "cells": [
+     "CS",
+     "P"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V3",
+     "CS",
+     "P"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [],
+    "cells": [
+     "CV",
+     "CS"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "CV",
+     "CS"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [],
+    "cells": [
+     "V3",
+     "CV",
+     "V2"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V3",
+     "CV",
+     "V2"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V3"
+    ],
+    "cells": [
+     "V2",
+     "V1",
+     "V3"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "V3"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "P"
+    ],
+    "cells": [
+     "V1"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "P",
+     "V1"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [],
+    "cells": [
+     "P"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "P"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V3"
+    ],
+    "cells": [
+     "V2",
+     "CV",
+     "CS"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V3",
+     "V2",
+     "CV",
+     "CS"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [],
+    "cells": [
+     "P",
+     "V2"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "P",
+     "V2"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [],
+    "cells": [
+     "CV"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "CV"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "P"
+    ],
+    "cells": [
+     "P",
+     "CV"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "P"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V1",
+     "V3"
+    ],
+    "cells": [
+     "V3"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "V1",
+     "V3"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "CS",
+     "P",
+     "CV"
+    ],
+    "cells": [
+     "V1",
+     "V2"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "CS",
+     "P",
+     "CV",
+     "V1",
+     "V2"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [],
+    "cells": [
+     "P"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "P"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "P"
+    ],
+    "cells": [
+     "V1"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "P",
+     "V1"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [],
+    "cells": [
+     "V3"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V3"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "CV",
+     "V2"
+    ],
+    "cells": [
+     "P",
+     "V2",
+     "V1"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "CV",
+     "V2"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V1"
+    ],
+    "cells": [
+     "V1",
+     "CV"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "V1"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V2",
+     "V3"
+    ],
+    "cells": [
+     "CS",
+     "V2"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "V2",
+     "V3"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "CV",
+     "P"
+    ],
+    "cells": [
+     "CS"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "CV",
+     "P",
+     "CS"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "CS",
+     "V1",
+     "V2"
+    ],
+    "cells": [
+     "CS",
+     "V3"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "CS",
+     "V1",
+     "V2"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [],
+    "cells": [
+     "CS",
+     "V3",
+     "V1"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "CS",
+     "V3",
+     "V1"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "CV",
+     "CS"
+    ],
+    "cells": [
+     "V2",
+     "P"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "CV",
+     "CS",
+     "V2",
+     "P"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "P",
+     "V3",
+     "V2"
+    ],
+    "cells": [
+     "CS"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "P",
+     "V3",
+     "V2",
+     "CS"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [],
+    "cells": [
+     "V2"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V2"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [],
+    "cells": [
+     "V2",
+     "CV"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V2",
+     "CV"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V2",
+     "V1"
+    ],
+    "cells": [
+     "V3"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V2",
+     "V1",
+     "V3"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "P",
+     "V1"
+    ],
+    "cells": [
+     "CV",
+     "V3"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "P",
+     "V1",
+     "CV",
+     "V3"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "CV",
+     "V3",
+     "P"
+    ],
+    "cells": [
+     "V3",
+     "V1"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "CV",
+     "V3",
+     "P"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [],
+    "cells": [
+     "V1",
+     "CV"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V1",
+     "CV"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V2",
+     "CV",
+     "V1"
+    ],
+    "cells": [
+     "P"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V2",
+     "CV",
+     "V1",
+     "P"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "P"
+    ],
+    "cells": [
+     "P",
+     "V2"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "P"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [],
+    "cells": [
+     "CV",
+     "V1",
+     "CS"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "CV",
+     "V1",
+     "CS"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "CV",
+     "V2"
+    ],
+    "cells": [
+     "CV",
+     "P",
+     "V3"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "CV",
+     "V2"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [],
+    "cells": [
+     "V1",
+     "CS",
+     "P"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V1",
+     "CS",
+     "P"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [],
+    "cells": [
+     "P",
+     "CS",
+     "V1"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "P",
+     "CS",
+     "V1"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V2",
+     "P"
+    ],
+    "cells": [
+     "V1",
+     "CS"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V2",
+     "P",
+     "V1",
+     "CS"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [],
+    "cells": [
+     "CS"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "CS"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "CS",
+     "V1"
+    ],
+    "cells": [
+     "P",
+     "V2"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "CS",
+     "V1",
+     "P",
+     "V2"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "CV"
+    ],
+    "cells": [
+     "V2",
+     "V3",
+     "CV"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "CV"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "P"
+    ],
+    "cells": [
+     "V2",
+     "P"
+    ]
+   },
+   "expected": {
+    "refused": true,
+    "ledger": [
+     "P"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V1",
+     "V3",
+     "CV"
+    ],
+    "cells": [
+     "CS",
+     "P",
+     "V2"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V1",
+     "V3",
+     "CV",
+     "CS",
+     "P",
+     "V2"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [],
+    "cells": [
+     "CS",
+     "CV"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "CS",
+     "CV"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [],
+    "cells": [
+     "CV"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "CV"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "P"
+    ],
+    "cells": [
+     "CS"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "P",
+     "CS"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "P"
+    ],
+    "cells": [
+     "V1"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "P",
+     "V1"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "P"
+    ],
+    "cells": [
+     "V1",
+     "V2"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "P",
+     "V1",
+     "V2"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [],
+    "cells": [
+     "V2",
+     "P"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V2",
+     "P"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V3"
+    ],
+    "cells": [
+     "CS",
+     "V2"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V3",
+     "CS",
+     "V2"
+    ]
+   }
+  },
+  {
+   "input": {
+    "ledger": [
+     "V1"
+    ],
+    "cells": [
+     "V2",
+     "CV",
+     "V3"
+    ]
+   },
+   "expected": {
+    "refused": false,
+    "ledger": [
+     "V1",
+     "V2",
+     "CV",
+     "V3"
+    ]
+   }
+  }
+ ],
+ "spec_sha256": "ee72a4f6823a11042adcf0950598d9af4432f8aab510e0816788a4505e2e318d"
+}

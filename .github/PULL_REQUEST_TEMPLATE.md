@@ -11,7 +11,10 @@
 
 ## Verification
 
-- [ ] `aq test` green (N passed)
+- [ ] `aq test` green (N passed), `ruff check .` clean, `aq verify --quick` green
+- [ ] A new public function or class is in `aether_quant`, or listed with a reason (`scripts/library_gate.py`)
+- [ ] A new invariant in a safety, admission or ledger path has a Lean spec, a differential test and a property test (`development/verification.md`)
+- [ ] `scripts/clean_checkout_test.ps1`, or `scripts/codespace_verify.ps1 -Start` on a low-memory PC
 - New tests: <!-- files, and what they pin -->
 - Manual checks: <!-- dry runs, real-data spot checks -->
 

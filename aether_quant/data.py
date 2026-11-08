@@ -28,16 +28,30 @@ from data_pipeline.finra_short_volume import finra_symbol, parse_day, short_rati
 from data_pipeline.sec_form345 import insider_net_table, opportunistic, parse_quarter, quarters
 from data_pipeline.sp500_membership import canonical_issuer, coverage_by_year, is_member, load_membership, member_days_by_year, parse_membership, suspect_interval, tickers_touching, yahoo_symbol_for_member
 
+from data_pipeline.filing_text import (
+    cosine as count_cosine,
+    earnings_rows as filing_earnings_rows,
+    hashed_counts,
+    merge_pages as merge_submission_pages,
+    prior_year_pairs as prior_year_filing_pairs,
+    similarity_rows as filing_similarity_rows,
+    tokens as filing_tokens,
+)
+
 __all__ = [
     "adaptive_sell_threshold",
     "base_asset",
     "canonical_issuer",
     "change_by_session",
     "collect_cached_eps",
+    "count_cosine",
     "coverage_by_year",
     "daily_funding",
     "derive_signal",
     "extended_rows",
+    "filing_earnings_rows",
+    "filing_similarity_rows",
+    "filing_tokens",
     "finra_symbol",
     "first_filings_annual",
     "flatten_fill_forward_bar",
@@ -45,6 +59,7 @@ __all__ = [
     "fundamentals_table",
     "funding_url",
     "fx_pair_scores",
+    "hashed_counts",
     "insider_net_table",
     "is_member",
     "kline_url",
@@ -55,6 +70,7 @@ __all__ = [
     "macro_scores",
     "market_cap_table",
     "member_days_by_year",
+    "merge_submission_pages",
     "midpoint_bar_from_quote_bar",
     "months_between",
     "opportunistic",
@@ -69,6 +85,7 @@ __all__ = [
     "parse_quarter",
     "parse_zip_bytes",
     "price_breaks",
+    "prior_year_filing_pairs",
     "quarterly_first_filings",
     "quarterly_ttm_rows",
     "quarters",

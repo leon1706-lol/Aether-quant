@@ -143,3 +143,79 @@ def test_strategy_selector_candidate_output_paths_shape():
     assert paths["version_dir"].name == "abc-123"
     for key in ("strategy_selector_model", "strategy_selector_training_metrics", "strategy_selector_feature_schema"):
         assert paths[key].parent == paths["version_dir"]
+
+
+# --- V6.6.4 (B5, Problems #61): the selector end to end on synthetic outcomes ---------------------------------------------------------------------------
+# Events -> main() -> artifacts -> score_strategies -> the router's reranking. Everything goes to tmp_path: a model fitted on synthetic rows is never written
+# under ml/ and never enabled.
+
+def _outcomes(count_per_strategy: int = 200) -> list[dict]:
+    events = []
+    for index in range(count_per_strategy):
+        risk = (index % 20) / 20.0  # 0.0 .. 0.95
+        # iron_condor profits when the regime is calm, straddle when it is stressed
+        events.append(_event(strategy_name="iron_condor", realized_pnl=50.0 if risk < 0.5 else -40.0, regime={"risk_score": risk, "trend_score": 0.0}))
+        events.append(_event(strategy_name="straddle", realized_pnl=30.0 if risk >= 0.5 else -30.0, regime={"risk_score": risk, "trend_score": 0.0}))
+    return events
+
+
+def _run_main(monkeypatch, tmp_path, events, config_training=None):
+    import json
+    import sys
+
+    import train_strategy_selector as trainer
+
+    config = {"phase_v2": {"strategy_selector": {"training": config_training or {"min_training_events": 300, "lookback_days": 90, "min_events_per_strategy": 20}}}}
+    config_path = tmp_path / "config.json"
+    config_path.write_text(json.dumps(config), encoding="utf-8")
+
+    class FakeConnection:
+        def close(self):
+            pass
+
+    monkeypatch.setattr("psycopg.connect", lambda *args, **kwargs: FakeConnection())
+    monkeypatch.setattr(trainer, "fetch_recent_events", lambda *args, **kwargs: events)
+    monkeypatch.setattr(trainer, "ML_DIR", tmp_path / "ml")
+    monkeypatch.setattr(sys, "argv", ["train_strategy_selector", "--version-id", "v-test", "--config-path", str(config_path)])
+    return trainer.main(), trainer.strategy_selector_candidate_output_paths("v-test")
+
+
+def test_selector_trains_scores_and_reranks_end_to_end(monkeypatch, tmp_path):
+    import json
+
+    from inference.strategy_selector_inference import build_strategy_selector_features, score_strategies
+    from portfolio.options_strategy import rerank_enabled_strategies_by_score
+
+    code, paths = _run_main(monkeypatch, tmp_path, _outcomes())
+    assert code == 0
+    model = json.loads(paths["strategy_selector_model"].read_text(encoding="utf-8"))
+    assert set(model["strategy_names"]) == {"iron_condor", "straddle"} and model["feature_keys"] == list(FEATURE_KEYS)
+    metrics = json.loads(paths["strategy_selector_training_metrics"].read_text(encoding="utf-8"))
+    assert metrics["strategies_scored"] == 2 and metrics["sample_count"] == 400
+
+    calm = build_strategy_selector_features({"regime_signal_risk_score": 0.1, "regime_signal_trend_score": 0.0}, {"correlation_strength": 0.4})
+    stressed = build_strategy_selector_features({"regime_signal_risk_score": 0.9, "regime_signal_trend_score": 0.0}, {"correlation_strength": 0.4})
+    calm_scores, stressed_scores = score_strategies(model, calm), score_strategies(model, stressed)
+    assert calm_scores["iron_condor"] > calm_scores["straddle"], "calm regime prefers the condor"
+    assert stressed_scores["straddle"] > stressed_scores["iron_condor"], "stressed regime prefers the straddle"
+    names = ["straddle", "iron_condor", "butterfly_call"]
+    assert rerank_enabled_strategies_by_score(names, calm_scores) == ["iron_condor", "straddle", "butterfly_call"], "an unscored name sinks, nothing is dropped"
+    assert rerank_enabled_strategies_by_score(names, stressed_scores) == ["straddle", "iron_condor", "butterfly_call"]
+    assert paths["version_dir"].is_relative_to(tmp_path), "artifacts stay under tmp_path, never under ml/"
+
+
+def test_selector_writes_nothing_below_the_event_floor_and_scores_nothing_without_a_model(monkeypatch, tmp_path):
+    from inference.strategy_selector_inference import score_strategies
+
+    code, paths = _run_main(monkeypatch, tmp_path, _outcomes(count_per_strategy=40))  # 80 events < 300
+    assert code == 0 and not paths["strategy_selector_model"].exists()
+    assert score_strategies(None, {"regime_risk_score": 0.1}) == {} and score_strategies({"scorers": {}}, {}) == {}
+
+
+def test_a_strategy_whose_outcomes_never_vary_is_not_scored(monkeypatch, tmp_path):
+    import json
+
+    events = _outcomes() + [_event(strategy_name="naked_put", realized_pnl=10.0) for _ in range(50)]  # one outcome class only
+    code, paths = _run_main(monkeypatch, tmp_path, events)
+    model = json.loads(paths["strategy_selector_model"].read_text(encoding="utf-8"))
+    assert code == 0 and "naked_put" not in model["scorers"] and "iron_condor" in model["scorers"]

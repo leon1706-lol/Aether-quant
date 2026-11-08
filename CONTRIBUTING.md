@@ -19,9 +19,11 @@ pip install -e .     # registers the `aq` command
 aq test          # the suite, and it refreshes the README badge
 ```
 
-- **Never commit a red suite**, and keep `ruff check .` clean.
+- **Never commit a red suite**, and keep `ruff check .` clean. `aq verify --quick` runs what fits a small machine; [`development/verification.md`](development/verification.md) lists every other check and when it is required.
+- **Keep the library current:** a new public function or class goes in `aether_quant` or is listed with a reason in `tests/data/aether_quant_unexported.json`. `python scripts/install_hooks.py` installs the pre-commit hook that checks this, and CI's fast-guards repeat it.
+- **Before handing over a commit:** `scripts/clean_checkout_test.ps1` (CI has no gitignored files), or `scripts/codespace_verify.ps1 -Start` on a low-memory PC.
 - **Register every new test file** in `aq_cli.py`'s `_SUBSYSTEM_TEST_FILES`, or filtered runs skip it.
-- **Don't run bare `pytest` from the root** (#8, `tests/README.md`).
+- **Run `aq test`, or `pytest` from the root** so `testpaths` applies; never `pytest .` (#8, `tests/README.md`).
 - **Real Lean backtests** are run by the maintainer. Don't block a PR on one.
 
 CI runs the suite on Ubuntu and Windows with an 80% coverage gate, plus ruff, the frontend tests, a CLI smoke battery, actionlint and guard jobs. A red job means don't merge, even if your local run was green.

@@ -143,9 +143,9 @@ def crypto_ic(spec, cell, signal: pd.DataFrame) -> dict | None:
     """c1-c4's rank IC with the next 28 days' return, on the same coins."""
     if spec.id in NO_IC_CLAUSE:
         return None
-    known = cell.context.panel.known
-    target = known.shift(-20) / known - 1.0
-    return signal_ic_t(signal, target, start=cell.cell.start, end=cell.cell.end, min_names=MIN_IC_NAMES["C"])
+    from evaluation.wide_context import crypto_ic as shared_crypto_ic
+
+    return shared_crypto_ic(signal, cell.context.panel.known, start=cell.cell.start, end=cell.cell.end, min_names=MIN_IC_NAMES["C"])
 
 
 def stage_score(args) -> int:

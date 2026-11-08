@@ -162,6 +162,7 @@ The offline tools and `main.py` must make the same decisions from the same input
 **Live-only, by design**
 
 - **Target-weights path:** a file executor in Lean. The file's rows come from `portfolio/premia_signals.py`, and `scripts/daily_target_weights.py` runs before each open in paper.
+- **Forward observers (g0002-g0005, zero capital):** `scripts/cycle_daily.py` builds a crypto observer's table with `portfolio/crypto_signals.forward_table`, the same builder functions the research round scored, on Coinbase candles; k09 is built by `scripts/k09_decide.py` from the same `extended_info_features` as its research cell. None of them reaches `main.py`, so there is no second implementation to drift.
 - **`resolve_risk_exit_permission`, `_target_premarket_tick`:** a backtest always may trade, and its file doesn't change.
 - **The buying-power reserve before a rebalance:** Lean checks at submission; the simulator has no buying-power model and applies the same reserve.
 - **`runtime.trading_days_per_year`:** measurement only. Lean's reported statistics use it, and the simulator annualises its trading-date series at 252.

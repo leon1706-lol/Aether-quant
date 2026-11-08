@@ -218,6 +218,7 @@ jobs:
           tests/test_packaging_modules.py
           tests/test_docs_links.py
           tests/test_docs_facts.py
+          tests/test_aether_quant_coverage.py
           tests/test_v550_parity_fixes.py
           tests/test_aq_cli.py::test_subsystem_test_files_maps_every_real_test_file_to_exactly_one_bucket
 
@@ -307,6 +308,12 @@ jobs:
           python -m compileall -q
           -x '(^|/)(\.git|\.venv|venv|node_modules|backtests|webui|Aether-quant-Obsidian-Vault|build|dist|\.matplotlib_cache)(/|$)'
           .
+
+      # Byte-compiling can't see a standard-library name that is new in 3.11 (datetime.UTC, #326). vermin reads what each source needs and fails on anything above 3.10.
+      - name: First-party sources need no more than Python 3.10 (vermin)
+        run: |
+          pip install vermin==1.9.2
+          vermin -t=3.10- --no-tips --violations -q aether_quant analyzer audit data_pipeline evaluation execution experience experts features inference liquidity moe monitoring notifications performance portfolio regime retraining risk topology aq_cli.py docs_facts.py json_safety.py performance_probe.py risk_controls.py generate_backtest_report.py generate_evaluation_report.py scripts/cycle_daily.py scripts/forward_ledger.py
 
   # V5.5.0 - Docker is never built with Lean in CI (the 40 GB base image does
   # not fit a hosted runner), but everything checkable without it is checked.

@@ -28,7 +28,7 @@ per-row "base weight" this trainer scales is NOT a full replay of
 production's cross-sectional top_n/bottom_n book-construction pipeline
 (portfolio/book_construction.py) - that would require reconstructing the
 full historical daily cross-section's rank ordering, a materially larger
-undertaking deferred for a future pass. Instead, base_weight is a fixed
+undertaking that was not built. Instead, base_weight is a fixed
 nominal per-position weight (config-controlled) scaled by the SAME
 confidence formula main.py:1709 already uses for its rank-based book
 (`min(1.0, abs(predicted_rank_20d - 0.5) * 2.0)`), with predicted_rank_20d

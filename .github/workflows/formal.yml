@@ -1,0 +1,71 @@
+name: Formal proofs
+
+# The Lean 4 proofs in formal/ (Mathlib from its cache): the build, no `sorry`, the axioms each theorem rests on, and the differential cases regenerated from the specs and compared with the committed
+# ones. It needs no secret and writes nothing. `aq prove` was only ever a local step; a proof that did not build, or a case file out of date with its spec, could reach main unseen (V6.6.4).
+on:
+  push:
+    branches: [main]
+    paths:
+      - "formal/**"
+      - "aether_quant/_formal_cases/**"
+      - "audit/hash_chain.py"
+      - "execution/order_gate.py"
+      - "evaluation/generation_registry.py"
+      - "evaluation/forward_ledger.py"
+      - "evaluation/research_cells.py"
+      - "portfolio/generation_blend.py"
+      - "risk/kill_switch.py"
+      - "scripts/check_axioms.py"
+      - ".github/workflows/formal.yml"
+  pull_request:
+    paths:
+      - "formal/**"
+      - "aether_quant/_formal_cases/**"
+  schedule:
+    - cron: "11 5 1 * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: formal-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install the few packages aq needs to run the proof steps
+        run: pip install numpy pandas pyyaml
+
+      - name: Install Lean (elan)
+        run: |
+          curl -sSf https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh -o elan-init.sh
+          bash elan-init.sh -y --default-toolchain none
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+
+      - name: No sorry in any spec
+        run: python aq_cli.py prove --check-sorry
+
+      - name: Mathlib from its cache, then build every spec
+        working-directory: formal
+        run: |
+          lake exe cache get
+          lake build AetherFormal
+
+      - name: Regenerate the differential cases and compare with the committed ones
+        run: |
+          python aq_cli.py prove --regen-cases
+          git diff --exit-code -- aether_quant/_formal_cases
+
+      - name: Which axioms does each theorem rest on
+        run: python scripts/check_axioms.py

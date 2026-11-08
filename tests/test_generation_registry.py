@@ -136,3 +136,33 @@ def test_the_lifecycle_log_chains_and_shows_an_edit(tmp_path):
     text = path.read_text(encoding="utf-8").replace('"to": "active"', '"to": "retired"')
     path.write_text(text, encoding="utf-8")
     assert lifecycle_is_intact(path)[0] is False
+
+
+# --- V6.6.4 (Problems #335): a generation with no selection pass holds nothing, whatever a hand-entered record says --------------------------------------
+
+def _shadow(tier: str) -> Generation:
+    return Generation(id="g9", kind="rule", tier=tier, stage="shadow", born="2026-11-07", procedure_sha256="p")
+
+
+def _forward_pass(**overrides) -> AdmissionEvidence:
+    base = dict(selection_pass=True, forward_ok_sessions=80, no_data_share=0.0, mean_diff_vs_incumbent=0.001)
+    return AdmissionEvidence(**{**base, **overrides})
+
+
+def test_a_shadow_generation_ramps_on_a_forward_pass_only_with_the_selection_pass():
+    assert next_stage(_shadow("tier2"), _forward_pass()) == "ramping"
+    assert next_stage(_shadow("tier2"), _forward_pass(selection_pass=False)) == "shadow"
+    assert next_stage(_shadow("tier2"), _forward_pass(selection_pass=False, edge_pass=True)) == "ramping", "a full edge pass still ramps"
+
+
+def test_a_tier_none_generation_stays_in_shadow_with_every_kind_of_evidence_and_holds_nothing():
+    assert next_stage(_shadow("none"), _forward_pass(edge_pass=True, hold_pass=True)) == "shadow"
+    ramping = Generation(id="g9", kind="rule", tier="none", stage="ramping", born="2026-11-07", procedure_sha256="p")
+    assert share_cap(ramping, _forward_pass(edge_pass=True, forward_alpha_t=9.0, forward_ok_sessions=900)) == 0.0
+    assert next_stage(_shadow("none"), _forward_pass(guard_tripped=True)) == "rejected", "a guard trip still rejects an observer"
+
+
+def test_a_lifted_cap_is_a_tier_two_privilege():
+    lifted = _forward_pass(forward_alpha_t=3.0, forward_ok_sessions=300)
+    active = Generation(id="g9", kind="rule", tier="tier2", stage="active", born="2026-11-07", procedure_sha256="p")
+    assert share_cap(active, lifted) == 1.0 and share_cap(active, _forward_pass()) == 0.30

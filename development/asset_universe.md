@@ -1,12 +1,12 @@
 # Asset Universe
 
-<!--fact:universe.total-->104<!--/fact--> assets, defined in `config.json`'s `phase1.universe.assets` and shared by training, validation and backtesting. The lists below are generated from that file.
+<!--fact:universe.total-->103<!--/fact--> assets, defined in `config.json`'s `phase1.universe.assets` and shared by training, validation and backtesting. The lists below are generated from that file.
 
 | Class | Count | Tickers |
 |---|---|---|
 | Equities and broad ETFs | <!--fact:universe.equity-->55<!--/fact--> | <!--fact:universe.list.equity-->AAA, AAPL, ABBV, ABT, ADBE, AIG, AMZN, BA, BAC, BNO, CAT, COST, CRM, CSCO, CVX, DIS, EEM, FB, GE, GOOG, GOOGL, GS, HD, HON, IBM, INTC, IWM, JNJ, JPM, KO, MA, MCD, MRK, MSFT, NKE, NVDA, ORCL, PEP, PFE, PG, QQQ, SBUX, SPY, T, TMO, TXN, UNH, UNP, USO, V, VZ, WFC, WM, WMT, XOM<!--/fact--> |
 | Bond ETFs | <!--fact:universe.bond-->22<!--/fact--> | <!--fact:universe.list.bond-->AGG, BIV, BND, BSV, BWX, EMB, GOVT, HYG, IEF, IGIB, IGSB, JNK, LQD, MBB, MUB, SHV, SHY, TIP, TLH, TLT, VCIT, VCSH<!--/fact--> |
-| Crypto | <!--fact:universe.crypto-->12<!--/fact--> | <!--fact:universe.list.crypto-->ADAUSD, BCHUSD, BTCUSD, DOGEUSD, EOSUSD, ETCUSD, ETHUSD, LINKUSD, LTCUSD, XLMUSD, XRPUSD, ZECUSD<!--/fact--> |
+| Crypto | <!--fact:universe.crypto-->11<!--/fact--> | <!--fact:universe.list.crypto-->ADAUSD, BCHUSD, BTCUSD, DOGEUSD, ETCUSD, ETHUSD, LINKUSD, LTCUSD, XLMUSD, XRPUSD, ZECUSD<!--/fact--> |
 | Forex | <!--fact:universe.forex-->15<!--/fact--> | <!--fact:universe.list.forex-->AUDJPY, AUDUSD, CADJPY, EURAUD, EURCHF, EURGBP, EURJPY, EURUSD, GBPCAD, GBPJPY, GBPUSD, NZDUSD, USDCAD, USDCHF, USDJPY<!--/fact--> |
 
 ## What each class does
@@ -19,7 +19,7 @@
 
 ## Known issues
 
-- **EOSUSD:** Coinbase has delisted it, so the sleeve can't hold it there. It leaves the universe at the broker rebuild (#311).
+- **EOSUSD:** Coinbase delisted it, so the sleeve can't hold it there. It left the universe on 2026-11-07, with a new Lean pin (#311).
 - **Survivorship:** the crypto list is today's survivors, chosen with hindsight (#301).
 
 ## Research-only universes

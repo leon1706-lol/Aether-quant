@@ -15,7 +15,7 @@ WINDOW = {"start": "2014-06-02", "end": "2014-06-30"}
 KEEP = ("AAPL", "SPY", "TLT", "IEF", "HYG", "QQQ", "USO")
 
 
-def option_main_config(base: dict) -> dict:
+def option_main_config(base: dict, scenario: str | None = None) -> dict:
     config = copy.deepcopy(base)
     assets = [asset for asset in config["phase1"]["universe"]["assets"] if asset["ticker"] in KEEP]
     assets.append({"ticker": "AAPL_OPTION", "security_type": "option", "asset_class": "option", "underlying_ticker": "AAPL", "market": "usa",
@@ -30,15 +30,21 @@ def option_main_config(base: dict) -> dict:
     config["phase_v2"]["cash_sweep"]["enabled"] = False
     config["phase_v2"]["bond_sleeve"]["enabled"] = False
     config["phase_v2"]["legacy_sleeve"]["enabled"] = True
+    if scenario == "assign":  # V6.6.4 (#61): the assignment sweep reads the dividend schedule only when this is on
+        risk["assignment_risk_detector"]["enabled"] = True
+    if scenario == "scale":  # V6.6.4 (#58): one position per underlying to start; the scenario raises the cap itself
+        risk["max_positions_per_underlying"] = 1
     return config
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out", default=str(ROOT / "ml" / "evaluation" / "run_configs" / "v650_smoke_option_main.json"))
+    parser.add_argument("--scenario", default=None, choices=["scale", "all43", "arb", "assign"], help="V6.6.4: turns on what that scenario exercises")
     base = json.loads((ROOT / "config.json").read_text(encoding="utf-8"))
-    path = Path(parser.parse_args().out)
-    path.write_text(json.dumps(option_main_config(base), indent=4), encoding="utf-8", newline="\n")
+    args = parser.parse_args()
+    path = Path(args.out)
+    path.write_text(json.dumps(option_main_config(base, args.scenario), indent=4), encoding="utf-8", newline="\n")
     print(path)
     return 0
 

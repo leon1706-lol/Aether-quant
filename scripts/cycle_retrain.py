@@ -13,6 +13,8 @@ import argparse
 import datetime
 import hashlib
 import json
+import os
+import shutil
 import subprocess
 import sys
 import time as _time
@@ -25,6 +27,7 @@ sys.path.insert(0, str(ROOT))
 
 from evaluation.research_cycle import ram_preflight, retrain_stages  # noqa: E402
 
+CONTACT_ENV = "AQ_SEC_CONTACT"
 STATE_ROOT = ROOT / "ml" / "cycle"
 CODESPACE = "aq-Training-Ground-Fixed"
 REMOTE_REPO = "/workspaces/Aether-quant"
@@ -70,6 +73,35 @@ def procedure_sha256(name: str, procedure: Mapping, trainer_source: bytes) -> st
     return hashlib.sha256(trainer_source + json.dumps({"name": name, **procedure}, sort_keys=True).encode("utf-8")).hexdigest()
 
 
+def register_vintage(registry_path: Path, lifecycle_path: Path, procedure_sha: str, vintage: str, *, created_at: str) -> dict:
+    """A refit of a frozen procedure is a new vintage of its generation (Problems #321): the vintage name goes on the generation whose `procedure_sha256` this is, with a hash-chained lifecycle
+    row. A procedure no generation holds is a candidate and has no vintage to add: it goes through `aq cycle research` first. A vintage is added once."""
+    from dataclasses import replace
+
+    from evaluation.generation_registry import append_lifecycle, load_registry, save_registry
+
+    if not Path(registry_path).exists():
+        return {"added": False, "reason": "no registry"}
+    registry = load_registry(Path(registry_path))
+    owner = next((generation for generation in registry.values() if generation.procedure_sha256 == procedure_sha), None)
+    if owner is None:
+        return {"added": False, "reason": "no generation holds this procedure: it is a candidate, and goes through a research round first"}
+    if vintage in owner.vintages:
+        return {"added": False, "generation": owner.id, "reason": "this vintage is already recorded"}
+    registry[owner.id] = replace(owner, vintages=(*owner.vintages, vintage))
+    save_registry(Path(registry_path), registry)
+    append_lifecycle(Path(lifecycle_path), event="vintage_added", created_at=created_at, payload={"generation": owner.id, "vintage": vintage, "procedure_sha256": procedure_sha})
+    return {"added": True, "generation": owner.id}
+
+
+def sync_shell() -> str:
+    """The PowerShell that runs scripts/codespace_sync.ps1: `pwsh` where it exists, else Windows PowerShell. Anywhere else the push script can't run, and that is said plainly."""
+    shell = shutil.which("pwsh") or shutil.which("powershell")
+    if shell is None:
+        raise RuntimeError("scripts/codespace_sync.ps1 needs PowerShell (pwsh or powershell on PATH); run the retrain on the Codespace itself with --host local --on-codespace")
+    return shell
+
+
 def trainer_command(python: str, name: str, procedure: Mapping, *, panel: str, out: str, score_end: str | None = None) -> list[str]:
     command = [
         python, "train_cross_sectional.py", "--panel", panel, "--model", str(procedure["model"]), "--variant", str(procedure["variant"]), "--seeds", str(procedure["seeds"]),
@@ -98,6 +130,8 @@ def local_actions(name: str, procedure: Mapping, *, run_dir: Path, python: str =
         return _run([python, *command], runner=runner)
 
     def bootstrap() -> str:
+        if not os.environ.get(CONTACT_ENV, "").strip():
+            raise RuntimeError(f"bootstrap_data builds EDGAR fundamentals, which SEC refuses without a contact: set {CONTACT_ENV} for this run (it is never stored)")
         go("scripts/build_wide_root.py")
         go("scripts/build_wide_info.py")
         return "built data_wide from public sources"
@@ -121,7 +155,9 @@ def local_actions(name: str, procedure: Mapping, *, run_dir: Path, python: str =
 
     def register() -> dict:
         trainer = (ROOT / "train_cross_sectional.py").read_bytes()
-        return {"procedure": name, "procedure_sha256": procedure_sha256(name, procedure, trainer), "vintage": run_dir.name}
+        sha = procedure_sha256(name, procedure, trainer)
+        recorded = register_vintage(ROOT / "ml" / "generations" / "registry.json", ROOT / "ml" / "generations" / "lifecycle.jsonl", sha, run_dir.name, created_at=_now())
+        return {"procedure": name, "procedure_sha256": sha, "vintage": run_dir.name, "registered": recorded}
 
     def report() -> str:
         return str(run_dir)
@@ -219,7 +255,7 @@ def drive_codespace(
     codespace = resolve_codespace(codespace, gh=gh, runner=runner)
     try:
         wait_until_reachable(codespace, gh=gh, runner=runner, sleep=sleep)
-        _run(["powershell", "-NoProfile", "-File", "scripts/codespace_sync.ps1", "-Mode", "push", "-CodeOnly", "-Codespace", codespace], runner=runner)
+        _run([sync_shell(), "-NoProfile", "-File", "scripts/codespace_sync.ps1", "-Mode", "push", "-CodeOnly", "-Codespace", codespace], runner=runner)
         emit("code pushed")
         # The VM reboots about hourly, which drops this session. Stages resume, so another attempt continues the run.
         for attempt in range(1, attempts + 1):
@@ -234,7 +270,15 @@ def drive_codespace(
         # `gh codespace cp` quotes a remote path, which Windows' scp reads literally, so the state comes back over ssh.
         state = _run_full([*gh, "ssh", "-c", codespace, "--", "cat", f"{REMOTE_REPO}/ml/cycle/retrain_{run_id}/state.json"], runner=runner)
         (work / "state.json").write_text(state, encoding="utf-8", newline="\n")
-        return {"ran": True, "state": load_state(work / "state.json")}
+        pulled = load_state(work / "state.json")
+        # the scores are the point of a retrain and they stayed on the Codespace: bring them back the same way, so a stopped Codespace loses nothing
+        scores_file = (((pulled.get("done") or {}).get("score") or {}).get("result") or {}).get("scores")
+        if scores_file:
+            remote = scores_file if scores_file.startswith("/") else f"{REMOTE_REPO}/{scores_file}"
+            text = _run_full([*gh, "ssh", "-c", codespace, "--", "cat", remote], runner=runner)
+            (work / Path(scores_file).name).write_text(text, encoding="utf-8", newline="\n")
+            emit(f"scores pulled: {work / Path(scores_file).name}")
+        return {"ran": True, "state": pulled}
     finally:
         result = runner([*gh, "stop", "-c", codespace], cwd=str(ROOT), capture_output=True, text=True)
         emit(f"Codespace stop exit {result.returncode}")

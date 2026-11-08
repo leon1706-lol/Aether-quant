@@ -50,7 +50,7 @@ book_construction.py's own docstring already defers continuous
 rank-weighted sizing as a documented future extension rather than
 building it alongside a same-round change to the selection logic itself.
 A scaling multiplier for this signal specifically is the same kind of
-future extension, deferred for the same reason: shipping a new signal and
+not built, for the same reason: shipping a new signal and
 a new sizing curve in the same round makes it impossible to attribute a
 verification result to either one cleanly.
 """

@@ -49,6 +49,12 @@ book-construction and neutrality functions).
 | `Reconciliation.lean` | `execution/reconciliation.py` | `report_sound`, `report_disjoint`, `report_partition`, `maxDrift_bounds`, `matched_within_tolerance` |
 | `SleeveGuard.lean` | `portfolio/sleeve_guard.py` | `trailingDrawdown_nonneg`, `trailingDrawdown_nonpos_lookback`, `trailingDrawdown_le_losses` |
 | `JsonSafety.lean` | `json_safety.sanitize_json_finite` | `sanitize_finite`, `sanitize_idem`, `sanitizeObj_keys` |
+| `GenerationBlend.lean` | `portfolio/generation_blend.py` | the ladder: shares never negative, never above one in total, and a generation off the book holds nothing |
+| `GenerationGlide.lean` | `portfolio/generation_blend.py` | the dynamic glide: `step_eq_blend`, `step_nonneg`, `step_le_cap`, `step_sum_le_one`, `step_at_target`, `retire_sum_le_one`, `shrunk_between` |
+| `Admission.lean` | `evaluation/generation_registry.py` | R-ADMIT1 (Problems #335): `tier_none_never_capital`, `off_book_holds_nothing`, `retired_absorbing`, `rejected_absorbing`, `dying_leaves_the_book`, `tier_none_never_ramps`, `no_selection_no_ramp`, `lifted_cap_only_for_tier2` |
+| `SessionResolve.lean` | `evaluation/forward_ledger.resolve_session` | a late run records its session (Problems #332): `best_mem`, `best_le`, `best_newest`, `best_none_iff`, `resolve_default`, `resolve_override` |
+| `HoldoutOnce.lean` | `evaluation/research_cells.record_holdout_read` | a holdout is read once: `record_refuses_a_cell_already_read`, `record_adds_the_cells`, `second_read_refused`, `fresh_cells_are_readable`, `families_isolated` |
+| `Real.lean` | the headline theorems above | restated at `ℝ` |
 
 ## Findings
 
@@ -62,6 +68,12 @@ book-construction and neutrality functions).
   the whole history. All fixed fail-safe.
 - **Hash-chain truncation** is invisible to `verify_chain`; `expected_tail_hash` anchors it.
 
+## Checks beyond the build
+
+- **`aq prove --check-sorry`** and `tests/test_formal_no_sorry.py` (in the suite, so on every platform): no `sorry`; every spec imported by `AetherFormal.lean`; every spec with a row above.
+- **`scripts/check_axioms.py`** asks Lean for `#print axioms` of every theorem and fails on anything beyond `propext`, `Classical.choice`, `Quot.sound`. The one exception is `native_decide` in `counter_net` and `sector_cap_counterexample`, the computed sector-cap finding, named in the script.
+- **`.github/workflows/formal.yml`** runs the build, the sorry scan, the regenerated cases against the committed ones and the axiom check on `formal/**`, on the Python files the specs model, and monthly.
+
 ## Adding a target
 
 1. `AetherFormal/<Name>.lean`: the model, branch for branch like the Python, and its theorems (no `sorry`).
@@ -69,3 +81,4 @@ book-construction and neutrality functions).
 3. `tests/test_formal_differential_<target>.py`, registered in the `formal` bucket of `aq_cli.py`, and the target in
    `tests/test_formal_cases_drift.py`.
 4. `aq prove --regen-cases`, then `aq test --formal`.
+5. A row in the theorem index above, and the target count in `scripts/wheel_smoke.py` (`check_library`'s `formal` check).

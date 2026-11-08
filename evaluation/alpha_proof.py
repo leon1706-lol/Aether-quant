@@ -59,12 +59,16 @@ def strategy_daily_returns(run: dict, config: dict, root: Path, *, data_dir: str
     return pd.Series(returns, dtype=float).sort_index()
 
 
-def benchmark_daily_returns(root: Path, config: dict, tickers=BENCHMARKS, *, start: str, end: str, data_dir: str = "data", required: bool = False) -> pd.DataFrame:
+def benchmark_daily_returns(
+    root: Path, config: dict, tickers=BENCHMARKS, *, start: str, end: str, data_dir: str = "data", required: bool = False, lag_equity: bool = False,
+) -> pd.DataFrame:
     """Session-calendar daily returns of the benchmark tickers from their config zips: the calendar is the first
     ticker's (SPY, US equity sessions); a ticker that also trades on other days (BTC) is priced at its last close on or
     before each session, so every column spans the same session-to-session interval. Tickers not in the universe are
     left out, or raise with `required`, since a verdict must not quietly lose a benchmark. Before a ticker's first bar its
-    return is 0, not NaN: the regression drops any row with a NaN, which would cut a window back to BTC's first bar."""
+    return is 0, not NaN: the regression drops any row with a NaN, which would cut a window back to BTC's first bar.
+    `lag_equity` also reads an equity column a session late, like the crypto and forex ones: a crypto book's daily sample holds the bar dated before it, so SPY and AGG on their own date sit a session
+    out of line with it (#330). It is off by default, so the pre-registered R-ALPHA1 figures are unchanged, and `alpha_session_aligned` reports the aligned one beside them."""
     from data_pipeline.data_audit import asset_zip_paths, read_lean_daily_zip
 
     assets = {str(asset["ticker"]): asset for asset in config["phase1"]["universe"]["assets"]}
@@ -80,7 +84,8 @@ def benchmark_daily_returns(root: Path, config: dict, tickers=BENCHMARKS, *, sta
         # A crypto or forex bar dated D ends at the midnight after the equity close of D, so a run's daily sample of D holds the bar
         # dated before it. On the bar's own date this column led the strategy by a day, which hid a crypto book's beta and
         # booked it as alpha (a long-only crypto sleeve's t read 2.76, and 1.30 aligned).
-        closes[ticker] = series.shift(1).dropna() if str(asset.get("security_type")) in ("crypto", "forex") else series
+        late = str(asset.get("security_type")) in ("crypto", "forex") or (lag_equity and str(asset.get("security_type")) == "equity")
+        closes[ticker] = series.shift(1).dropna() if late else series
     if not closes:
         return pd.DataFrame()
     sessions = closes[next(iter(closes))].index
@@ -262,6 +267,7 @@ def alpha_proof_report(run_dir: Path, config: dict, root: Path, *, trial_sharpes
         return {"run": run_dir.name, "status": "no equity curve"}
     annualization = measured_annualization(y.index, fallback=annualization)
     benchmarks = benchmark_daily_returns(root, run_config, start=str(y.index.min()), end=str(y.index.max()), data_dir=data_dir)
+    aligned = benchmark_daily_returns(root, run_config, start=str(y.index.min()), end=str(y.index.max()), data_dir=data_dir, lag_equity=True)
     windows = {"full": (str(y.index.min()), str(y.index.max())), **PERIODS, "fresh": (FRESH_START, str(y.index.max()))}
     periods = {}
     for name, (start, end) in windows.items():
@@ -270,6 +276,8 @@ def alpha_proof_report(run_dir: Path, config: dict, root: Path, *, trial_sharpes
             periods[name] = {"n": 0}
             continue
         periods[name] = period_report(part, benchmarks, annualization=annualization, trial_sharpes=trial_sharpes, deflation=deflation)
+        # beside the pre-registered figure, never in place of it: R-ALPHA1 does not read this key
+        periods[name]["alpha_session_aligned"] = alpha_regression(to_sessions(part, aligned.index), aligned) if len(part) > 10 and not aligned.empty else None
     sessions_after_freeze = fresh_sessions(y, benchmarks.index)
     periods["fresh"]["sessions"] = sessions_after_freeze
     periods["fresh"]["judgeable"] = sessions_after_freeze >= FORWARD_MIN_SESSIONS

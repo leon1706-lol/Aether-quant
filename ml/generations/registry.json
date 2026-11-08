@@ -73,6 +73,395 @@
    "stage": "active",
    "tier": "installed",
    "vintages": []
+  },
+  {
+   "admission": {},
+   "born": "2026-11-07",
+   "definition": {
+    "anchor_date": "2026-11-06",
+    "asset_class": {
+     "ADAUSD": "crypto",
+     "AEROUSD": "crypto",
+     "AVAXUSD": "crypto",
+     "BTCUSD": "crypto",
+     "DOGEUSD": "crypto",
+     "ENAUSD": "crypto",
+     "ETHUSD": "crypto",
+     "HBARUSD": "crypto",
+     "INJUSD": "crypto",
+     "LINKUSD": "crypto",
+     "LTCUSD": "crypto",
+     "NEARUSD": "crypto",
+     "ONDOUSD": "crypto",
+     "PEPEUSD": "crypto",
+     "PUMPUSD": "crypto",
+     "QNTUSD": "crypto",
+     "SOLUSD": "crypto",
+     "STRKUSD": "crypto",
+     "SUIUSD": "crypto",
+     "TAOUSD": "crypto",
+     "UNIUSD": "crypto",
+     "VVVUSD": "crypto",
+     "XLMUSD": "crypto",
+     "XRPUSD": "crypto",
+     "ZECUSD": "crypto"
+    },
+    "cost_class": "crypto",
+    "data_sources": [
+     "Coinbase public candles",
+     "Yahoo chart API"
+    ],
+    "family": "crypto_signal",
+    "id": "obs_x10",
+    "initial_weights": {},
+    "kind": "time_series",
+    "params": {
+     "signal": {
+      "builder": "breadth_timing",
+      "params": {
+       "floor": 0.5,
+       "window": 50
+      }
+     }
+    },
+    "rebalance_every": 5,
+    "settings": {
+     "class_caps": {
+      "crypto": 0.15
+     },
+     "gross_cap": 1.4,
+     "name_cap": 0.03,
+     "name_cap_by_class": {
+      "crypto": 0.05
+     },
+     "target_vol": 0.07
+    },
+    "tickers": [
+     "BTCUSD",
+     "ETHUSD",
+     "ZECUSD",
+     "XRPUSD",
+     "SOLUSD",
+     "NEARUSD",
+     "SUIUSD",
+     "QNTUSD",
+     "ADAUSD",
+     "LINKUSD",
+     "UNIUSD",
+     "STRKUSD",
+     "XLMUSD",
+     "ENAUSD",
+     "PUMPUSD",
+     "LTCUSD",
+     "DOGEUSD",
+     "AEROUSD",
+     "TAOUSD",
+     "PEPEUSD",
+     "VVVUSD",
+     "HBARUSD",
+     "ONDOUSD",
+     "AVAXUSD",
+     "INJUSD"
+    ],
+    "universe": [
+     "crypto"
+    ]
+   },
+   "expected_sharpe": 0.0,
+   "freeze_path": null,
+   "id": "g0002",
+   "kind": "rule",
+   "needs": null,
+   "note": "obs_x10: a forward observer under observers.json (sha256 dca924ba8071), tier none, shadow, holds nothing; not verified.",
+   "procedure_sha256": "d973cc6cb7b1f63568c16f5a913e909e35425c583e3576e4743f4c96b44122a8",
+   "stage": "shadow",
+   "tier": "none",
+   "vintages": []
+  },
+  {
+   "admission": {},
+   "born": "2026-11-07",
+   "definition": {
+    "anchor_date": "2026-11-06",
+    "asset_class": {
+     "ADAUSD": "crypto",
+     "AEROUSD": "crypto",
+     "AVAXUSD": "crypto",
+     "BTCUSD": "crypto",
+     "DOGEUSD": "crypto",
+     "ENAUSD": "crypto",
+     "ETHUSD": "crypto",
+     "HBARUSD": "crypto",
+     "INJUSD": "crypto",
+     "LINKUSD": "crypto",
+     "LTCUSD": "crypto",
+     "NEARUSD": "crypto",
+     "ONDOUSD": "crypto",
+     "PEPEUSD": "crypto",
+     "PUMPUSD": "crypto",
+     "QNTUSD": "crypto",
+     "SOLUSD": "crypto",
+     "STRKUSD": "crypto",
+     "SUIUSD": "crypto",
+     "TAOUSD": "crypto",
+     "UNIUSD": "crypto",
+     "VVVUSD": "crypto",
+     "XLMUSD": "crypto",
+     "XRPUSD": "crypto",
+     "ZECUSD": "crypto"
+    },
+    "cost_class": "crypto",
+    "data_sources": [
+     "Coinbase public candles",
+     "Yahoo chart API"
+    ],
+    "family": "crypto_signal",
+    "id": "obs_x14",
+    "initial_weights": {},
+    "kind": "cross_sectional",
+    "params": {
+     "signal": {
+      "gate": "regime",
+      "minimum": 3,
+      "rank_mean": [
+       {
+        "builder": "low_vol",
+        "params": {
+         "window": 60
+        }
+       },
+       {
+        "builder": "lottery_max",
+        "params": {
+         "window": 30
+        }
+       },
+       {
+        "builder": "high_proximity",
+        "params": {
+         "min_periods": 180,
+         "window": 365
+        }
+       }
+      ]
+     },
+     "top_k": 10
+    },
+    "rebalance_every": 20,
+    "settings": {
+     "class_caps": {
+      "crypto": 0.15
+     },
+     "gross_cap": 1.4,
+     "name_cap": 0.03,
+     "name_cap_by_class": {
+      "crypto": 0.05
+     },
+     "target_vol": 0.07
+    },
+    "tickers": [
+     "BTCUSD",
+     "ETHUSD",
+     "ZECUSD",
+     "XRPUSD",
+     "SOLUSD",
+     "NEARUSD",
+     "SUIUSD",
+     "QNTUSD",
+     "ADAUSD",
+     "LINKUSD",
+     "UNIUSD",
+     "STRKUSD",
+     "XLMUSD",
+     "ENAUSD",
+     "PUMPUSD",
+     "LTCUSD",
+     "DOGEUSD",
+     "AEROUSD",
+     "TAOUSD",
+     "PEPEUSD",
+     "VVVUSD",
+     "HBARUSD",
+     "ONDOUSD",
+     "AVAXUSD",
+     "INJUSD"
+    ],
+    "universe": [
+     "crypto"
+    ]
+   },
+   "expected_sharpe": 0.0,
+   "freeze_path": null,
+   "id": "g0003",
+   "kind": "rule",
+   "needs": null,
+   "note": "obs_x14: a forward observer under observers.json (sha256 dca924ba8071), tier none, shadow, holds nothing; not verified.",
+   "procedure_sha256": "8e76884e09fb6960d04bf0f3c33f0780e53e7654a885e0472b5d1bd28bc31d97",
+   "stage": "shadow",
+   "tier": "none",
+   "vintages": []
+  },
+  {
+   "admission": {},
+   "born": "2026-11-07",
+   "definition": {
+    "anchor_date": "2026-11-06",
+    "asset_class": {
+     "ADAUSD": "crypto",
+     "AEROUSD": "crypto",
+     "AVAXUSD": "crypto",
+     "BTCUSD": "crypto",
+     "DOGEUSD": "crypto",
+     "ENAUSD": "crypto",
+     "ETHUSD": "crypto",
+     "HBARUSD": "crypto",
+     "INJUSD": "crypto",
+     "LINKUSD": "crypto",
+     "LTCUSD": "crypto",
+     "NEARUSD": "crypto",
+     "ONDOUSD": "crypto",
+     "PEPEUSD": "crypto",
+     "PUMPUSD": "crypto",
+     "QNTUSD": "crypto",
+     "SOLUSD": "crypto",
+     "STRKUSD": "crypto",
+     "SUIUSD": "crypto",
+     "TAOUSD": "crypto",
+     "UNIUSD": "crypto",
+     "VVVUSD": "crypto",
+     "XLMUSD": "crypto",
+     "XRPUSD": "crypto",
+     "ZECUSD": "crypto"
+    },
+    "cost_class": "crypto",
+    "data_sources": [
+     "Coinbase public candles",
+     "Yahoo chart API"
+    ],
+    "family": "crypto_signal",
+    "id": "obs_x12",
+    "initial_weights": {},
+    "kind": "cross_sectional",
+    "params": {
+     "signal": {
+      "builder": "low_vol",
+      "gate": "regime",
+      "params": {
+       "window": 60
+      }
+     },
+     "top_k": 10
+    },
+    "rebalance_every": 20,
+    "settings": {
+     "class_caps": {
+      "crypto": 0.15
+     },
+     "gross_cap": 1.4,
+     "name_cap": 0.03,
+     "name_cap_by_class": {
+      "crypto": 0.05
+     },
+     "target_vol": 0.07
+    },
+    "tickers": [
+     "BTCUSD",
+     "ETHUSD",
+     "ZECUSD",
+     "XRPUSD",
+     "SOLUSD",
+     "NEARUSD",
+     "SUIUSD",
+     "QNTUSD",
+     "ADAUSD",
+     "LINKUSD",
+     "UNIUSD",
+     "STRKUSD",
+     "XLMUSD",
+     "ENAUSD",
+     "PUMPUSD",
+     "LTCUSD",
+     "DOGEUSD",
+     "AEROUSD",
+     "TAOUSD",
+     "PEPEUSD",
+     "VVVUSD",
+     "HBARUSD",
+     "ONDOUSD",
+     "AVAXUSD",
+     "INJUSD"
+    ],
+    "universe": [
+     "crypto"
+    ]
+   },
+   "expected_sharpe": 0.0,
+   "freeze_path": null,
+   "id": "g0004",
+   "kind": "rule",
+   "needs": null,
+   "note": "obs_x12: a forward observer under observers.json (sha256 dca924ba8071), tier none, shadow, holds nothing; not verified.",
+   "procedure_sha256": "1780f1f544a8207fce50fa5212be8123b28d4256d19d493ab83426c28c6d077b",
+   "stage": "shadow",
+   "tier": "none",
+   "vintages": []
+  },
+  {
+   "admission": {},
+   "born": "2026-11-07",
+   "definition": {
+    "anchor_date": "2026-11-06",
+    "asset_class": {},
+    "cost_class": "equity",
+    "data_sources": [
+     "SEC EDGAR (host-computed decisions)",
+     "Yahoo chart API"
+    ],
+    "family": "external_score",
+    "id": "obs_k09",
+    "initial_weights": {},
+    "kind": "pooled",
+    "params": {
+     "table": "k09",
+     "top_k": null
+    },
+    "rebalance_every": 20,
+    "settings": {
+     "class_caps": {
+      "crypto": 0.15
+     },
+     "gross_cap": 1.4,
+     "name_cap": 0.03,
+     "name_cap_by_class": {
+      "crypto": 0.05
+     },
+     "target_vol": 0.07
+    },
+    "tickers": [],
+    "universe": [
+     "communication_services",
+     "consumer_discretionary",
+     "consumer_staples",
+     "energy",
+     "financials",
+     "health_care",
+     "industrials",
+     "information_technology",
+     "materials",
+     "real_estate",
+     "utilities"
+    ]
+   },
+   "expected_sharpe": 0.0,
+   "freeze_path": null,
+   "id": "g0005",
+   "kind": "rule",
+   "needs": "fundamentals",
+   "note": "obs_k09: a forward observer under observers.json (sha256 dca924ba8071), tier none, shadow, holds nothing; not verified.",
+   "procedure_sha256": "be1646d5db28987a913db6f692f3ae04c52304eadd7b1fd89547391ec3926381",
+   "stage": "shadow",
+   "tier": "none",
+   "vintages": []
   }
  ],
  "note": "Which generations exist. `aq cycle promote` changes a stage by rule; a hand edit is visible in git."

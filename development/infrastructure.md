@@ -64,6 +64,8 @@ If Redis is unreachable, the push is skipped with a warning and trading carries 
 
 Lean's built-in `PaperBrokerage` (`lean.json`, `live-paper`) needs no IB paper account, only a live data feed: `lean login`, or a provider key. Confirm it by hand, then set `phase_v2.paper_trading.live_data_provider_configured`.
 
+`scripts/lean_smoke/live_plumbing.sh` (V6.6.4) runs `main.py` itself in `live-paper` from the engine image with a `FakeDataQueue` and the native Redis and Postgres of `scripts/field_services.sh`: no login, key or broker. It proves the algorithm starts live, stays up while Redis and then Postgres are stopped under it, restarts, and that the audit chain verifies; it proves no order, kill-switch trip or reconciliation, which need a feed that moves the way a market does (`ml/evaluation/v664/live_plumbing.json` lists what it does not prove). A stopped DinD Codespace loses its `/tmp`, including the Lean image: the first start after a stop rebuilds it (about 8 minutes).
+
 `aq paper-readiness` checks broker config and observation health: enough observations, drawdown and Sharpe floors, no dominant rejection. It exits 1 until ready. Reviewing the trade history stays manual (`phase_v2.paper_trading.manual_review_confirmed`). Then set `phase_v2.runtime.mode` to `paper` and `allow_live_orders` to true. The checklist: [`RUNBOOK.md`](../RUNBOOK.md#deploy-checklist-paper-first).
 
 ## Live
@@ -189,7 +191,7 @@ Never follow a repair with a local `aq train --dataset-only`: it refits the scal
 3. `aq prove`. A module that fails under memory pressure is rebuilt alone with `aq prove --module <Name>`.
 4. `aq prove --regen-cases` runs `GenCases.lean` interpreted.
 
-CI runs only `aq prove --check-sorry` and the differential tests, which need no Lean.
+`ci.yml` runs the differential tests and `tests/test_formal_no_sorry.py`, which need no Lean. `.github/workflows/formal.yml` runs the Lean build, `aq prove --check-sorry`, the regenerated cases against the committed ones and `scripts/check_axioms.py` on any change to `formal/`, to a modelled Python file, and monthly.
 
 ## Config presets
 

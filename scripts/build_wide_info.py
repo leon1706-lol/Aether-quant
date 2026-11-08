@@ -171,7 +171,12 @@ def contact_leaks(root: Path, contact: str) -> list[str]:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--parts", nargs="+", default=list(DEFAULT_PARTS), choices=ALL_PARTS)
+    parser.add_argument("--refresh", action="store_true", help="extended only: drop the per-company cache first, so new quarterly filings are read (a forward decision needs them)")
     args = parser.parse_args()
+    if args.refresh and "extended" in args.parts:
+        import shutil
+
+        shutil.rmtree(CACHE / "edgar_ext", ignore_errors=True)
     REFERENCE.mkdir(parents=True, exist_ok=True)
     tickers = member_tickers()
     report_path = REFERENCE / "wide_info_report.json"

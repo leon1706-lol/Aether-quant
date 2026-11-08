@@ -43,12 +43,20 @@ def fetch_observation_mode_events(conn, limit: int = 10_000, since: datetime | N
     if since is None:
         since = datetime.fromtimestamp(0, tz=timezone.utc)
 
-    with conn.cursor() as cur:
-        cur.execute(
-            "SELECT payload FROM experience_events WHERE mode = %(mode)s AND created_at > %(since)s "
-            "ORDER BY created_at ASC LIMIT %(limit)s;",
-            {"mode": "observation", "since": since, "limit": limit},
-        )
-        rows = cur.fetchall()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT payload FROM experience_events WHERE mode = %(mode)s AND created_at > %(since)s "
+                "ORDER BY created_at ASC LIMIT %(limit)s;",
+                {"mode": "observation", "since": since, "limit": limit},
+            )
+            rows = cur.fetchall()
+    except Exception as exc:
+        # A database the experience worker never wrote to has no table yet (Problems #339, found on a real Postgres): that is "no observation events", which the readiness
+        # check reports as not ready, not a crash. Any other database error still raises.
+        if type(exc).__name__ != "UndefinedTable":
+            raise
+        conn.rollback()
+        return []
 
     return [json.loads(row[0]) if isinstance(row[0], str) else row[0] for row in rows]

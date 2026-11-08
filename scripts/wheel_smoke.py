@@ -102,7 +102,7 @@ def check_library() -> list[str]:
                                                        sector_max_net_weight=0.1)[0] == {},
         "risk": lambda m: m.cap_target_weight(0.1, 0.0, 1.0) == (0.1, False),
         "io": lambda m: m.sanitize_json_finite([float("nan")]) == [None],
-        "formal": lambda m: len(m.targets()) == 13 and bool(m.load_cases("order_gate")["cases"]),
+        "formal": lambda m: len(m.targets()) == 16 and bool(m.load_cases("order_gate")["cases"]),
         "cycle": lambda m: m.update_generation_shares({"a": 1.0, "b": 0.0}, {"a": "active", "b": "ramping"}, {}, {}, m.GlidePolicy())["b"] == 0.3,
         "training": lambda m: m.purge_label_overlap(["train", "train", "validation"], 1) == ["train", "purged", "validation"],
         "regime": lambda m: callable(m.build_market_regime_vector),

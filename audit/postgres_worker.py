@@ -25,10 +25,20 @@ import os
 import time
 from typing import Any
 
-from .hash_chain import GENESIS_HASH, compute_entry_hash
+from .hash_chain import GENESIS_HASH, canonical_timestamp, compute_entry_hash
 from .status_export import build_audit_status_view, write_status_file
 
 logger = logging.getLogger(__name__)
+
+MAX_REPLAY_FAILURES = 5
+
+
+def _is_connection_error(exc: BaseException) -> bool:
+    """A failure of the link to Postgres or Redis, which a retry is meant to outlast, as opposed to one caused by the data."""
+    if isinstance(exc, (ConnectionError, OSError)):
+        return True
+    name = type(exc).__name__
+    return name in {"OperationalError", "InterfaceError", "AdminShutdown", "ConnectionError", "TimeoutError", "BusyLoadingError"} or "connection" in str(exc).lower()
 
 # ---------------------------------------------------------------------------
 # Schema DDL — embedded constant, no migration files
@@ -74,10 +84,11 @@ def event_to_row(event: dict, prev_hash: str) -> dict[str, Any]:
     """Extract INSERT params from an audit event dict plus the chain-tail
     hash it links to. Pure function - computes this row's own hash via
     audit.hash_chain.compute_entry_hash(), never mutates `event`."""
-    entry_hash = compute_entry_hash(prev_hash, event["event_type"], event["created_at"], event["payload"])
+    created_at = canonical_timestamp(event["created_at"])  # hashed as it reads back from TIMESTAMPTZ (Problems #339)
+    entry_hash = compute_entry_hash(prev_hash, event["event_type"], created_at, event["payload"])
     return {
         "event_id": event["event_id"],
-        "created_at": event["created_at"],
+        "created_at": created_at,
         "event_type": event["event_type"],
         "actor": event.get("actor", "system"),
         "prev_hash": prev_hash,
@@ -172,6 +183,9 @@ class PostgresWorker:
 
         ensure_schema(self._conn)
         self._ensure_consumer_group()
+        # a previous worker with this consumer name may have died holding messages it never acknowledged: read those first
+        self._replay_pending = True
+        self._replay_failures = 0
 
     def _ensure_consumer_group(self) -> None:
         try:
@@ -198,21 +212,56 @@ class PostgresWorker:
 
     def run_once(self) -> int:
         """Read one batch, hash-chain it, persist, ack. Returns count of
-        events persisted. Raises on PostgreSQL failure — messages stay
-        pending for re-delivery."""
-        results = self._redis.xreadgroup(
-            self.group_name,
-            self.consumer_name,
-            {self.stream_name: ">"},
-            count=self.batch_size,
-            # block omitted (not 0 - that means "block forever" in Redis,
-            # not "don't block") so this returns immediately; run() provides
-            # the idle sleep.
-        )
+        events persisted. Raises on PostgreSQL failure.
+
+        A message read and not acknowledged stays in this consumer's pending list, and `xreadgroup(">")` never delivers it again (Problems #340: found by stopping a real
+        Postgres under a running worker; the events read during the outage were never written). So after any failure, and when the worker starts, it first reads its own
+        pending entries (id "0") until none are left, then carries on with new ones. Inserting is idempotent (`ON CONFLICT (event_id) DO NOTHING`), and the chain is taken from the
+        database's latest hash on each batch, so a replay cannot fork it. A batch that keeps failing for a reason that is not the connection is dead-lettered after
+        `MAX_REPLAY_FAILURES` tries instead of wedging the pipeline."""
+        replaying = self._replay_pending
+        results = None
+        if replaying:
+            results = self._redis.xreadgroup(self.group_name, self.consumer_name, {self.stream_name: "0"}, count=self.batch_size)
+            if not results or not results[0][1]:
+                self._replay_pending = replaying = False  # nothing of ours is still pending
+                results = None
+        if results is None:
+            results = self._redis.xreadgroup(
+                self.group_name,
+                self.consumer_name,
+                {self.stream_name: ">"},
+                count=self.batch_size,
+                # block omitted (not 0 - that means "block forever" in Redis,
+                # not "don't block") so this returns immediately; run() provides
+                # the idle sleep.
+            )
         if not results:
             return 0
 
         _, messages = results[0]
+        # whatever is read and not acknowledged is ours to retry, so a failure anywhere below leaves the flag set
+        self._replay_pending = True
+        try:
+            persisted = self._persist_batch(messages)
+        except Exception as exc:
+            if replaying and not _is_connection_error(exc):
+                self._replay_failures += 1
+                if self._replay_failures >= MAX_REPLAY_FAILURES:
+                    self._dead_letter_pending(messages, exc)
+            raise
+        self._replay_failures = 0
+        return persisted
+
+    def _dead_letter_pending(self, messages: list, exc: Exception) -> None:
+        for msg_id, fields in messages:
+            raw = fields.get(b"payload") or fields.get("payload", b"")
+            self._redis.xadd(self.deadletter_stream, {"payload": raw, "error": f"replayed {MAX_REPLAY_FAILURES} times: {exc}", "original_id": str(msg_id)})
+            self._redis.xack(self.stream_name, self.group_name, msg_id)
+        self._replay_failures = 0
+        logger.error("AuditPostgresWorker: %d pending messages dead-lettered after %d failed replays: %s", len(messages), MAX_REPLAY_FAILURES, exc)
+
+    def _persist_batch(self, messages: list) -> int:
         rows: list[dict] = []
         ids_good: list = []
         ids_deadletter: list = []

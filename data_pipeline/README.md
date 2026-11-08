@@ -30,6 +30,7 @@ Free, with no account. They write to the research roots (`data_wide/`, `data_cry
 
 - **`sp500_membership.py`:** point-in-time S&P 500 members.
 - **`edgar_facts.py`:** first-filing fundamentals, available a session after filing; quarterly accruals, sectors from SIC. Needs `AQ_SEC_CONTACT`.
+- **`filing_text.py`:** pure text handling for filings: tags stripped, words hashed to buckets (stable across runs), cosine similarity, earnings-release dates from the 8-K item list. `scripts/build_filing_signals.py` drives it and keeps hashed counts only, never filing text.
 - **`sec_form345.py`:** insider trades by filing date. **`finra_short_volume.py`:** daily short ratios.
 - **`binance_archive.py`:** spot klines and funding, delisted pairs included.
 - **`factor_library.py`:** French's and AQR's daily factors.

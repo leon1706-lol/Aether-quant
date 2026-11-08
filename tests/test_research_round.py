@@ -149,6 +149,7 @@ def test_a_second_candidate_can_not_freeze_once_the_holdouts_are_spent(tmp_path)
     write_rules(_payload(tmp_path), path)
     spec = load_round(path)
     ledger = tmp_path / "holdouts.jsonl"
+    _write_verdict(spec, survivors=["a1", "a3"], pbo=0.3)
     freeze, digest = stage_freeze(spec, {"trial": "a1"}, holdout_ledger=ledger)
     assert freeze.name == "freeze_a1.json" and digest
     with pytest.raises(FileExistsError):
@@ -156,6 +157,147 @@ def test_a_second_candidate_can_not_freeze_once_the_holdouts_are_spent(tmp_path)
     record_holdout_read(ledger, candidate="a1", cells=("V3",), digest=digest, created_at="2026-11-06")
     with pytest.raises(PermissionError):
         stage_freeze(spec, {"trial": "a3"}, holdout_ledger=ledger)
+
+
+def _write_verdict(spec, *, survivors, pbo):
+    from evaluation.research_round import _paths
+
+    paths = _paths(spec)
+    paths["gate"].parent.mkdir(parents=True, exist_ok=True)
+    paths["gate"].write_text(json.dumps({"survivors": survivors}), encoding="utf-8")
+    paths["pbo"].write_text(json.dumps({"pbo": pbo}), encoding="utf-8")
+
+
+def test_a_freeze_needs_a_stored_survivor_and_a_pbo_below_half(tmp_path):
+    path = tmp_path / "round.json"
+    write_rules(_payload(tmp_path), path)
+    spec = load_round(path)
+    ledger = tmp_path / "holdouts.jsonl"
+    with pytest.raises(PermissionError, match="not a survivor"):
+        stage_freeze(spec, {"trial": "a1"}, holdout_ledger=ledger)
+    _write_verdict(spec, survivors=["a1"], pbo=0.5)
+    with pytest.raises(PermissionError, match="PBO"):
+        stage_freeze(spec, {"trial": "a1"}, holdout_ledger=ledger)
+    _write_verdict(spec, survivors=["a2"], pbo=0.2)
+    with pytest.raises(PermissionError, match="not a survivor"):
+        stage_freeze(spec, {"trial": "a1"}, holdout_ledger=ledger)
+    assert not (spec.out_dir / "freeze_a1.json").exists()
+
+
+def test_a_crypto_read_leaves_the_equity_holdouts_open_and_a_second_crypto_read_is_shut(tmp_path):
+    crypto = {**_payload(tmp_path), "cell": "CS", "name": "c", "out_dir": str(tmp_path / "out_c")}
+    equity = {**_payload(tmp_path), "name": "e", "out_dir": str(tmp_path / "out_e")}
+    path_c, path_e = tmp_path / "c.json", tmp_path / "e.json"
+    write_rules(crypto, path_c)
+    write_rules(equity, path_e)
+    spec_c, spec_e = load_round(path_c), load_round(path_e)
+    ledger = tmp_path / "holdouts.jsonl"
+    _write_verdict(spec_c, survivors=["a1", "a3"], pbo=0.1)
+    _write_verdict(spec_e, survivors=["a1"], pbo=0.1)
+    _, digest = stage_freeze(spec_c, {"trial": "a1"}, holdout_ledger=ledger)
+    record_holdout_read(ledger, candidate="a1", cells=("CV",), digest=digest, created_at="2026-11-08")
+    stage_freeze(spec_e, {"trial": "a1"}, holdout_ledger=ledger)  # the equity holdouts are untouched by a crypto read
+    with pytest.raises(PermissionError):
+        stage_freeze(spec_c, {"trial": "a3"}, holdout_ledger=ledger)
+
+
+def test_r_hold1_crypto_needs_both_clauses_and_a_missing_figure_fails():
+    from evaluation.research_round import r_hold1_crypto
+
+    assert r_hold1_crypto({"CV": {"sharpe": 0.6, "alpha_t": 2.1}})["passed"] is True
+    assert r_hold1_crypto({"CV": {"sharpe": 0.6, "alpha_t": 1.9}})["passed"] is False
+    assert r_hold1_crypto({"CV": {"sharpe": 0.49, "alpha_t": 3.0}})["passed"] is False
+    assert r_hold1_crypto({"CV": {"sharpe": None, "alpha_t": 3.0}})["passed"] is False
+    assert r_hold1_crypto({})["passed"] is False
+
+
+def test_a_trial_without_an_ic_clause_or_with_its_own_minimum_is_judged_by_its_own_terms():
+    from evaluation.research_round import clause_overrides
+
+    score = {"id": "x10", "sharpe": 0.7, "sharpe_first_half": 0.6, "sharpe_second_half": 0.6, "live_names": {"median": 2.0}, "ic": None}
+    assert passes_earlier_clauses(score, min_live_names=12) is False
+    assert passes_earlier_clauses(score, min_live_names=2, no_ic=True) is True
+    assert passes_earlier_clauses(score, min_live_names=2) is False, "without the exemption the IC clause still binds"
+    spec = type("Spec", (), {"trials": {"x10": {"min_live_names": 2}, "x01": {}}, "no_ic_clause": ("x10",)})()
+    assert clause_overrides(spec) == {"x10": {"min_live_names": 2, "no_ic": True}}
+    daily = pd.DataFrame({"x10": np.random.default_rng(0).normal(0.001, 0.01, 300)})
+    gate = gate_report({"x10": score}, {"x10": {"asset_block": {"p": 0.01}, "time_shift": {"p": 0.01}}}, daily, trials=["x10"], min_live_names=12, overrides=clause_overrides(spec))
+    assert gate["survivors"] == ["x10"]
+    assert gate_report({"x10": score}, {"x10": {"asset_block": {"p": 0.01}}}, daily, trials=["x10"], min_live_names=12)["survivors"] == [], "no overrides: the old rule"
+
+
+def test_a_gated_trial_counts_live_names_where_its_gate_is_on():
+    from evaluation.research_round import live_rows
+    from portfolio.wide_signals import live_names_per_rebalance
+
+    index = [f"d{i:03d}" for i in range(100)]
+    table = pd.DataFrame(np.nan, index=index, columns=list("ABCDEFGHIJKLMN"))
+    table.iloc[:30] = 1.0  # the gate is on for the first 30 rows only
+    assert live_names_per_rebalance(table, 5)["median"] == 0.0, "counted over every row the gate reads as no names"
+    assert live_names_per_rebalance(live_rows(table, {"gate": "regime"}), 5)["median"] == 14.0
+    assert live_rows(table, {}) is table, "an ungated trial counts every row, as before"
+
+
+def _crypto_spec_cell(seed: int = 5):
+    """A fake cell with a coin panel for the builder trials."""
+    days = [day.strftime("%Y-%m-%d") for day in pd.date_range("2021-01-01", periods=300)]
+    coins = ["BTCUSD", "ETHUSD", "AAAUSD", "BBBUSD"]
+    steps = np.random.default_rng(seed).normal(0.001, 0.03, (300, 4))
+    known = pd.DataFrame(100.0 * np.exp(np.cumsum(steps, axis=0)), index=days, columns=coins)
+    cell = _Cell()
+    cell.context = _Context(known)
+    cell.member = pd.DataFrame(True, index=days, columns=coins)
+    cell.features = {"liquid": cell.member, "quote_volume": pd.DataFrame(1e6, index=days, columns=coins)}
+    cell.root = None
+    cell.data_dir = ""
+    return cell, days
+
+
+def test_a_named_builder_makes_the_trials_table_and_a_gate_can_switch_it_off(tmp_path):
+    cell, days = _crypto_spec_cell()
+    payload = _payload(tmp_path)
+    payload["trials"] = {
+        "x01": {"kind": "cross_sectional", "rebalance_every": 20, "builder": "low_vol", "params": {"window": 30}},
+        "x12": {"kind": "cross_sectional", "rebalance_every": 20, "builder": "low_vol", "params": {"window": 30}, "gate": "regime"},
+        "x99": {"kind": "cross_sectional", "rebalance_every": 20, "builder": "similarity_table", "params": {}},
+    }
+    path = tmp_path / "round.json"
+    write_rules(payload, path)
+    spec = load_round(path)
+    plain = trial_table(spec, "x01", cell, {}, score_dir=tmp_path)
+    gated = trial_table(spec, "x12", cell, {}, score_dir=tmp_path)
+    assert plain.iloc[60:].notna().all().all() and gated.isna().all(axis=1).any() and gated.notna().any().any()
+    assert trial_table(spec, "x99", cell, {}, score_dir=tmp_path) is None, "a builder whose input file is absent is a trial that did not run"
+    cut = 200
+    changed, _ = _crypto_spec_cell()
+    changed.context.panel.known.iloc[cut:] *= 4.0
+    pd.testing.assert_frame_equal(plain.iloc[:cut], trial_table(spec, "x01", changed, {}, score_dir=tmp_path).iloc[:cut])
+    pd.testing.assert_frame_equal(gated.iloc[:cut], trial_table(spec, "x12", changed, {}, score_dir=tmp_path).iloc[:cut])
+
+
+def test_an_unknown_builder_is_an_error_not_a_different_trial(tmp_path):
+    cell, _ = _crypto_spec_cell()
+    payload = _payload(tmp_path)
+    payload["trials"] = {"bad": {"kind": "pooled", "rebalance_every": 20, "builder": "os.system"}}
+    path = tmp_path / "round.json"
+    write_rules(payload, path)
+    with pytest.raises(KeyError):
+        trial_table(load_round(path), "bad", cell, {}, score_dir=tmp_path)
+
+
+def test_every_trial_kind_and_universe_resolves(tmp_path):
+    from evaluation.research_round import KINDS, universe_for
+
+    assert set(KINDS) == {"pooled", "cross_sectional", "time_series", "direct"}
+    payload = {**_payload(tmp_path), "cell": "CS", "name": "c"}
+    payload["trials"] = {
+        "x10": {"kind": "time_series", "rebalance_every": 5, "builder": "core_constant"},
+        "e5": {"kind": "direct", "rebalance_every": 21, "builder": "core_constant", "universe": ["benchmark"]},
+    }
+    path = tmp_path / "c.json"
+    write_rules(payload, path)
+    spec = load_round(path)
+    assert universe_for(spec, "x10") == ("crypto",) and universe_for(spec, "e5") == ("benchmark",)
 
 
 @pytest.mark.parametrize("reads,passed", [
@@ -195,3 +337,26 @@ def test_the_runner_recomputes_round_two_exactly():
     prior = rules["trials"]["pbo_columns"]
     pbo = pbo_report([pd.read_parquet(V660 / "selection_daily.parquet"), daily], [*prior, *scores], window=("2011-01-01", "2018-12-31"), blocks=16)
     assert pbo["pbo"] == pytest.approx(json.loads((V660 / "selection_pbo_r2.json").read_text(encoding="utf-8"))["pbo"])
+
+
+# --- V6.6.4 (Problems #336): a time-series or direct trial holds the assets it names, not the cell's members ---------------------------------------------
+
+def test_a_time_series_trial_that_names_etfs_is_not_masked_to_index_members():
+    from evaluation.research_round import tradable_mask
+
+    cell = _Cell()  # TICKERS[0] is not a member
+    table = _table(4)
+    entry = {"kind": "time_series", "params": {"tickers": [TICKERS[0], TICKERS[1]]}}
+    mask = tradable_mask(entry, table, cell)
+    assert mask.shape == table.shape and bool(mask[TICKERS[0]].all()) and bool(mask[TICKERS[1]].all()) and not mask[TICKERS[2]].any()
+    assert table.where(mask)[TICKERS[0]].notna().all(), "the non-member named asset survives"
+    direct = tradable_mask({"kind": "direct", "params": {"ticker": TICKERS[0]}}, table, cell)
+    assert bool(direct[TICKERS[0]].all()) and not direct[TICKERS[1]].any()
+
+
+def test_pooled_cross_sectional_and_unnamed_time_series_trials_still_mask_to_members():
+    from evaluation.research_round import tradable_mask
+
+    cell = _Cell()
+    for entry in ({"kind": "pooled"}, {"kind": "cross_sectional", "params": {"tickers": [TICKERS[0]]}}, {"kind": "time_series", "params": {"window": 5}}, {"kind": "time_series"}):
+        assert tradable_mask(entry, _table(5), cell) is cell.member

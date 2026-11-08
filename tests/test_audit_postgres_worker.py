@@ -272,3 +272,102 @@ def test_first_row_failure_still_raises_leaving_everything_pending():
     cur_mock.execute.side_effect = Exception("connection terminated")
     with pytest.raises(Exception, match="connection terminated"):
         worker.run_once()
+
+
+# --- V6.6.4 (Problems #339): a chain read back from a real Postgres must verify -----------------------------------------------------
+
+def test_a_row_read_back_with_a_datetime_timestamp_verifies_like_the_row_that_was_hashed():
+    import datetime
+
+    from audit.hash_chain import GENESIS_HASH, canonical_timestamp, verify_chain
+    from audit.postgres_audit import _row_to_dict
+    from audit.postgres_worker import event_to_row
+
+    rows, previous = [], GENESIS_HASH
+    for index in range(4):
+        event = {"event_id": f"id-{index}", "created_at": f"2026-11-07T10:00:0{index}Z", "event_type": "order_placement", "actor": "system", "payload": {"n": index, "symbol": "BTCUSD"}}
+        stored = event_to_row(event, previous)
+        previous = stored["hash"]
+        # what psycopg returns for TIMESTAMPTZ and JSONB
+        rows.append(_row_to_dict((
+            stored["event_id"], datetime.datetime.fromisoformat(stored["created_at"].replace("Z", "+00:00")), stored["event_type"], stored["actor"],
+            stored["prev_hash"], stored["hash"], event["payload"],
+        )))
+    assert verify_chain(rows) == (True, None)
+    rows[2] = {**rows[2], "payload": {"n": 99}}
+    assert verify_chain(rows)[0] is False
+    assert canonical_timestamp(datetime.datetime(2026, 11, 7, 11, 0, tzinfo=datetime.timezone(datetime.timedelta(hours=1)))) == "2026-11-07T10:00:00Z"
+
+
+def test_canonical_timestamp_leaves_what_it_cannot_parse_alone_and_keeps_the_producers_own_form():
+    import datetime
+
+    from audit.hash_chain import canonical_timestamp
+
+    assert canonical_timestamp("2026-07-17T12:00:00Z") == "2026-07-17T12:00:00Z", "build_audit_event's form is unchanged, so rows hashed before this verify as they did"
+    assert canonical_timestamp("2026-07-17T12:00:00+00:00") == "2026-07-17T12:00:00Z"
+    assert canonical_timestamp("t0") == "t0" and canonical_timestamp("not a date") == "not a date"
+    assert canonical_timestamp(datetime.datetime(2026, 7, 17, 12, 0, 0, 250000)) == "2026-07-17T12:00:00.250000Z"
+
+
+# --- V6.6.4 (Problems #340): events read during a Postgres outage are written once it is back -----------------------------------------------------
+
+def _events(count: int):
+    return [_sample_event(event_id=f"00000000-0000-0000-0000-0000000000{index:02d}", payload={"symbol": f"T{index}"}) for index in range(1, count + 1)]
+
+
+def test_messages_read_during_an_outage_are_replayed_after_it():
+    worker, client, conn_mock, cur_mock = _fake_worker(events=_events(4))
+    cur_mock.executemany.side_effect = RuntimeError("server closed the connection unexpectedly")
+    cur_mock.execute.side_effect = RuntimeError("server closed the connection unexpectedly")
+    with pytest.raises(RuntimeError):
+        worker.run_once()
+    assert client.xpending(_STREAM, _GROUP)["pending"] == 4, "read and not acknowledged"
+
+    cur_mock.executemany.side_effect = None
+    cur_mock.execute.side_effect = None
+    assert worker.run_once() == 4, "the same four are read again and written"
+    assert client.xpending(_STREAM, _GROUP)["pending"] == 0
+    rows = cur_mock.executemany.call_args[0][1]
+    assert [row["event_id"] for row in rows] == [event["event_id"] for event in _events(4)]
+    assert rows[1]["prev_hash"] == rows[0]["hash"], "the chain continues from the database's tail, unforked"
+    assert worker.run_once() == 0 and worker._replay_pending is False, "nothing left to replay"
+
+
+def test_a_new_worker_with_the_same_consumer_name_picks_up_what_a_dead_one_left():
+    worker, client, conn_mock, cur_mock = _fake_worker(events=_events(3))
+    cur_mock.executemany.side_effect = RuntimeError("connection reset")
+    cur_mock.execute.side_effect = RuntimeError("connection reset")
+    with pytest.raises(RuntimeError):
+        worker.run_once()
+    cur_mock.executemany.side_effect = None
+    cur_mock.execute.side_effect = None
+    revived = PostgresWorker(
+        redis_url="redis://localhost:6379/0", postgres_dsn="x", stream_name=_STREAM, group_name=_GROUP, consumer_name=_CONSUMER, deadletter_stream=_DEADLETTER,
+        _redis_client=client, _pg_conn=conn_mock,
+    )
+    assert revived.run_once() == 3
+
+
+def test_a_batch_that_keeps_failing_for_a_reason_that_is_not_the_connection_is_dead_lettered_not_retried_forever():
+    from audit.postgres_worker import MAX_REPLAY_FAILURES
+
+    worker, client, conn_mock, cur_mock = _fake_worker(events=_events(2))
+    cur_mock.executemany.side_effect = ValueError("value too long for type character varying(30)")
+    cur_mock.execute.side_effect = ValueError("value too long for type character varying(30)")
+    for _ in range(MAX_REPLAY_FAILURES + 1):
+        with pytest.raises(ValueError):
+            worker.run_once()
+    assert client.xlen(_DEADLETTER) == 2 and client.xpending(_STREAM, _GROUP)["pending"] == 0
+
+
+def test_a_long_outage_never_dead_letters_anything():
+    from audit.postgres_worker import MAX_REPLAY_FAILURES
+
+    worker, client, conn_mock, cur_mock = _fake_worker(events=_events(2))
+    cur_mock.executemany.side_effect = RuntimeError("terminating connection due to administrator command")
+    cur_mock.execute.side_effect = RuntimeError("terminating connection due to administrator command")
+    for _ in range(MAX_REPLAY_FAILURES * 4):
+        with pytest.raises(RuntimeError):
+            worker.run_once()
+    assert client.xlen(_DEADLETTER) == 0 and client.xpending(_STREAM, _GROUP)["pending"] == 2

@@ -41,6 +41,35 @@ def test_crypto_benchmark_is_on_the_timeline_of_a_runs_daily_sample(monkeypatch,
     assert out.index.max() == "2024-01-05"
 
 
+def test_lagging_equity_moves_only_the_equity_columns_and_the_default_is_unchanged(monkeypatch, tmp_path):
+    import data_pipeline.data_audit as audit
+    from evaluation.alpha_proof import benchmark_daily_returns
+
+    dates = pd.date_range("2024-01-01", periods=8)
+    prices = {"SPY": [100.0, 101.0, 103.0, 106.0, 110.0, 115.0, 121.0, 128.0], "BTCUSD": [10.0, 20.0, 40.0, 80.0, 160.0, 320.0, 640.0, 1280.0]}
+    monkeypatch.setattr(audit, "asset_zip_paths", lambda asset, root: {"trade": asset["ticker"]})
+    monkeypatch.setattr(audit, "read_lean_daily_zip", lambda path, kind: pd.DataFrame({"date": dates, "close": prices[path]}))
+    config = {"phase1": {"universe": {"assets": [{"ticker": "SPY", "security_type": "equity"}, {"ticker": "BTCUSD", "security_type": "crypto"}]}}}
+
+    default = benchmark_daily_returns(tmp_path, config, start="2024-01-01", end="2024-01-09")
+    explicit = benchmark_daily_returns(tmp_path, config, start="2024-01-01", end="2024-01-09", lag_equity=False)
+    lagged = benchmark_daily_returns(tmp_path, config, start="2024-01-01", end="2024-01-09", lag_equity=True)
+    pd.testing.assert_frame_equal(default, explicit)
+    assert default.loc["2024-01-04", "SPY"] == pytest.approx(106.0 / 103.0 - 1.0)
+    assert lagged.loc["2024-01-05", "SPY"] == pytest.approx(106.0 / 103.0 - 1.0), "the same return, one session later"
+    assert lagged.loc["2024-01-05", "BTCUSD"] == pytest.approx(default.loc["2024-01-05", "BTCUSD"]), "the crypto column is already aligned and stays"
+
+
+def test_r_alpha1_ignores_the_session_aligned_figure():
+    from evaluation.alpha_proof import r_alpha1
+
+    strong = {"alpha": {"t_hac": 3.0, "alpha_annual": 0.05}, "dsr": 0.99, "alpha_session_aligned": {"t_hac": -9.0}}
+    report = {"periods": {"full": strong, "holdout": {"alpha": {"alpha_annual": 0.04}}, "fresh": {"judgeable": False}}}
+    assert r_alpha1(report)["verdict"] == "demonstrated"
+    report["periods"]["full"] = {**strong, "alpha_session_aligned": {"t_hac": 9.0}, "alpha": {"t_hac": 0.1, "alpha_annual": 0.0}}
+    assert r_alpha1(report)["verdict"] == "not demonstrated"
+
+
 def test_noise_has_no_alpha():
     rng = np.random.default_rng(2)
     dates = pd.bdate_range("2020-01-01", periods=800).strftime("%Y-%m-%d")

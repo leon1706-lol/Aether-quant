@@ -47,6 +47,10 @@ from evaluation.research_round import (
 )
 from portfolio.generation_blend import GlidePolicy, blend_due, blend_generation_rows, dynamic_generation_shares, dynamic_targets, ew_sharpe, ew_update, resolve_glide_policy, shrunk_sharpe, step_toward, update_generation_shares
 
+from evaluation.forward_ledger import NoSessionToRecord, resolve_session, session_for_outage
+from evaluation.research_round import clause_overrides, family_of, live_rows, r_hold1_crypto, universe_for
+from evaluation.round_builders import MissingInput, apply_gate, build_trial_table
+
 __all__ = [
     "AdmissionEvidence",
     "Cell",
@@ -54,19 +58,24 @@ __all__ = [
     "DecayReport",
     "Generation",
     "GlidePolicy",
+    "MissingInput",
+    "NoSessionToRecord",
     "RoundSpec",
     "admitted_to_shadow",
     "allocation_row",
     "append_event",
     "append_lifecycle",
     "append_row",
+    "apply_gate",
     "assert_cell_open",
     "average_run_lengths",
     "blank_stale",
     "blend_due",
     "blend_generation_rows",
+    "build_trial_table",
     "cap_lifted",
     "caps_for",
+    "clause_overrides",
     "coin_side",
     "count_unrun_trials",
     "cusum_lower",
@@ -84,6 +93,7 @@ __all__ = [
     "evidence_for",
     "ew_sharpe",
     "ew_update",
+    "family_of",
     "freeze_digest_of",
     "gate_report",
     "generation_state",
@@ -98,6 +108,7 @@ __all__ = [
     "judge_ledger",
     "last_row_for",
     "lifecycle_is_intact",
+    "live_rows",
     "load_registry",
     "load_round",
     "membership_mask",
@@ -111,6 +122,7 @@ __all__ = [
     "pick_glide2",
     "pick_policy",
     "r_hold1",
+    "r_hold1_crypto",
     "ram_preflight",
     "read_json_or",
     "read_ledger",
@@ -121,6 +133,7 @@ __all__ = [
     "replay_dynamic",
     "replay_handover",
     "resolve_glide_policy",
+    "resolve_session",
     "retrain_due",
     "retrain_stages",
     "row_for_generation",
@@ -129,6 +142,7 @@ __all__ = [
     "run_policy",
     "save_registry",
     "score_file_table",
+    "session_for_outage",
     "session_return",
     "session_return_covered",
     "sessions_since_retrain",
@@ -148,6 +162,7 @@ __all__ = [
     "total_memory_bytes",
     "trial_table",
     "turnover",
+    "universe_for",
     "update_generation_shares",
     "window_rows",
     "write_freeze",

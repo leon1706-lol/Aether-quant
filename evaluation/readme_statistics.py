@@ -175,10 +175,12 @@ def build_alpha_block(evaluation_dir: Path) -> str:
     verdict = report.get("r_alpha1") or {}
     reasons = "; ".join(verdict.get("failed") or [])
     trials = ((report.get("periods") or {}).get("full") or {}).get("dsr_trials", "n/a")
+    aligned = (((report.get("periods") or {}).get("full") or {}).get("alpha_session_aligned") or {}).get("t_hac")
+    note = [f"_With SPY and AGG read a session late, as the crypto series is, the full-window alpha t is {_format(aligned, 'num2')} (#330). R-ALPHA1 reads the figure in the table._", ""] if aligned is not None else []
     return "\n".join([
         "| Period | Dates | Sharpe | 95% interval | Alpha per year | Alpha t | Deflated Sharpe |", "|---|---|---|---|---|---|---|", *rows, "",
         f"**Proof of alpha (R-ALPHA1): {verdict.get('verdict', 'n/a')}**" + (f" ({reasons})." if reasons else "."),
-        "",
+        "", *note,
         f"_Run `{report.get('run', 'n/a')}` · computed {report.get('computed_at', 'n/a')} · alpha against "
         f"{' / '.join(report.get('benchmarks') or [])} with a Newey-West t · deflated over {trials} ledger trials_",
     ])

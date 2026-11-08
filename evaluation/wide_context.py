@@ -54,6 +54,8 @@ class WideCell:
     features: dict[str, pd.DataFrame] = field(default_factory=dict)
     tables: dict[str, pd.DataFrame] = field(default_factory=dict)
     label: pd.DataFrame | None = None
+    root: Path | None = None
+    data_dir: str = ""
 
 
 def path_config(base: dict) -> TargetWeightsConfig:
@@ -183,7 +185,7 @@ def equity_cell(
     member = membership_mask(table, sessions, list(known.columns))
     panel = ResearchPanel(known, labels, {}, {})
     context = _context(market, panel, base, root, data_dir=data_dir, settings=settings)
-    out = WideCell(cell, context, member=member, sectors=labels)
+    out = WideCell(cell, context, member=member, sectors=labels, root=root, data_dir=data_dir)
     if not with_features:
         return out
     tickers = list(known.columns)
@@ -258,7 +260,22 @@ def crypto_cell(
     funding = pd.read_parquet(funding_path).sort_index() if funding_path.exists() else None
     tables = crypto_tables(known, funding, allowed)
     panel.extras = dict(tables)
-    return WideCell(cell, context, member=allowed, sectors=labels, tables=tables)
+    features = {"quote_volume": lag_onto(volume, known.index).reindex(columns=known.columns), "liquid": allowed}
+    if funding is not None and not funding.empty:
+        features["funding"] = lag_onto(funding, known.index).reindex(columns=known.columns)
+    return WideCell(cell, context, member=allowed, sectors=labels, tables=tables, features=features, root=root, data_dir=data_dir)
+
+
+def lag_onto(table: pd.DataFrame, index: pd.Index, *, limit: int = 7) -> pd.DataFrame:
+    """A day-indexed table (volume, funding) as the session knows it: the value of day d is visible from d+1, carried forward at most `limit` rows. Same timing as c3."""
+    shifted = table.sort_index().shift(1)
+    return shifted.reindex(shifted.index.union(index)).ffill(limit=limit).reindex(index)
+
+
+def crypto_ic(signal: pd.DataFrame, known: pd.DataFrame, *, start: str, end: str, min_names: int = 8, horizon: int = 20) -> dict:
+    """A crypto signal's rank IC with the next `horizon` days' return on the same coins, with the non-overlapping t."""
+    target = known.shift(-horizon) / known - 1.0
+    return signal_ic_t(signal, target, start=start, end=end, horizon=horizon, min_names=min_names)
 
 
 def liquid_mask_for_cell(liquid: pd.DataFrame, cell: Cell, project: list[str]) -> pd.DataFrame:

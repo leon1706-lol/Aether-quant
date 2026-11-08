@@ -21,7 +21,7 @@ import bisect
 import json
 import math
 from collections.abc import Iterable, Sequence
-from datetime import UTC, date, datetime
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 DEFAULT_RISK_FREE_RATE = 0.01  # InterestRateProvider.DefaultRiskFreeRate, used before the file's first row
@@ -45,7 +45,7 @@ def load_backtest_series(result_path: str | Path) -> dict:
 
 
 def _utc_date(timestamp: float) -> date:
-    return datetime.fromtimestamp(float(timestamp), UTC).date()
+    return datetime.fromtimestamp(float(timestamp), timezone.utc).date()
 
 
 def load_interest_rate_changes(path: str | Path) -> list[tuple[date, float]]:

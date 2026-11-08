@@ -52,6 +52,13 @@ def decide_generation(definition: Mapping, panel: ResearchPanel, date: str) -> d
         int(definition["rebalance_every"]), dict(definition.get("params") or {}),
     )
     settings = WeightSettings(**(definition.get("settings") or {}))
+    if spec.family == "crypto_signal":
+        # round 4C's trial, computed from the marks (portfolio/crypto_signals.py forward_table); every other family is untouched
+        from portfolio.crypto_signals import forward_table
+
+        table = forward_table(spec.params["signal"], panel.known)
+        panel = ResearchPanel(panel.known, panel.asset_class, panel.fred, {**panel.extras, "observer": table})
+        spec = SleeveSpec(spec.id, spec.track, spec.kind, "external_score", spec.universe, spec.rebalance_every, {"table": "observer", "top_k": spec.params.get("top_k")})
     rows = signal_to_weights(sleeve_signal(spec, panel), panel, kind=spec.kind, rebalance_every=1, settings=settings, start=date, end=date, top_k=spec.params.get("top_k"))
     return {ticker: float(weight) for ticker, weight in rows.get(date, {}).items()}
 

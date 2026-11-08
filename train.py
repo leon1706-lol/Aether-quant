@@ -2140,10 +2140,10 @@ def build_cross_sectional_rank_targets(asset_frames: dict[str, pd.DataFrame], co
     gets beta=0.0 (residual == raw return - the safe, uninformative
     fallback, not a crash). This is currently a computed-but-unwired
     target: no model head consumes it yet (a full multitask/sequence head
-    is a separate, larger change deliberately deferred - see Problems.md
+    is a separate, larger change that was not made - see Problems.md
     #71 - to avoid stacking two unproven interventions into one retrain
-    alongside the alt-data features above). The column exists now so a
-    future pass can wire and measure it independently.
+    alongside the alt-data features above). The column exists so a head can
+    be wired and measured on its own.
     """
     ranking_config = config.get("phase1", {}).get("target", {}).get("ranking", {})
     min_universe_size = int(ranking_config.get("min_universe_size", DEFAULT_RANKING_MIN_UNIVERSE_SIZE))

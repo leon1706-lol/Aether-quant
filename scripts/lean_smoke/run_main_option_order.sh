@@ -11,7 +11,7 @@ sudo rm -rf "${DIR}"
 mkdir -p "${DIR}"
 [ -d "${MASTER}" ] || { mkdir -p "${STATE_DIR}/data_master"; cp -a data "${MASTER}"; }
 rsync -a --exclude data --exclude data_pre2013 --exclude data_wide --exclude data_crypto_wide --exclude backtests --exclude .git \
-  --exclude .av --exclude .venv --exclude node_modules --exclude ml/datasets --exclude ml/versions ./ "${DIR}/"
+  --exclude .av --exclude .venv --exclude node_modules --exclude ml/datasets --exclude ml/versions --exclude visualization ./ "${DIR}/"
 cp -al "${MASTER}" "${DIR}/data"
 mv "${DIR}/main.py" "${DIR}/aq_main.py"
 cp scripts/lean_smoke/main_option_order.py "${DIR}/main.py"

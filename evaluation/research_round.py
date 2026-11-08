@@ -32,14 +32,16 @@ from evaluation.premia_research import (
     score_sleeve,
     selection_gate,
 )
+from evaluation.round_builders import BUILDERS, MissingInput, apply_gate, build_trial_table
 from evaluation.research_cells import CELLS, FREE_CELLS, freeze_digest_of, record_holdout_read, write_freeze
 from evaluation.trial_ledger import append_trial, read_ledger
-from portfolio.premia_signals import POOLED, XS, SleeveSpec
+from portfolio.premia_signals import DIRECT, POOLED, TS, XS, SleeveSpec
 from portfolio.signal_construction import build_table
 from portfolio.wide_signals import live_names_per_rebalance, rank_mean
 
 HOLDOUT_LEDGER = Path("ml") / "generations" / "holdout_ledger.jsonl"
-KINDS = {"pooled": POOLED, "cross_sectional": XS}
+KINDS = {"pooled": POOLED, "cross_sectional": XS, "time_series": TS, "direct": DIRECT}
+HOLDOUT_FAMILIES = {"equity": ("V1", "V2", "V3"), "crypto": ("CV",)}
 
 
 @dataclass(frozen=True)
@@ -60,6 +62,7 @@ class RoundSpec:
     prior_daily: tuple[str, ...] = ()
     prior_columns: tuple[str, ...] = ()
     disclosures: tuple[str, ...] = ()
+    no_ic_clause: tuple[str, ...] = ()
     raw: Mapping = field(default_factory=dict)
 
 
@@ -102,7 +105,7 @@ def load_round(path: Path, *, root: Path = Path(".")) -> RoundSpec:
         out_dir=Path(root) / str(raw["out_dir"]), ledger=Path(root) / str(raw["ledger"]), window_label=str(raw.get("window_label", "v660_selection")),
         track=str(raw.get("track", "W")), min_live_names=int(raw.get("min_live_names", 150)), min_ic_names=int(raw.get("min_ic_names", 20)),
         pbo_blocks=int(raw.get("pbo_blocks", 16)), prior_daily=tuple(raw.get("prior_daily") or ()), prior_columns=tuple(raw.get("prior_columns") or ()),
-        disclosures=tuple(raw.get("disclosures") or ()), raw=raw,
+        disclosures=tuple(raw.get("disclosures") or ()), no_ic_clause=tuple(raw.get("no_ic_clause") or ()), raw=raw,
     )
 
 
@@ -111,6 +114,22 @@ def _paths(spec: RoundSpec) -> dict[str, Path]:
         ("scores", "selection_scores", ".json"), ("daily", "selection_daily", ".parquet"), ("placebos", "selection_placebos", ".json"),
         ("gate", "selection_gate", ".json"), ("pbo", "selection_pbo", ".json"), ("report", "r", ".json"),
     )}
+
+
+def family_of(spec: RoundSpec) -> str:
+    return "crypto" if CELLS[spec.cell].universe == "crypto" else "equity"
+
+
+def universe_for(spec: RoundSpec, trial: str) -> tuple[str, ...]:
+    """What a trial trades: its own `universe`, else the coins of a crypto cell, else the eleven sectors."""
+    entry = spec.trials[trial]
+    if entry.get("universe"):
+        return tuple(entry["universe"])
+    if family_of(spec) == "crypto":
+        return ("crypto",)
+    from evaluation.wide_context import SECTORS
+
+    return tuple(SECTORS)
 
 
 def spec_of(spec: RoundSpec, trial: str, universe: Sequence[str]) -> SleeveSpec:
@@ -128,6 +147,18 @@ def score_file_table(path: Path, index, columns) -> pd.DataFrame | None:
         return None
     frame = pd.read_csv(path, dtype={"date": str, "ticker": str})
     return frame.pivot_table(index="date", columns="ticker", values="score", aggfunc="last").reindex(index=index, columns=columns)
+
+
+def tradable_mask(entry: Mapping, table: pd.DataFrame, cell) -> pd.DataFrame:
+    """What a table may hold. A pooled or cross-sectional trial holds the cell's members. A time-series or direct trial that names its assets (`params.tickers` or `params.ticker`)
+    holds exactly those: ETFs and SPY are never index members, so the member mask silently emptied round 4E's e4 and e5 (no live names, Sharpe 0.0; Problems #336)."""
+    if entry.get("kind") in ("time_series", "direct"):
+        params = entry.get("params") or {}
+        named = set(params.get("tickers") or ()) | ({params["ticker"]} if params.get("ticker") else set())
+        if named:
+            flags = table.columns.isin(sorted(named))
+            return pd.DataFrame(np.broadcast_to(flags, table.shape), index=table.index, columns=table.columns)
+    return cell.member
 
 
 def trial_table(spec: RoundSpec, trial: str, cell, built: dict[str, pd.DataFrame], *, score_dir: Path, score_suffix: str = "") -> pd.DataFrame | None:
@@ -148,17 +179,26 @@ def trial_table(spec: RoundSpec, trial: str, cell, built: dict[str, pd.DataFrame
             raise KeyError(f"{trial}: features {sorted(set(signs) - set(features))} are not in this cell")
         table = fama_macbeth_ridge(features, cell.label, signs=signs, start=start, kappa=int(entry.get("kappa", 36)), ridge=float(entry.get("ridge", 1.0)))
         return table.where(cell.member.reindex(index=table.index, columns=table.columns, fill_value=False))
+    if entry.get("builder") in BUILDERS:
+        try:
+            table = build_trial_table(str(entry["builder"]), entry.get("params"), cell)
+        except MissingInput:
+            return None
+        gated = apply_gate(table, entry.get("gate"), cell)
+        return gated.where(tradable_mask(entry, gated, cell))
+    if entry.get("builder"):
+        raise KeyError(f"trial {trial}: unknown builder {entry['builder']!r}")
     recipe = entry["recipe"]
     lookup = {**cell.features, **cell.tables, **built}
     if recipe.get("optional_parts"):
         present = [name for name in recipe["parts"] if name in lookup]
         if len(present) < int(recipe.get("minimum", 2)):
             return None
-        return rank_mean([lookup[name] for name in present], minimum=int(recipe.get("minimum", 2))).where(cell.member)
+        return apply_gate(rank_mean([lookup[name] for name in present], minimum=int(recipe.get("minimum", 2))), entry.get("gate"), cell).where(cell.member)
     missing = [name for name in [*recipe["parts"], *(recipe.get("exposures") or ())] if name not in lookup]
     if missing and any(name in spec.trials for name in missing):
         return None  # a part is another trial that didn't run
-    return build_table(recipe, lookup, cell.member, sectors=cell.sectors)
+    return apply_gate(build_table(recipe, lookup, cell.member, sectors=cell.sectors), entry.get("gate"), cell).where(cell.member)
 
 
 def _trial_context(context, entry: Mapping):
@@ -168,12 +208,36 @@ def _trial_context(context, entry: Mapping):
     return dataclasses.replace(context, config=dataclasses.replace(context.config, min_weight_change=float(band)))
 
 
-def passes_earlier_clauses(score: Mapping, *, min_live_names: int) -> bool:
-    """Everything in R-SLEEVE3 before the placebos: live names, the Sharpe clauses, and the rank-IC t."""
+def live_rows(signal: pd.DataFrame, entry: Mapping) -> pd.DataFrame:
+    """The rows live names are counted on. A gated trial holds nothing while its gate is off, so the median over all rebalances would read the gate as a lack of names: it is counted on the rows
+    where the gate is on (those with any value). An ungated trial counts every row, as before."""
+    if entry.get("gate"):
+        return signal[signal.notna().any(axis=1)]
+    return signal
+
+
+def clause_overrides(spec: RoundSpec) -> dict[str, dict]:
+    """Per trial: its own minimum of live names, and whether it has no IC clause. Empty for a round that sets neither, so earlier rounds recompute unchanged."""
+    out: dict[str, dict] = {}
+    for trial, entry in spec.trials.items():
+        override: dict = {}
+        if "min_live_names" in entry:
+            override["min_live_names"] = int(entry["min_live_names"])
+        if trial in spec.no_ic_clause:
+            override["no_ic"] = True
+        if override:
+            out[trial] = override
+    return out
+
+
+def passes_earlier_clauses(score: Mapping, *, min_live_names: int, no_ic: bool = False) -> bool:
+    """Everything in R-SLEEVE3 before the placebos: live names, the Sharpe clauses, and the rank-IC t (not for a trial the round lists in `no_ic_clause`)."""
     if not passes_sharpe_clauses(score):
         return False
     if (score.get("live_names") or {}).get("median", 0.0) < min_live_names:
         return False
+    if no_ic:
+        return True
     t = (score.get("ic") or {}).get("nonoverlap_t")
     return t is not None and t >= 2.0
 
@@ -185,11 +249,13 @@ def _failed_clause(score: Mapping, *, min_live_names: int) -> str:
 
 
 def _load_selection_cell(spec: RoundSpec, root: Path, *, with_info: bool = True):
-    from evaluation.wide_context import equity_cell
+    from evaluation.wide_context import crypto_cell, equity_cell
 
     if spec.cell not in FREE_CELLS:
         raise PermissionError(f"selection reads free cells only, not {spec.cell}")
     base = json.loads((Path(root) / "config.json").read_text(encoding="utf-8"))
+    if family_of(spec) == "crypto":
+        return crypto_cell(Path(root), base, spec.cell)
     return equity_cell(Path(root), base, spec.cell, with_info=with_info)
 
 
@@ -201,8 +267,7 @@ def stage_score(spec: RoundSpec, *, cell, score_dir: Path, only: Sequence[str] =
     scores = _read_json(paths["scores"], {})
     frames = pd.read_parquet(paths["daily"]).to_dict("series") if paths["daily"].exists() else {}
     context = cell.context
-    from evaluation.wide_context import SECTORS
-
+    overrides = clause_overrides(spec)
     built: dict[str, pd.DataFrame] = {}
     for trial, entry in spec.trials.items():
         table = trial_table(spec, trial, cell, built, score_dir=score_dir)
@@ -213,15 +278,22 @@ def stage_score(spec: RoundSpec, *, cell, score_dir: Path, only: Sequence[str] =
         context.panel.extras[trial] = table
         if (only and trial not in only) or (trial in scores and not force):
             continue
-        sleeve = spec_of(spec, trial, SECTORS)
+        sleeve = spec_of(spec, trial, universe_for(spec, trial))
         start = str(entry.get("start") or cell.cell.start)
         signal = table
-        live = live_names_per_rebalance(signal.loc[signal.index >= start], sleeve.rebalance_every)
+        live = live_names_per_rebalance(live_rows(signal.loc[signal.index >= start], entry), sleeve.rebalance_every)
         score = score_sleeve(sleeve, _trial_context(context, entry), start=start, split=cell.cell.split, end=cell.cell.end, signal=signal)
         daily = score.pop("daily")
         middle = daily[min(daily)]
         frames[trial] = middle
-        ic = ic_fn(signal, cell.label, start=start, end=cell.cell.end, min_names=spec.min_ic_names) if cell.label is not None else None
+        if overrides.get(trial, {}).get("no_ic"):
+            ic = None
+        elif family_of(spec) == "crypto":
+            from evaluation.wide_context import crypto_ic
+
+            ic = crypto_ic(signal, cell.context.panel.known, start=start, end=cell.cell.end, min_names=spec.min_ic_names)
+        else:
+            ic = ic_fn(signal, cell.label, start=start, end=cell.cell.end, min_names=spec.min_ic_names) if cell.label is not None else None
         scores[trial] = {**score, "cell": spec.cell, "live_names": live, "ic": ic, "round": spec.name}
         append_trial(spec.ledger, trial_id=trial, track=spec.track, window=spec.window_label, role="candidate", annualised_sharpe=score["sharpe"], n_obs=len(middle), engine="offline",
                      detail={"cell": spec.cell, "round": spec.name})
@@ -233,11 +305,13 @@ def stage_score(spec: RoundSpec, *, cell, score_dir: Path, only: Sequence[str] =
 
 def stage_placebo(spec: RoundSpec, *, cell, score_dir: Path, draws: int = 100, force: bool = False, emit: Callable[[str], None] = print) -> dict:
     """R-SLEEVE3's placebos, only for trials that pass every earlier clause."""
-    from evaluation.wide_context import SECTORS
-
     paths = _paths(spec)
     scores = _read_json(paths["scores"], {})
-    eligible = [trial for trial, score in scores.items() if passes_earlier_clauses(score, min_live_names=spec.min_live_names)]
+    overrides = clause_overrides(spec)
+    eligible = [
+        trial for trial, score in scores.items()
+        if passes_earlier_clauses(score, min_live_names=overrides.get(trial, {}).get("min_live_names", spec.min_live_names), no_ic=bool(overrides.get(trial, {}).get("no_ic")))
+    ]
     emit(f"reach the placebo clause: {eligible or 'none'}")
     done = _read_json(paths["placebos"], {})
     if not eligible:
@@ -252,7 +326,7 @@ def stage_placebo(spec: RoundSpec, *, cell, score_dir: Path, draws: int = 100, f
     for trial in eligible:
         if trial in done and not force:
             continue
-        sleeve = spec_of(spec, trial, SECTORS)
+        sleeve = spec_of(spec, trial, universe_for(spec, trial))
         entry = spec.trials[trial]
         start = str(entry.get("start") or cell.cell.start)
         out = {}
@@ -265,13 +339,19 @@ def stage_placebo(spec: RoundSpec, *, cell, score_dir: Path, draws: int = 100, f
     return done
 
 
-def gate_report(scores: Mapping[str, Mapping], placebos: Mapping[str, Mapping], daily: pd.DataFrame, *, trials: Sequence[str], min_live_names: int = 150) -> dict:
+def gate_report(
+    scores: Mapping[str, Mapping], placebos: Mapping[str, Mapping], daily: pd.DataFrame, *, trials: Sequence[str], min_live_names: int = 150, overrides: Mapping[str, Mapping] | None = None,
+) -> dict:
     """R-SLEEVE3 from stored scores: a pure function, so a past round can be recomputed and compared."""
-    eligible = {name: score for name, score in scores.items() if passes_earlier_clauses(score, min_live_names=min_live_names)}
+    overrides = overrides or {}
+    eligible = {
+        name: score for name, score in scores.items()
+        if passes_earlier_clauses(score, min_live_names=overrides.get(name, {}).get("min_live_names", min_live_names), no_ic=bool(overrides.get(name, {}).get("no_ic")))
+    }
     rows = [{**score, "id": name, "daily": {0: daily[name].dropna()}} for name, score in eligible.items()]
     p_values = {name: {mode: entry["p"] for mode, entry in tests.items()} for name, tests in placebos.items()}
     gate = selection_gate(rows, p_values)
-    gate["failed_earlier_clauses"] = {name: _failed_clause(score, min_live_names=min_live_names) for name, score in scores.items() if name not in eligible}
+    gate["failed_earlier_clauses"] = {name: _failed_clause(score, min_live_names=overrides.get(name, {}).get("min_live_names", min_live_names)) for name, score in scores.items() if name not in eligible}
     gate["unscored"] = [trial for trial in trials if trial not in scores]
     return gate
 
@@ -293,7 +373,7 @@ def stage_gate(spec: RoundSpec) -> dict:
     scores = _read_json(paths["scores"], {})
     placebos = _read_json(paths["placebos"], {})
     daily = pd.read_parquet(paths["daily"]) if paths["daily"].exists() else pd.DataFrame()
-    gate = gate_report(scores, placebos, daily, trials=list(spec.trials), min_live_names=spec.min_live_names)
+    gate = gate_report(scores, placebos, daily, trials=list(spec.trials), min_live_names=spec.min_live_names, overrides=clause_overrides(spec))
     gate["counted_without_a_score"] = count_unrun_trials(spec, gate["unscored"])
     _write_json(paths["gate"], gate)
     return gate
@@ -329,7 +409,15 @@ def holdouts_spent(path: Path) -> list[str]:
 
 def stage_freeze(spec: RoundSpec, candidate: Mapping, *, holdout_ledger: Path, code_digests: Mapping[str, str] | None = None) -> tuple[Path, str]:
     """Freezes one candidate, by rule. Refuses once any holdout has been read: the same data can't back a second candidate. Returns (path, digest)."""
-    spent = holdouts_spent(holdout_ledger)
+    paths = _paths(spec)
+    gate, pbo = _read_json(paths["gate"], {}), _read_json(paths["pbo"], {})
+    if candidate["trial"] not in (gate.get("survivors") or []):
+        raise PermissionError(f"{candidate['trial']} is not a survivor in the stored gate: only a survivor may be frozen")
+    pbo_value = pbo.get("pbo")
+    if pbo_value is None or float(pbo_value) >= 0.5:
+        raise PermissionError(f"PBO {pbo_value} is not below 0.5: no freeze")
+    family = HOLDOUT_FAMILIES[family_of(spec)]
+    spent = [cell for cell in holdouts_spent(holdout_ledger) if cell in family]
     if spent:
         raise PermissionError(f"holdouts {spent} are spent: a later candidate needs 252 forward sessions instead (R-ADMIT1)")
     path = spec.out_dir / f"freeze_{candidate['trial']}.json"
@@ -352,24 +440,34 @@ def r_hold1(reads: Mapping[str, Mapping]) -> dict:
     return {"rule": "R-HOLD1", "passed": all(clauses.values()), "clauses": clauses, "reads": dict(reads)}
 
 
+def r_hold1_crypto(reads: Mapping[str, Mapping]) -> dict:
+    """R-HOLD1 for a crypto candidate: CV Sharpe >= 0.50 and alpha t >= 2.0. A missing figure fails."""
+    def finite(value) -> float | None:
+        return float(value) if value is not None and math.isfinite(float(value)) else None
+
+    sharpe, t = finite((reads.get("CV") or {}).get("sharpe")), finite((reads.get("CV") or {}).get("alpha_t"))
+    clauses = {"CV_sharpe": sharpe is not None and sharpe >= 0.50, "CV_alpha_t": t is not None and t >= 2.0}
+    return {"rule": "R-HOLD1 (crypto)", "passed": all(clauses.values()), "clauses": clauses, "reads": dict(reads)}
+
+
 def stage_hold(
     spec: RoundSpec, trial: str, *, root: Path, freeze_path: Path, digest: str, holdout_ledger: Path, created_at: str, score_dir: Path,
     read_cell: Callable[[str], object] | None = None, alpha_fn: Callable[[pd.Series], Mapping] | None = None,
 ) -> dict:
     """The one read of the holdouts. It records the read before opening anything: a crash after this still counts as spent."""
     from evaluation.premia_research import annual_sharpe, weights_for
-    from evaluation.wide_context import SECTORS
-
     if Path(freeze_path).name != f"freeze_{trial}.json" or freeze_digest_of(Path(freeze_path)) != digest:
         raise PermissionError("the freeze on disk is not this candidate's")
-    cells = ("V1", "V2", "V3")
+    family = family_of(spec)
+    cells = HOLDOUT_FAMILIES[family]
     record_holdout_read(holdout_ledger, candidate=trial, cells=cells, digest=digest, created_at=created_at)
     if read_cell is None:
-        from evaluation.wide_context import equity_cell
+        from evaluation.wide_context import crypto_cell, equity_cell
 
+        opener = crypto_cell if family == "crypto" else equity_cell
         base = json.loads((Path(root) / "config.json").read_text(encoding="utf-8"))
-        read_cell = lambda name: equity_cell(Path(root), base, name, freeze_path=Path(freeze_path), freeze_digest=digest)  # noqa: E731
-    sleeve = spec_of(spec, trial, SECTORS)
+        read_cell = lambda name: opener(Path(root), base, name, freeze_path=Path(freeze_path), freeze_digest=digest)  # noqa: E731
+    sleeve = spec_of(spec, trial, universe_for(spec, trial))
     entry = spec.trials[trial]
     reads: dict[str, dict] = {}
     for name in cells:
@@ -388,8 +486,8 @@ def stage_hold(
         start, end = cell.cell.start, cell.cell.end
         result = _trial_context(cell.context, entry).simulate(weights_for(sleeve, cell.context, built[trial], start=start, end=end, phase_offset=0), start, end)
         series = result["strategy_excess"]
-        reads[name] = {"sharpe": annual_sharpe(series, sessions=cell.context.market.sessions), "alpha_t": (alpha_fn(series) if alpha_fn else {}).get("t_hac")}
-    verdict = r_hold1(reads)
+        reads[name] = {"sharpe": annual_sharpe(series, sessions=cell.context.sessions_for(sleeve)), "alpha_t": (alpha_fn(series) if alpha_fn else {}).get("t_hac")}
+    verdict = r_hold1_crypto(reads) if family == "crypto" else r_hold1(reads)
     _write_json(spec.out_dir / f"r_hold1_{trial}.json", verdict)
     return verdict
 

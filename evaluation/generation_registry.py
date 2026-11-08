@@ -141,24 +141,29 @@ def next_stage(generation: Generation, evidence: AdmissionEvidence) -> str:
         return _book_stage(stage, evidence)
     if dying and stage == "shadow":
         return "rejected"
+    if generation.tier == "none":
+        return stage  # observed only (Problems #335): a generation with no selection pass never ramps, whatever a hand-entered record says
     if stage in ("candidate", "frozen"):
         if evidence.edge_pass:
             return "ramping"
         return "shadow" if admitted_to_shadow(evidence) else stage
     if stage == "shadow":
-        if evidence.edge_pass or _tier2_forward_passes(evidence):
-            return "ramping"
+        if evidence.edge_pass or (evidence.selection_pass and _tier2_forward_passes(evidence)):
+            return "ramping"  # a forward pass alone is not enough: the cap on a false pass assumes the selection gate was passed (Problems #335)
         return stage
     return stage
 
 
 def share_cap(generation: Generation, evidence: AdmissionEvidence, tier2_cap: float = 0.30) -> float:
-    """What the generation may hold of the paper book: all of it with a full pass or as the installed book, the tier-2 cap until its forward alpha lifts it, otherwise nothing."""
-    if generation.stage in ("retired", "rejected", "candidate", "frozen", "shadow"):
+    """What the generation may hold of the paper book: all of it with a full pass or as the installed book, the tier-2 cap until its forward alpha lifts it, otherwise nothing.
+    A tier-`none` generation is observed only and holds nothing under any evidence (Problems #335): a lifted cap is a tier-2 privilege."""
+    if generation.stage in ("retired", "rejected", "candidate", "frozen", "shadow") or generation.tier == "none":
         return 0.0
-    if generation.tier in ("tier1", "installed") or evidence.edge_pass or cap_lifted(evidence):
+    if generation.tier in ("tier1", "installed") or evidence.edge_pass:
         return 1.0
-    return float(tier2_cap) if generation.tier == "tier2" else 0.0
+    if generation.tier == "tier2":
+        return 1.0 if cap_lifted(evidence) else float(tier2_cap)
+    return 0.0
 
 
 def read_lifecycle(path: Path) -> list[dict]:

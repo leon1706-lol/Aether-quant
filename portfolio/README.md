@@ -45,6 +45,8 @@ Trained and tested, not trading (`phase_v2.portfolio_book`).
 - **`trend_sleeve.py` (`phase_v2.trend_sleeve`, off):** directional time-series momentum.
 - **`direction_overlay.py`:** a calibrated direction probability on ranks. Offline until a rule adopts it.
 - **`wide_signals.py`:** the research universe's tables, masked to members or liquid coins.
+- **`crypto_signals.py`:** pure crypto tables from closes, quote volume and funding (low volatility, lottery, Amihud, volume trend, proximity to the high, reversal, beta, idiosyncratic volatility, trend votes, breadth timing, a regime gate), each lagged so a future bar changes no earlier row; `forward_table` builds one for the forward observers.
+- **`filing_signals.py`:** pure equity tables from EDGAR filings and prices (filing similarity, announcement proximity and return, same-month seasonality, opportunistic insider buying, cash profitability, term and credit timing, cross-asset trend), by `filed` date and never from a later row.
 
 ## Options
 

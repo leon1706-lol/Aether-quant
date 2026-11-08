@@ -299,7 +299,7 @@ STRUCTURED_VERDICTS = {
         "offline": "train.add_regime_features()/_encode_regime_row()",
         "live": "main._build_regime_payload()",
         "shared_function": False,
-        "verdict": "DUPLICATED_LOGIC - structural inspection this round found matching inputs (base technicals + average_correlation); numeric replay deferred (needs regime-detector state replication)",
+        "verdict": "DUPLICATED_LOGIC - structural inspection this round found matching inputs (base technicals + average_correlation); no numeric replay: it would need the regime detector's state, which this audit cannot rebuild",
     },
     "alt_implied_volatility_level|term_structure|financial_conditions_change": {
         "offline": "features/derivatives_macro_features.py + alt_data_features.py",

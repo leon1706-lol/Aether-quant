@@ -109,10 +109,10 @@ def rank_sizing_multiplier(
 
     Config-gated, additive, default OFF
     (phase_v2.dynamic_risk.rank_sizing_enabled) - this signal's own
-    non-overlapping-date backtest subsample was not yet independently
+    non-overlapping-date backtest subsample was not independently
     significant (t-stat 1.20 on 28 independent 20-day windows, vs. 4.40 on
     the full autocorrelated series), so it ships available, tested, and
-    wired end-to-end, but not defaulted on until validated further."""
+    wired end-to-end, but stays off: that evidence does not support turning it on."""
     if not rank_sizing_enabled or rank_prediction is None:
         return 1.0, "rank_sizing_disabled_or_absent"
 

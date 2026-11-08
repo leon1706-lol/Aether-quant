@@ -181,6 +181,7 @@ switch ($Mode) {
         $excludes = @('.git', '.venv', 'node_modules', 'backtests', 'build', '__pycache__', '.pytest_cache', '.ruff_cache',
             '.matplotlib_cache', '.claude', '.av', '.coverage', '*.egg-info', 'ml/versions', 'ml/_backup_*', 'data_wide/_cache', 'Aether-quant-Obsidian-Vault', 'visualization', 'data_v580_staging', 'data_v6_staging', 'data_backups', 'backtests_invalid')
         if (-not $IncludeDatasets) { $excludes += @('ml/datasets', 'ml/expert_datasets') }
+        $excludes += @('a1.log')  # a download in progress holds its log open, and Windows tar cannot read an open file (V6.6.4)
         # Anchored with ^: a bare `data`, or `./data`, also drops tests/data, which left the API snapshot and fixtures stale on the Codespace.
         if ($CodeOnly) { $excludes += @('^./ml', '^./data', '^./data_wide', '^./data_crypto_wide') }
         $tarArgs = @('-czf', $archive) + ($excludes | ForEach-Object { "--exclude=$_" }) + @('-C', $Root, '.')

@@ -9,6 +9,7 @@ aq test                                                  # the suite (never bare
 aq evaluate --lean-report --backtest-dir backtests/<run> # every report for a finished run, and the README
 aq report <backtest-folder> <result-id>                  # Lean's own HTML report
 aq cycle status                                          # what is due today
+aq verify --quick                                        # what a 4 GB machine can check; `aq verify --list` lists every other way (development/verification.md)
 aq api                                                   # API on :8001
 aq webui                                                 # dashboard on :3002 (from webui/)
 ```
@@ -44,7 +45,7 @@ Stop at the first red item. **No verified edge exists, so no live capital.**
 Everything up to the broker is built and proved without an account. In order, each an owner decision:
 
 1. Keys in `lean.json` on the host only, never in a repo file; `aq secrets-check`.
-2. Check the Coinbase account offers the sleeve's USD pairs, and drop EOS (#311).
+2. Check the Coinbase account offers the sleeve's 11 USD pairs (EOS left the book on 2026-11-07, #311).
 3. `aq docker build` on the deploy host.
 4. In a paper config only: `phase_v2.target_weights.live_reload: true`, `weights_path: ml/generations/blended_weights.csv`, `weights_sha256: ""`. Set `enabled: true` in `ml/generations/policy.json`.
 5. `aq paper-readiness`, then the paper run under the protocol below.
@@ -56,7 +57,7 @@ The paper period is the out-of-sample test no backtest can give. Success is **no
 
 - **Freeze first:** the `config.json` sha256, the model manifest, `phase_v2.diagnostics.book_history.paper_enabled: true`, no live capital.
 - **Minimum:** 6 rebalances and 120 trading days, after `aq paper-readiness` passes.
-- **Check:** `aq evaluate --paper-check --backtest-dir <paper run> --reference-dir backtests/2026-11-04_18-10-49`. It compares veto rate, lock share, gross exposure, fills per rebalance, slippage, fee bps, P&L per day, hit ratio and turnover.
+- **Check:** `aq evaluate --paper-check --backtest-dir <paper run> --reference-dir backtests/2026-11-07_17-54-01`. It compares veto rate, lock share, gross exposure, fills per rebalance, slippage, fee bps, P&L per day, hit ratio and turnover.
 - **Bands:** the 5-95% range of every 6-rebalance window of the reference run (`ml/evaluation/v650/paper_bands.json`). A target-weights run counts fill days as rebalances and has no veto or lock metrics.
 - **Daily:** a live run also runs `python scripts/daily_target_weights.py --candidate ml/target_weights_candidate.json --out ml/target_weights.csv` before each open, with `weights_sha256` empty.
 - **Verdict:** every metric inside its band. A metric outside is a finding to explain, written up before any capital decision.
@@ -92,6 +93,7 @@ Research a pre-registered round, freeze one candidate, read the holdouts once, s
 |---|---|---|
 | Every session | `research-cycle.yml` appends returns, states and shares to `forward/generations.jsonl` | GitHub, free |
 | A generation needing fundamentals or a model | `aq cycle decide --generation G --weights <csv> --ledger-file <worktree>/forward/decisions.jsonl --session D`, then push the branch before that session's 22:45 UTC run (a decision pushed after it is missed, and is good for 25 sessions) | A host with the data |
+| k09's decision (g0005, an observer at zero capital) | Every 20 sessions, with your own address: `AQ_SEC_CONTACT=<you> python scripts/build_wide_info.py --parts extended --refresh`, then `python scripts/k09_decide.py --session D --out ml/cycle/k09_D.csv --ledger <worktree>/forward/decisions.jsonl --generation g0005`, push the branch before D's 22:45 UTC run. `aq cycle status` says when the next is due; a missed one shows `no_data`, never a false record | PC |
 | Weekly | `aq cycle status` (also feeds `GET /api/generations`) | Anywhere |
 | A new idea | Write a round file, `aq cycle research rules --round <file> --draft <json>`, `scripts/vault_record.py`, then `score`, `placebo`, `gate`, `pbo`, `report`. A survivor: `freeze`, `hold`, R-LEAN21, R-EDGE2 | Training Codespace, or 14 GB of RAM |
 | Retrain | `aq cycle retrain --host codespace --procedure k06` | See below |

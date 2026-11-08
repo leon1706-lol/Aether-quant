@@ -36,9 +36,11 @@ Each reads only the run folder and its data; `aq evaluate --lean-report` runs th
 |---|---|
 | `research_harness.py` | `evaluate_signal()`: one report for any signal (`aq research`) |
 | `research_round.py` | A pre-registered round from a rule file (`aq cycle research`) |
+| `round_builders.py` | The closed set of table builders a round may name, and the gates applied to them; a round cannot import by string |
 | `research_cells.py`, `wide_context.py` | Which data a step may read, enforced in code. Held-out cells refuse without a freeze digest |
 | `trial_ledger.py`, `trial_registry.py` | Every scored trial, for the deflated Sharpe's N |
 | `pbo.py` | Probability of backtest overfitting (CSCV) |
+| `verification_matrix.py` | Every way the project is verified, as data (`aq verify`, `development/verification.md`) |
 | `factor_spanning.py`, `factor_neutralization_check.py` | What a signal adds over plain factors; market exposure |
 | `power_analysis.py` | What a t-test on an alpha can show, given the history |
 | `research_probes.py`, `walk_forward_linear.py` | Small models fitted to measure what the data supports |

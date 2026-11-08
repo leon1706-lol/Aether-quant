@@ -11,6 +11,9 @@ import AetherFormal.SleeveGuard
 import AetherFormal.JsonSafety
 import AetherFormal.GenerationBlend
 import AetherFormal.GenerationGlide
+import AetherFormal.Admission
+import AetherFormal.SessionResolve
+import AetherFormal.HoldoutOnce
 import Mathlib.Algebra.Order.Field.Rat
 import Lean.Data.Json
 
@@ -503,11 +506,114 @@ def jsonSafety : Gen Json := do
     cases := cases ++ [Json.mkObj [("input", jToJson j), ("expected", jToJson (sanitize j))]]
   return file "json_safety" ["AetherFormal/JsonSafety.lean"] cases
 
+/-! ### admission -/
+
+open Admission in
+def stageName : Stage → String
+  | .candidate => "candidate"
+  | .frozen => "frozen"
+  | .shadow => "shadow"
+  | .ramping => "ramping"
+  | .active => "active"
+  | .fading => "fading"
+  | .windingDown => "winding_down"
+  | .retired => "retired"
+  | .rejected => "rejected"
+
+open Admission in
+def tierName : Tier → String
+  | .installed => "installed"
+  | .tier1 => "tier1"
+  | .tier2 => "tier2"
+  | .none => "none"
+
+open Admission in
+def decayName : Decay → String
+  | .healthy => "healthy"
+  | .watch => "watch"
+  | .decaying => "decaying"
+  | .dead => "dead"
+
+open Admission in
+def scoreName : Score → String
+  | .absent => "absent"
+  | .positive => "positive"
+  | .nonpositive => "nonpositive"
+  | .nan => "nan"
+
+open Admission in
+def admission : Gen Json := do
+  let stages : List Stage := [.candidate, .frozen, .shadow, .ramping, .active, .fading, .windingDown, .retired, .rejected]
+  let tiers : List Tier := [.installed, .tier1, .tier2, .none]
+  let decays : List Decay := [.healthy, .watch, .decaying, .dead]
+  let scores : List Score := [.absent, .positive, .nonpositive, .nan]
+  let counts : List Nat := [0, 1, 59, 60, 61, 100, 251, 252, 253, 504, 1000]
+  let caps : List ℚ := [3 / 10, 15 / 100, 1 / 2]
+  let mut cases : List Json := []
+  for _ in [0:800] do
+    let tier ← pick tiers
+    let stage ← pick stages
+    let e : Ev := {
+      selectionPass := ← randBool, holdPass := ← randBool, edgePass := (← nextNat 4) == 0, holdoutsSpent := ← randBool, forwardOk := ← pick counts, noDataOk := ← randBool,
+      diffOk := ← randBool, guardTripped := (← nextNat 5) == 0, decay := ← pick decays, alphaLifted := ← randBool, score := ← pick scores }
+    let cap ← pick caps
+    cases := cases ++ [Json.mkObj [
+      ("input", Json.mkObj [
+        ("tier", tierName tier), ("stage", stageName stage), ("selection_pass", e.selectionPass), ("hold_pass", e.holdPass), ("edge_pass", e.edgePass), ("holdouts_spent", e.holdoutsSpent),
+        ("forward_ok", e.forwardOk), ("no_data_ok", e.noDataOk), ("diff_ok", e.diffOk), ("guard_tripped", e.guardTripped), ("decay", decayName e.decay), ("alpha_lifted", e.alphaLifted),
+        ("score", scoreName e.score), ("cap", qj cap)]),
+      ("expected", Json.mkObj [("stage", stageName (nextStage tier stage e)), ("cap", qj (shareCap tier stage e cap))])]]
+  return file "admission" ["AetherFormal/Admission.lean"] cases
+
+/-! ### session_resolve -/
+
+open SessionResolve in
+def sessionResolve : Gen Json := do
+  let mut cases : List Json := []
+  for _ in [0:400] do
+    let count ← nextNat 12
+    let mut sessions : List Nat := []
+    for _ in [0:count] do
+      sessions := sessions ++ [← nextNat 60]
+    let now ← nextNat 70
+    let overridden ← randBool
+    let o ← nextNat 70
+    let ov : Option Nat := if overridden then some o else none
+    let out := resolve sessions now ov
+    cases := cases ++ [Json.mkObj [
+      ("input", Json.mkObj [("sessions", toJson sessions), ("now", now), ("override", match ov with | some v => toJson v | none => Json.null)]),
+      ("expected", Json.mkObj [("session", match out with | some v => toJson v | none => Json.null)])]]
+  return file "session_resolve" ["AetherFormal/SessionResolve.lean"] cases
+
+/-! ### holdout_once -/
+
+open HoldoutOnce in
+def holdoutOnce : Gen Json := do
+  let names : List String := ["V1", "V2", "V3", "P", "CV", "CS"]
+  let mut cases : List Json := []
+  for _ in [0:300] do
+    let ledgerSize ← nextNat 4
+    let mut ledger : List String := []
+    for _ in [0:ledgerSize] do
+      let c ← pick names
+      if !(ledger.contains c) then ledger := ledger ++ [c]
+    let readSize := (← nextNat 3) + 1
+    let mut cells : List String := []
+    for _ in [0:readSize] do
+      let c ← pick names
+      if !(cells.contains c) then cells := cells ++ [c]
+    let out := record ledger cells
+    cases := cases ++ [Json.mkObj [
+      ("input", Json.mkObj [("ledger", toJson ledger), ("cells", toJson cells)]),
+      ("expected", Json.mkObj [("refused", out.isNone), ("ledger", toJson (out.getD ledger))])]]
+  return file "holdout_once" ["AetherFormal/HoldoutOnce.lean"] cases
+
 def all : List (String × Gen Json) :=
   [("order_gate", orderGate), ("hash_chain", hashChain), ("book_neutrality", bookNeutrality),
    ("book_construction", bookConstruction), ("risk_controls", riskControls), ("kill_switch", killSwitch),
    ("position_sizing", positionSizing), ("cost_model", costModel), ("reconciliation", reconciliation),
-   ("sleeve_guard", sleeveGuard), ("json_safety", jsonSafety), ("generation_blend", generationBlend), ("generation_glide", generationGlide)]
+   ("sleeve_guard", sleeveGuard), ("json_safety", jsonSafety), ("generation_blend", generationBlend), ("generation_glide", generationGlide),
+   ("admission", admission), ("session_resolve", sessionResolve), ("holdout_once", holdoutOnce)]
 
 end AetherFormal.GenCases
 

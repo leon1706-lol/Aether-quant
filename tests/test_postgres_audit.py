@@ -81,3 +81,33 @@ def test_fetch_all_events_ordered_returns_oldest_first_query():
     executed_sql = cur_mock.execute.call_args[0][0]
     assert "ORDER BY id ASC" in executed_sql
     assert len(rows) == 2
+
+
+# --- V6.6.4 (Problems #339): a database no audit worker has written to ---------------------------------------------------------------------------------
+
+class UndefinedTable(Exception):  # psycopg.errors.UndefinedTable by name
+    pass
+
+
+def test_missing_audit_table_reads_as_no_entries():
+    from unittest.mock import MagicMock
+
+    from audit.postgres_audit import fetch_all_events_ordered, fetch_recent_events
+
+    conn = MagicMock()
+    conn.cursor.return_value.__enter__.return_value.execute.side_effect = UndefinedTable('relation "audit_log" does not exist')
+    assert fetch_all_events_ordered(conn) == [] and fetch_recent_events(conn) == []
+    assert conn.rollback.call_count == 2
+
+
+def test_other_audit_read_errors_still_raise():
+    from unittest.mock import MagicMock
+
+    import pytest
+
+    from audit.postgres_audit import fetch_all_events_ordered
+
+    conn = MagicMock()
+    conn.cursor.return_value.__enter__.return_value.execute.side_effect = RuntimeError("connection lost")
+    with pytest.raises(RuntimeError):
+        fetch_all_events_ordered(conn)

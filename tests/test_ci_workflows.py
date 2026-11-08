@@ -46,6 +46,26 @@ def test_research_cycle_runs_daily_shares_the_ledgers_lock_and_writes_only_its_o
     assert "secrets." not in (ROOT / ".github" / "workflows" / "research-cycle.yml").read_text(encoding="utf-8")
 
 
+def test_python_compat_checks_the_minimum_python_of_the_sources_and_not_only_that_they_compile():
+    steps = _load(CI)["jobs"]["python-compat"]["steps"]
+    text = "\n".join(str(step.get("run", "")) for step in steps)
+    assert "compileall" in text and "vermin==" in text and "-t=3.10-" in text and "--violations" in text
+    pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    assert 'requires-python = ">=3.10"' in pyproject, "the check and the metadata must name the same floor"
+    assert "datetime import UTC" not in (ROOT / "evaluation" / "lean_statistics.py").read_text(encoding="utf-8")
+
+
+def test_formal_workflow_builds_the_proofs_with_read_only_permission_and_runs_on_spec_changes():
+    path = ROOT / ".github" / "workflows" / "formal.yml"
+    workflow = _load(path)
+    on = workflow["on"] if "on" in workflow else workflow[True]
+    assert workflow["permissions"] == {"contents": "read"}
+    assert "formal/**" in on["push"]["paths"] and "aether_quant/_formal_cases/**" in on["push"]["paths"] and "workflow_dispatch" in on and on["schedule"]
+    for modeled in ("audit/hash_chain.py", "execution/order_gate.py", "evaluation/generation_registry.py", "evaluation/forward_ledger.py", "evaluation/research_cells.py"):
+        assert modeled in on["push"]["paths"], f"{modeled} is modelled in Lean, so a change to it re-runs the proofs"
+    assert "secrets." not in path.read_text(encoding="utf-8")
+
+
 def test_keepalive_re_enables_the_ledger_workflows_with_one_permission_and_no_secret():
     path = ROOT / ".github" / "workflows" / "keepalive.yml"
     workflow = _load(path)
@@ -274,7 +294,7 @@ def test_scripts_and_test_files_the_workflows_reference_exist():
 def test_fast_guards_and_parity_smoke_run_the_expected_test_files():
     jobs = _load(CI)["jobs"]
     fast = _scripts(jobs["fast-guards"])
-    for name in ("test_ci_workflows", "test_packaging_modules", "test_docs_links", "test_cli_help_surface", "test_v550_parity_fixes"):
+    for name in ("test_ci_workflows", "test_packaging_modules", "test_docs_links", "test_cli_help_surface", "test_v550_parity_fixes", "test_docs_facts", "test_aether_quant_coverage"):
         assert name in fast
     assert "test_subsystem_test_files_maps_every_real_test_file_to_exactly_one_bucket" in fast
     parity = _scripts(jobs["parity-smoke"])

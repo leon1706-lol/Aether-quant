@@ -12,6 +12,9 @@ Tools run by hand, outside the runtime and the `aq` CLI. Most Lean-reading work 
 | `check_test_count_drift.py` | The README's test count against `pytest --collect-only` |
 | `readme_freshness.py` | Every Backtest Statistics block with its date and run; fails on a stale one |
 | `feature_parity_audit.py` | Every offline feature has a runtime twin (`--synthetic-only` needs no data) |
+| `library_gate.py`, `install_hooks.py` | Every public name is in `aether_quant` or explained (the pre-commit hook and CI's fast-guards run it); the hook installer |
+| `check_axioms.py`, `mutation_check.py` | The Lean theorems rest on the standard axioms only; changed comparisons and constants in seven safety modules, and how many the tests catch |
+| `field_test_services.py`, `field_services.sh` | Real Redis and Postgres as plain processes: events flow, a tampered row is found, each service stops and restarts under a running pipeline |
 
 ## Codespaces
 
@@ -47,6 +50,9 @@ Tools run by hand, outside the runtime and the `aq` CLI. Most Lean-reading work 
 | `forward_ledger.py`, `extend_frozen_weights.py` | The forward ledger; a frozen rule's weights on new sessions |
 | `freeze_run_config.py`, `vault_record.py` | Freeze a run's config; record a round in AetherVault |
 | `build_trial_registry.py` | Every scored variant, for the deflated Sharpe's trial count |
+| `build_filing_signals.py` | Earnings-release dates and year-on-year filing similarity from EDGAR, for the selection names (needs `AQ_SEC_CONTACT`, never stored) |
+| `k09_decide.py` | k09's weights for one session (a forward observer); RUNBOOK "Research cycle" |
+| `v664_write_rounds.py`, `v664_crypto_gbm.py`, `v664_register_observers.py`, `v664_eos_repin.py` | The V6.6.4 chain: the two pre-registered rounds, the crypto GBM trial, the observers, the EOS re-pin |
 | `ml_manifest.py` | SHA-256 of the installed models. Diff it across hosts and before a Lean run |
 
 ## Analysis and profiling

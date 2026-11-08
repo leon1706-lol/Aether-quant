@@ -81,3 +81,30 @@ def test_fetch_observation_mode_events_decodes_json_string_payloads():
     events = fetch_observation_mode_events(conn_mock)
 
     assert events == [{"symbol": "AAPL"}]
+
+
+# --- V6.6.4 (Problems #339): a database the experience worker never touched -------------------------------------------------------------------------
+
+class UndefinedTable(Exception):  # psycopg.errors.UndefinedTable by name, so the test needs no database
+    pass
+
+
+def test_a_missing_experience_table_reads_as_no_events_not_a_crash():
+    from unittest.mock import MagicMock
+
+    conn = MagicMock()
+    cursor = conn.cursor.return_value.__enter__.return_value
+    cursor.execute.side_effect = UndefinedTable('relation "experience_events" does not exist')
+    assert fetch_observation_mode_events(conn) == []
+    conn.rollback.assert_called_once()
+
+
+def test_any_other_database_error_still_raises():
+    from unittest.mock import MagicMock
+
+    import pytest
+
+    conn = MagicMock()
+    conn.cursor.return_value.__enter__.return_value.execute.side_effect = RuntimeError("connection lost")
+    with pytest.raises(RuntimeError):
+        fetch_observation_mode_events(conn)

@@ -28,6 +28,8 @@ from evaluation.alpha_proof import (
 from evaluation.trial_ledger import append_trial, candidate_ids, deflation_inputs, legacy_trials, read_ledger
 from evaluation.wide_context import WideCell, crypto_cell, daily_returns_for, equity_cell, liquid_mask_for_cell, path_config, sharpe_at_sessions, signal_ic_t, slice_market
 
+from evaluation.wide_context import calendar_rows, crypto_ic, lag_onto, load_ohlcv, load_raw_closes, project_tickers, read_info, wide_config_for
+
 __all__ = [
     "FACTOR_COLUMNS",
     "ResearchContext",
@@ -43,9 +45,11 @@ __all__ = [
     "build_factor_returns",
     "build_factor_scores",
     "build_registry",
+    "calendar_rows",
     "candidate_ids",
     "collect_trials",
     "crypto_cell",
+    "crypto_ic",
     "daily_gap_breakdown",
     "daily_returns_for",
     "dedupe",
@@ -62,9 +66,12 @@ __all__ = [
     "ic_summary",
     "identity_check",
     "label_shuffle_check",
+    "lag_onto",
     "learning_curve",
     "legacy_trials",
     "liquid_mask_for_cell",
+    "load_ohlcv",
+    "load_raw_closes",
     "load_research_frame",
     "max_drawdown",
     "measured_annualization",
@@ -77,7 +84,9 @@ __all__ = [
     "placebo_sharpes",
     "predict_scores",
     "probability_of_backtest_overfitting",
+    "project_tickers",
     "r_alpha1",
+    "read_info",
     "read_ledger",
     "rung_attribution",
     "score_sleeve",
@@ -93,5 +102,6 @@ __all__ = [
     "to_sessions",
     "training_gap_report",
     "weights_for",
+    "wide_config_for",
     "window_report",
 ]

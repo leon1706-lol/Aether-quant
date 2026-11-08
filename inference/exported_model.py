@@ -776,8 +776,8 @@ def _multihead_attention(
     causal TCN trunk instead - simpler to verify bit-for-bit end-to-end;
     see train.py's module docstring for that scope decision). Hand-
     verified against a small synthetic single-head example
-    (tests/test_exported_model.py), not yet exercised by a real trained
-    export.
+    (tests/test_exported_model.py). No real trained export of this
+    model exists, so it has only run on that example.
 
     `causal=True` (default) masks each position from attending to any
     future position - same no-lookahead invariant _conv1d_causal() above

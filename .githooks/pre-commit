@@ -27,3 +27,10 @@ else
     echo "pre-commit: could not find 'aq' or 'python' to run secrets-check" >&2
     exit 1
 fi
+
+# V6.6.4 - the library gate: a public function that no aether_quant facade exports blocks the commit (scripts/library_gate.py). It reads the source and imports nothing.
+if command -v python >/dev/null 2>&1; then
+    python scripts/library_gate.py
+elif command -v python3 >/dev/null 2>&1; then
+    python3 scripts/library_gate.py
+fi

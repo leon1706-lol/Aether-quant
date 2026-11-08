@@ -1,9 +1,9 @@
 # Lean CLI / local development
 # NOTE: the correct PyPI name is "lean", not "lean-cli" - "lean-cli" and the
 # formerly-listed "qcalgorithm" do not exist on PyPI at all (confirmed via
-# PyPI's JSON API: both 404). Neither is needed to run `pytest` (main.py has
-# no direct unit tests - it requires AlgorithmImports/Lean, which no test
-# file imports), so this was never caught until a truly clean install was
+# PyPI's JSON API: both 404). Neither is needed to run `pytest` (main.py imports
+# only inside Lean; tests/test_main_wiring.py and test_main_on_data_target_weights.py
+# load it against a stub AlgorithmImports), so this was never caught until a truly clean install was
 # attempted (CI, or a fresh machine) rather than an existing dev venv.
 # Phase 4.8 - this is no longer dev-only: requirements/requirements.txt
 # (the Docker image's own requirements file) now also lists it, so
@@ -69,3 +69,6 @@ pytest-cov>=5.0.0
 # (tests/test_ci_workflows.py keeps the two equal): an unbounded range let
 # local ruff and CI ruff disagree about what is clean.
 ruff==0.16.4
+
+# Property-based tests (V6.6.4): tests/test_v664_properties.py, derandomized so a failure reproduces on every host
+hypothesis>=6.100

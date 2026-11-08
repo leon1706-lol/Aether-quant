@@ -699,7 +699,7 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         # execution/reconciliation.py (grouped here, not a dedicated
         # "execution" bucket, alongside every other production-safety
         # risk mechanism in this list).
-        "test_kill_switch.py", "test_reconciliation.py",
+        "test_kill_switch.py", "test_v664_mutation_safety.py", "test_reconciliation.py",
     ],
     "portfolio": [
         "test_portfolio_book_construction.py", "test_options_strategy.py", "test_cash_sweep.py",
@@ -742,7 +742,7 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
     "data-pipeline": [
         "test_sp500_membership.py", "test_binance_archive.py", "test_wide_info.py", "test_net_retry.py",
         "test_alt_data_v650.py", "test_build_pre2013_root.py", "test_fetch.py", "test_ib_backfill.py", "test_fred_backfill.py", "test_yfinance_backfill.py",
-        "test_dividend_backfill.py", "test_factor_file_backfill.py",
+        "test_dividend_backfill.py", "test_factor_file_backfill.py", "test_filing_text.py",
         "test_refresh_lean_interest_rate.py",
         # V5.8.0 - data_pipeline/data_audit.py.
         "test_data_audit.py",
@@ -801,11 +801,11 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         "test_paper_readiness_io.py", "test_paper_readiness_report.py", "test_paper_readiness_scheduler.py",
         # V5.5.0 - main.py's order-path methods against a minimal Lean stub (the first unit coverage
         # main.py has ever had - tests/test_main_wiring.py's own docstring says what it does NOT prove).
-        "test_main_wiring.py", "test_main_ensure_ready_smoke.py",
+        "test_main_wiring.py", "test_main_on_data_target_weights.py", "test_main_ensure_ready_smoke.py",
     ],
     "evaluation": [
         # V6.6.1 - the third round's tools, and generations that hand over.
-        "test_model_audit.py", "test_walk_forward_linear.py", "test_research_round.py", "test_alpha_decay.py", "test_generation_registry.py", "test_generation_ledger.py",
+        "test_model_audit.py", "test_walk_forward_linear.py", "test_research_round.py", "test_alpha_decay.py", "test_generation_registry.py", "test_v664_mutation_ledgers.py", "test_generation_ledger.py",
         "test_glide_calibration.py", "test_cycle_daily.py", "test_research_cycle.py", "test_cycle_retrain.py", "test_aq_cycle_cli.py", "test_cycle_lean.py",
         "test_v660_fixes.py", "test_power_analysis.py", "test_research_cells.py", "test_wide_signals.py", "test_v660_research.py", "test_v660_round2.py",
         "test_target_weights_engine.py", "test_trial_ledger.py", "test_premia_research.py", "test_v650_lean.py", "test_v650_scripts.py",
@@ -813,7 +813,10 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         "test_research_harness.py", "test_pbo.py", "test_factor_spanning.py", "test_overfit_diagnostics.py",
         "test_leakage_audit.py", "test_research_probes.py", "test_sim_lean_calibration.py", "test_trial_registry.py",
         # V6.4.4 - the trend sleeve simulator and the alpha proof.
-        "test_trend_sleeve_backtest.py", "test_alpha_proof.py", "test_gate_replica_audit.py", "test_forward_ledger.py", "test_v664_late_session.py",
+        "test_trend_sleeve_backtest.py", "test_alpha_proof.py", "test_gate_replica_audit.py", "test_forward_ledger.py",
+        # V6.6.4 - a fourth round: crypto and filing signals, the late-session fix, property tests, the re-pin.
+        "test_v664_late_session.py", "test_crypto_signals.py", "test_filing_signals.py", "test_v664_crypto_gbm.py", "test_v664_write_rounds.py", "test_v664_sanity.py",
+        "test_v664_properties.py", "test_v664_eos_repin.py", "test_round_builders.py", "test_v664_register_observers.py", "test_k09_decide.py",
         "test_research_runners.py",
         "test_rank_book_simulator.py", "test_book_neutrality.py", "test_cost_model.py",
         "test_model_predictions.py", "test_evaluation_state.py", "test_sector_map.py",
@@ -904,11 +907,12 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         "test_formal_differential_position_sizing.py", "test_formal_differential_cost_model.py",
         "test_formal_differential_reconciliation.py", "test_formal_differential_sleeve_guard.py",
         "test_formal_differential_json_safety.py", "test_v643_formal_findings.py", "test_formal_differential_generation_blend.py", "test_formal_differential_generation_glide.py",
+        "test_formal_differential_admission.py", "test_formal_differential_session_resolve.py", "test_formal_differential_holdout_once.py", "test_check_axioms.py", "test_formal_no_sorry.py", "test_verification_matrix.py",
     ],
     "meta": [
         "test_ci_workflows.py", "test_aq_test_ruff_flag.py", "test_packaging_modules.py", "test_docs_links.py", "test_docs_facts.py",
         # V6.4.3 - the aether_quant library's public surface and quickstart.
-        "test_aether_quant_api.py", "test_aether_quant_quickstart.py",
+        "test_aether_quant_api.py", "test_aether_quant_quickstart.py", "test_aether_quant_coverage.py", "test_install_hooks.py", "test_module_has_test.py", "test_mutation_check.py",
         "test_ci_scripts.py", "test_codespace_lean_scripts.py", "test_lean_smoke_scripts.py", "test_v644_fixes.py", "test_readme_freshness.py",
     ],
 }
@@ -4411,6 +4415,32 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_verify(args: argparse.Namespace) -> int:
+    """`aq verify` (V6.6.4): every way this project can be verified, in one table (evaluation/verification_matrix.py, development/verification.md)."""
+    from evaluation import verification_matrix as matrix
+
+    if args.write_doc:
+        path = ROOT_DIR / "development" / "verification.md"
+        text = path.read_text(encoding="utf-8")
+        start, end = "<!-- AQ:VERIFICATION_START -->", "<!-- AQ:VERIFICATION_END -->"
+        if start not in text or end not in text:
+            print("development/verification.md has no AQ:VERIFICATION markers", file=sys.stderr)
+            return 1
+        head, rest = text.split(start, 1)
+        _, tail = rest.split(end, 1)
+        path.write_text(f"{head}{start}\n{matrix.markdown()}\n{end}{tail}", encoding="utf-8", newline="\n")
+        print(f"wrote {path}")
+        return 0
+    if args.list or not (args.quick or args.record):
+        print(matrix.markdown())
+        return 0
+    results = matrix.run_quick(ROOT_DIR)
+    if args.record:
+        matrix.record(Path(args.record), results)
+        print(f"recorded {args.record}")
+    return 0 if all(item["exit"] == 0 for item in results) else 1
+
+
 def cmd_docs_sync(args: argparse.Namespace) -> int:
     import docs_facts
 
@@ -5309,6 +5339,13 @@ def build_parser() -> argparse.ArgumentParser:
     docs_sync_parser = docs_subparsers.add_parser("sync", help="Rewrite every <!--fact:key--> value from its source")
     docs_sync_parser.add_argument("--check", action="store_true", help="Change nothing; exit 1 if a value is stale")
     docs_sync_parser.set_defaults(func=cmd_docs_sync)
+
+    verify_parser = subparsers.add_parser("verify", help="Every way to verify the project: the table, and the checks a small machine can run")
+    verify_parser.add_argument("--list", action="store_true", help="Print the table of verification surfaces (default)")
+    verify_parser.add_argument("--quick", action="store_true", help="Run the checks that fit a 4 GB machine: ruff, doc facts, the library gate, the sorry scan, secrets, the guard tests")
+    verify_parser.add_argument("--record", default=None, metavar="FILE", help="Run --quick and write the results as JSON")
+    verify_parser.add_argument("--write-doc", action="store_true", help="Regenerate the table in development/verification.md")
+    verify_parser.set_defaults(func=cmd_verify)
 
     status_parser = subparsers.add_parser("status", help="Show git status")
     status_parser.set_defaults(func=cmd_status)

@@ -1,0 +1,6628 @@
+{
+ "target": "session_resolve",
+ "spec_files": [
+  "AetherFormal/SessionResolve.lean"
+ ],
+ "cases": [
+  {
+   "input": {
+    "sessions": [],
+    "override": null,
+    "now": 17
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     46,
+     1,
+     5,
+     42,
+     24,
+     2,
+     16,
+     39,
+     44,
+     23
+    ],
+    "override": null,
+    "now": 38
+   },
+   "expected": {
+    "session": 24
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     27,
+     27,
+     55,
+     2,
+     43
+    ],
+    "override": null,
+    "now": 0
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     28,
+     54,
+     50,
+     21,
+     2,
+     16
+    ],
+    "override": 23,
+    "now": 1
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     59,
+     48,
+     26,
+     47,
+     40,
+     52,
+     30,
+     49
+    ],
+    "override": null,
+    "now": 66
+   },
+   "expected": {
+    "session": 59
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     23,
+     35,
+     51,
+     50,
+     29,
+     46,
+     12,
+     13
+    ],
+    "override": 66,
+    "now": 49
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [],
+    "override": 18,
+    "now": 7
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     56
+    ],
+    "override": 62,
+    "now": 67
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     37,
+     56
+    ],
+    "override": null,
+    "now": 41
+   },
+   "expected": {
+    "session": 37
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     14,
+     30,
+     2,
+     40,
+     9,
+     38,
+     41,
+     54,
+     10,
+     53,
+     41
+    ],
+    "override": 42,
+    "now": 57
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     38,
+     39,
+     25,
+     1,
+     34,
+     52,
+     47,
+     22
+    ],
+    "override": null,
+    "now": 49
+   },
+   "expected": {
+    "session": 47
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     10,
+     13,
+     6,
+     48,
+     42,
+     10,
+     52,
+     48,
+     52
+    ],
+    "override": null,
+    "now": 29
+   },
+   "expected": {
+    "session": 13
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     5,
+     30,
+     49,
+     34
+    ],
+    "override": null,
+    "now": 58
+   },
+   "expected": {
+    "session": 49
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     57,
+     7
+    ],
+    "override": 1,
+    "now": 53
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     37,
+     26,
+     17,
+     22,
+     31,
+     46,
+     18,
+     32,
+     24,
+     18
+    ],
+    "override": 21,
+    "now": 37
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     21,
+     30,
+     58,
+     11,
+     54
+    ],
+    "override": 25,
+    "now": 19
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     53,
+     41,
+     23
+    ],
+    "override": null,
+    "now": 5
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     5,
+     3,
+     36,
+     49,
+     49
+    ],
+    "override": 65,
+    "now": 58
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     7
+    ],
+    "override": null,
+    "now": 57
+   },
+   "expected": {
+    "session": 7
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     27,
+     10,
+     45,
+     56,
+     24
+    ],
+    "override": 64,
+    "now": 50
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     3,
+     35,
+     28,
+     8,
+     34,
+     34,
+     41
+    ],
+    "override": null,
+    "now": 48
+   },
+   "expected": {
+    "session": 41
+   }
+  },
+  {
+   "input": {
+    "sessions": [],
+    "override": null,
+    "now": 46
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     12,
+     45,
+     32,
+     7,
+     50,
+     38,
+     26
+    ],
+    "override": null,
+    "now": 45
+   },
+   "expected": {
+    "session": 45
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     28,
+     56,
+     28,
+     57,
+     25,
+     26,
+     27,
+     31,
+     45,
+     35
+    ],
+    "override": null,
+    "now": 17
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     52,
+     11,
+     31,
+     43,
+     54,
+     12,
+     28,
+     41,
+     19,
+     27,
+     41
+    ],
+    "override": null,
+    "now": 2
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     44,
+     43,
+     25,
+     52,
+     51,
+     29,
+     11,
+     56,
+     2,
+     37
+    ],
+    "override": null,
+    "now": 17
+   },
+   "expected": {
+    "session": 11
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     7,
+     21
+    ],
+    "override": 12,
+    "now": 53
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     41,
+     46,
+     25,
+     54,
+     14,
+     59,
+     25,
+     57
+    ],
+    "override": null,
+    "now": 67
+   },
+   "expected": {
+    "session": 59
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     33,
+     42,
+     31
+    ],
+    "override": 58,
+    "now": 25
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     6,
+     25,
+     9
+    ],
+    "override": 47,
+    "now": 19
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     8,
+     42,
+     15,
+     13,
+     51,
+     8,
+     24
+    ],
+    "override": 50,
+    "now": 69
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     17,
+     50,
+     19,
+     8,
+     24,
+     56,
+     0,
+     31,
+     34,
+     32
+    ],
+    "override": 57,
+    "now": 51
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     8,
+     15,
+     40,
+     39,
+     25,
+     41,
+     38,
+     41
+    ],
+    "override": null,
+    "now": 29
+   },
+   "expected": {
+    "session": 25
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     17,
+     4,
+     30,
+     54,
+     58,
+     2,
+     45,
+     17,
+     47,
+     38
+    ],
+    "override": null,
+    "now": 21
+   },
+   "expected": {
+    "session": 17
+   }
+  },
+  {
+   "input": {
+    "sessions": [],
+    "override": 23,
+    "now": 42
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     36,
+     5
+    ],
+    "override": 63,
+    "now": 66
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     8,
+     45,
+     44,
+     53,
+     12,
+     2,
+     1
+    ],
+    "override": null,
+    "now": 54
+   },
+   "expected": {
+    "session": 53
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     40,
+     54,
+     33,
+     36,
+     38,
+     51,
+     2,
+     27,
+     1,
+     10,
+     27
+    ],
+    "override": 66,
+    "now": 26
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     37,
+     15,
+     21,
+     7,
+     27
+    ],
+    "override": 29,
+    "now": 11
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     10,
+     48,
+     33,
+     7,
+     15,
+     8,
+     7,
+     58,
+     49,
+     53
+    ],
+    "override": null,
+    "now": 69
+   },
+   "expected": {
+    "session": 58
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     6,
+     8,
+     11,
+     29,
+     23,
+     55,
+     48,
+     43,
+     7,
+     52,
+     25
+    ],
+    "override": null,
+    "now": 31
+   },
+   "expected": {
+    "session": 29
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     36,
+     58,
+     9,
+     5,
+     10,
+     44
+    ],
+    "override": null,
+    "now": 69
+   },
+   "expected": {
+    "session": 58
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     16,
+     7,
+     37,
+     29,
+     6,
+     55,
+     51,
+     1,
+     54,
+     23
+    ],
+    "override": null,
+    "now": 1
+   },
+   "expected": {
+    "session": 1
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     30,
+     59,
+     45
+    ],
+    "override": 47,
+    "now": 9
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [],
+    "override": 36,
+    "now": 41
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     42,
+     57,
+     35,
+     38,
+     3,
+     7
+    ],
+    "override": null,
+    "now": 65
+   },
+   "expected": {
+    "session": 57
+   }
+  },
+  {
+   "input": {
+    "sessions": [],
+    "override": 37,
+    "now": 7
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     56,
+     27,
+     8,
+     44,
+     46,
+     45,
+     16,
+     1,
+     38,
+     35
+    ],
+    "override": null,
+    "now": 42
+   },
+   "expected": {
+    "session": 38
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     55,
+     55,
+     1,
+     56,
+     8
+    ],
+    "override": 69,
+    "now": 10
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     20,
+     43,
+     22,
+     2,
+     25,
+     6,
+     8,
+     51,
+     36,
+     39
+    ],
+    "override": null,
+    "now": 37
+   },
+   "expected": {
+    "session": 36
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     35,
+     33,
+     58,
+     42,
+     13,
+     14
+    ],
+    "override": null,
+    "now": 46
+   },
+   "expected": {
+    "session": 42
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     47,
+     56,
+     43,
+     45,
+     55,
+     20,
+     45
+    ],
+    "override": 34,
+    "now": 27
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     22,
+     43,
+     29,
+     56,
+     15
+    ],
+    "override": 55,
+    "now": 68
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     50,
+     28,
+     2,
+     25,
+     54,
+     40,
+     32,
+     18,
+     34
+    ],
+    "override": null,
+    "now": 16
+   },
+   "expected": {
+    "session": 2
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     10,
+     0,
+     21,
+     42,
+     10,
+     18,
+     32,
+     41,
+     53,
+     58
+    ],
+    "override": 26,
+    "now": 11
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     2,
+     26,
+     47,
+     16,
+     3,
+     31,
+     45
+    ],
+    "override": null,
+    "now": 59
+   },
+   "expected": {
+    "session": 47
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     1,
+     40
+    ],
+    "override": null,
+    "now": 30
+   },
+   "expected": {
+    "session": 1
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     42,
+     34,
+     38,
+     27
+    ],
+    "override": null,
+    "now": 3
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     4,
+     35,
+     14,
+     28,
+     4,
+     41,
+     56,
+     43
+    ],
+    "override": null,
+    "now": 16
+   },
+   "expected": {
+    "session": 14
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     58,
+     42,
+     40,
+     12,
+     15,
+     1,
+     39,
+     52,
+     13
+    ],
+    "override": 67,
+    "now": 16
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     32,
+     48,
+     31,
+     41,
+     4,
+     42,
+     28,
+     23,
+     45,
+     35,
+     11
+    ],
+    "override": null,
+    "now": 41
+   },
+   "expected": {
+    "session": 41
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     53,
+     42
+    ],
+    "override": null,
+    "now": 44
+   },
+   "expected": {
+    "session": 42
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     54,
+     2,
+     57,
+     53,
+     54
+    ],
+    "override": 69,
+    "now": 20
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     53,
+     40
+    ],
+    "override": 0,
+    "now": 3
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     42,
+     27,
+     11,
+     54,
+     30,
+     15,
+     24,
+     28,
+     3,
+     4,
+     40
+    ],
+    "override": 35,
+    "now": 9
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     13,
+     4,
+     36,
+     44,
+     26,
+     48,
+     44,
+     48,
+     39,
+     49,
+     4
+    ],
+    "override": null,
+    "now": 3
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     30,
+     41,
+     34,
+     46,
+     9,
+     25,
+     2
+    ],
+    "override": null,
+    "now": 23
+   },
+   "expected": {
+    "session": 9
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     42
+    ],
+    "override": null,
+    "now": 66
+   },
+   "expected": {
+    "session": 42
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     32,
+     29,
+     31,
+     44,
+     22,
+     39,
+     26,
+     53,
+     31
+    ],
+    "override": null,
+    "now": 47
+   },
+   "expected": {
+    "session": 44
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     55,
+     42,
+     54
+    ],
+    "override": 59,
+    "now": 11
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     11,
+     51,
+     43,
+     10,
+     29,
+     14,
+     31,
+     17,
+     44,
+     11
+    ],
+    "override": null,
+    "now": 31
+   },
+   "expected": {
+    "session": 31
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     51,
+     17,
+     53,
+     45
+    ],
+    "override": 24,
+    "now": 13
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     9,
+     3,
+     9,
+     36,
+     52
+    ],
+    "override": null,
+    "now": 52
+   },
+   "expected": {
+    "session": 52
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     31,
+     39
+    ],
+    "override": 52,
+    "now": 54
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [],
+    "override": null,
+    "now": 63
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [],
+    "override": null,
+    "now": 68
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     39
+    ],
+    "override": 66,
+    "now": 44
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     58,
+     57,
+     14
+    ],
+    "override": 4,
+    "now": 46
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     51,
+     18,
+     24,
+     41,
+     54,
+     42
+    ],
+    "override": 3,
+    "now": 10
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [],
+    "override": 4,
+    "now": 23
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     21,
+     44,
+     0
+    ],
+    "override": 19,
+    "now": 38
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     47,
+     44,
+     43,
+     50,
+     1,
+     17,
+     59
+    ],
+    "override": null,
+    "now": 53
+   },
+   "expected": {
+    "session": 50
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     39,
+     16,
+     18,
+     57,
+     45,
+     17,
+     34,
+     31
+    ],
+    "override": null,
+    "now": 7
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     38,
+     48,
+     15,
+     59,
+     29,
+     46
+    ],
+    "override": 24,
+    "now": 13
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     34,
+     0,
+     6,
+     51
+    ],
+    "override": 51,
+    "now": 58
+   },
+   "expected": {
+    "session": 51
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     49,
+     24,
+     34,
+     13,
+     1,
+     52,
+     16
+    ],
+    "override": null,
+    "now": 2
+   },
+   "expected": {
+    "session": 1
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     27,
+     4,
+     39,
+     28,
+     59,
+     41,
+     27,
+     6,
+     14
+    ],
+    "override": null,
+    "now": 53
+   },
+   "expected": {
+    "session": 41
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     5,
+     16
+    ],
+    "override": null,
+    "now": 8
+   },
+   "expected": {
+    "session": 5
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     55,
+     22,
+     16,
+     31,
+     52
+    ],
+    "override": null,
+    "now": 50
+   },
+   "expected": {
+    "session": 31
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     4,
+     8,
+     29,
+     53,
+     52,
+     46,
+     59
+    ],
+    "override": null,
+    "now": 2
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     41,
+     40,
+     55,
+     18,
+     21,
+     17,
+     33,
+     51,
+     51,
+     55
+    ],
+    "override": null,
+    "now": 66
+   },
+   "expected": {
+    "session": 55
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     14,
+     39,
+     37,
+     19,
+     50,
+     42,
+     42
+    ],
+    "override": 60,
+    "now": 67
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     50,
+     21,
+     43,
+     44,
+     38,
+     0,
+     9
+    ],
+    "override": 26,
+    "now": 8
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     6,
+     4,
+     38,
+     33,
+     52,
+     48,
+     58,
+     21,
+     18,
+     15
+    ],
+    "override": 47,
+    "now": 64
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     59,
+     3,
+     4
+    ],
+    "override": 60,
+    "now": 60
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     22,
+     36,
+     9,
+     12,
+     45,
+     18
+    ],
+    "override": null,
+    "now": 26
+   },
+   "expected": {
+    "session": 22
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     32,
+     3,
+     35,
+     11
+    ],
+    "override": 50,
+    "now": 28
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     13,
+     44,
+     2
+    ],
+    "override": null,
+    "now": 40
+   },
+   "expected": {
+    "session": 13
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     11
+    ],
+    "override": 65,
+    "now": 57
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     4,
+     42,
+     54,
+     46,
+     16,
+     5,
+     8
+    ],
+    "override": 58,
+    "now": 68
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     15,
+     26,
+     11,
+     21,
+     52,
+     7,
+     45,
+     46,
+     48,
+     15
+    ],
+    "override": 29,
+    "now": 58
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     55
+    ],
+    "override": 1,
+    "now": 60
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     45,
+     49,
+     54,
+     7,
+     55,
+     27
+    ],
+    "override": 16,
+    "now": 7
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     2
+    ],
+    "override": 27,
+    "now": 61
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     24
+    ],
+    "override": null,
+    "now": 1
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     56
+    ],
+    "override": null,
+    "now": 54
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     4,
+     16,
+     52,
+     13,
+     10,
+     55,
+     56,
+     3,
+     17,
+     20
+    ],
+    "override": null,
+    "now": 19
+   },
+   "expected": {
+    "session": 17
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     38,
+     34,
+     39,
+     15,
+     1,
+     35
+    ],
+    "override": 36,
+    "now": 12
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     49,
+     58,
+     57,
+     28,
+     35,
+     57,
+     9,
+     12,
+     50
+    ],
+    "override": 30,
+    "now": 16
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     1,
+     1,
+     20,
+     11,
+     13,
+     12
+    ],
+    "override": 39,
+    "now": 52
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     33,
+     32
+    ],
+    "override": 15,
+    "now": 3
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [],
+    "override": 36,
+    "now": 25
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     44,
+     4,
+     59,
+     25,
+     28,
+     26
+    ],
+    "override": null,
+    "now": 60
+   },
+   "expected": {
+    "session": 59
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     11,
+     50,
+     34,
+     26,
+     9,
+     57,
+     50
+    ],
+    "override": null,
+    "now": 49
+   },
+   "expected": {
+    "session": 34
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     4,
+     12,
+     46,
+     18,
+     58,
+     33,
+     26
+    ],
+    "override": null,
+    "now": 34
+   },
+   "expected": {
+    "session": 33
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     2,
+     28
+    ],
+    "override": 42,
+    "now": 29
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [],
+    "override": null,
+    "now": 17
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     7,
+     3,
+     19,
+     24,
+     34,
+     31,
+     18,
+     56,
+     0,
+     29,
+     8
+    ],
+    "override": 57,
+    "now": 6
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     31,
+     8,
+     52,
+     43,
+     15,
+     2,
+     6,
+     38,
+     15,
+     40
+    ],
+    "override": null,
+    "now": 5
+   },
+   "expected": {
+    "session": 2
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     18,
+     20,
+     12,
+     8,
+     45
+    ],
+    "override": 36,
+    "now": 52
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [],
+    "override": null,
+    "now": 53
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [],
+    "override": null,
+    "now": 9
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     13,
+     30,
+     24,
+     44,
+     56,
+     4,
+     48
+    ],
+    "override": 30,
+    "now": 33
+   },
+   "expected": {
+    "session": 30
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     55,
+     30,
+     30,
+     52,
+     27,
+     6,
+     53,
+     21
+    ],
+    "override": null,
+    "now": 22
+   },
+   "expected": {
+    "session": 21
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     40,
+     24,
+     54,
+     47,
+     40
+    ],
+    "override": 31,
+    "now": 69
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     48,
+     20
+    ],
+    "override": null,
+    "now": 57
+   },
+   "expected": {
+    "session": 48
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     58,
+     54,
+     7,
+     39,
+     21,
+     24,
+     26,
+     40
+    ],
+    "override": null,
+    "now": 59
+   },
+   "expected": {
+    "session": 58
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     30,
+     27,
+     54,
+     32,
+     59
+    ],
+    "override": null,
+    "now": 0
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     43
+    ],
+    "override": 26,
+    "now": 60
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     29,
+     1,
+     16,
+     37,
+     15,
+     41
+    ],
+    "override": 38,
+    "now": 50
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     16
+    ],
+    "override": 41,
+    "now": 0
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     33,
+     15,
+     0,
+     10,
+     50,
+     51,
+     27,
+     34
+    ],
+    "override": null,
+    "now": 48
+   },
+   "expected": {
+    "session": 34
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     20,
+     16
+    ],
+    "override": 56,
+    "now": 21
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     13
+    ],
+    "override": 55,
+    "now": 27
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     21,
+     37,
+     22,
+     25,
+     7,
+     29
+    ],
+    "override": null,
+    "now": 5
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     56
+    ],
+    "override": 13,
+    "now": 62
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     9,
+     27,
+     17
+    ],
+    "override": 65,
+    "now": 21
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     38,
+     8,
+     48,
+     12,
+     39,
+     39,
+     17,
+     46,
+     36
+    ],
+    "override": 41,
+    "now": 12
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     2,
+     53,
+     8,
+     47,
+     26,
+     14,
+     3,
+     58,
+     6
+    ],
+    "override": 56,
+    "now": 57
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     32,
+     1,
+     0,
+     29,
+     21,
+     1,
+     39,
+     44,
+     56,
+     35
+    ],
+    "override": null,
+    "now": 33
+   },
+   "expected": {
+    "session": 32
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     11,
+     56,
+     27,
+     17,
+     51,
+     27
+    ],
+    "override": null,
+    "now": 12
+   },
+   "expected": {
+    "session": 11
+   }
+  },
+  {
+   "input": {
+    "sessions": [],
+    "override": null,
+    "now": 7
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     54,
+     49,
+     9,
+     10,
+     8,
+     42
+    ],
+    "override": 17,
+    "now": 69
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     4,
+     30,
+     4,
+     15,
+     8,
+     57,
+     56,
+     51,
+     31
+    ],
+    "override": 48,
+    "now": 66
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [],
+    "override": 0,
+    "now": 4
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     44,
+     59,
+     0,
+     38
+    ],
+    "override": null,
+    "now": 68
+   },
+   "expected": {
+    "session": 59
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     51,
+     11,
+     48,
+     55,
+     5,
+     35,
+     22,
+     21,
+     43,
+     44,
+     49
+    ],
+    "override": null,
+    "now": 15
+   },
+   "expected": {
+    "session": 11
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     50,
+     24,
+     43,
+     34,
+     5,
+     49,
+     27,
+     32,
+     7,
+     18,
+     44
+    ],
+    "override": null,
+    "now": 10
+   },
+   "expected": {
+    "session": 7
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     13
+    ],
+    "override": null,
+    "now": 36
+   },
+   "expected": {
+    "session": 13
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     47,
+     26
+    ],
+    "override": null,
+    "now": 23
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     43,
+     15,
+     35,
+     14,
+     46,
+     59,
+     54,
+     34
+    ],
+    "override": 6,
+    "now": 5
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     30,
+     47
+    ],
+    "override": null,
+    "now": 56
+   },
+   "expected": {
+    "session": 47
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     45,
+     47,
+     21,
+     8,
+     23,
+     54,
+     48,
+     50,
+     29,
+     20,
+     57
+    ],
+    "override": 41,
+    "now": 49
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [],
+    "override": 30,
+    "now": 35
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     11,
+     57,
+     35,
+     57,
+     25
+    ],
+    "override": null,
+    "now": 7
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     19,
+     6,
+     0,
+     55,
+     36,
+     35,
+     12,
+     55,
+     33
+    ],
+    "override": null,
+    "now": 50
+   },
+   "expected": {
+    "session": 36
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     55,
+     9,
+     7,
+     43
+    ],
+    "override": null,
+    "now": 30
+   },
+   "expected": {
+    "session": 9
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     48,
+     22,
+     48,
+     37,
+     34,
+     56,
+     49,
+     45,
+     56,
+     4
+    ],
+    "override": 54,
+    "now": 11
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     51,
+     12,
+     54,
+     10,
+     48,
+     13,
+     31
+    ],
+    "override": 62,
+    "now": 30
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     21,
+     2,
+     32,
+     45,
+     54,
+     25,
+     13,
+     47
+    ],
+    "override": null,
+    "now": 25
+   },
+   "expected": {
+    "session": 25
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     15,
+     35,
+     0,
+     32,
+     32
+    ],
+    "override": null,
+    "now": 60
+   },
+   "expected": {
+    "session": 35
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     8,
+     56,
+     46,
+     39,
+     24,
+     24,
+     50,
+     26,
+     20
+    ],
+    "override": null,
+    "now": 61
+   },
+   "expected": {
+    "session": 56
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     6,
+     10
+    ],
+    "override": null,
+    "now": 65
+   },
+   "expected": {
+    "session": 10
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     38,
+     12,
+     23
+    ],
+    "override": null,
+    "now": 20
+   },
+   "expected": {
+    "session": 12
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     25,
+     2,
+     50
+    ],
+    "override": null,
+    "now": 38
+   },
+   "expected": {
+    "session": 25
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     28,
+     20,
+     7,
+     37,
+     30,
+     54,
+     50,
+     43,
+     30
+    ],
+    "override": 4,
+    "now": 35
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     52,
+     55,
+     3,
+     47,
+     52,
+     2,
+     29
+    ],
+    "override": 51,
+    "now": 35
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     40,
+     44,
+     7,
+     54,
+     24,
+     5,
+     29,
+     41
+    ],
+    "override": 33,
+    "now": 39
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [],
+    "override": 31,
+    "now": 18
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     2,
+     38
+    ],
+    "override": 8,
+    "now": 9
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     19,
+     23,
+     0,
+     40,
+     40,
+     59,
+     11,
+     11
+    ],
+    "override": null,
+    "now": 56
+   },
+   "expected": {
+    "session": 40
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     31,
+     27,
+     29,
+     21,
+     25,
+     0,
+     33,
+     7,
+     10,
+     55
+    ],
+    "override": 18,
+    "now": 18
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     29,
+     4,
+     45
+    ],
+    "override": 17,
+    "now": 47
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     5,
+     12,
+     52,
+     26,
+     53
+    ],
+    "override": null,
+    "now": 22
+   },
+   "expected": {
+    "session": 12
+   }
+  },
+  {
+   "input": {
+    "sessions": [],
+    "override": null,
+    "now": 19
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     45,
+     11,
+     49,
+     56,
+     32,
+     24,
+     11,
+     55,
+     50,
+     18,
+     24
+    ],
+    "override": 68,
+    "now": 5
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     34,
+     9,
+     7,
+     41,
+     17,
+     29,
+     25,
+     48,
+     13,
+     37,
+     27
+    ],
+    "override": null,
+    "now": 54
+   },
+   "expected": {
+    "session": 48
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     3,
+     8,
+     37,
+     29,
+     12,
+     53
+    ],
+    "override": 57,
+    "now": 23
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     37,
+     35,
+     32,
+     24,
+     22
+    ],
+    "override": 22,
+    "now": 29
+   },
+   "expected": {
+    "session": 22
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     53,
+     43,
+     26,
+     48,
+     9,
+     39,
+     11,
+     42,
+     2,
+     2,
+     32
+    ],
+    "override": 9,
+    "now": 36
+   },
+   "expected": {
+    "session": 9
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     13,
+     46,
+     3,
+     22,
+     20,
+     39,
+     18,
+     53,
+     7,
+     34
+    ],
+    "override": 12,
+    "now": 57
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     41,
+     2,
+     7,
+     43
+    ],
+    "override": null,
+    "now": 68
+   },
+   "expected": {
+    "session": 43
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     43,
+     24,
+     18,
+     36,
+     31,
+     20,
+     1,
+     14,
+     44,
+     22
+    ],
+    "override": null,
+    "now": 0
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     24,
+     22,
+     26,
+     53,
+     22,
+     9,
+     2,
+     19,
+     38
+    ],
+    "override": null,
+    "now": 49
+   },
+   "expected": {
+    "session": 38
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     46,
+     6,
+     39,
+     9,
+     59,
+     1
+    ],
+    "override": 43,
+    "now": 4
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     32
+    ],
+    "override": 53,
+    "now": 2
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     34,
+     3,
+     45,
+     26,
+     12,
+     9,
+     20,
+     3,
+     9,
+     32
+    ],
+    "override": 3,
+    "now": 20
+   },
+   "expected": {
+    "session": 3
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     52,
+     25,
+     8,
+     39,
+     1
+    ],
+    "override": 31,
+    "now": 35
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     8,
+     51,
+     43,
+     3,
+     19,
+     23,
+     29,
+     30,
+     1
+    ],
+    "override": null,
+    "now": 61
+   },
+   "expected": {
+    "session": 51
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     12,
+     50,
+     59
+    ],
+    "override": null,
+    "now": 30
+   },
+   "expected": {
+    "session": 12
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     10,
+     32,
+     22,
+     58,
+     32
+    ],
+    "override": null,
+    "now": 67
+   },
+   "expected": {
+    "session": 58
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     21,
+     16,
+     6,
+     57,
+     3,
+     39,
+     5,
+     5,
+     23,
+     44,
+     39
+    ],
+    "override": 0,
+    "now": 45
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     8,
+     34,
+     32,
+     31,
+     29,
+     5
+    ],
+    "override": 51,
+    "now": 18
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     11,
+     40,
+     35,
+     45,
+     23,
+     58,
+     53,
+     46
+    ],
+    "override": 54,
+    "now": 4
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     15,
+     45,
+     17,
+     36,
+     40,
+     18
+    ],
+    "override": null,
+    "now": 55
+   },
+   "expected": {
+    "session": 45
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     4,
+     5,
+     3,
+     6,
+     43
+    ],
+    "override": 14,
+    "now": 51
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     11,
+     41,
+     26,
+     43,
+     2,
+     11,
+     10
+    ],
+    "override": null,
+    "now": 38
+   },
+   "expected": {
+    "session": 26
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     32,
+     42,
+     9,
+     43,
+     30,
+     12,
+     13,
+     51,
+     7
+    ],
+    "override": null,
+    "now": 11
+   },
+   "expected": {
+    "session": 9
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     44,
+     56,
+     24,
+     21,
+     52,
+     5,
+     12,
+     8,
+     56,
+     42,
+     37
+    ],
+    "override": 68,
+    "now": 18
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     18,
+     29,
+     32,
+     47,
+     45,
+     10
+    ],
+    "override": null,
+    "now": 6
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     22,
+     57,
+     21,
+     46,
+     12,
+     4,
+     10,
+     3,
+     46,
+     9,
+     16
+    ],
+    "override": 30,
+    "now": 30
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     7,
+     54,
+     44,
+     33,
+     44,
+     54,
+     21
+    ],
+    "override": 34,
+    "now": 33
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     2,
+     31
+    ],
+    "override": null,
+    "now": 22
+   },
+   "expected": {
+    "session": 2
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     58
+    ],
+    "override": 4,
+    "now": 7
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     10
+    ],
+    "override": 45,
+    "now": 24
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     18,
+     27,
+     4
+    ],
+    "override": 19,
+    "now": 54
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     53,
+     48,
+     54,
+     25,
+     26,
+     18,
+     21,
+     0,
+     50
+    ],
+    "override": null,
+    "now": 55
+   },
+   "expected": {
+    "session": 54
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     28
+    ],
+    "override": 27,
+    "now": 25
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     13
+    ],
+    "override": null,
+    "now": 59
+   },
+   "expected": {
+    "session": 13
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     50,
+     7,
+     52
+    ],
+    "override": 34,
+    "now": 9
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     36,
+     19,
+     54,
+     47,
+     4,
+     32,
+     59,
+     39,
+     14,
+     26,
+     1
+    ],
+    "override": 48,
+    "now": 18
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     53,
+     29,
+     31,
+     43
+    ],
+    "override": null,
+    "now": 1
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [],
+    "override": null,
+    "now": 60
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     8,
+     33,
+     56,
+     10,
+     38,
+     39,
+     44,
+     34
+    ],
+    "override": null,
+    "now": 69
+   },
+   "expected": {
+    "session": 56
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     0,
+     52,
+     12,
+     29,
+     16,
+     6,
+     38,
+     0,
+     13,
+     10,
+     47
+    ],
+    "override": 68,
+    "now": 32
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     44,
+     29,
+     12,
+     34,
+     17,
+     34,
+     10,
+     51,
+     56
+    ],
+    "override": 61,
+    "now": 57
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     19,
+     10,
+     29,
+     49,
+     20,
+     22
+    ],
+    "override": 58,
+    "now": 0
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [],
+    "override": null,
+    "now": 63
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     34,
+     19,
+     33,
+     39,
+     36,
+     37,
+     40,
+     41,
+     23,
+     37,
+     45
+    ],
+    "override": null,
+    "now": 54
+   },
+   "expected": {
+    "session": 45
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     31,
+     41,
+     54,
+     57,
+     37,
+     34,
+     31,
+     27,
+     22,
+     58,
+     4
+    ],
+    "override": null,
+    "now": 41
+   },
+   "expected": {
+    "session": 41
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     13
+    ],
+    "override": 8,
+    "now": 61
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     27,
+     51,
+     29,
+     22,
+     18,
+     19,
+     47
+    ],
+    "override": null,
+    "now": 38
+   },
+   "expected": {
+    "session": 29
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     48,
+     54,
+     39,
+     25,
+     25,
+     53
+    ],
+    "override": null,
+    "now": 14
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     49,
+     10,
+     46,
+     6
+    ],
+    "override": 25,
+    "now": 3
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     6,
+     27
+    ],
+    "override": 34,
+    "now": 24
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [],
+    "override": null,
+    "now": 44
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     11,
+     32,
+     50,
+     12,
+     24
+    ],
+    "override": null,
+    "now": 37
+   },
+   "expected": {
+    "session": 32
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     53
+    ],
+    "override": 39,
+    "now": 60
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     24,
+     28,
+     59,
+     22,
+     38,
+     15,
+     2,
+     38,
+     43,
+     38
+    ],
+    "override": 17,
+    "now": 28
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     51,
+     26,
+     12,
+     21,
+     38,
+     49,
+     29,
+     8,
+     22,
+     38,
+     25
+    ],
+    "override": null,
+    "now": 4
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     54,
+     22,
+     2,
+     41,
+     50
+    ],
+    "override": null,
+    "now": 40
+   },
+   "expected": {
+    "session": 22
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     15,
+     12,
+     37,
+     1,
+     19,
+     0,
+     5,
+     36,
+     16,
+     0,
+     2
+    ],
+    "override": 34,
+    "now": 60
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     13,
+     26,
+     12,
+     54,
+     24,
+     6,
+     59,
+     56
+    ],
+    "override": 4,
+    "now": 17
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     0,
+     55,
+     34
+    ],
+    "override": 50,
+    "now": 4
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     33,
+     21,
+     51,
+     18,
+     3,
+     42,
+     41,
+     27
+    ],
+    "override": null,
+    "now": 25
+   },
+   "expected": {
+    "session": 21
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     20,
+     32,
+     56,
+     48,
+     30
+    ],
+    "override": null,
+    "now": 15
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     40,
+     52,
+     27
+    ],
+    "override": 38,
+    "now": 42
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     30,
+     21
+    ],
+    "override": null,
+    "now": 20
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     40,
+     31,
+     54,
+     7
+    ],
+    "override": 39,
+    "now": 65
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     12,
+     54,
+     49,
+     38,
+     13,
+     15,
+     44,
+     33,
+     23,
+     29,
+     47
+    ],
+    "override": 24,
+    "now": 11
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     19,
+     46,
+     7,
+     23,
+     9,
+     13
+    ],
+    "override": 1,
+    "now": 66
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     23,
+     28,
+     56,
+     6,
+     20,
+     14,
+     31,
+     58,
+     1,
+     5,
+     34
+    ],
+    "override": 23,
+    "now": 29
+   },
+   "expected": {
+    "session": 23
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     48,
+     52,
+     46,
+     8,
+     38
+    ],
+    "override": null,
+    "now": 61
+   },
+   "expected": {
+    "session": 52
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     59,
+     11,
+     39,
+     25,
+     36,
+     46,
+     11,
+     25
+    ],
+    "override": null,
+    "now": 10
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [],
+    "override": null,
+    "now": 16
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     51
+    ],
+    "override": null,
+    "now": 28
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     45,
+     56,
+     53,
+     29,
+     14
+    ],
+    "override": null,
+    "now": 9
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [],
+    "override": null,
+    "now": 47
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     20
+    ],
+    "override": null,
+    "now": 45
+   },
+   "expected": {
+    "session": 20
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     55,
+     54,
+     43,
+     51
+    ],
+    "override": null,
+    "now": 41
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     35,
+     53,
+     24,
+     6,
+     31,
+     31,
+     16,
+     3
+    ],
+    "override": 48,
+    "now": 49
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     38,
+     19
+    ],
+    "override": null,
+    "now": 18
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     19,
+     43,
+     20,
+     11,
+     50,
+     43,
+     47,
+     43,
+     19,
+     31,
+     25
+    ],
+    "override": 15,
+    "now": 38
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     8,
+     39,
+     1,
+     30
+    ],
+    "override": null,
+    "now": 54
+   },
+   "expected": {
+    "session": 39
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     41,
+     2,
+     18,
+     53,
+     54
+    ],
+    "override": null,
+    "now": 47
+   },
+   "expected": {
+    "session": 41
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     54,
+     54,
+     36,
+     58,
+     39,
+     19,
+     7,
+     26,
+     19,
+     2
+    ],
+    "override": null,
+    "now": 37
+   },
+   "expected": {
+    "session": 36
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     51,
+     53,
+     48,
+     38,
+     22,
+     45,
+     38,
+     4
+    ],
+    "override": null,
+    "now": 8
+   },
+   "expected": {
+    "session": 4
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     14,
+     31,
+     13,
+     44,
+     31,
+     7,
+     34
+    ],
+    "override": null,
+    "now": 12
+   },
+   "expected": {
+    "session": 7
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     4,
+     59,
+     0,
+     51,
+     27,
+     57
+    ],
+    "override": null,
+    "now": 13
+   },
+   "expected": {
+    "session": 4
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     13,
+     38,
+     42,
+     3,
+     11,
+     13,
+     32,
+     17,
+     28
+    ],
+    "override": null,
+    "now": 42
+   },
+   "expected": {
+    "session": 42
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     18,
+     41,
+     51,
+     0,
+     11,
+     17,
+     6,
+     19,
+     49,
+     50
+    ],
+    "override": 12,
+    "now": 38
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     12,
+     38,
+     36,
+     37,
+     49,
+     21,
+     6,
+     43
+    ],
+    "override": null,
+    "now": 13
+   },
+   "expected": {
+    "session": 12
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     16,
+     21,
+     59,
+     42,
+     41
+    ],
+    "override": null,
+    "now": 32
+   },
+   "expected": {
+    "session": 21
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     28,
+     10,
+     6,
+     17
+    ],
+    "override": null,
+    "now": 2
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     29,
+     25,
+     31
+    ],
+    "override": 9,
+    "now": 9
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     56,
+     48,
+     3,
+     32,
+     51,
+     17
+    ],
+    "override": 55,
+    "now": 4
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     18,
+     17,
+     26,
+     35,
+     15,
+     8,
+     35,
+     6,
+     6
+    ],
+    "override": null,
+    "now": 30
+   },
+   "expected": {
+    "session": 26
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     27,
+     58,
+     5,
+     19,
+     9,
+     0,
+     36
+    ],
+    "override": null,
+    "now": 37
+   },
+   "expected": {
+    "session": 36
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     21,
+     6,
+     41,
+     11,
+     48,
+     59,
+     7,
+     42,
+     36,
+     8
+    ],
+    "override": null,
+    "now": 31
+   },
+   "expected": {
+    "session": 21
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     1,
+     17,
+     9,
+     23,
+     48,
+     17,
+     33,
+     14,
+     22,
+     25
+    ],
+    "override": null,
+    "now": 38
+   },
+   "expected": {
+    "session": 33
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     52,
+     2,
+     1,
+     29,
+     28
+    ],
+    "override": 20,
+    "now": 3
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     20,
+     7,
+     42,
+     45,
+     54
+    ],
+    "override": null,
+    "now": 7
+   },
+   "expected": {
+    "session": 7
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     39,
+     34,
+     44,
+     54,
+     58,
+     48,
+     6,
+     14,
+     15
+    ],
+    "override": 30,
+    "now": 19
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     32,
+     46,
+     28,
+     3
+    ],
+    "override": 39,
+    "now": 42
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     47,
+     29,
+     10,
+     31,
+     57,
+     12,
+     1,
+     46
+    ],
+    "override": null,
+    "now": 54
+   },
+   "expected": {
+    "session": 47
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     25,
+     6
+    ],
+    "override": null,
+    "now": 9
+   },
+   "expected": {
+    "session": 6
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     25,
+     22,
+     18
+    ],
+    "override": null,
+    "now": 51
+   },
+   "expected": {
+    "session": 25
+   }
+  },
+  {
+   "input": {
+    "sessions": [],
+    "override": 15,
+    "now": 45
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     21
+    ],
+    "override": null,
+    "now": 13
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [],
+    "override": null,
+    "now": 36
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     57,
+     42,
+     24,
+     36,
+     39,
+     14,
+     59,
+     53,
+     49,
+     26
+    ],
+    "override": null,
+    "now": 5
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     4,
+     56,
+     25,
+     49,
+     56,
+     45,
+     30,
+     9,
+     14,
+     42
+    ],
+    "override": 4,
+    "now": 14
+   },
+   "expected": {
+    "session": 4
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     18,
+     43,
+     13,
+     26,
+     38,
+     41,
+     0,
+     43,
+     36,
+     58
+    ],
+    "override": null,
+    "now": 43
+   },
+   "expected": {
+    "session": 43
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     6,
+     8,
+     44,
+     10,
+     50,
+     25,
+     58,
+     31,
+     4,
+     57
+    ],
+    "override": null,
+    "now": 58
+   },
+   "expected": {
+    "session": 58
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     46,
+     46,
+     22,
+     23,
+     52,
+     21,
+     38,
+     16
+    ],
+    "override": null,
+    "now": 34
+   },
+   "expected": {
+    "session": 23
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     27,
+     24
+    ],
+    "override": 19,
+    "now": 55
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     51,
+     26,
+     5,
+     33,
+     42,
+     54,
+     33
+    ],
+    "override": null,
+    "now": 7
+   },
+   "expected": {
+    "session": 5
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     4
+    ],
+    "override": 58,
+    "now": 8
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     40,
+     37,
+     51,
+     51,
+     48,
+     37,
+     21,
+     18,
+     50,
+     31,
+     25
+    ],
+    "override": 41,
+    "now": 12
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     44,
+     19,
+     55
+    ],
+    "override": 5,
+    "now": 24
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [],
+    "override": null,
+    "now": 26
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     44,
+     22,
+     17,
+     23,
+     46
+    ],
+    "override": 7,
+    "now": 12
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     55,
+     5
+    ],
+    "override": null,
+    "now": 26
+   },
+   "expected": {
+    "session": 5
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     31,
+     13,
+     28,
+     53,
+     36,
+     41,
+     0,
+     55
+    ],
+    "override": null,
+    "now": 55
+   },
+   "expected": {
+    "session": 55
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     22,
+     45,
+     23,
+     57,
+     48
+    ],
+    "override": 18,
+    "now": 35
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     15,
+     26,
+     50
+    ],
+    "override": 33,
+    "now": 52
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     18,
+     11,
+     3,
+     12,
+     38,
+     37,
+     18
+    ],
+    "override": null,
+    "now": 59
+   },
+   "expected": {
+    "session": 38
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     17,
+     54
+    ],
+    "override": null,
+    "now": 25
+   },
+   "expected": {
+    "session": 17
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     55,
+     34,
+     55,
+     14,
+     58
+    ],
+    "override": null,
+    "now": 29
+   },
+   "expected": {
+    "session": 14
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     5,
+     5,
+     58
+    ],
+    "override": 33,
+    "now": 18
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     4,
+     46,
+     51,
+     50,
+     35,
+     19,
+     30
+    ],
+    "override": null,
+    "now": 68
+   },
+   "expected": {
+    "session": 51
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     40,
+     20,
+     54,
+     33,
+     18,
+     0,
+     58,
+     26,
+     43,
+     20
+    ],
+    "override": null,
+    "now": 54
+   },
+   "expected": {
+    "session": 54
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     19,
+     8,
+     20,
+     58,
+     4,
+     5,
+     54
+    ],
+    "override": null,
+    "now": 2
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [],
+    "override": null,
+    "now": 25
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     30,
+     24,
+     21,
+     3
+    ],
+    "override": null,
+    "now": 56
+   },
+   "expected": {
+    "session": 30
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     52,
+     33,
+     28,
+     31,
+     49,
+     20,
+     37,
+     32
+    ],
+    "override": 53,
+    "now": 48
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     19,
+     28,
+     48,
+     0,
+     19,
+     46,
+     46
+    ],
+    "override": 34,
+    "now": 48
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     3
+    ],
+    "override": 40,
+    "now": 43
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     24,
+     2,
+     16,
+     14,
+     53,
+     32,
+     3,
+     0,
+     47,
+     29
+    ],
+    "override": null,
+    "now": 5
+   },
+   "expected": {
+    "session": 3
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     30,
+     47,
+     11,
+     43
+    ],
+    "override": null,
+    "now": 34
+   },
+   "expected": {
+    "session": 30
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     8,
+     55,
+     40,
+     12,
+     34,
+     10,
+     35,
+     26
+    ],
+    "override": 48,
+    "now": 33
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     55,
+     42,
+     34
+    ],
+    "override": null,
+    "now": 34
+   },
+   "expected": {
+    "session": 34
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     44,
+     14,
+     26,
+     44
+    ],
+    "override": null,
+    "now": 37
+   },
+   "expected": {
+    "session": 26
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     34,
+     23,
+     25,
+     37,
+     22,
+     4,
+     27,
+     39,
+     38
+    ],
+    "override": null,
+    "now": 35
+   },
+   "expected": {
+    "session": 34
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     56,
+     24,
+     57,
+     42,
+     6,
+     29,
+     49,
+     37,
+     15,
+     2,
+     7
+    ],
+    "override": 47,
+    "now": 44
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     2,
+     36,
+     41,
+     34,
+     59,
+     39,
+     11,
+     46,
+     5,
+     6
+    ],
+    "override": 22,
+    "now": 29
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     25,
+     51,
+     24
+    ],
+    "override": 50,
+    "now": 28
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     7,
+     48,
+     59
+    ],
+    "override": 60,
+    "now": 61
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     4
+    ],
+    "override": null,
+    "now": 55
+   },
+   "expected": {
+    "session": 4
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     30,
+     52,
+     31,
+     26,
+     22,
+     11,
+     29,
+     42
+    ],
+    "override": null,
+    "now": 16
+   },
+   "expected": {
+    "session": 11
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     39,
+     18,
+     56,
+     31
+    ],
+    "override": 54,
+    "now": 40
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     34,
+     4
+    ],
+    "override": 55,
+    "now": 25
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     29,
+     38,
+     4,
+     32,
+     9,
+     12,
+     32
+    ],
+    "override": null,
+    "now": 34
+   },
+   "expected": {
+    "session": 32
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     10,
+     48,
+     23,
+     3,
+     19,
+     10,
+     33
+    ],
+    "override": null,
+    "now": 8
+   },
+   "expected": {
+    "session": 3
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     52,
+     56,
+     55,
+     49
+    ],
+    "override": 32,
+    "now": 32
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     55,
+     19,
+     2,
+     23,
+     43,
+     52
+    ],
+    "override": null,
+    "now": 64
+   },
+   "expected": {
+    "session": 55
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     5
+    ],
+    "override": 6,
+    "now": 64
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     18,
+     25,
+     57,
+     26,
+     39
+    ],
+    "override": 52,
+    "now": 51
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     28,
+     12
+    ],
+    "override": 65,
+    "now": 2
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [],
+    "override": 2,
+    "now": 60
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     13,
+     12,
+     13
+    ],
+    "override": 65,
+    "now": 32
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     42,
+     44,
+     50,
+     13,
+     15,
+     17,
+     6,
+     12,
+     43,
+     52,
+     2
+    ],
+    "override": 48,
+    "now": 28
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     50,
+     45,
+     56,
+     24,
+     14,
+     51,
+     46,
+     56,
+     15,
+     44
+    ],
+    "override": null,
+    "now": 31
+   },
+   "expected": {
+    "session": 24
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     36
+    ],
+    "override": 48,
+    "now": 22
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     56,
+     15,
+     25,
+     51,
+     21,
+     26,
+     5,
+     49
+    ],
+    "override": null,
+    "now": 57
+   },
+   "expected": {
+    "session": 56
+   }
+  },
+  {
+   "input": {
+    "sessions": [],
+    "override": null,
+    "now": 67
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     27,
+     40,
+     0,
+     9,
+     43,
+     53,
+     2,
+     45
+    ],
+    "override": null,
+    "now": 69
+   },
+   "expected": {
+    "session": 53
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     35,
+     23,
+     12,
+     5,
+     59,
+     57,
+     14,
+     17
+    ],
+    "override": 55,
+    "now": 65
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     25,
+     54,
+     17,
+     52
+    ],
+    "override": 45,
+    "now": 10
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     1
+    ],
+    "override": null,
+    "now": 55
+   },
+   "expected": {
+    "session": 1
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     23,
+     13,
+     15,
+     42,
+     43,
+     33,
+     27
+    ],
+    "override": 1,
+    "now": 13
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     29,
+     23,
+     22,
+     56,
+     46,
+     37,
+     14
+    ],
+    "override": null,
+    "now": 6
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     7,
+     22,
+     49,
+     1,
+     58,
+     37,
+     35
+    ],
+    "override": null,
+    "now": 19
+   },
+   "expected": {
+    "session": 7
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     33,
+     58,
+     24,
+     6,
+     7,
+     49,
+     10,
+     15,
+     33,
+     34
+    ],
+    "override": 20,
+    "now": 26
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     37,
+     3
+    ],
+    "override": 67,
+    "now": 14
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     31,
+     49,
+     54,
+     47,
+     31,
+     44,
+     45,
+     10
+    ],
+    "override": null,
+    "now": 9
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     29,
+     2,
+     50,
+     34,
+     9,
+     53,
+     39,
+     44,
+     7,
+     36,
+     26
+    ],
+    "override": null,
+    "now": 26
+   },
+   "expected": {
+    "session": 26
+   }
+  },
+  {
+   "input": {
+    "sessions": [],
+    "override": null,
+    "now": 23
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     19,
+     29,
+     6,
+     0
+    ],
+    "override": null,
+    "now": 0
+   },
+   "expected": {
+    "session": 0
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     37,
+     2,
+     18,
+     42,
+     43
+    ],
+    "override": null,
+    "now": 33
+   },
+   "expected": {
+    "session": 18
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     4,
+     46,
+     54,
+     31,
+     45,
+     58,
+     53,
+     31,
+     34,
+     9
+    ],
+    "override": 0,
+    "now": 44
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     6,
+     49,
+     34,
+     35,
+     16,
+     49
+    ],
+    "override": 3,
+    "now": 37
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     19,
+     31,
+     46,
+     43,
+     46,
+     30,
+     49,
+     33,
+     13,
+     16,
+     27
+    ],
+    "override": 15,
+    "now": 7
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     23,
+     59,
+     55,
+     38
+    ],
+    "override": null,
+    "now": 27
+   },
+   "expected": {
+    "session": 23
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     52,
+     23,
+     30,
+     27,
+     26,
+     8
+    ],
+    "override": null,
+    "now": 44
+   },
+   "expected": {
+    "session": 30
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     23,
+     26,
+     6,
+     33,
+     43,
+     0,
+     1,
+     28
+    ],
+    "override": 38,
+    "now": 59
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [],
+    "override": null,
+    "now": 46
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     30,
+     26,
+     0
+    ],
+    "override": null,
+    "now": 32
+   },
+   "expected": {
+    "session": 30
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     58,
+     32,
+     8,
+     22,
+     9,
+     32
+    ],
+    "override": 55,
+    "now": 30
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     18,
+     36,
+     28
+    ],
+    "override": 10,
+    "now": 13
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     9,
+     55
+    ],
+    "override": 26,
+    "now": 11
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     12,
+     37,
+     39,
+     7,
+     43,
+     26
+    ],
+    "override": null,
+    "now": 14
+   },
+   "expected": {
+    "session": 12
+   }
+  },
+  {
+   "input": {
+    "sessions": [],
+    "override": 39,
+    "now": 40
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [],
+    "override": null,
+    "now": 47
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     17,
+     7,
+     28,
+     32,
+     48,
+     50,
+     17
+    ],
+    "override": null,
+    "now": 68
+   },
+   "expected": {
+    "session": 50
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     26,
+     21
+    ],
+    "override": null,
+    "now": 7
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     31,
+     5,
+     27,
+     20
+    ],
+    "override": null,
+    "now": 35
+   },
+   "expected": {
+    "session": 31
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     38,
+     24
+    ],
+    "override": 35,
+    "now": 48
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     25,
+     31,
+     23,
+     44,
+     19,
+     0,
+     31
+    ],
+    "override": 24,
+    "now": 38
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     30,
+     52,
+     28,
+     14,
+     4,
+     34
+    ],
+    "override": null,
+    "now": 39
+   },
+   "expected": {
+    "session": 34
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     51,
+     34,
+     14
+    ],
+    "override": null,
+    "now": 27
+   },
+   "expected": {
+    "session": 14
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     19,
+     46
+    ],
+    "override": null,
+    "now": 60
+   },
+   "expected": {
+    "session": 46
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     49,
+     19,
+     52
+    ],
+    "override": null,
+    "now": 23
+   },
+   "expected": {
+    "session": 19
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     23,
+     39,
+     18,
+     55,
+     14,
+     19,
+     34,
+     45,
+     50,
+     34,
+     24
+    ],
+    "override": null,
+    "now": 62
+   },
+   "expected": {
+    "session": 55
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     28,
+     40,
+     30,
+     4,
+     56,
+     29,
+     31,
+     20,
+     31
+    ],
+    "override": 19,
+    "now": 20
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     18,
+     47,
+     11,
+     47
+    ],
+    "override": 43,
+    "now": 26
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     37,
+     18,
+     27,
+     34
+    ],
+    "override": null,
+    "now": 3
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     0,
+     0,
+     44,
+     32,
+     43,
+     54,
+     6,
+     48,
+     9,
+     33,
+     0
+    ],
+    "override": null,
+    "now": 0
+   },
+   "expected": {
+    "session": 0
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     38,
+     36,
+     53,
+     39,
+     58
+    ],
+    "override": 15,
+    "now": 41
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     40,
+     39,
+     57,
+     30,
+     27,
+     31,
+     42,
+     13,
+     8
+    ],
+    "override": 58,
+    "now": 57
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     56,
+     16,
+     51,
+     5,
+     18,
+     24,
+     38,
+     49
+    ],
+    "override": 59,
+    "now": 55
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     9,
+     9,
+     1,
+     40,
+     42,
+     58,
+     7,
+     34
+    ],
+    "override": 47,
+    "now": 35
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     13,
+     48,
+     47,
+     59,
+     40
+    ],
+    "override": null,
+    "now": 10
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     24,
+     8,
+     24,
+     48,
+     49
+    ],
+    "override": null,
+    "now": 58
+   },
+   "expected": {
+    "session": 49
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     20,
+     7
+    ],
+    "override": null,
+    "now": 57
+   },
+   "expected": {
+    "session": 20
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     4,
+     50,
+     51,
+     25,
+     24,
+     50
+    ],
+    "override": null,
+    "now": 18
+   },
+   "expected": {
+    "session": 4
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     25,
+     17,
+     51,
+     37,
+     12,
+     38,
+     56,
+     6
+    ],
+    "override": null,
+    "now": 48
+   },
+   "expected": {
+    "session": 38
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     2,
+     3,
+     0,
+     51,
+     41,
+     14,
+     2,
+     6,
+     53,
+     34,
+     57
+    ],
+    "override": 37,
+    "now": 58
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     4,
+     6,
+     41,
+     42,
+     44,
+     57,
+     52,
+     46,
+     59,
+     52,
+     6
+    ],
+    "override": null,
+    "now": 14
+   },
+   "expected": {
+    "session": 6
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     55,
+     24,
+     25,
+     34,
+     9,
+     2
+    ],
+    "override": 17,
+    "now": 0
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     53,
+     59,
+     45,
+     2,
+     27,
+     3,
+     27
+    ],
+    "override": 39,
+    "now": 58
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     39
+    ],
+    "override": 25,
+    "now": 0
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     46,
+     34,
+     36,
+     7
+    ],
+    "override": null,
+    "now": 1
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     2,
+     45,
+     55,
+     21,
+     34,
+     2,
+     48,
+     48,
+     40,
+     32
+    ],
+    "override": 67,
+    "now": 21
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     19,
+     16,
+     57,
+     29,
+     7,
+     10,
+     9,
+     53
+    ],
+    "override": null,
+    "now": 23
+   },
+   "expected": {
+    "session": 19
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     19,
+     54,
+     58,
+     56,
+     26,
+     27,
+     7,
+     2,
+     14,
+     38
+    ],
+    "override": 22,
+    "now": 69
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     12,
+     54,
+     43,
+     35,
+     29,
+     47,
+     7,
+     45,
+     40,
+     17,
+     42
+    ],
+    "override": 54,
+    "now": 7
+   },
+   "expected": {
+    "session": 54
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     58,
+     53,
+     47,
+     0,
+     26,
+     12,
+     19,
+     28,
+     38
+    ],
+    "override": null,
+    "now": 13
+   },
+   "expected": {
+    "session": 12
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     50,
+     16,
+     44,
+     23,
+     7,
+     55,
+     13,
+     43,
+     11,
+     6
+    ],
+    "override": 38,
+    "now": 4
+   },
+   "expected": {
+    "session": null
+   }
+  },
+  {
+   "input": {
+    "sessions": [
+     40
+    ],
+    "override": 47,
+    "now": 2
+   },
+   "expected": {
+    "session": null
+   }
+  }
+ ],
+ "spec_sha256": "bdc4191809b35b4f84da2ba2f9421cd38166c78a4d71b881c5d7998b2c496a85"
+}

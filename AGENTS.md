@@ -24,8 +24,8 @@ ruff check .              # must be clean before commit
 
 ## Non-negotiables
 
-1. **Pure, testable modules over `main.py` logic.** `main.py` only runs inside Lean: its order paths are stub-tested (`tests/test_main_wiring.py`), but `on_data()` isn't. Anything needing tests is a pure function both `main.py` and `tests/` can import.
-2. **Nothing is done until verified.** Run `aq test` after every code change (never bare `pytest` from the root, #8), with ruff clean. Never commit a red suite.
+1. **Pure, testable modules over `main.py` logic.** `main.py` only runs inside Lean: its order paths and `on_data()` on the target-weights path are stub-tested (`tests/test_main_wiring.py`, `tests/test_main_on_data_target_weights.py`), but not Lean's fills. Anything needing tests is a pure function both `main.py` and `tests/` can import.
+2. **Nothing is done until verified.** Run `aq test` after every code change (or `pytest` from the repo root, which `testpaths` points at `tests/`; a path of `.` crawls the code each Lean run copies into `backtests/`, #8), with ruff clean. Never commit a red suite.
 3. **Fail safe, degrade gracefully.** Never assume Redis, Postgres or IB is available. Never let NaN, inf or None pass silently through feature pipelines: use `json_safety` helpers and explicit guards.
 4. **No secrets in commits. No `aq backtest` in any automated gate or agent session.**
 5. **New top-level `.py` module:** add it to `pyproject.toml` `py-modules` (or, if `aq` never imports it, to `INTENTIONALLY_NOT_SHIPPED` in `tests/test_packaging_modules.py`), then `pip install -e .`. A stale editable install breaks `aq` with `ModuleNotFoundError`.
@@ -42,6 +42,7 @@ ruff check .              # must be clean before commit
     - The training Codespace is started for one job and stopped once results are pulled.
     - A Lean DinD Codespace bundles every Lean run of a phase into one lifetime, then `gh codespace delete` in the same session (its ~20 GB image is billed storage).
     - Record on and off times in the phase's Changelog "Hosts" bullet.
+14. **Every commit that adds a public function or class to a shipped package updates `aether_quant`, or lists why it stays out.** Export it from the matching facade (`aether_quant/<subsystem>.py`), regenerate the API pin (`AQ_UPDATE_API_SNAPSHOT=1 aq test --meta`) and add a line to `aether_quant/README.md`; a name that must stay out goes under `unexported` in `tests/data/aether_quant_unexported.json` with a reason. `scripts/library_gate.py` enforces this in the pre-commit hook (`python scripts/install_hooks.py`) and in CI's fast-guards, and its legacy backlog can only shrink.
 
 ## Where things live
 
@@ -87,7 +88,7 @@ Lean backtests run on a temporary DinD Codespace (`scripts/codespace_lean_run.ps
 
 ## Wrap-up checklist
 
-After every code change: tests added, `aq test` and ruff green, docs updated, `aq docs sync`, vault regenerated. Before handing over a commit, also run `scripts/clean_checkout_test.ps1` (CI has no gitignored files), or on the 4 GB dev PC `scripts/codespace_verify.ps1 -Start`, which runs every CI job on a Codespace.
+After every code change, from [`development/verification.md`](development/verification.md) (`aq verify --list`): unit tests added; for a new invariant in a safety, admission or ledger path a Lean spec with its differential test (`formal/README.md`, `aq prove`) and a property test; for a new public function the `aether_quant` export (rule 14); `aq verify --quick` on the PC; `aq test` (a Codespace when the PC cannot finish it, #324) and ruff green; `aq docs sync`; vault regenerated. Before handing over a commit also run `scripts/clean_checkout_test.ps1` (CI has no gitignored files), or on the 4 GB dev PC `scripts/codespace_verify.ps1 -Start`, which runs every CI job except Windows, the webui image build and `npm audit` on a Codespace. A change to the live path adds Lean on a DinD Codespace and the parity test (rule 6). Install the pre-commit hook once: `python scripts/install_hooks.py`.
 
 ```powershell
 cd Aether-quant-Obsidian-Vault
