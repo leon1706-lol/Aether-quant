@@ -69,7 +69,7 @@ jobs:
         run: |
           python -m venv "$RUNNER_TEMP/sbom"
           "$RUNNER_TEMP/sbom/bin/pip" install dist/*.whl "cyclonedx-bom==4.6.1"
-          "$RUNNER_TEMP/sbom/bin/cyclonedx-py" environment "$RUNNER_TEMP/sbom" --output-format JSON --output-file sbom-wheel.cdx.json
+          "$RUNNER_TEMP/sbom/bin/cyclonedx-py" environment "$RUNNER_TEMP/sbom" --output-format JSON --outfile sbom-wheel.cdx.json
 
       - uses: actions/upload-artifact@v7
         with:
@@ -153,6 +153,8 @@ jobs:
           format: cyclonedx-json
           output-file: sbom-${{ matrix.target }}.cdx.json
           upload-artifact: true
+          # on a tag the action would also attach the SBOM to the release, which needs contents: write (v6.6.5 failed there)
+          upload-release-assets: false
 
   # Creates the GitHub Release itself, once per tag. Notes are auto-generated
   # (commit list since the previous tag); the body additionally points at the
@@ -171,6 +173,8 @@ jobs:
         run: |
           TAG="${GITHUB_REF_NAME}"
           VERSION="${TAG#v}"
+          # a re-run of a tag (a fixed workflow, the tag moved) keeps the release that already exists
+          if gh release view "$TAG" > /dev/null 2>&1; then echo "release $TAG already exists"; exit 0; fi
           BODY="See [development/Changelog.md](https://github.com/${GITHUB_REPOSITORY}/blob/main/development/Changelog.md) for the full entry for \`V${VERSION}\` and every prior release."
           gh release create "$TAG" \
             --title "Aether Quant ${TAG}" \

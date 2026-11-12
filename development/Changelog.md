@@ -942,6 +942,7 @@ What each phase built and why, oldest first (the newest phase is <!--fact:change
     - Windows line endings
 
   All are fixed and verified locally.
+- **The first release run published nothing to PyPI.** It used a wrong `cyclonedx-py` flag, and the image SBOM step tried to write to the release. Both are fixed, and the release job now survives a re-run, so the `v6.6.5` tag is moved to the fix and run again.
 - **CodeQL's first findings fixed (#355).** A Telegram token and Redis passwords could reach the logs, Pages could run a fork's code, and the workflows gave every job the default token. All are fixed, with tests; 7 alerts are false positives (secret names, not values).
 - **The README maps the whole project.** A Documentation Site section holds a table generated from `mkdocs.yml` (`AQ:DOCS_SITE`, kept current by `aq docs sync` and checked in CI). The module table now lists every documented folder, and the Architecture section has a Live operations block. Tests fail if a docs page is missing from the nav or a top-level folder README is missing from the README.
 - **Freeze.**

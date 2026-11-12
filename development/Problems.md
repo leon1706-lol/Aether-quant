@@ -1835,7 +1835,14 @@ Lean's paper brokerage starts empty on each run, so the restart proves the state
 - The sample test checks finite values with numpy.
 - `monitoring/demo/** text eol=lf`, and both `check-ignore` helpers send bytes.
 
-**Verification:** every fix passes locally, with the docs tests run without the generated tutorials and actionlint clean. It stays 🟡 until the next push's CI is green.
+**Verification:** every fix passes locally, with the docs tests run without the generated tutorials and actionlint clean. The next push (`32c282c`) ran CI, Scorecard, CodeQL and Pages green.
+
+**Release `v6.6.5`:** the tag's run failed in two places and published nothing to PyPI:
+
+- The wheel's SBOM step used `--output-file`, which `cyclonedx-py` 4.6.1 does not have; the flag is `--outfile`.
+- `anchore/sbom-action` tried to attach each image's SBOM to the release, which needs `contents: write`. Both images were already pushed and attested by then.
+
+**Release fix:** the flag is corrected (checked against 4.6.1's own help and run end to end), the image SBOMs stay workflow artifacts (`upload-release-assets: false`), and `github-release` skips a release that already exists, so the moved tag can run again. It stays 🟡 until that run publishes to PyPI.
 
 ### 355. CodeQL's first analysis: a Telegram token and Redis passwords could reach the logs (V6.6.5)
 🟢 `fixed` · 6/10

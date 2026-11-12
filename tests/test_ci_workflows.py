@@ -389,6 +389,7 @@ def test_release_publishes_both_images_with_sbom_and_provenance():
     pypi_uses = [step.get("uses", "") for step in release["jobs"]["publish-pypi"]["steps"]]
     assert any(u.startswith("actions/attest-build-provenance@") for u in pypi_uses)
     assert "cyclonedx-py" in _scripts(release["jobs"]["publish-pypi"])
+    assert "--outfile" in _scripts(release["jobs"]["publish-pypi"])  # cyclonedx-bom 4.x has no --output-file (v6.6.5 release)
 
 
 
@@ -398,3 +399,13 @@ def test_ci_and_release_default_to_a_read_only_token_and_pages_deploys_only_this
         assert _load(ROOT / workflow)["permissions"] == {"contents": "read"}, workflow
     guard = _load(ROOT / ".github" / "workflows" / "pages.yml")["jobs"]["build"]["if"]
     assert "github.event.workflow_run.event == 'push'" in guard and "head_repository.full_name == github.repository" in guard
+
+
+def test_the_release_can_run_again_on_a_moved_tag():
+    """v6.6.5: the image SBOM step tried to attach to the release (needs contents: write), and a second run of a tag
+    must not fail on the release that already exists."""
+    release = _load(ROOT / ".github" / "workflows" / "release.yml")
+    sbom = [step for step in release["jobs"]["publish-docker"]["steps"] if "anchore/sbom-action" in step.get("uses", "")]
+    assert sbom and all(step["with"].get("upload-release-assets") is False for step in sbom)
+    assert 'gh release view "$TAG"' in _scripts(release["jobs"]["github-release"])
+
