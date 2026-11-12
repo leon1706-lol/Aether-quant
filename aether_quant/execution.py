@@ -71,6 +71,7 @@ from execution.secrets import (
     env_prefix,
     parse_ref,
     redact,
+    redact_url,
     resolve_secret,
     secret_status,
 )
@@ -150,6 +151,7 @@ __all__ = [
     "parse_ref",
     "reconcile_positions",
     "redact",
+    "redact_url",
     "render_markdown",
     "resolve_account",
     "resolve_cash_sweep_order_permission",

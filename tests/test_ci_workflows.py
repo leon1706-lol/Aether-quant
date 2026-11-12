@@ -358,7 +358,7 @@ def test_docker_checks_build_and_smoke_the_dashboard_and_scan_with_a_pinned_triv
     assert "docker build --target dashboard" in script and "/api/health" in script and '"demo":true' in script
     assert "--profile dashboard config -q" in script and "docker-compose.secrets.yml" in script
     trivy = [step for step in job["steps"] if "trivy-action" in step.get("uses", "")]
-    assert len(trivy) == 2 and all(step["uses"] == "aquasecurity/trivy-action@0.28.0" for step in trivy)
+    assert len(trivy) == 2 and all(step["uses"] == "aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1" for step in trivy)
     assert all(step["with"]["exit-code"] == "1" and step["with"]["severity"] == "CRITICAL" for step in trivy)
 
 
@@ -389,3 +389,12 @@ def test_release_publishes_both_images_with_sbom_and_provenance():
     pypi_uses = [step.get("uses", "") for step in release["jobs"]["publish-pypi"]["steps"]]
     assert any(u.startswith("actions/attest-build-provenance@") for u in pypi_uses)
     assert "cyclonedx-py" in _scripts(release["jobs"]["publish-pypi"])
+
+
+
+def test_ci_and_release_default_to_a_read_only_token_and_pages_deploys_only_this_repos_pushes():
+    """V6.6.5 (#355): CodeQL actions/missing-workflow-permissions, and a fork's branch named main must not reach Pages."""
+    for workflow in (".github/workflows/ci.yml", ".github/workflows/release.yml"):
+        assert _load(ROOT / workflow)["permissions"] == {"contents": "read"}, workflow
+    guard = _load(ROOT / ".github" / "workflows" / "pages.yml")["jobs"]["build"]["if"]
+    assert "github.event.workflow_run.event == 'push'" in guard and "head_repository.full_name == github.repository" in guard

@@ -22,7 +22,7 @@ from dataclasses import dataclass
 from typing import Literal
 
 __all__ = [
-    "SECRET_NAMES", "KEYRING_SERVICE", "SecretValue", "SecretRef", "ResolvedSecret", "parse_ref", "env_prefix", "default_refs", "resolve_secret", "redact",
+    "SECRET_NAMES", "KEYRING_SERVICE", "SecretValue", "SecretRef", "ResolvedSecret", "parse_ref", "env_prefix", "default_refs", "resolve_secret", "redact", "redact_url",
     "secret_status",
 ]
 
@@ -149,6 +149,18 @@ def resolve_secret(
         if value:
             return ResolvedSecret(name, SecretValue(value), str(ref))
     return ResolvedSecret(name, None, None)
+
+
+def redact_url(url: object) -> str:
+    """`url` with the password of its user info masked (`redis://:***@host:6379/0`), for logs. A URL without one, or text
+    that is not a URL, comes back as it was."""
+    text = str(url)
+    scheme, sep, rest = text.partition("://")
+    if not sep or "@" not in rest.split("/", 1)[0]:
+        return text
+    userinfo, _, host = rest.partition("@")
+    user, colon, _password = userinfo.partition(":")
+    return f"{scheme}://{user}{':***' if colon else ''}@{host}"
 
 
 def redact(text: str, values: Iterable[SecretValue | str | None]) -> str:

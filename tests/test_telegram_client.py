@@ -64,3 +64,30 @@ def test_env_vars_override_constructor_defaults(monkeypatch):
     client = TelegramClient(bot_token="ctor-token", chat_id="ctor-chat")
     assert client.bot_token == "env-token"
     assert client.chat_id == "env-chat"
+
+
+
+# V6.6.5 (#355): the bot token sits in the request URL, and a requests error quotes that URL
+
+
+def test_a_failed_send_never_logs_the_bot_token(caplog):
+    token = "123456:ABC-secret-token"
+    client = TelegramClient(bot_token=token, chat_id="c")
+    error = ConnectionError(f"Max retries exceeded with url: /bot{token}/sendMessage")
+    with caplog.at_level("WARNING"), patch("requests.post", side_effect=error):
+        assert client.send_message("hi") is False
+    assert token not in caplog.text and "***" in caplog.text
+
+
+def test_a_non_2xx_body_and_an_injected_failure_never_log_the_token(caplog):
+    token = "123456:ABC-secret-token"
+    response = MagicMock(status_code=401, text=f"unauthorized for {token}")
+    with caplog.at_level("WARNING"), patch("requests.post", return_value=response):
+        TelegramClient(bot_token=token, chat_id="c").send_message("hi")
+
+    def failing(text):
+        raise RuntimeError(f"bad token {token}")
+
+    with caplog.at_level("WARNING"):
+        TelegramClient(bot_token=token, chat_id="c", _send_fn=failing).send_message("hi")
+    assert token not in caplog.text

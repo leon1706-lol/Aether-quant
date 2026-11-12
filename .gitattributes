@@ -6,3 +6,6 @@
 
 # Compressed samples ship in the wheel byte for byte (aether_quant/_sample, V6.6.5).
 *.gz binary
+
+# Generated demo data, compared byte for byte with a rebuild (tests/test_dashboard_demo.py): LF on every checkout.
+monitoring/demo/** text eol=lf

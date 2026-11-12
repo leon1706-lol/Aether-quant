@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import logging
 from typing import Callable
+from execution.secrets import redact
 from execution.secrets_io import secret_env
 
 logger = logging.getLogger(__name__)
@@ -51,7 +52,7 @@ class TelegramClient:
             try:
                 return bool(self._send_fn(text))
             except Exception as exc:
-                logger.warning("TelegramClient._send_fn failed: %s", exc)
+                logger.warning("TelegramClient._send_fn failed: %s", redact(str(exc), [self.bot_token]))
                 return False
 
         if not self.bot_token or not self.chat_id:
@@ -70,10 +71,11 @@ class TelegramClient:
                 logger.warning(
                     "TelegramClient.send_message: non-2xx response %d: %s",
                     response.status_code,
-                    response.text[:200],
+                    redact(response.text[:200], [self.bot_token]),
                 )
                 return False
             return True
         except Exception as exc:
-            logger.warning("TelegramClient.send_message failed: %s", exc)
+            # a requests error quotes the URL, and the URL holds the bot token
+            logger.warning("TelegramClient.send_message failed: %s", redact(str(exc), [self.bot_token]))
             return False

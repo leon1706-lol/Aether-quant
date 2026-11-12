@@ -27,6 +27,7 @@ from typing import Any
 
 from .hash_chain import GENESIS_HASH, canonical_timestamp, compute_entry_hash
 from .status_export import build_audit_status_view, write_status_file
+from execution.secrets import redact_url
 from execution.secrets_io import secret_env
 
 logger = logging.getLogger(__name__)
@@ -170,7 +171,7 @@ class PostgresWorker:
             # down at container start; run()'s backoff loop retries.
             try:
                 self._redis.ping()
-                logger.info("AuditPostgresWorker: Redis connected at %s", url)
+                logger.info("AuditPostgresWorker: Redis connected at %s", redact_url(url))
             except Exception as exc:
                 logger.warning("AuditPostgresWorker: Redis not reachable yet (%s) - will retry in run loop.", exc)
 

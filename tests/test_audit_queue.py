@@ -83,3 +83,12 @@ def test_audit_queue_with_no_client_is_noop():
     queue = AuditQueue(enabled=True, _client=None)
     queue._client = None  # simulate connection failure at construction time
     assert queue.push({"event_type": "order_placement"}) is False
+
+
+
+def test_an_unreachable_redis_is_logged_without_its_password(caplog, monkeypatch):
+    """V6.6.5 (#355): the Redis URL may carry a password; the log names the host only."""
+    monkeypatch.delenv("AETHER_REDIS_URL", raising=False)
+    with caplog.at_level("WARNING"):
+        queue = AuditQueue(redis_url="redis://:sekret-pw@127.0.0.1:1/0")
+    assert queue._client is None and "sekret-pw" not in caplog.text and "127.0.0.1:1" in caplog.text

@@ -588,7 +588,7 @@ def _sync_doc_facts_best_effort() -> None:
     try:
         import docs_facts
 
-        docs_facts.sync_docs(docs_facts.tracked_docs(ROOT_DIR), docs_facts.compute_facts(ROOT_DIR))
+        docs_facts.sync_docs(docs_facts.tracked_docs(ROOT_DIR), docs_facts.compute_facts(ROOT_DIR), blocks=docs_facts.compute_blocks(ROOT_DIR))
     except Exception as error:  # noqa: BLE001 - a docs refresh must never fail `aq test`
         print(f"warning: docs facts not refreshed ({error})", file=sys.stderr)
 
@@ -4749,7 +4749,8 @@ def cmd_verify(args: argparse.Namespace) -> int:
 def cmd_docs_sync(args: argparse.Namespace) -> int:
     import docs_facts
 
-    report = docs_facts.sync_docs(docs_facts.tracked_docs(ROOT_DIR), docs_facts.compute_facts(ROOT_DIR), check=args.check)
+    report = docs_facts.sync_docs(docs_facts.tracked_docs(ROOT_DIR), docs_facts.compute_facts(ROOT_DIR), check=args.check,
+                                  blocks=docs_facts.compute_blocks(ROOT_DIR))
     for line in report["unknown"]:
         print(f"unknown fact - {line}", file=sys.stderr)
     for line in report["changed"]:
@@ -5733,7 +5734,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     docs_parser = subparsers.add_parser("docs", help="Keep the numbers quoted in the docs true")
     docs_subparsers = docs_parser.add_subparsers(dest="docs_command", required=True)
-    docs_sync_parser = docs_subparsers.add_parser("sync", help="Rewrite every <!--fact:key--> value from its source")
+    docs_sync_parser = docs_subparsers.add_parser("sync", help="Rewrite every <!--fact:key--> value and generated AQ block from its source")
     docs_sync_parser.add_argument("--check", action="store_true", help="Change nothing; exit 1 if a value is stale")
     docs_sync_parser.set_defaults(func=cmd_docs_sync)
 

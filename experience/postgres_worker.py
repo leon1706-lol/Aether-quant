@@ -21,6 +21,7 @@ import logging
 import os
 import time
 from typing import Any
+from execution.secrets import redact_url
 from execution.secrets_io import secret_env
 
 logger = logging.getLogger(__name__)
@@ -169,7 +170,7 @@ class PostgresWorker:
             # own backoff loop handle reconnection instead.
             try:
                 self._redis.ping()
-                logger.info("PostgresWorker: Redis connected at %s", url)
+                logger.info("PostgresWorker: Redis connected at %s", redact_url(url))
             except Exception as exc:
                 logger.warning("PostgresWorker: Redis not reachable yet (%s) - will retry in run loop.", exc)
 

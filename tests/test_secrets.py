@@ -99,3 +99,20 @@ def test_refs_and_resolved_secrets_are_frozen():
     for record, field in ((ref, "target"), (resolved, "source")):
         with pytest.raises(dataclasses.FrozenInstanceError):
             setattr(record, field, "changed")
+
+
+# V6.6.5 (#355, CodeQL py/clear-text-logging-sensitive-data): a URL logged without its password
+
+
+@pytest.mark.parametrize(("url", "expected"), [
+    ("redis://:sekret@redis:6379/0", "redis://:***@redis:6379/0"),
+    ("postgresql://aether:pw@db:5432/aq", "postgresql://aether:***@db:5432/aq"),
+    ("redis://user@host:6379", "redis://user@host:6379"),
+    ("redis://localhost:6380/0", "redis://localhost:6380/0"),
+    ("redis://host/path@x", "redis://host/path@x"),
+    ("not a url", "not a url"),
+])
+def test_redact_url_masks_only_the_password(url, expected):
+    from execution.secrets import redact_url
+
+    assert redact_url(url) == expected

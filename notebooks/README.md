@@ -11,4 +11,4 @@ Four tutorials for the `aether_quant` library. Each one opens in Colab, installs
 
 - **Locally:** `pip install "aether-quant[notebooks]"` and open them in Jupyter. From a clone, the first cell puts the checkout on `sys.path` instead.
 - **Colab:** the install cell needs `aether-quant` 6.6.5 or later on PyPI.
-- **Editing:** `src/NN_name.py` (percent format) is the source. Rebuild and re-run with `python scripts/build_notebooks.py --execute` (about 4 minutes on a small PC). `tests/test_notebooks.py` fails if a notebook drifts from its source, lacks its Colab cell, or holds an error, and CI's `notebooks` job runs them all again.
+- **Editing:** Each notebook's source is the percent-format `.py` file of the same name in [`src/`](src/). Rebuild and re-run with `python scripts/build_notebooks.py --execute` (about 4 minutes on a small PC). `tests/test_notebooks.py` fails if a notebook drifts from its source, lacks its Colab cell, or holds an error, and CI's `notebooks` job runs them all again.

@@ -17,6 +17,7 @@ from typing import Any
 from json_safety import dumps_json_safe
 
 from .observation_metrics import compute_observation_summary
+from execution.secrets import redact_url
 from execution.secrets_io import secret_env
 
 logger = logging.getLogger(__name__)
@@ -278,14 +279,14 @@ class ExperienceQueue:
                 self._client = client
                 logger.info(
                     "ExperienceQueue connected to %s (stream=%s, maxlen=%d)",
-                    url,
+                    redact_url(url),
                     stream_name,
                     maxlen,
                 )
             except Exception as exc:
                 logger.warning(
                     "ExperienceQueue: Redis unavailable at %s — experience events will be skipped. (%s)",
-                    url,
+                    redact_url(url),
                     exc,
                 )
 

@@ -9,6 +9,7 @@ import sys
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -127,8 +128,9 @@ def test_the_bundled_sample_matches_its_readme_and_loads():
     closes, opens = samples.load_sample_prices(), samples.load_sample_prices("open")
     assert closes.shape == opens.shape and closes.shape[1] == 11
     assert closes.index.min() == "2021-06-01" and closes.index.max() == "2026-10-31"
-    finite = closes.stack()
-    assert (finite > 0).all()
+    values = closes.to_numpy(dtype=float).ravel()
+    finite = values[np.isfinite(values)]  # NaN before a coin's first bar; DataFrame.stack treats NaN differently in pandas 2 and 3
+    assert finite.size > 0.9 * values.size and (finite > 0).all()
     assert samples.sample_info()["sha256"] == digest
     assert isinstance(samples.load_sample_bars(), pd.DataFrame)
     with pytest.raises(ValueError):

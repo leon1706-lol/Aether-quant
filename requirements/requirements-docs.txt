@@ -4,4 +4,5 @@ mkdocs==1.6.1
 mkdocs-material==9.8.1
 mkdocstrings==1.0.8
 mkdocstrings-python==2.0.10
-mkdocs-jupyter==0.27.0
+# mkdocs-jupyter 0.27 needs Python 3.12; CI builds the docs on 3.11
+mkdocs-jupyter==0.26.1

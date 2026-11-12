@@ -16,6 +16,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from json_safety import dumps_json_safe
+from execution.secrets import redact_url
 from execution.secrets_io import secret_env
 
 logger = logging.getLogger(__name__)
@@ -95,14 +96,14 @@ class AuditQueue:
             self._client = client
             logger.info(
                 "AuditQueue connected to %s (stream=%s, maxlen=%d)",
-                url,
+                redact_url(url),
                 stream_name,
                 maxlen,
             )
         except Exception as exc:
             logger.warning(
                 "AuditQueue: Redis unavailable at %s — audit events will be skipped. (%s)",
-                url,
+                redact_url(url),
                 exc,
             )
 

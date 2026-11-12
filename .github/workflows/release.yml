@@ -8,6 +8,10 @@ on:
   push:
     tags: ["v*.*.*"]
 
+# Least privilege by default (the publishing jobs raise their own; CodeQL actions/missing-workflow-permissions).
+permissions:
+  contents: read
+
 jobs:
   # V5.3.9 - NON-BLOCKING visibility job: runs the full offline suite on the
   # tagged commit so release-time gaps are visible right next to the

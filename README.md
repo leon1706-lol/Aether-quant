@@ -12,7 +12,7 @@
   <img src="https://img.shields.io/badge/python-3.11-FF8C00?style=flat-square&labelColor=1A1A1A&logo=python&logoColor=white" alt="Python 3.11">
   <a href="LICENSE"><img src="https://img.shields.io/badge/library-Apache--2.0-2EA44F?style=flat-square&labelColor=1A1A1A" alt="Library license: Apache-2.0"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/trading%20system-PolyForm%20Noncommercial-8B5CF6?style=flat-square&labelColor=1A1A1A" alt="Trading system license: PolyForm Noncommercial 1.0.0"></a>
-  <!-- AQ:TEST_BADGE_START --><img src="https://img.shields.io/badge/tests-5349%2F5349%20passing-brightgreen?style=flat-square&labelColor=1A1A1A" alt="5349 of 5349 tests passing"><!-- AQ:TEST_BADGE_END -->
+  <!-- AQ:TEST_BADGE_START --><img src="https://img.shields.io/badge/tests-5362%2F5362%20passing-brightgreen?style=flat-square&labelColor=1A1A1A" alt="5362 of 5362 tests passing"><!-- AQ:TEST_BADGE_END -->
   <img src="https://img.shields.io/pypi/v/aether-quant?style=flat-square&labelColor=1A1A1A&color=FF8C00&logo=pypi&logoColor=white" alt="PyPI version">
   <img src="https://img.shields.io/badge/docker-ghcr.io%2Faether--quant-2496ED?style=flat-square&labelColor=1A1A1A&logo=docker&logoColor=white" alt="Docker image on GHCR">
 </p>
@@ -82,6 +82,7 @@ aq hello                        # downloads 11 coins (keyless), runs the shipped
 - [Architecture](#architecture)
 - [Universe Size](#universe-size)
 - [Project Structure](#project-structure)
+- [Documentation Site](#documentation-site)
 - [Module Documentation](#module-documentation)
 - [Development Documentation](#development-documentation)
 - [Open Source Files](#open-source-files)
@@ -143,7 +144,7 @@ aq hello                        # downloads 11 coins (keyless), runs the shipped
 
 ## The `aether_quant` Library
 
-One importable package over the same pure functions the live algorithm and the research chain call: <!--fact:library.names-->928<!--/fact--> public names across <!--fact:library.modules-->32<!--/fact--> modules.
+One importable package over the same pure functions the live algorithm and the research chain call: <!--fact:library.names-->929<!--/fact--> public names across <!--fact:library.modules-->32<!--/fact--> modules.
 
 ```powershell
 pip install "aether-quant[research]"    # the library is Apache-2.0; scipy, scikit-learn and friends come with [research]
@@ -284,6 +285,13 @@ flowchart LR
 - **Controls:** an automated kill switch, reconciliation against broker holdings, a drawdown lock and an opt-in auto-rollback.
 - **Asset classes:** one router for equities, crypto, bonds, forex, futures and options.
 
+**Live operations** (off until configured; [`docs/live/`](docs/live/paper-to-live.md))
+
+- **Secrets:** each credential comes from a file, a Docker secret, the environment or the OS keyring, and never shows itself.
+- **Accounts:** one Lean deployment each, with overrides that can only tighten the config (proved in Lean 4); the default account is the single-account system.
+- **Users:** viewer, operator and admin tokens for the API and dashboard; locks are audited.
+- **Readiness:** `aq live-readiness` measures every paper-to-live condition, and the broker-free field test exercises the safety paths in Lean.
+
 **Research cycle** (`aq cycle`)
 
 - **Rounds:** rules are hashed before any score, trials go in a ledger, and a holdout read happens once.
@@ -310,12 +318,29 @@ Tickers and roles: [`development/asset_universe.md`](development/asset_universe.
 
 Single-responsibility Python packages, each with its own README, a few top-level entry points (`main.py` for the Lean algorithm, `train*.py` for the trainers, `aq_cli.py` for the CLI) and the runtime config (`config.json`, `lean.json`). The annotated tree is in [`development/project_structure.md`](development/project_structure.md).
 
+## Documentation Site
+
+The guide, the live-operations pages and the API reference are published at [leon1706-lol.github.io/Aether-quant](https://leon1706-lol.github.io/Aether-quant/) after each green CI on `main`, together with the coverage reports. Preview it with `mkdocs serve`; see [`docs/`](docs/index.md). The table below is generated from `mkdocs.yml` by `aq docs sync`.
+
+<!-- AQ:DOCS_SITE_START -->
+| Section | Pages |
+|---|---|
+| Home | [Home](docs/index.md) |
+| Getting started | [Install](docs/getting-started/install.md) · [Hello world](docs/getting-started/hello-world.md) · [The dashboard](docs/getting-started/dashboard.md) |
+| Tutorials | [Hello world](notebooks/00_hello_world.ipynb) · [Signal evaluation](notebooks/01_signal_evaluation.ipynb) · [Book construction](notebooks/02_book_construction.ipynb) · [Overfitting tests](notebooks/03_overfitting_tests.ipynb) |
+| Guide | [Signals](docs/guide/signals.md) · [Sizing](docs/guide/sizing.md) · [Neutrality](docs/guide/neutrality.md) · [Costs](docs/guide/costs.md) · [Backtesting](docs/guide/backtesting.md) · [Overfitting](docs/guide/overfitting.md) · [Research cycle](docs/guide/research-cycle.md) · [Safety](docs/guide/safety.md) |
+| Live trading | [Paper to live](docs/live/paper-to-live.md) · [Secrets](docs/live/secrets.md) · [Accounts](docs/live/accounts.md) · [Users](docs/live/users.md) · [Field test](docs/live/field-test.md) |
+| API reference | [Overview](docs/reference/index.md), one page per facade (32), generated by `scripts/build_docs.py` |
+| About | [License](docs/about/license.md) · [Security](docs/about/security.md) · [Changelog](docs/about/changelog.md) |
+<!-- AQ:DOCS_SITE_END -->
+
 ## Module Documentation
 
 | Area | Module | What it owns |
 |---|---|---|
 | Library | [`aether_quant/`](aether_quant/README.md) | The importable facade over every subsystem |
 | Library | [`formal/`](formal/README.md) | Lean 4 proofs of the safety-critical functions (`aq prove`) |
+| Library | [`notebooks/`](notebooks/README.md) · [`docs/`](docs/index.md) | Colab tutorials, built from percent-format sources · the MkDocs site sources |
 | Trading | [`risk/`](risk/README.md) | Position sizing, leverage, kill switch, asset-class routing |
 | Trading | [`portfolio/`](portfolio/README.md) | Book construction, HRP, sleeves, target weights, options |
 | Trading | [`execution/`](execution/README.md) | Order gate, cost model, reconciliation, paper readiness |
@@ -331,13 +356,15 @@ Single-responsibility Python packages, each with its own README, a few top-level
 | Data | [`data/`](data/README.md) · [`data_pipeline/`](data_pipeline/README.md) | The Lean data layout · backfills and bar synthesis |
 | Ops | [`experience/`](experience/README.md) · [`audit/`](audit/README.md) | Redis-to-Postgres decision history · the hash-chained audit log |
 | Ops | [`monitoring/`](monitoring/README.md) · [`webui/`](webui/README.md) · [`visualization/`](visualization/README.md) | FastAPI · the React dashboard · runtime state exports |
-| Ops | [`notifications/`](notifications/README.md) | Telegram alerts |
+| Ops | [`notifications/`](notifications/README.md) · [`storage/`](storage/README.md) | Telegram alerts · reserved for future persistent artifacts |
 | Tooling | [`tests/`](tests/README.md) · [`scripts/`](scripts/README.md) · [`requirements/`](requirements/README.md) | The suite · dev and research scripts · dependency sets |
+| Tooling | [`.devcontainer/`](.devcontainer/README.md) · [`.githooks/`](.githooks/README.md) | The training and Lean Codespace definitions · the opt-in git hooks |
 
 ## Development Documentation
 
 | Document | Contents |
 |---|---|
+| [`development/README.md`](development/README.md) | What each development document is for |
 | [`development/architecture.md`](development/architecture.md) | Subsystem contracts and the offline/live parity contract |
 | [`development/infrastructure.md`](development/infrastructure.md) | Docker, ports, Codespaces, database inspection |
 | [`development/verification.md`](development/verification.md) | Every way the project is verified, and when each is required (`aq verify`) |
@@ -612,7 +639,7 @@ Each search used rules written before any score. Details are in [`development/Pr
 
 ## Test Suite
 
-<!-- AQ:TEST_COUNT_START -->5349<!-- AQ:TEST_COUNT_END --> tests, one file per source module. `aq test` runs them and refreshes the badge above. Conventions: [`tests/README.md`](tests/README.md).
+<!-- AQ:TEST_COUNT_START -->5362<!-- AQ:TEST_COUNT_END --> tests, one file per source module. `aq test` runs them and refreshes the badge above. Conventions: [`tests/README.md`](tests/README.md).
 
 ## CLI Reference
 
@@ -734,7 +761,7 @@ The same tool for `lean.json`.
 ```text
 aq docs sync [--check]
 ```
-Refreshes every marked fact in the docs from its source (`docs_facts.py`). `--check` changes nothing and exits 1 on drift, which is how CI catches stale numbers.
+Refreshes every marked fact in the docs from its source (`docs_facts.py`), and the generated blocks it owns, such as the [Documentation Site](#documentation-site) table from `mkdocs.yml`. `--check` changes nothing and exits 1 on drift, which is how CI catches stale numbers.
 
 #### `aq verify`
 ```text

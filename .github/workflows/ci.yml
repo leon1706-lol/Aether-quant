@@ -18,6 +18,10 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+# Least privilege by default (no job writes with the token; CodeQL actions/missing-workflow-permissions).
+permissions:
+  contents: read
+
 jobs:
   python-tests:
     runs-on: ${{ matrix.os }}
@@ -359,7 +363,7 @@ jobs:
           docker build --target dashboard -t aq-dashboard-check .
           docker image ls aq-dashboard-check --format '{{.Size}}' >> "$GITHUB_STEP_SUMMARY"
           docker run -d --name aq-dashboard -p 8080:8000 aq-dashboard-check
-          for attempt in $(seq 1 30); do curl -fsS http://127.0.0.1:8080/api/health && break; sleep 2; done
+          for _ in $(seq 1 30); do curl -fsS http://127.0.0.1:8080/api/health && break; sleep 2; done
           curl -fsS http://127.0.0.1:8080/api/health | grep -q '"demo":true'
           curl -fsS http://127.0.0.1:8080/api/state | grep -q '"mode":"demo"'
           curl -fsS http://127.0.0.1:8080/ | grep -q 'id="root"'
@@ -367,7 +371,7 @@ jobs:
 
       # V6.6.5 (#353): blocking on critical findings that have a fix, in the source tree and in the published image
       - name: Trivy scan of the source tree
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1  # v0.35.0 (pinned by commit: the action's tags have been rewritten before)
         with:
           scan-type: fs
           scan-ref: .
@@ -377,7 +381,7 @@ jobs:
           skip-dirs: backtests,backtests_invalid,webui/node_modules
 
       - name: Trivy scan of the dashboard image
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1  # v0.35.0 (pinned by commit: the action's tags have been rewritten before)
         with:
           image-ref: aq-dashboard-check
           severity: CRITICAL

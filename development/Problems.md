@@ -2,7 +2,7 @@
 
 Every bug and infrastructure issue found in this codebase, oldest first, with how it was fixed or why it stayed open. Numbers never change, because code and docs cite them; #73-76 don't exist, and #88 and #112 appear twice.
 
-**Entries:** <!--fact:problems.total-->351<!--/fact--> up to #<!--fact:problems.last-->353<!--/fact-->: <!--fact:problems.fixed-->320<!--/fact--> 🟢 `fixed` (changed and verified), <!--fact:problems.partial-->10<!--/fact--> 🟡 `partial` (shipped, verification pending), <!--fact:problems.closed-->18<!--/fact--> 🔴 `closed` (no code fix: declined, moot or superseded). Severity runs from 1 (cosmetic) to 10 (data loss or safety). Full text of older entries: [`backups/`](backups/README.md).
+**Entries:** <!--fact:problems.total-->353<!--/fact--> up to #<!--fact:problems.last-->355<!--/fact-->: <!--fact:problems.fixed-->321<!--/fact--> 🟢 `fixed` (changed and verified), <!--fact:problems.partial-->11<!--/fact--> 🟡 `partial` (shipped, verification pending), <!--fact:problems.closed-->18<!--/fact--> 🔴 `closed` (no code fix: declined, moot or superseded). Severity runs from 1 (cosmetic) to 10 (data loss or safety). Full text of older entries: [`backups/`](backups/README.md).
 
 **Open now** (each needs a broker key, a forward record or the laptop):
 
@@ -1811,3 +1811,48 @@ Lean's paper brokerage starts empty on each run, so the restart proves the state
 - **Release:** both images go out, with SBOMs and build provenance.
 
 **Verification:** `tests/test_ci_workflows.py` pins every job, permission and version (30 tests), and actionlint 1.7.7 passes all nine workflows. The first CI run of the new jobs is the owner's push.
+
+
+### 354. The first CI run of V6.6.5 failed on what the PC could not show (V6.6.5)
+🟡 `partial` · 4/10
+
+**Problem:** the push of `1edb206` failed Scorecard and eight CI jobs, for causes the PC could not show:
+
+- **Scorecard:** `ossf/scorecard-action@v2.4.0` pulls its image from gcr.io, which now refuses the pull.
+- **docker-checks:** the tag `aquasecurity/trivy-action@0.28.0` no longer exists.
+- **docs:** `mkdocs-jupyter==0.27.0` needs Python 3.12, and CI builds on 3.11.
+- **workflows-lint:** shellcheck flagged an unused loop variable.
+- **Doc guards:** they found links to the gitignored `docs/tutorials/` copies and a placeholder path. The clean-checkout script had missed both, because it copies new files without adding them to its worktree's index.
+- **pandas 2:** `DataFrame.stack()` treats the sample's leading NaNs differently, which broke a sample test.
+- **Windows:** the checkout turned the demo files into CRLF, and text-mode `git check-ignore --stdin` handed git a trailing `\r` on every path but the last.
+
+**Fix:**
+
+- Scorecard v2.4.3 (pulls from ghcr.io), and trivy-action pinned to v0.35.0's commit.
+- `mkdocs-jupyter==0.26.1` (Python 3.9+), resolved for 3.11 with `uv pip compile` and built `--strict` with the pinned set.
+- The loop variable renamed to `_`.
+- The link checker reads a docs tutorial from its `notebooks/` source.
+- The sample test checks finite values with numpy.
+- `monitoring/demo/** text eol=lf`, and both `check-ignore` helpers send bytes.
+
+**Verification:** every fix passes locally, with the docs tests run without the generated tutorials and actionlint clean. It stays 🟡 until the next push's CI is green.
+
+### 355. CodeQL's first analysis: a Telegram token and Redis passwords could reach the logs (V6.6.5)
+🟢 `fixed` · 6/10
+
+**Problem:** the first CodeQL run (`1edb206`) raised 15 high and 20 medium alerts.
+
+- **Real:** a `requests` error quotes the Telegram URL, which holds the bot token, and four Redis clients logged their URL, which may hold a password.
+- **Real:** `pages.yml` ran CI's checked-out code with Pages write rights whenever `head_branch` was `main`, which a fork's pull request can also claim.
+- **Medium:** `ci.yml` and `release.yml` gave every job the default token.
+- **False positives (7):** prints of secret *names* in `aq_cli.py` and `scripts/render_lean_credentials.py`, and a test's URL assertion.
+
+**Fix:**
+
+- `execution.secrets.redact_url` masks a URL's password, and every Redis log line goes through it.
+- The Telegram client redacts its token from every error it logs.
+- Pages deploys only a push to this repository's `main`.
+- Both workflows default to `contents: read`; the publishing jobs keep their own scopes.
+
+**Verification:** tests prove a failed Telegram send, a non-2xx body and an unreachable Redis URL never log the secret, and they pin the URL masking and both workflow guards. actionlint is clean. The false positives are for the owner to dismiss in the code-scanning view.
+

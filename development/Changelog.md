@@ -934,6 +934,16 @@ What each phase built and why, oldest first (the newest phase is <!--fact:change
         - The 3 survivors are equivalent mutants.
         - The tests it prompted pin the PBKDF2 cost, exact boundaries, frozen records, the default account's place and the live-mode rule.
     - **A test that read the agent's environment:** `test_check_for_update_prints_notice_when_outdated` failed under `AQ_SKIP_UPDATE_CHECK=1`. It now clears the variable itself.
+- **After the push (#354).** The first CI run failed Scorecard and eight jobs. The causes:
+    - an action image moved off gcr.io, and a renamed trivy tag
+    - a docs plugin that needs Python 3.12
+    - links to generated files
+    - a pandas 2 difference
+    - Windows line endings
+
+  All are fixed and verified locally.
+- **CodeQL's first findings fixed (#355).** A Telegram token and Redis passwords could reach the logs, Pages could run a fork's code, and the workflows gave every job the default token. All are fixed, with tests; 7 alerts are false positives (secret names, not values).
+- **The README maps the whole project.** A Documentation Site section holds a table generated from `mkdocs.yml` (`AQ:DOCS_SITE`, kept current by `aq docs sync` and checked in CI). The module table now lists every documented folder, and the Architecture section has a Live operations block. Tests fail if a docs page is missing from the nav or a top-level folder README is missing from the README.
 - **Freeze.**
     - `config.json` gains `phase_v2.live_readiness` (report-only) and `phase_v2.diagnostics.field_test` (off); defaults are unchanged.
     - `main.py` gains account resolution and the gated field-test hooks; its default path is unchanged.

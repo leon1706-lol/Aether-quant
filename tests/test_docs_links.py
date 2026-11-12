@@ -70,9 +70,9 @@ def _ignored_batch(relatives: list[str]) -> None:
         return
     try:
         completed = subprocess.run(
-            ["git", "check-ignore", "--stdin"], cwd=ROOT, input="\n".join(pending), capture_output=True, text=True, timeout=60
-        )
-        ignored = {line.strip() for line in completed.stdout.splitlines()}
+            ["git", "check-ignore", "--stdin"], cwd=ROOT, input="\n".join(pending).encode("utf-8"), capture_output=True, timeout=60
+        )  # bytes: Windows text mode would send "\r\n", and git would read each path but the last with a trailing "\r"
+        ignored = {line.strip() for line in completed.stdout.decode("utf-8", errors="replace").splitlines()}
     except (OSError, subprocess.SubprocessError):
         ignored = set()
     for relative in pending:
@@ -99,9 +99,16 @@ def _broken_links(path: Path) -> list[str]:
         if not relative:
             continue
         resolved = (path.parent / relative).resolve() if not relative.startswith("/") else (ROOT / relative.lstrip("/"))
+        resolved = _generated_source(resolved)
         if not resolved.exists() or _is_gitignored(resolved):
             broken.append(f"{path.relative_to(ROOT)} -> {target}")
     return broken
+
+
+def _generated_source(resolved: Path) -> Path:
+    """A docs-site tutorial is copied from `notebooks/` by scripts/build_docs.py (gitignored under docs/): check its source."""
+    tutorials = (ROOT / "docs" / "tutorials").resolve()
+    return ROOT / "notebooks" / resolved.name if resolved.parent == tutorials else resolved
 
 
 def test_every_relative_markdown_link_resolves():
@@ -153,3 +160,13 @@ def test_the_link_checker_itself_catches_a_broken_link_and_ignores_code(tmp_path
     targets = [t for t in _LINK_RE.findall(text) + _IMAGE_RE.findall(text) if not _is_external(t)]
     assert sorted(targets) == ["missing.md", "nope.png", "real.md", "real.md#top"]
     assert [t for t in targets if not (tmp_path / t.split("#")[0]).exists()] == ["missing.md", "nope.png"]
+
+
+
+def test_every_top_level_folder_readme_is_linked_from_the_main_readme():
+    """The README's Module / Development Documentation tables list every documented folder (V6.6.5)."""
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    tracked = subprocess.run(["git", "ls-files", "*/README.md"], cwd=ROOT, capture_output=True, text=True, check=True).stdout.split()
+    top_level = sorted({path for path in tracked if path.count("/") == 1})
+    missing = [path for path in top_level if f"]({path})" not in readme and f"]({path.split('/')[0]}/)" not in readme]
+    assert not missing, f"link these from README.md's Module Documentation table: {missing}"

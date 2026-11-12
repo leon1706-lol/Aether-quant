@@ -33,12 +33,13 @@ def _living_docs() -> list[Path]:
 
 
 def _ignored(relatives: list[str]) -> set[str]:
-    done = subprocess.run(["git", "check-ignore", "--stdin"], cwd=ROOT, input="\n".join(relatives), capture_output=True, text=True, timeout=60)
-    return {line.strip() for line in done.stdout.splitlines()}
+    # bytes, not text: on Windows text mode sends "\r\n", and git reads every path but the last with a trailing "\r"
+    done = subprocess.run(["git", "check-ignore", "--stdin"], cwd=ROOT, input="\n".join(relatives).encode("utf-8"), capture_output=True, timeout=60)
+    return {line.strip() for line in done.stdout.decode("utf-8", errors="replace").splitlines()}
 
 
 def test_every_fact_in_the_docs_is_known_and_current():
-    report = docs_facts.sync_docs(_living_docs(), docs_facts.compute_facts(ROOT), check=True)
+    report = docs_facts.sync_docs(_living_docs(), docs_facts.compute_facts(ROOT), check=True, blocks=docs_facts.compute_blocks(ROOT))
     assert not report["unknown"], report["unknown"]
     assert not report["changed"], f"stale facts, run `aq docs sync`: {report['changed']}"
 
@@ -167,3 +168,27 @@ def test_the_readme_intro_is_prose():
     text = (ROOT / "README.md").read_text(encoding="utf-8")
     intro = text[text.index("</p>\n\nAether Quant"):text.index("## Known Limitations")]
     assert not [line for line in intro.splitlines() if line.startswith("- ")]
+
+
+
+# V6.6.5: generated blocks, and the README's map of the documentation site
+
+
+def test_apply_blocks_rewrites_only_its_block_and_reports_drift():
+    text = "a\n<!-- AQ:X_START -->\nold\n<!-- AQ:X_END -->\nb <!-- AQ:Y_START -->keep<!-- AQ:Y_END -->"
+    updated, changed = docs_facts.apply_blocks(text, {"X": "new", "Z": "absent"})
+    assert updated == "a\n<!-- AQ:X_START -->\nnew\n<!-- AQ:X_END -->\nb <!-- AQ:Y_START -->keep<!-- AQ:Y_END -->" and changed == ["X"]
+    assert docs_facts.apply_blocks(updated, {"X": "new"}) == (updated, [])
+
+
+def test_every_docs_page_is_in_the_site_nav_and_the_readme_shows_the_nav():
+    nav = {page for _, pages in docs_facts.docs_site_nav(ROOT) for _, page in pages}
+    tracked = subprocess.run(["git", "ls-files", "docs/*.md"], cwd=ROOT, capture_output=True, text=True, check=True).stdout.split()
+    pages = {path.removeprefix("docs/") for path in tracked}
+    missing = sorted(page for page in pages if page not in nav)
+    assert not missing, f"add to mkdocs.yml's nav: {missing}"
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    assert "<!-- AQ:DOCS_SITE_START -->" in readme and docs_facts.docs_site_block(ROOT) in readme
+    for title, page in ((t, p) for section, rows in docs_facts.docs_site_nav(ROOT) if section != "API reference" for t, p in rows):
+        target = f"notebooks/{Path(page).name}" if page.startswith("tutorials/") else f"docs/{page}"
+        assert f"]({target})" in readme, f"the README does not link {target}"
