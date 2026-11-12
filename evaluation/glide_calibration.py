@@ -23,6 +23,7 @@ from portfolio.generation_blend import (
     ew_update,
     update_generation_shares,
 )
+from typing import Any
 
 TRADING_DAYS = 252
 FALLBACK_POLICY = "fixed_252"
@@ -32,6 +33,7 @@ DEADBAND = 0.002
 
 
 def default_configs() -> list[dict]:
+    """The grid of simulated worlds (Sharpe, alpha half-life, correlation, zero-alpha probability) the glide calibration runs over."""
     return [
         {"sharpe": sharpe, "half_life_years": half_life, "correlation": correlation, "zero_alpha_probability": zero}
         for sharpe in (0.5, 1.0) for half_life in (1.0, 2.0, 3.0) for correlation in (0.0, 0.3, 0.6) for zero in (0.5, 0.8)
@@ -39,6 +41,7 @@ def default_configs() -> list[dict]:
 
 
 def default_policies() -> list[dict]:
+    """The handover policies the glide calibration compares: fixed glides of several lengths and the evidence-driven variants."""
     fixed = [{"name": f"fixed_{sessions}", "kind": "glide", "glide_sessions": sessions} for sessions in (126, 252, 504)]
     evidence = [
         {"name": "fixed_252_hold_on_watch", "kind": "glide", "glide_sessions": 252, "hold_on_watch": True},
@@ -60,7 +63,7 @@ def glide2_policies() -> list[dict]:
     return [{"name": "fixed_252", "kind": "glide", "glide_sessions": 252}, {"name": "equal", "kind": "equal"}, *grid]
 
 
-def simulate_generations(config: Mapping, seed: int, *, years: int = 8) -> dict:
+def simulate_generations(config: Mapping[str, Any], seed: int, *, years: int = 8) -> dict[str, Any]:
     """{"true_sharpe": sessions x generations, "returns": sessions x generations, "born": first session of each}. A generation exists from its birth."""
     rng = np.random.default_rng(seed)
     sessions = years * TRADING_DAYS
@@ -98,7 +101,7 @@ def _state_of(level: float, config: DecayConfig) -> str:
     return "healthy"
 
 
-def run_policy(world: Mapping, policy: Mapping) -> dict:
+def run_policy(world: Mapping[str, Any], policy: Mapping[str, Any]) -> dict[str, Any]:
     """A path of shares and what they earned, net of turnover cost, with blended rows only when due and the deadband on."""
     returns, true, born = world["returns"], world["true_sharpe"], world["born"]
     sessions, generations = returns.shape
@@ -180,7 +183,8 @@ def _newest_active(wanted: Mapping[str, float], names: Sequence[str]) -> int:
     return (holding[0] + 1) if holding else 0
 
 
-def oracle_daily(world: Mapping) -> np.ndarray:
+def oracle_daily(world: Mapping[str, Any]) -> np.ndarray:
+    """The daily return of an oracle that always holds the generations with the best true Sharpe, the calibration's upper bound."""
     true, returns, born = world["true_sharpe"], world["returns"], world["born"]
     out = np.zeros(true.shape[0])
     for session in range(true.shape[0]):
@@ -195,7 +199,7 @@ def _sharpe(daily: np.ndarray) -> float:
     return float(daily.mean() / deviation * math.sqrt(TRADING_DAYS)) if deviation > 0.0 else 0.0
 
 
-def _score_worlds(job: tuple) -> dict:
+def _score_worlds(job: tuple[Any, ...]) -> dict[str, Any]:
     """One config's worlds, for every policy. A worker's unit of work, so the result can't depend on how many workers ran."""
     config, config_index, per_config, policies, seed, years = job
     out: dict[str, dict[str, list[float]]] = {policy["name"]: {"regret": [], "majority": [], "holders": [], "turnover": []} for policy in policies}
@@ -212,7 +216,7 @@ def _score_worlds(job: tuple) -> dict:
     return out
 
 
-def evaluate_policies(configs: Sequence[Mapping], policies: Sequence[Mapping], *, paths: int = 2000, seed: int = 1, years: int = 8, workers: int = 1) -> dict:
+def evaluate_policies(configs: Sequence[Mapping], policies: Sequence[Mapping], *, paths: int = 2000, seed: int = 1, years: int = 8, workers: int = 1) -> dict[str, Any]:
     """{policy: median regret, time above half of capital on a zero-alpha generation, generations holding capital, turnover}. Every policy meets the same fixed-seed worlds, across all the configs."""
     per_config = max(1, paths // max(1, len(configs)))
     jobs = [(config, index, per_config, list(policies), seed, years) for index, config in enumerate(configs)]
@@ -235,7 +239,7 @@ def evaluate_policies(configs: Sequence[Mapping], policies: Sequence[Mapping], *
     return report
 
 
-def pick_glide2(results: Mapping[str, Mapping], *, baseline: str = "fixed_252", tie: float = 0.005) -> dict:
+def pick_glide2(results: Mapping[str, Mapping], *, baseline: str = "fixed_252", tie: float = 0.005) -> dict[str, Any]:
     """R-GLIDE2: the dynamic policy with the lowest median regret among those no worse than the baseline on zero-alpha time, and it replaces the baseline only if its regret is no worse than the
     baseline's, within `tie`. Ties among dynamic policies go to less turnover. The owner asked for the dynamic form, so no worse is enough: it holds several generations, and the ladder can't."""
     base = results[baseline]
@@ -252,7 +256,7 @@ def pick_glide2(results: Mapping[str, Mapping], *, baseline: str = "fixed_252", 
     return {**report, "policy": chosen if adopted else baseline, "best_dynamic": chosen, "best_dynamic_row": dict(eligible[chosen]), "adopted": adopted, "reason": reason}
 
 
-def pick_policy(results: Mapping[str, Mapping], *, max_zero_alpha_share: float = 0.20, tie: float = 0.005) -> dict:
+def pick_policy(results: Mapping[str, Mapping], *, max_zero_alpha_share: float = 0.20, tie: float = 0.005) -> dict[str, Any]:
     """R-GLIDE1: the lowest median regret among policies whose time mostly on a zero-alpha generation is at most 20%. Ties go to fewer parameters. None qualifying: fixed 252."""
     qualifying = {name: row for name, row in results.items() if row["zero_alpha_majority_share"] <= max_zero_alpha_share}
     if not qualifying:

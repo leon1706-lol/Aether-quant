@@ -27,7 +27,6 @@ from __future__ import annotations
 import argparse
 import json
 import logging
-import os
 import time
 from pathlib import Path
 
@@ -37,6 +36,7 @@ from execution.paper_readiness_report import (
     build_paper_readiness_view,
     write_paper_readiness_file,
 )
+from execution.secrets_io import secret_env
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +73,7 @@ class PaperReadinessScheduler:
         else:
             import psycopg
 
-            dsn = os.environ.get("AETHER_POSTGRES_DSN", postgres_dsn)
+            dsn = secret_env("POSTGRES_DSN", postgres_dsn)
             self._conn = psycopg.connect(dsn, autocommit=False)
             self._owns_connection = True
             logger.info("PaperReadinessScheduler: PostgreSQL connected.")
@@ -121,7 +121,7 @@ def main() -> None:
     with DEFAULT_CONFIG_PATH.open("r", encoding="utf-8") as f:
         config = json.load(f)
 
-    postgres_dsn = os.environ.get("AETHER_POSTGRES_DSN", "")
+    postgres_dsn = secret_env("POSTGRES_DSN", "")
     scheduler = PaperReadinessScheduler(postgres_dsn=postgres_dsn, config=config, poll_interval=args.poll_interval)
     try:
         if args.once:

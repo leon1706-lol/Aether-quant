@@ -12,6 +12,12 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+
+    from numpy.typing import ArrayLike
 
 DEFAULT_WINDOW = 252
 DEFAULT_MIN_PERIODS = 126
@@ -35,7 +41,7 @@ def cross_sectional_residualize(returns: np.ndarray, design_matrix: np.ndarray) 
     return residuals
 
 
-def asof_rolling_beta(asset_returns, market_returns, *, window: int = DEFAULT_WINDOW, min_periods: int = DEFAULT_MIN_PERIODS) -> np.ndarray:
+def asof_rolling_beta(asset_returns: ArrayLike, market_returns: ArrayLike, *, window: int = DEFAULT_WINDOW, min_periods: int = DEFAULT_MIN_PERIODS) -> np.ndarray:
     """Trailing OLS slope of `asset_returns` on `market_returns` (aligned arrays, NaN = missing) over the last `window`
     paired observations up to and including each position; NaN until `min_periods` pairs exist."""
     asset = pd.Series(np.asarray(asset_returns, dtype=float))
@@ -48,7 +54,7 @@ def asof_rolling_beta(asset_returns, market_returns, *, window: int = DEFAULT_WI
     return beta.to_numpy()
 
 
-def asof_residual_forward_return(fwd_asset, fwd_market, beta_t) -> np.ndarray:
+def asof_residual_forward_return(fwd_asset: ArrayLike, fwd_market: ArrayLike, beta_t: ArrayLike) -> np.ndarray:
     """fwd_asset - beta_t * fwd_market; a missing beta counts as 0 (train.py's fallback for a short history)."""
     beta = np.nan_to_num(np.asarray(beta_t, dtype=float), nan=0.0)
     return np.asarray(fwd_asset, dtype=float) - beta * np.asarray(fwd_market, dtype=float)
@@ -68,7 +74,7 @@ def asof_beta_by_row(frame: pd.DataFrame, *, market_ticker: str, return_column: 
     return out
 
 
-def build_asof_rank_labels(frame: pd.DataFrame, *, horizons=(5, 20), market_ticker: str = "SPY", window: int = DEFAULT_WINDOW,
+def build_asof_rank_labels(frame: pd.DataFrame, *, horizons: Sequence[int]=(5, 20), market_ticker: str = "SPY", window: int = DEFAULT_WINDOW,
                            min_periods: int = DEFAULT_MIN_PERIODS, min_universe_size: int = 20,
                            sector_by_ticker: dict[str, str] | None = None, size_column: str | None = "liquidity_log_dollar_volume",
                            use_market: bool = True, use_sector: bool = True, use_size: bool = True) -> pd.DataFrame:

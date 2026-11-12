@@ -66,6 +66,7 @@ def parse_annual_text(text: str) -> list[dict]:
 
 
 def parse_zip_bytes(payload: bytes) -> list[dict]:
+    """Rows of the first text file in a CFTC Commitments of Traders zip, or [] when it holds none."""
     with zipfile.ZipFile(io.BytesIO(payload)) as archive:
         name = next((item for item in archive.namelist() if item.lower().endswith(".txt")), None)
         return parse_annual_text(archive.read(name).decode("latin-1")) if name else []
@@ -95,6 +96,7 @@ def write_positioning(rows: list[dict], path: Path = OUTPUT) -> None:
 
 
 def read_positioning(path: Path = OUTPUT) -> pd.DataFrame:
+    """Read the cached CFTC positioning table, with its dates and market as strings."""
     return pd.read_csv(path, dtype={"report_date": str, "publication_date": str, "market": str})
 
 

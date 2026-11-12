@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import asdict, dataclass
+from typing import Any
 
 TRADING_DAYS_PER_YEAR = 252
 
@@ -89,7 +90,7 @@ def estimate_high_low_spread(highs: list[float], lows: list[float]) -> float | N
     return sum(window_spreads) / len(window_spreads)
 
 
-def cap_spread_proxy(spread_proxy: float | None, security_type: str, caps_by_type: dict | None) -> float | None:
+def cap_spread_proxy(spread_proxy: float | None, security_type: str, caps_by_type: dict[str, Any] | None) -> float | None:
     """V5.5.0 (Problems.md #133) - clamp the spread used by the liquidity GATE
     and cost estimate for one asset class. The Corwin-Schultz estimator reads
     a daily high-low range as a bid-ask spread; for crypto and forex mid bars
@@ -116,6 +117,7 @@ def cap_spread_proxy(spread_proxy: float | None, security_type: str, caps_by_typ
 
 @dataclass(frozen=True)
 class LiquidityDecision:
+    """The liquidity check of one order: dollar volume, order value, participation, estimated spread and impact, and the verdict."""
     daily_dollar_volume: float
     order_value: float
     participation_rate: float
@@ -127,7 +129,7 @@ class LiquidityDecision:
     adjusted_target_weight: float
     reasons: list[str]
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
 
@@ -148,6 +150,7 @@ def build_liquidity_decision(
     max_round_trip_cost_fraction: float | None = None,
     zero_volume_fallback_ddv: float | None = None,
 ) -> LiquidityDecision:
+    """Size an order against the bar's dollar volume: participation, spread and impact estimates, and whether to trade, shrink or skip it."""
     close = float(close)
     volume = float(volume)
     target_weight = float(target_weight)

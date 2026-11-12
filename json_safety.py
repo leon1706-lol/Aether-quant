@@ -29,6 +29,10 @@ import math
 import os
 import tempfile
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from typing import Any
 
 
 def _is_numpy_number(value) -> bool:
@@ -40,7 +44,7 @@ def _is_numpy_number(value) -> bool:
     return hasattr(value, "item")
 
 
-def sanitize_json_finite(value):
+def sanitize_json_finite(value: Any) -> Any:
     """Recursively converts a structure into something `json.dumps(...,
     allow_nan=False)` can always serialize:
 
@@ -66,14 +70,14 @@ def sanitize_json_finite(value):
     return value
 
 
-def dumps_json_safe(payload) -> str:
+def dumps_json_safe(payload: Any) -> str:
     """sanitize + dumps with allow_nan=False - the single serialization
     path shared by the Redis producers and the status-file writers, so a
     non-finite value can never reach Postgres JSONB or the webui again."""
     return json.dumps(sanitize_json_finite(payload), allow_nan=False)
 
 
-def atomic_write_json(path: Path, payload, *, indent: int | None = None) -> None:
+def atomic_write_json(path: Path, payload: Any, *, indent: int | None = None) -> None:
     """Writes payload to path via a same-directory temp file + os.replace.
 
     os.replace is atomic within a filesystem, so a concurrent reader sees
@@ -118,7 +122,7 @@ def atomic_write_text(path: Path, text: str) -> None:
         raise
 
 
-def load_json_lenient(path: Path):
+def load_json_lenient(path: Path) -> Any:
     """Reads and parses path, returning None on ANY failure (missing,
     unreadable, mid-write torn, malformed). Every caller treats None as
     'not available right now' and degrades - the monitoring readers'

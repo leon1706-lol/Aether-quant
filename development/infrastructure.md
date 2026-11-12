@@ -4,7 +4,12 @@ How to run the services, move work to Codespaces, run Lean and keep data honest.
 
 ## Docker Compose
 
-One image, `aether-quant-engine`, runs the app and every worker (`docker compose build engine`). Containers are named `aether-quant-<name>`, distinct from the sibling `aether-vault-*` project.
+Two images come from one `Dockerfile`:
+
+- **`engine`:** the default and last target. It runs the app and every worker (`docker compose build engine`) and installs CPU torch.
+- **`dashboard`:** a light target (V6.6.5, #344). It holds only the wheel's `[dashboard]` extra, the built UI and `monitoring/demo/`, runs as a non-root user and has a healthcheck. Use `docker build --target dashboard -t aether-quant-dashboard .`, then `aq webui --docker`.
+
+Containers are named `aether-quant-<name>`, distinct from the sibling `aether-vault-*` project.
 
 | Service | Needs | Does |
 |---|---|---|
@@ -16,7 +21,8 @@ One image, `aether-quant-engine`, runs the app and every worker (`docker compose
 | `retraining-worker` | Postgres, training stack | Controlled retraining |
 | `telegram-worker` | Postgres | Alerts |
 | `paper-readiness-scheduler` | Postgres | Keeps the readiness report fresh |
-| `lean`, `lean-live` | Profiles | Engine containers |
+| `lean`, `lean-live` | Profiles | Engine containers. `lean-live` passes `--lean-config ${LEAN_LIVE_CONFIG}` and `AQ_ACCOUNT` (`aq live up --account`) |
+| `dashboard` | Profile `dashboard` | The demo dashboard on `127.0.0.1:${AQ_DASHBOARD_PORT:-8080}` |
 
 ```powershell
 docker compose up -d redis postgres                         # aq docker up
@@ -28,6 +34,9 @@ docker compose logs -f experience-worker
 - **Your own images:** set `REDIS_IMAGE`, `POSTGRES_IMAGE` or `LEAN_IMAGE`. Lean is pinned, not `:latest`, so it never silently re-pulls about 42 GB (#40).
 - **Inside the network:** `redis://redis:6379/0`, `postgresql://aether:aether_dev_password@postgres:5432/aether_quant`.
 - **From the host:** Redis `localhost:6380`, Postgres `localhost:5433`, `engine` `http://localhost:8001`. They're remapped so they don't collide with Aether-Vault.
+- **Bound to localhost:** the engine publishes on `${AETHER_QUANT_BIND:-127.0.0.1}`. Set `0.0.0.0` only with API users configured (#350).
+- **Docker secrets:** `docker compose -f docker-compose.yml -f docker-compose.secrets.yml up -d`. It reads `secrets/postgres_password` and `secrets/postgres_dsn` (gitignored) into `POSTGRES_PASSWORD_FILE` and `AETHER_POSTGRES_DSN_FILE` (#348).
+- **Backups:** `python scripts/backup_postgres.py --docker` runs `pg_dump` in the `postgres` container and keeps 14 dumps in `state/backups/` (RUNBOOK "Backups").
 - **Low memory:** run only `redis` during a backtest, and drain to Postgres afterwards. It is a real stream, so nothing is lost; the full stack beside Lean ran out of memory on the 4 GB PC.
 
 ## Inspecting Postgres
@@ -199,8 +208,14 @@ Never follow a repair with a local `aq train --dataset-only`: it refits the scal
 
 ## CI
 
-- **`ci.yml`:** `python-tests` (ubuntu and windows, 80% coverage), `python-lint`, `dependency-audit`, `webui-tests`, `cli-smoke`, `workflows-lint`, `fast-guards`, `subsystem-matrix`, `wheel-smoke`, `python-compat` (3.10 byte-compile only), `docker-checks`, `parity-smoke`, and the advisory `secret-scan` and `test-count-drift`. <!--fact:ci.jobs-->14<!--/fact--> jobs in all, pinned by `tests/test_ci_workflows.py`.
-- **`release.yml`:** on `v*.*.*` tags: `tag-tests` (visibility only), `publish-pypi`, `publish-docker`, `github-release`.
+- **`ci.yml`:** `python-tests` (ubuntu and windows, 80% coverage; XML, JSON and HTML reports and a run summary), `python-lint`, `dependency-audit`, `webui-tests` (vitest coverage, blocking `npm audit`), `cli-smoke`, `workflows-lint`, `fast-guards`, `subsystem-matrix`, `wheel-smoke`, `python-compat` (3.10 byte-compile only), `docker-checks` (the dashboard image built, smoke-tested and scanned with trivy), `parity-smoke`, `secret-scan` (blocking on the tree, advisory on history), `lite-install`, `typecheck`, `docs`, `notebooks`, `bandit` and the advisory `test-count-drift`. <!--fact:ci.jobs-->19<!--/fact--> jobs in all, pinned by `tests/test_ci_workflows.py`.
+- **`release.yml`:** on `v*.*.*` tags:
+  - `tag-tests` (visibility only)
+  - `publish-pypi`, with attestations and a CycloneDX SBOM
+  - `publish-docker`, a matrix over `aether-quant` and `aether-quant-dashboard`, with SBOMs and build provenance
+  - `github-release`
+- **`codeql.yml`, `scorecard.yml`:** CodeQL (Python, TypeScript, Actions) and OpenSSF Scorecard, on main and weekly.
+- **`pages.yml`:** after CI succeeds on main, it publishes the MkDocs site, the coverage HTML and the shields endpoint behind the README's coverage badge to GitHub Pages.
 - **`forward-ledger.yml`, `research-cycle.yml`:** each session, on free runners, writing only to branch `forward-ledger`.
 - **Clean checkout:** CI has no gitignored files. Run `scripts/clean_checkout_test.ps1` before a commit.
 

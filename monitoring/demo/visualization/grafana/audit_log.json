@@ -1,0 +1,44 @@
+{
+ "chain_broken_at_event_id": null,
+ "chain_valid": true,
+ "generated_at": "2026-10-31T00:00:00Z",
+ "recent_events": [
+  {
+   "actor": "demo",
+   "created_at": "2026-10-31T00:00:00Z",
+   "event_id": "demo-0",
+   "event_type": "credential_load",
+   "hash": "d925096c470721dcb435c47c3ed21a0762627b9b0504f33f702d2718cbecf550",
+   "payload": {
+    "fields": [],
+    "note": "demo: no credential is loaded"
+   },
+   "prev_hash": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  {
+   "actor": "demo",
+   "created_at": "2026-10-31T00:01:00Z",
+   "event_id": "demo-1",
+   "event_type": "live_mode_transition",
+   "hash": "b10128cecaa397774f35dc0f2dd05f76f8055c29b4bde0cb732b17fb53a25064",
+   "payload": {
+    "from": "backtest",
+    "to": "demo"
+   },
+   "prev_hash": "d925096c470721dcb435c47c3ed21a0762627b9b0504f33f702d2718cbecf550"
+  },
+  {
+   "actor": "demo",
+   "created_at": "2026-10-31T00:02:00Z",
+   "event_id": "demo-2",
+   "event_type": "order_placement",
+   "hash": "c33f31c16c7b33ce4334e5ab43602129b67d4f666e0294273e527d5284cf89b5",
+   "payload": {
+    "note": "demo: simulated, never sent",
+    "symbol": "BTCUSD"
+   },
+   "prev_hash": "b10128cecaa397774f35dc0f2dd05f76f8055c29b4bde0cb732b17fb53a25064"
+  }
+ ],
+ "total_entries": 3
+}

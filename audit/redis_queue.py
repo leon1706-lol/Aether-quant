@@ -11,12 +11,12 @@ this queue is ever blocking.
 from __future__ import annotations
 
 import logging
-import os
 import uuid
 from datetime import datetime, timezone
 from typing import Any
 
 from json_safety import dumps_json_safe
+from execution.secrets_io import secret_env
 
 logger = logging.getLogger(__name__)
 
@@ -86,7 +86,7 @@ class AuditQueue:
             self._client = _client
             return
 
-        url = os.environ.get("AETHER_REDIS_URL", redis_url) or "redis://localhost:6380/0"
+        url = secret_env("REDIS_URL", redis_url) or "redis://localhost:6380/0"
         try:
             import redis as redis_lib  # deferred — not always installed in Lean environments
 

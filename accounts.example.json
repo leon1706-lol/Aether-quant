@@ -1,0 +1,24 @@
+{
+  "_note": "Copy to accounts.json (gitignored) and edit. Each account is one Lean deployment: AQ_ACCOUNT=<id>. Secrets come from AETHER_<ID>_* (aq secrets status --account <id>). Overrides may only tighten the base config. RUNBOOK \"Accounts\".",
+  "accounts": [
+    {
+      "id": "paper-a",
+      "broker": "paper",
+      "lean_environment": "live-paper",
+      "mode": "paper",
+      "description": "Lean's paper brokerage, the full book"
+    },
+    {
+      "id": "paper-b",
+      "broker": "paper",
+      "lean_environment": "live-paper",
+      "mode": "observation",
+      "risk_overrides": {
+        "live.max_allowed_total_drawdown_pct": 0.08,
+        "dynamic_risk.max_leverage": 0.5,
+        "runtime.allow_live_orders": false
+      },
+      "description": "A second paper account with tighter limits, for the two-account field test"
+    }
+  ]
+}

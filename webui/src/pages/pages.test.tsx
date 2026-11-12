@@ -7,16 +7,17 @@
  * those belong to the panel components, which these tasks did not touch.
  */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import type { ReactElement } from 'react'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Overview } from './Overview'
 import { OperationsPage } from './OperationsPage'
 import { OptionsStrategyPage } from './OptionsStrategyPage'
 import { EvaluationPage } from './EvaluationPage'
 import { RiskPage } from './RiskPage'
 import { TracingPage } from './TracingPage'
+import { ReadinessPage } from './ReadinessPage'
 import { AppShell } from '../components/layout/AppShell'
 
 // Panels are identified by their Panel `title`, the same string a user
@@ -26,6 +27,8 @@ const OPERATIONS_PANELS = [
   // V5.1 Phase 6 (production safety)
   'Kill Switch',
   'Reconciliation',
+  // V6.6.5
+  'Trade Lock',
   // V6.6.1
   'Generations',
   'Performance Triggers',
@@ -206,5 +209,105 @@ describe('V4-W2: Tracing column layout', () => {
       'Observation Mode Equity Curve',
     ])
     expect(titlesIn(right)).toEqual(['Asset Performance (Sharpe, backtest)'])
+  })
+})
+
+function stubApi(routes: Record<string, unknown>) {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (input: RequestInfo | URL) => {
+      const path = String(input).split('?')[0]
+      if (path in routes) {
+        return new Response(JSON.stringify(routes[path]), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      }
+      return new Response('{"detail":"not found"}', { status: path === '/api/auth/whoami' ? 401 : 404 })
+    }),
+  )
+}
+
+describe('V6.6.5: demo, sign-in, accounts and readiness', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    window.sessionStorage.clear()
+  })
+
+  it('AppShell exposes a Readiness nav link pointing at /readiness', () => {
+    renderWithProviders(
+      <AppShell state={undefined} isError={false}>
+        <div />
+      </AppShell>,
+    )
+    expect(screen.getByRole('link', { name: 'Readiness' })).toHaveAttribute('href', '/readiness')
+  })
+
+  it('labels demo data on every page', async () => {
+    stubApi({ '/api/health': { status: 'ok', demo: true, auth: 'off' } })
+    renderWithProviders(
+      <AppShell state={undefined} isError={false}>
+        <div />
+      </AppShell>,
+    )
+    expect(await screen.findByText('Demo data.')).toBeInTheDocument()
+  })
+
+  it('shows onboarding instead of a bare error when the feed is missing', async () => {
+    stubApi({ '/api/health': { status: 'ok', demo: false, auth: 'off' } })
+    renderWithProviders(
+      <AppShell state={undefined} isError>
+        <div />
+      </AppShell>,
+    )
+    expect(await screen.findByText('No runtime feed yet')).toBeInTheDocument()
+    expect(screen.getByText(/aq hello/)).toBeInTheDocument()
+  })
+
+  it('asks for a token when the API requires one, and hides the pages', async () => {
+    stubApi({ '/api/health': { status: 'ok', demo: false, auth: 'required' } })
+    renderWithProviders(
+      <AppShell state={undefined} isError={false}>
+        <div>secret page</div>
+      </AppShell>,
+    )
+    expect(await screen.findByLabelText('Token')).toBeInTheDocument()
+    expect(screen.queryByText('secret page')).not.toBeInTheDocument()
+  })
+
+  it('offers an account selector when there is more than one account', async () => {
+    stubApi({
+      '/api/health': { status: 'ok', demo: false, auth: 'off' },
+      '/api/accounts': { demo: false, accounts: [
+        { id: 'default', broker: 'paper', environment: 'live-paper', mode: '(config)', secrets: '0/0', secrets_missing: [], state: '-', reconciliation_breach: null },
+        { id: 'paper-b', broker: 'paper', environment: 'live-paper', mode: 'observation', secrets: '0/0', secrets_missing: [], state: '-', reconciliation_breach: null },
+      ] },
+    })
+    const onChange = vi.fn()
+    renderWithProviders(
+      <AppShell state={undefined} isError={false} account="default" onAccountChange={onChange}>
+        <div />
+      </AppShell>,
+    )
+    expect(await screen.findByLabelText('Account')).toBeInTheDocument()
+  })
+
+  it('Readiness renders its panels with no scorecard yet, and the scorecard when there is one', async () => {
+    renderWithProviders(<ReadinessPage />)
+    expect(panelTitles()).toEqual(expect.arrayContaining(['Paper to Live', 'Accounts']))
+    expect(screen.getByText(/Not scored yet/)).toBeInTheDocument()
+    vi.unstubAllGlobals()
+    stubApi({
+      '/api/readiness': { ready: false, account: 'default', generated_at: '2026-11-08T00:00:00Z', counts: { pass: 1, fail: 0, unknown: 1 }, blocking: ['x'],
+        metrics: [
+          { key: 'kill_switch_enabled', group: 'safety', label: 'Kill switch enabled', value: true, threshold: 'true', status: 'pass', evidence: '', measured_at: null },
+          { key: 'paper_bands', group: 'paper', label: 'Every paper metric inside its reference band', value: null, threshold: 'all inside', status: 'unknown', evidence: '', measured_at: null },
+        ] },
+    })
+    renderWithProviders(<ReadinessPage />)
+    await waitFor(() => expect(screen.getByText('NOT READY FOR LIVE CAPITAL')).toBeInTheDocument())
+    expect(screen.getByText('Kill switch enabled')).toBeInTheDocument()
+  })
+
+  it('Trade Lock shows no buttons without a signed-in operator', () => {
+    renderWithProviders(<OperationsPage state={undefined} />)
+    expect(screen.queryByRole('button', { name: 'Lock trading' })).not.toBeInTheDocument()
   })
 })

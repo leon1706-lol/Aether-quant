@@ -6,7 +6,38 @@ RUN npm ci
 COPY webui/ .
 RUN npm run build
 
-# Stage 2: consolidated engine image - serves the FastAPI app AND every
+# Stage 2 (V6.6.5, #344): the wheel, built from the source tree the engine copies. Only what the PyPI package ships
+# goes into it (pyproject.toml's packages and py-modules), so the dashboard image below carries the library and the API
+# and nothing of the trading system. .git is not in the context, so the version comes from AQ_VERSION.
+FROM python:3.11-slim AS wheel-builder
+WORKDIR /src
+COPY . .
+ARG AQ_VERSION=0.0.0
+RUN SETUPTOOLS_SCM_PRETEND_VERSION=${AQ_VERSION} pip wheel --no-cache-dir --no-deps -w /wheels .
+
+# Stage 3 (V6.6.5, #344): the dashboard alone, with demo data, in one command:
+#   docker run --rm -p 8080:8000 ghcr.io/leon1706-lol/aether-quant-dashboard:latest
+# FastAPI, the built web UI and the bundled demo (scripts/build_dashboard_demo.py), no torch, no Lean, no database. Point
+# AQ_DASHBOARD_ROOT at a mounted tree (and unset AQ_DASHBOARD_DEMO) to show a real run instead.
+FROM python:3.11-slim AS dashboard
+WORKDIR /app
+COPY --from=wheel-builder /wheels /wheels
+# the test suites of pandas and numpy, and pip itself, are dead weight at runtime (about 80 MB)
+RUN pip install --no-cache-dir "$(ls /wheels/*.whl)[dashboard]" && rm -rf /wheels \
+    && SITE="$(python -c 'import sysconfig; print(sysconfig.get_path("purelib"))')" \
+    && rm -rf "$SITE/pandas/tests" && find "$SITE/numpy" -type d -name tests -prune -exec rm -rf {} + \
+    && pip uninstall -y pip setuptools wheel \
+    && useradd --create-home --uid 10001 aq
+COPY monitoring/demo /app/demo
+COPY --from=webui-builder /app/webui/dist /app/webui
+ENV AQ_DASHBOARD_ROOT=/app/demo AQ_DASHBOARD_DEMO=1 AQ_WEBUI_DIST=/app/webui AQ_SKIP_UPDATE_CHECK=1 PYTHONUNBUFFERED=1
+USER aq
+EXPOSE 8000
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=4)"]
+CMD ["uvicorn", "monitoring.api_server:app", "--host", "0.0.0.0", "--port", "8000"]
+
+# Stage 4: consolidated engine image (the default target: keep it last) - serves the FastAPI app AND every
 # worker (experience/performance-trigger/telegram/paper-readiness/
 # retraining). One image, one COPY of the whole source tree (respecting
 # .dockerignore's exclusions - .venv/, node_modules/, data/, ml/,
@@ -19,10 +50,12 @@ RUN npm run build
 # class is structurally impossible now. Each service's actual entrypoint
 # is selected via docker-compose.yml's per-service `command:` override
 # (CMD below is just the default/app entrypoint).
-FROM python:3.11-slim
+FROM python:3.11-slim AS engine
 WORKDIR /app
 COPY requirements/requirements.txt ./requirements/
-RUN pip install --no-cache-dir -r requirements/requirements.txt
+# CPU torch first (V6.6.5): the default Linux wheel pulls about 2 GB of CUDA libraries the engine never uses.
+RUN pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu torch \
+    && pip install --no-cache-dir -r requirements/requirements.txt
 COPY . .
 
 # Optional C++/pybind11 accelerator for inference/exported_model.py's

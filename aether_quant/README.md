@@ -3,7 +3,9 @@
 The reusable part of Aether Quant as one importable package, over every subsystem. A **facade**: each name is re-exported from the module the live algorithm and the offline tools use, so a library result and a live decision come from the same code.
 
 ```powershell
-pip install -e .[research]    # extras: lib (numpy, pandas), research (adds pyarrow, scipy, scikit-learn, statsmodels), train (adds torch)
+pip install aether-quant      # numpy and pandas only; every facade imports
+aq hello                      # the shipped rule on 11 coins, with costs and overfitting checks
+pip install -e .[research]    # extras: research (pyarrow, scipy, scikit-learn, statsmodels, httpx), notebooks, dashboard, live, train, docs, full
 python examples/aether_quant_quickstart.py
 python examples/aether_quant_cycle.py     # two generations hand over; no data, no network
 ```
@@ -12,6 +14,13 @@ Importing it never loads torch, Lean's `AlgorithmImports`, Redis, Postgres or th
 
 | Module | What |
 |---|---|
+| `aether_quant.signals` | By job: `forward_returns`, `forward_rank_targets`, `quantile_returns`, `ic_decay`, `evaluate_signal` |
+| `aether_quant.sizing` | By job: `kelly_fraction`, `kelly_weights`, `realized_vol`, `volatility_target_weights`, `build_dynamic_position_sizing` |
+| `aether_quant.neutrality` | By job: `estimate_betas`, `beta_neutralize`, `factor_neutralize`, `apply_book_neutrality` |
+| `aether_quant.costs` | By job: `CostModel`, `LinearCostModel`, `SquareRootImpactModel`, `CompositeCostModel`, `coinbase_model`, `ib_equity_model`, `estimate_round_trip_cost_bps` |
+| `aether_quant.backtest` | By job: `backtest`, `BacktestResult`, `summary_statistics`, `simulate_target_weights`, `simulate_rank_book` |
+| `aether_quant.overfitting` | By job: `pbo`, `probabilistic_sharpe_ratio`, `deflated_sharpe_ratio`, `expected_max_sharpe`, `minimum_track_record_length`, `haircut_sharpe` |
+| `aether_quant.samples`, `.hello` | The bundled Coinbase sample (`load_sample_prices`) and `aq hello` as a call (`run`, `render_text`, `render_html`) |
 | `aether_quant.cycle` | The research cycle: `update_generation_shares`, `dynamic_generation_shares`, `shrunk_sharpe`, `blend_generation_rows`, `GlidePolicy`, `decay_state`, `next_stage`, `share_cap`, `RoundSpec`, `ram_preflight`, `due_actions`, `resolve_session` (a late run still records its session), `build_trial_table` and the closed set of round builders |
 | `aether_quant.training` | `purged_embargoed_folds`, `purge_label_overlap`, `assign_split`, `annual_windows`, `rank_inputs`, `fama_macbeth_ridge`, `build_table`, `residualise_signal`, `feature_group_ic` |
 | `aether_quant.risk` | `evaluate_kill_switch`, `build_dynamic_position_sizing`, `cap_target_weight`, `assess_drawdown_lock`, asset-class routing, forex and futures risk, RL sizing, `risk_controls` helpers, the manual lock overrides |
@@ -22,11 +31,13 @@ Importing it never loads torch, Lean's `AlgorithmImports`, Redis, Postgres or th
 | `aether_quant.research` | `evaluate_signal`, `probability_of_backtest_overfitting`, `factor_spanning`, leakage and overfit audits, the trial registry and ledger, `selection_gate`, `alpha_regression` |
 | `aether_quant.regime`, `.topology`, `.moe`, `.liquidity`, `.analyzer` | `build_market_regime_vector`, `build_market_topology`, `build_gating_decision`, spread estimates, the market analyzer |
 | `aether_quant.performance`, `.retraining`, `.notifications`, `.monitoring`, `.experience`, `.experts` | Triggers, `evaluate_retraining_plan`, validation gates, rollback, alert formatting, evaluation views, observation metrics |
-| `aether_quant.data` | Parsers and tables: `first_filings_annual`, `fundamentals_table`, bar synthesis, membership, factors. Fetchers stay in `data_pipeline/`, filing text as hashed word counts (`hashed_counts`, `filing_tokens`, `count_cosine`) |
+| `aether_quant.data` | Keyless Coinbase candles (`fetch_daily_bars`, `bars_to_panel`). Parsers and tables: `first_filings_annual`, `fundamentals_table`, bar synthesis, membership, factors. Fetchers stay in `data_pipeline/`, filing text as hashed word counts (`hashed_counts`, `filing_tokens`, `count_cosine`) |
 | `aether_quant.audit`, `.io`, `.inference` | The hash chain, finite-safe JSON, the numpy forward pass |
 | `aether_quant.formal` | `targets`, `load_cases`, `decode_rational`: check a Python function against its verified model |
 
-The README has [a worked example](../README.md#the-aether_quant-library).
+The README has [a worked example](../README.md#the-aether_quant-library). The [API reference](https://leon1706-lol.github.io/Aether-quant/reference/) documents every export, and `scripts/type_completeness.py` keeps each one fully annotated.
+
+**License.** Apache-2.0 (`LICENSES/Apache-2.0.txt`, `NOTICE`), as is everything the wheel ships. The trading system around it stays PolyForm Noncommercial; see the root `LICENSE`.
 
 **Left out on purpose.** `main.py` needs Lean's engine. Workers, queues, `monitoring/api_server.py` and network fetchers stay in their own modules. The trainers' networks need torch: use `aq cycle retrain`.
 

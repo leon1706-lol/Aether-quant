@@ -36,6 +36,11 @@ from portfolio.options_strategy import (
     _net_vega_and_delta_per_unit,
     select_strategy_legs,
 )
+from typing import TYPE_CHECKING, Any
+
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
 
 
 def box_spread_fair_value(
@@ -49,7 +54,7 @@ def box_spread_fair_value(
     return (higher_strike - lower_strike) * math.exp(-risk_free_rate * max(time_to_expiry_years, 0.0))
 
 
-def pv_dividends_to_expiry(payments, current_date, expiry_date_str: str, risk_free_rate: float) -> float:
+def pv_dividends_to_expiry(payments: Iterable[tuple[date, float]] | None, current_date: date, expiry_date_str: str, risk_free_rate: float) -> float:
     """Present value of the dividends going ex after `current_date` and on or before the expiry. `payments` holds
     (ex_date, cash_per_share) pairs. A row it can't read counts as no dividend, as the detector did before it knew of any."""
     total = 0.0
@@ -127,7 +132,7 @@ def _years_between(current_date, expiry_date_str: str) -> float:
     return max((expiry_date - current_date).days, 0) / 365.0
 
 
-def _actual_net_cost(spec, legs_by_role: dict) -> float:
+def _actual_net_cost(spec, legs_by_role: dict[str, Any]) -> float:
     """Signed cost to enter the FULL spread unit at current market
     bid/ask: pay ask for every LONG leg, receive bid for every SHORT leg
     - read from each leg's own `.side` (registry-driven), never hardcoded
@@ -148,11 +153,11 @@ def _actual_net_cost(spec, legs_by_role: dict) -> float:
 def select_arbitrage_signal(
     strategy_name: str,
     available_chain: list[dict],
-    current_date,
+    current_date: date,
     risk_free_rate: float,
     min_mispricing_bps: float,
     target_delta: float = 0.5,
-    dividend_payments=None,
+    dividend_payments: Iterable[tuple[date, float]] | None=None,
 ) -> bool:
     """Composes the existing V4.5 arbitrage leg selectors
     (select_strategy_legs(), already registry-driven) with the fair-value/
@@ -226,7 +231,7 @@ def select_arbitrage_signal(
 def build_arbitrage_position_sizing(
     strategy_name: str,
     available_chain: list[dict],
-    current_date,
+    current_date: date,
     risk_free_rate: float,
     min_mispricing_bps: float,
     max_contracts_per_signal: int = 1,

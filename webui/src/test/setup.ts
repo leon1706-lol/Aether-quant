@@ -1,6 +1,12 @@
-import '@testing-library/jest-dom/vitest'
+import type {} from '@testing-library/jest-dom/vitest' // the matcher types only; registration is below
+import * as matchers from '@testing-library/jest-dom/matchers'
 import { cleanup } from '@testing-library/react'
-import { afterEach, vi } from 'vitest'
+import { afterEach, expect, vi } from 'vitest'
+
+// V6.6.5: register the jest-dom matchers explicitly. The side-effect entry ('@testing-library/jest-dom/vitest') resolves
+// its './dist/matchers' import to a different module instance on some hosts (seen on Windows with Node 22), leaving
+// toBeInTheDocument unregistered; extending vitest's own expect works everywhere.
+expect.extend(matchers)
 
 afterEach(() => {
   cleanup()

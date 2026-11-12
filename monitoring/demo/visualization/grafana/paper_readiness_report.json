@@ -1,0 +1,21 @@
+{
+ "blocking_reasons": [
+  "demo data: no observation period, no broker"
+ ],
+ "broker_config_present": false,
+ "broker_config_reason": "demo: no broker is configured",
+ "checks": {
+  "observation_count": {
+   "pass": false,
+   "threshold": 500,
+   "value": 0
+  },
+  "simulated_sharpe": {
+   "pass": true,
+   "threshold": 0.3,
+   "value": 0.431474
+  }
+ },
+ "generated_at": "2026-10-31T00:00:00Z",
+ "ready": false
+}

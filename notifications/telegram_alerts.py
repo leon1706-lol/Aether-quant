@@ -11,19 +11,20 @@ I/O layer and notifications/telegram_client.py for the outbound HTTP call.
 """
 
 from __future__ import annotations
+from typing import Any
 
 SEVERITY_EMOJI = {"info": "ℹ️", "warning": "⚠️", "critical": "\U0001f6a8"}
 _SEVERITY_RANK = {"info": 0, "warning": 1, "critical": 2}
 
 
-def should_alert_trigger(trigger: dict, min_severity: str = "warning") -> bool:
+def should_alert_trigger(trigger: dict[str, Any], min_severity: str = "warning") -> bool:
     """True if trigger["severity"] clears min_severity (info < warning < critical)."""
     trigger_rank = _SEVERITY_RANK.get(trigger.get("severity"), 0)
     threshold_rank = _SEVERITY_RANK.get(min_severity, 1)
     return trigger_rank >= threshold_rank
 
 
-def format_trigger_alert(trigger: dict) -> str:
+def format_trigger_alert(trigger: dict[str, Any]) -> str:
     """Render a performance_triggers row as a Telegram message.
 
     Renders fields performance/triggers.py already computed (message,
@@ -54,7 +55,7 @@ def _num(value, default: float = 0.0) -> float:
         return default
 
 
-def format_session_summary_alert(session_summary_event: dict) -> str:
+def format_session_summary_alert(session_summary_event: dict[str, Any]) -> str:
     """Render a session_summary experience event as a Telegram digest.
 
     Reads the observation_summary sub-dict produced by

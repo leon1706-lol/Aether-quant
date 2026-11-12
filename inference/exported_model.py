@@ -24,6 +24,7 @@ import math
 from pathlib import Path
 
 import numpy as np
+from typing import Any
 
 # Optional C++/pybind11 accelerator for _linear_batched() below (see
 # cpp_inference/README.md and development/Problems.md #32) - never a hard
@@ -37,7 +38,8 @@ except ImportError:
     _cpp_inference = None
 
 
-def run_exported_model(model_export: dict, inputs: list[float]) -> float:
+def run_exported_model(model_export: dict[str, Any], inputs: list[float]) -> float:
+    """The exported network's forward pass in numpy (the torch-free path main.py uses): one input vector to one output."""
     current = np.asarray(inputs, dtype=np.float64)
     for layer in model_export["export"]["architecture"]:
         layer_type = layer["type"]
@@ -61,7 +63,7 @@ def run_exported_model(model_export: dict, inputs: list[float]) -> float:
     return float(current[0])
 
 
-def run_exported_model_rows(model_export: dict, rows: list[list[float]]) -> list[float]:
+def run_exported_model_rows(model_export: dict[str, Any], rows: list[list[float]]) -> list[float]:
     """V5.8.0 (latency): run_exported_model() for N input rows of ONE shared model in a single matmul per layer
     (the per-symbol loop paid NumPy's per-call dispatch ~57 times a tick). Same layer set and the same result per row
     as run_exported_model() up to BLAS summation order (~1e-16); an empty list returns [].
@@ -75,7 +77,7 @@ def run_exported_model_rows(model_export: dict, rows: list[list[float]]) -> list
     return [float(value) for value in current[:, 0]]
 
 
-def run_exported_multitask_model_rows(model_export: dict, rows: list[list[float]]) -> list[dict[str, float]]:
+def run_exported_multitask_model_rows(model_export: dict[str, Any], rows: list[list[float]]) -> list[dict[str, float]]:
     """V5.8.0 (latency): run_exported_multitask_model() for N rows of ONE shared model — the trunk once for all rows,
     then each head once for all rows. Returns one {head: value} dict per row, same keys as the per-row function."""
     if not rows:
@@ -90,7 +92,7 @@ def run_exported_multitask_model_rows(model_export: dict, rows: list[list[float]
     return [{head_name: float(values[index]) for head_name, values in head_outputs.items()} for index in range(len(rows))]
 
 
-def convert_state_dict_arrays(export: dict) -> None:
+def convert_state_dict_arrays(export: dict[str, Any]) -> None:
     """Converts every value in export["export"]["state_dict"] from a plain
     Python list to a np.float64 ndarray, IN PLACE - call this ONCE, right
     after a model export is loaded from JSON (see main.py's various
@@ -156,7 +158,7 @@ def _softplus(value):
     return np.log1p(np.exp(-np.abs(array))) + np.maximum(array, 0.0)
 
 
-def _run_layer_stack(layers: list[dict], state_dict: dict, current: np.ndarray) -> np.ndarray:
+def _run_layer_stack(layers: list[dict], state_dict: dict[str, Any], current: np.ndarray) -> np.ndarray:
     """Shared per-layer forward pass, used only by run_exported_multitask_model()
     below - run_exported_model() above stays untouched (same layer-loop shape,
     duplicated rather than shared, so the original interpreter carries zero
@@ -814,7 +816,7 @@ def _multihead_attention(
     return context @ output_weights_array.T + output_bias_array
 
 
-def run_exported_multitask_model(model_export: dict, inputs: list[float]) -> dict[str, float]:
+def run_exported_multitask_model(model_export: dict[str, Any], inputs: list[float]) -> dict[str, float]:
     """Forward pass over a branching {"trunk": [...], "heads": {name: [...]}}
     export (train.py::export_multitask_architecture()/AetherNetMultiTask) -
     the shared trunk runs once, then each head runs independently starting
@@ -837,7 +839,7 @@ def run_exported_multitask_model(model_export: dict, inputs: list[float]) -> dic
     return outputs
 
 
-def run_exported_sequence_multitask_model(model_export: dict, sequence: list[list[float]]) -> dict[str, float]:
+def run_exported_sequence_multitask_model(model_export: dict[str, Any], sequence: list[list[float]]) -> dict[str, float]:
     """Phase 2: forward pass over a sequence-encoder export - a causal TCN
     trunk (train.py::AetherNetSequenceMultiTask/export_sequence_multitask_architecture())
     consuming a (window, features) matrix instead of run_exported_multitask_model()'s
@@ -914,7 +916,7 @@ def _linear_shared_batched(current: np.ndarray, weights, bias) -> np.ndarray:
     return current @ weights_array.T + bias_array
 
 
-def _run_layer_stack_shared_batched(layers: list[dict], state_dict: dict, current: np.ndarray) -> np.ndarray:
+def _run_layer_stack_shared_batched(layers: list[dict], state_dict: dict[str, Any], current: np.ndarray) -> np.ndarray:
     """Batched sibling of _run_layer_stack() for ONE shared model applied to
     N stacked rows (current starts as (N, features)) - used below for the
     sequence encoder's head layers, once N symbols' pooled trunk outputs
@@ -976,7 +978,7 @@ def _conv1d_causal_batched(sequence_batch, weights, bias, dilation: int = 1) -> 
 
 
 def _run_sequence_models_individually_with_fallback(
-    model_export: dict, sequences: list[list[list[float]] | None]
+    model_export: dict[str, Any], sequences: list[list[list[float]] | None]
 ) -> list[dict[str, float] | None]:
     """Exactly today's pre-batching behavior: one
     run_exported_sequence_multitask_model() call per present entry, None
@@ -1000,7 +1002,7 @@ def _run_sequence_models_individually_with_fallback(
 
 
 def run_exported_sequence_multitask_model_batched(
-    model_export: dict, sequences: list[list[list[float]] | None]
+    model_export: dict[str, Any], sequences: list[list[list[float]] | None]
 ) -> list[dict[str, float] | None]:
     """Batched sibling of run_exported_sequence_multitask_model() - ONE
     trained sequence model, N symbols' own (window, features) sequences
@@ -1058,7 +1060,7 @@ def run_exported_sequence_multitask_model_batched(
     return results
 
 
-def resolve_sequence_window_size(sequence_feature_schema: dict | None, configured_window_size: int) -> int:
+def resolve_sequence_window_size(sequence_feature_schema: dict[str, Any] | None, configured_window_size: int) -> int:
     """The trained model's OWN window_size (sequence_feature_schema.json,
     written by train_sequence.py) wins over config.json's - a retrained
     candidate with a different window_size used to silently disable the
@@ -1073,7 +1075,7 @@ def resolve_sequence_window_size(sequence_feature_schema: dict | None, configure
     return int((sequence_feature_schema or {}).get("window_size", configured_window_size))
 
 
-def average_head_outputs(outputs: list[dict | None]) -> dict | None:
+def average_head_outputs(outputs: list[dict | None]) -> dict[str, Any] | None:
     """Seed-ensemble prediction (V6.1.0): the plain mean of each head's raw output across members, taken before any
     cross-sectional normalisation (train.average_ensemble_predictions averages the same way). A head is kept only when
     every member returned a finite value for it, so a member that failed cannot silently reweight the others; None when
@@ -1091,14 +1093,14 @@ def average_head_outputs(outputs: list[dict | None]) -> dict | None:
     return averaged
 
 
-def export_input_names(model_export: dict | None, default_names: list[str]) -> list[str]:
+def export_input_names(model_export: dict[str, Any] | None, default_names: list[str]) -> list[str]:
     """The input features a model was trained on (`model.model_input_features` of its export); `default_names` when the
     export does not record them (an older export trained on the full schema)."""
     names = ((model_export or {}).get("model") or {}).get("model_input_features")
     return list(names) if names else list(default_names)
 
 
-def model_input_index(model_export: dict | None, full_names: list[str]) -> list[int] | None:
+def model_input_index(model_export: dict[str, Any] | None, full_names: list[str]) -> list[int] | None:
     """V6.2.0: positions of a model's own inputs inside the full live vector (`ml/feature_schema.json` order), so a model
     trained on a feature subset gets exactly its inputs. None when they are the full vector in the same order (the
     caller passes the vector through untouched); ValueError when the model needs a feature live never builds."""
@@ -1132,7 +1134,7 @@ def load_ensemble_member_exports(ensemble_dir: Path) -> list[dict]:
     return [json.loads(path.read_text(encoding="utf-8")) for path in sorted(directory.glob("*.json"))]
 
 
-def resolve_model_ensemble_config(config: dict) -> dict:
+def resolve_model_ensemble_config(config: dict[str, Any]) -> dict[str, Any]:
     """`phase_v2.model_ensemble` with defaults: off, members under ml/multitask_ensemble and ml/sequence_ensemble."""
     raw = (config or {}).get("phase_v2", {}).get("model_ensemble", {}) or {}
     return {

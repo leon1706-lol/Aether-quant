@@ -23,6 +23,7 @@ import pandas as pd
 from audit.hash_chain import GENESIS_HASH, compute_entry_hash, verify_chain
 from evaluation.power_analysis import excluded_alpha_sharpe, minimum_detectable_alpha_sharpe
 from portfolio.premia_signals import ResearchPanel, SleeveSpec, WeightSettings, signal_to_weights, sleeve_signal
+from typing import Any
 
 EVENT_TYPE = "forward_session"
 JUDGE_AT_SESSIONS = (60, 252)
@@ -31,7 +32,8 @@ COST_BPS_BY_CLASS = {"crypto": 90.0, "equity": 4.5}
 TRADING_DAYS = 252.0
 
 
-def definition_sha256(definition: Mapping) -> str:
+def definition_sha256(definition: Mapping[str, Any]) -> str:
+    """SHA-256 of a forward definition's canonical JSON (sorted keys, no spaces): the identity a ledger row is bound to."""
     return hashlib.sha256(json.dumps(definition, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()
 
 
@@ -64,7 +66,7 @@ def is_rebalance(sessions: Sequence[str], date: str, *, anchor: str, every: int)
     return bool(after) and after[-1] == date and len(after) % int(every) == 0
 
 
-def decide(definition: Mapping, known: pd.DataFrame, date: str) -> dict[str, float]:
+def decide(definition: Mapping[str, Any], known: pd.DataFrame, date: str) -> dict[str, float]:
     """The frozen rule's weights at `date`, through the research pipeline. `known` holds only what was public by that session's close."""
     spec = SleeveSpec(
         str(definition["id"]), "forward", str(definition["kind"]), str(definition["family"]), tuple(definition["universe"]),
@@ -90,17 +92,19 @@ def session_return(held: Mapping[str, float], marks: pd.DataFrame, previous: str
 
 
 def turnover(before: Mapping[str, float], after: Mapping[str, float]) -> float:
+    """Sum of absolute weight changes between two books, the traded fraction of NAV."""
     return sum(abs(float(after.get(ticker, 0.0)) - float(before.get(ticker, 0.0))) for ticker in set(before) | set(after))
 
 
 def read_ledger(path: Path) -> list[dict]:
+    """The ledger's rows (one JSON object per line), or [] when the file does not exist."""
     path = Path(path)
     if not path.exists():
         return []
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
 
 
-def append_row(path: Path, *, session: str, candidate: str, payload: Mapping, created_at: str) -> dict:
+def append_row(path: Path, *, session: str, candidate: str, payload: Mapping[str, Any], created_at: str) -> dict[str, Any]:
     """Links a row to the chain and appends it. The row's own session is in the payload, so a rewrite of a date breaks the hash."""
     rows = read_ledger(path)
     previous = rows[-1]["hash"] if rows else GENESIS_HASH
@@ -114,11 +118,13 @@ def append_row(path: Path, *, session: str, candidate: str, payload: Mapping, cr
     return row
 
 
-def last_row_for(rows: Sequence[dict], candidate: str) -> dict | None:
+def last_row_for(rows: Sequence[dict], candidate: str) -> dict[str, Any] | None:
+    """The newest ledger row of a candidate, or None."""
     return next((row for row in reversed(rows) if row["payload"].get("candidate") == candidate), None)
 
 
 def has_session(rows: Sequence[dict], candidate: str, session: str) -> bool:
+    """Whether the ledger already holds a row for this candidate and session."""
     return any(row["payload"].get("candidate") == candidate and row["payload"].get("session") == session for row in rows)
 
 
@@ -128,7 +134,7 @@ def _sharpe(values: np.ndarray) -> float | None:
     return float(values.mean() / values.std(ddof=1) * math.sqrt(TRADING_DAYS))
 
 
-def judge_candidate(rows: Sequence[dict], candidate: str) -> dict:
+def judge_candidate(rows: Sequence[dict], candidate: str) -> dict[str, Any]:
     """Sessions recorded, Sharpe, alpha t against the benchmarks each row carries, and what this many sessions can and can't show."""
     from evaluation.alpha_proof import alpha_regression
 
@@ -153,7 +159,7 @@ def judge_candidate(rows: Sequence[dict], candidate: str) -> dict:
     return report
 
 
-def judge_ledger(rows: Sequence[dict], *, today_sessions: Sequence[str] = ()) -> dict:
+def judge_ledger(rows: Sequence[dict], *, today_sessions: Sequence[str] = ()) -> dict[str, Any]:
     """Chain check first: a broken chain makes every figure meaningless. `today_sessions` warns of a schedule that stopped."""
     valid, broken_at = verify_chain(list(rows))
     report: dict = {"chain_valid": valid, "first_broken_row": broken_at, "rows": len(rows)}

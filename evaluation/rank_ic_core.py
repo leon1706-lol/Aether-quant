@@ -31,6 +31,11 @@ from collections import defaultdict
 
 import numpy as np
 import pandas as pd
+from typing import TYPE_CHECKING, Any
+
+
+if TYPE_CHECKING:
+    from numpy.typing import ArrayLike
 
 
 def rank_ic_from_arrays(
@@ -39,7 +44,7 @@ def rank_ic_from_arrays(
     dates: np.ndarray,
     non_overlapping_stride: int = 1,
     min_names_per_date: int = 2,
-) -> dict:
+) -> dict[str, Any]:
     """Per-date Spearman rank correlation ("rank-IC") between a model's raw
     rank_5d/20d prediction score and the realized cross-sectional rank
     target (target_rank_5d/20d - already a per-date percentile rank of
@@ -115,7 +120,7 @@ def rank_ic_from_arrays(
     }
 
 
-def newey_west_t_stat(values, lags: int) -> float:
+def newey_west_t_stat(values: ArrayLike, lags: int) -> float:
     """HAC (Newey-West, Bartlett weights) t-statistic of the mean of a daily IC series. Consecutive daily ICs of an
     h-day-horizon signal share most of their forward window, so the plain t-stat overstates significance; the
     non-overlapping subsample is honest but throws away (h-1)/h of the dates (14 of 261 on the validation split).
@@ -208,7 +213,7 @@ def resolve_realized_rank_ic_observations(events: list[dict], horizon_days: int 
 
 def aggregate_rank_ic_observations(
     observations: list[dict], non_overlapping_stride: int = 1, min_names_per_date: int = 2
-) -> dict:
+) -> dict[str, Any]:
     """Runs rank_ic_from_arrays() over resolve_realized_rank_ic_observations()'s
     output - shares the exact same tested correlation core every other IC
     metric in this codebase goes through. `min_names_per_date` - see

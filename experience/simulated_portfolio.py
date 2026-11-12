@@ -11,6 +11,7 @@ function's signature never needs to change.
 from __future__ import annotations
 
 from execution.order_gate import simulate_fill
+from typing import Any
 
 
 class SimulatedPortfolioState:
@@ -166,7 +167,7 @@ class SimulatedPortfolioState:
             return 0.0
         return equity / self.peak_equity - 1.0
 
-    def snapshot(self, consume_realized_pnl: bool = True) -> dict:
+    def snapshot(self, consume_realized_pnl: bool = True) -> dict[str, Any]:
         """Portfolio snapshot compatible with build_experience_event(portfolio=...).
 
         By default this consumes (clears) the pending realized-PnL value so

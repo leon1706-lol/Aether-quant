@@ -12,6 +12,7 @@ import numpy as np
 import pandas as pd
 
 from portfolio.wide_signals import rank_mean
+from typing import Any
 
 MIN_RESIDUAL_NAMES = 30
 
@@ -40,7 +41,7 @@ def residualise_signal(table: pd.DataFrame, exposures: Mapping[str, pd.DataFrame
     return pd.DataFrame(out, index=table.index, columns=table.columns)
 
 
-def build_table(recipe: Mapping, tables: Mapping[str, pd.DataFrame], member: pd.DataFrame | None = None, *, sectors: Mapping[str, str] | None = None) -> pd.DataFrame:
+def build_table(recipe: Mapping[str, Any], tables: Mapping[str, pd.DataFrame], member: pd.DataFrame | None = None, *, sectors: Mapping[str, str] | None = None) -> pd.DataFrame:
     """One trial's table from a recipe in its round file: {"op": "single" | "rank_mean" | "residualise", "parts": [names], "signs": {name: -1.0},
     "minimum": n, "exposures": [names]}. A missing part is an error: a trial must not quietly become a different trial."""
     op = str(recipe["op"])

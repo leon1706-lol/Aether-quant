@@ -1,0 +1,245 @@
+{
+ "account": "demo",
+ "blocking": [
+  "Forward record sessions: unknown",
+  "Forward alpha t (HAC): unknown",
+  "Deflated Sharpe of the book: unknown",
+  "PBO of the latest research round: unknown",
+  "Paper trading days: unknown",
+  "Paper rebalances: unknown",
+  "Every paper metric inside its reference band: unknown",
+  "Field test (orders, trip, flatten, breach, restart, outages, accounts): unknown",
+  "Kill switch enabled: unknown",
+  "A reconciliation breach trips the kill switch: unknown",
+  "Live total-drawdown limit: unknown",
+  "Broker secrets resolve from a file, Docker secret or keyring: unknown",
+  "Postgres password is not the published default: unknown",
+  "Audit chain verifies: unknown",
+  "Telegram alerts configured: unknown",
+  "Postgres backup: unknown",
+  "Deployed image digest recorded: unknown",
+  "Last full verification green: unknown",
+  "Mutation kill rate of the safety modules: unknown",
+  "Account registry valid (overrides only tighten): unknown",
+  "The account is a real brokerage with capital set: unknown"
+ ],
+ "counts": {
+  "fail": 0,
+  "pass": 0,
+  "unknown": 21
+ },
+ "generated_at": "2026-10-31T00:00:00Z",
+ "metrics": [
+  {
+   "evidence": "forward/generations.jsonl",
+   "group": "edge",
+   "key": "forward_sessions",
+   "label": "Forward record sessions",
+   "measured_at": null,
+   "status": "unknown",
+   "threshold": ">= 60",
+   "value": null
+  },
+  {
+   "evidence": "judge_candidate on the incumbent generation",
+   "group": "edge",
+   "key": "forward_alpha_t",
+   "label": "Forward alpha t (HAC)",
+   "measured_at": null,
+   "status": "unknown",
+   "threshold": ">= 2.0",
+   "value": null
+  },
+  {
+   "evidence": "ml/evaluation/alpha_proof.json",
+   "group": "edge",
+   "key": "book_dsr",
+   "label": "Deflated Sharpe of the book",
+   "measured_at": null,
+   "status": "unknown",
+   "threshold": ">= 0.95",
+   "value": null
+  },
+  {
+   "evidence": "-",
+   "group": "edge",
+   "key": "round_pbo",
+   "label": "PBO of the latest research round",
+   "measured_at": null,
+   "status": "unknown",
+   "threshold": "< 0.50",
+   "value": null
+  },
+  {
+   "evidence": "aq evaluate --paper-check",
+   "group": "paper",
+   "key": "paper_trading_days",
+   "label": "Paper trading days",
+   "measured_at": null,
+   "status": "unknown",
+   "threshold": ">= 120",
+   "value": null
+  },
+  {
+   "evidence": "aq evaluate --paper-check",
+   "group": "paper",
+   "key": "paper_rebalances",
+   "label": "Paper rebalances",
+   "measured_at": null,
+   "status": "unknown",
+   "threshold": ">= 6",
+   "value": null
+  },
+  {
+   "evidence": "evaluation/paper_protocol.band_check",
+   "group": "paper",
+   "key": "paper_bands",
+   "label": "Every paper metric inside its reference band",
+   "measured_at": null,
+   "status": "unknown",
+   "threshold": "all inside",
+   "value": null
+  },
+  {
+   "evidence": "ml/evaluation/field_test/",
+   "group": "safety",
+   "key": "field_test",
+   "label": "Field test (orders, trip, flatten, breach, restart, outages, accounts)",
+   "measured_at": null,
+   "status": "unknown",
+   "threshold": "all, <= 90 days old",
+   "value": null
+  },
+  {
+   "evidence": "phase_v2.risk.kill_switch.enabled",
+   "group": "safety",
+   "key": "kill_switch_enabled",
+   "label": "Kill switch enabled",
+   "measured_at": null,
+   "status": "unknown",
+   "threshold": "true",
+   "value": null
+  },
+  {
+   "evidence": "phase_v2.reconciliation.trips_kill_switch",
+   "group": "safety",
+   "key": "reconciliation_trips",
+   "label": "A reconciliation breach trips the kill switch",
+   "measured_at": null,
+   "status": "unknown",
+   "threshold": "true",
+   "value": null
+  },
+  {
+   "evidence": "phase_v2.live.max_allowed_total_drawdown_pct",
+   "group": "safety",
+   "key": "max_total_drawdown",
+   "label": "Live total-drawdown limit",
+   "measured_at": null,
+   "status": "unknown",
+   "threshold": "<= 0.15",
+   "value": null
+  },
+  {
+   "evidence": "aq secrets status",
+   "group": "operations",
+   "key": "secrets",
+   "label": "Broker secrets resolve from a file, Docker secret or keyring",
+   "measured_at": null,
+   "status": "unknown",
+   "threshold": "all, stored safely",
+   "value": null
+  },
+  {
+   "evidence": "execution.live_credentials.postgres_dsn_is_live_safe",
+   "group": "operations",
+   "key": "postgres_dsn",
+   "label": "Postgres password is not the published default",
+   "measured_at": null,
+   "status": "unknown",
+   "threshold": "true",
+   "value": null
+  },
+  {
+   "evidence": "visualization/grafana/audit_log.json",
+   "group": "operations",
+   "key": "audit_chain",
+   "label": "Audit chain verifies",
+   "measured_at": null,
+   "status": "unknown",
+   "threshold": "true",
+   "value": null
+  },
+  {
+   "evidence": "AETHER_TELEGRAM_*",
+   "group": "operations",
+   "key": "alerts",
+   "label": "Telegram alerts configured",
+   "measured_at": null,
+   "status": "unknown",
+   "threshold": "true",
+   "value": null
+  },
+  {
+   "evidence": "scripts/backup_postgres.py",
+   "group": "operations",
+   "key": "backup",
+   "label": "Postgres backup",
+   "measured_at": null,
+   "status": "unknown",
+   "threshold": "<= 7 days old",
+   "value": null
+  },
+  {
+   "evidence": "state/deploy/image_digest.txt",
+   "group": "operations",
+   "key": "image_digest",
+   "label": "Deployed image digest recorded",
+   "measured_at": null,
+   "status": "unknown",
+   "threshold": "recorded",
+   "value": null
+  },
+  {
+   "evidence": "-",
+   "group": "code",
+   "key": "verification",
+   "label": "Last full verification green",
+   "measured_at": null,
+   "status": "unknown",
+   "threshold": "all pass, <= 30 days old",
+   "value": null
+  },
+  {
+   "evidence": "-",
+   "group": "code",
+   "key": "mutation_score",
+   "label": "Mutation kill rate of the safety modules",
+   "measured_at": null,
+   "status": "unknown",
+   "threshold": ">= 0.90",
+   "value": null
+  },
+  {
+   "evidence": "aq accounts validate",
+   "group": "accounts",
+   "key": "accounts_valid",
+   "label": "Account registry valid (overrides only tighten)",
+   "measured_at": null,
+   "status": "unknown",
+   "threshold": "true",
+   "value": null
+  },
+  {
+   "evidence": "accounts.json",
+   "group": "accounts",
+   "key": "live_account",
+   "label": "The account is a real brokerage with capital set",
+   "measured_at": null,
+   "status": "unknown",
+   "threshold": "broker != paper, capital_usd set",
+   "value": null
+  }
+ ],
+ "ready": false
+}

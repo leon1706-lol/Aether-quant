@@ -28,6 +28,11 @@ from __future__ import annotations
 from risk.forex_risk import ForexSizingDecision, build_forex_position_sizing
 from risk.futures_risk import FuturesSizingDecision, build_futures_position_sizing
 from risk.position_sizing import PositionSizingDecision, build_dynamic_position_sizing
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from datetime import date, datetime
+    from pathlib import Path
 
 try:
     from portfolio.options_strategy import (
@@ -236,10 +241,10 @@ def _margin_decision_to_position_sizing(decision, portfolio_value: float) -> Pos
 
 
 def route_multi_leg_option_sizing(
-    enabled_strategy_names: list,
+    enabled_strategy_names: list[Any],
     signal_name: str,
     confidence: float,
-    available_chain: list,
+    available_chain: list[Any],
     portfolio_value: float,
     underlying_price: float,
     volatility_view: str,
@@ -254,12 +259,12 @@ def route_multi_leg_option_sizing(
     max_margin_utilization: float,
     pct_of_underlying_value: float,
     min_pct_of_underlying_value: float,
-    current_date=None,
+    current_date: date=None,
     risk_free_rate: float = 0.045,
     arbitrage_detector_enabled: bool = False,
     min_mispricing_bps: float = 15.0,
     arbitrage_max_contracts_per_signal: int = 1,
-    strategy_selector_scores: dict | None = None,
+    strategy_selector_scores: dict[str, Any] | None = None,
 ) -> tuple[PositionSizingDecision, dict] | None:
     """V4.5 - the full-coverage sibling of route_position_sizing()'s
     option branch: tries `enabled_strategy_names`, reordered by
@@ -493,15 +498,15 @@ def route_position_sizing(
     confidence: float,
     base_target_weight: float,
     *,
-    equity_crypto_kwargs: dict | None = None,
+    equity_crypto_kwargs: dict[str, Any] | None = None,
     price: float = 0.0,
     portfolio_value: float = 0.0,
-    contract_spec: dict | None = None,
-    futures_kwargs: dict | None = None,
-    pair_spec: dict | None = None,
-    forex_kwargs: dict | None = None,
+    contract_spec: dict[str, Any] | None = None,
+    futures_kwargs: dict[str, Any] | None = None,
+    pair_spec: dict[str, Any] | None = None,
+    forex_kwargs: dict[str, Any] | None = None,
     available_chain: list[dict] | None = None,
-    options_kwargs: dict | None = None,
+    options_kwargs: dict[str, Any] | None = None,
 ) -> tuple[PositionSizingDecision, dict]:
     """Dispatches on asset_class (falls back to "equity" behavior for any
     unrecognized value - the existing, safest, most-tested path). Returns
@@ -599,7 +604,7 @@ def route_position_sizing(
     return decision, {}
 
 
-def load_venue_listing_dates(path) -> dict[str, dict]:
+def load_venue_listing_dates(path: str | Path) -> dict[str, dict]:
     """{ticker: {"listed": "YYYY-MM-DD", "suspended": [["start", "end"], ...]}} from a JSON file
     (data/reference/crypto_listing_dates.json, V5.8.0). Missing or unreadable file -> {} (no guard, the old behaviour)."""
     import json
@@ -612,7 +617,7 @@ def load_venue_listing_dates(path) -> dict[str, dict]:
     return {str(ticker): dict(entry) for ticker, entry in (raw.get("assets", raw) or {}).items() if isinstance(entry, dict)}
 
 
-def asset_listed_on_venue(ticker: str, on_date, listing_dates: dict[str, dict] | None) -> bool:
+def asset_listed_on_venue(ticker: str, on_date: date | datetime | str, listing_dates: dict[str, dict] | None) -> bool:
     """False before a pair's venue listing date, from its delisting date on, or inside a suspension window (e.g. Coinbase suspended XRP from
     2021-01-19 to 2023-07-13): a backtest must not trade a pair the exchange did not list. Tickers without an entry, and
     an empty mapping, are always listed. `on_date` is a date/datetime or an ISO string."""

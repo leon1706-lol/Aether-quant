@@ -1,0 +1,15 @@
+{
+ "active_signals": 10,
+ "allow_live_orders": false,
+ "cash": 101361.737095,
+ "holdings_value": 13172.15864,
+ "invested_positions": 10,
+ "mode": "demo",
+ "phase": "demo",
+ "portfolio_value": 114533.895735,
+ "project": "Aether Quant",
+ "runtime_mode": "demo",
+ "total_drawdown": 0.071662,
+ "trade_lock_active": false,
+ "updated_at": "2026-10-31T00:00:00Z"
+}

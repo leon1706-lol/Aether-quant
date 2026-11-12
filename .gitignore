@@ -25,6 +25,11 @@ lean.local.json
 # scripts/render_lean_credentials.py / `aq render-lean-config` from .env.live.
 # The tracked lean.json stays all-empty; this is the copy with real keys filled.
 lean.live.json
+lean.live.*.json
+# V6.6.5: per-account renders, the accounts registry, API users, per-account state and Docker secrets files
+/accounts.json
+/state/
+/secrets/
 
 *.key
 *.pem
@@ -229,3 +234,8 @@ data_backups/
 
 # V6.4.3: Lean 4 build output and the Mathlib cache (~5 GB) of the formal/ proofs
 formal/.lake/
+
+# V6.6.5: copied from notebooks/ by scripts/build_docs.py; the built site
+/docs/tutorials/
+/site/
+/.cache/

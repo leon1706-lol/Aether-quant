@@ -17,6 +17,10 @@ from __future__ import annotations
 
 import math
 from collections.abc import Mapping, Sequence
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    import pandas as pd
 
 CSR_SUFFIX = "_csr"
 RANKED_SUFFIX = "_scaled"
@@ -24,7 +28,7 @@ MODES = ("replace", "append")
 GROUPS = ("asset_class",)
 
 
-def resolve_cross_sectional_inputs(raw: Mapping | None) -> dict | None:
+def resolve_cross_sectional_inputs(raw: Mapping[str, Any] | None) -> dict[str, Any] | None:
     """`phase1.features.cross_sectional_inputs` -> settings, or None when absent / disabled (today's behaviour)."""
     if not isinstance(raw, Mapping) or not bool(raw.get("enabled", False)):
         return None
@@ -41,7 +45,8 @@ def resolve_cross_sectional_inputs(raw: Mapping | None) -> dict | None:
     }
 
 
-def settings_from_config(config: Mapping | None) -> dict | None:
+def settings_from_config(config: Mapping[str, Any] | None) -> dict[str, Any] | None:
+    """The resolved cross-sectional input settings from `phase1.features.cross_sectional_inputs`, or None when off."""
     return resolve_cross_sectional_inputs(((config or {}).get("phase1") or {}).get("features", {}).get("cross_sectional_inputs"))
 
 
@@ -50,7 +55,7 @@ def ranked_input_names(names: Sequence[str]) -> list[str]:
     return [str(name) for name in names if str(name).endswith(RANKED_SUFFIX)]
 
 
-def expand_input_names(names: Sequence[str], settings: Mapping | None) -> list[str]:
+def expand_input_names(names: Sequence[str], settings: Mapping[str, Any] | None) -> list[str]:
     """Model input names after the transform: unchanged for "replace", `<name>_csr` appended for "append"."""
     names = [str(name) for name in names]
     if not settings or settings.get("mode") != "append":
@@ -59,13 +64,14 @@ def expand_input_names(names: Sequence[str], settings: Mapping | None) -> list[s
     return names + extra
 
 
-def asset_class_of(asset: Mapping | None) -> str:
+def asset_class_of(asset: Mapping[str, Any] | None) -> str:
     """The class main.py's _class_raw_scores uses: asset_class, else security_type (bond ETFs are equity / bond)."""
     asset = asset or {}
     return str(asset.get("asset_class") or asset.get("security_type") or "unknown")
 
 
-def asset_class_by_ticker(config: Mapping | None) -> dict[str, str]:
+def asset_class_by_ticker(config: Mapping[str, Any] | None) -> dict[str, str]:
+    """{ticker: asset class} for every asset in the config's universe."""
     assets = (((config or {}).get("phase1") or {}).get("universe") or {}).get("assets") or []
     return {str(asset.get("ticker")): asset_class_of(asset) for asset in assets}
 
@@ -99,7 +105,7 @@ def _centred_ranks(values: Sequence[float | None], min_group_size: int) -> list[
 
 
 def rank_input_matrix(
-    rows: Sequence[Sequence[float]], names: Sequence[str], groups: Sequence[str], settings: Mapping
+    rows: Sequence[Sequence[float]], names: Sequence[str], groups: Sequence[str], settings: Mapping[str, Any]
 ) -> tuple[list[list[float]], list[str]]:
     """Live form: `rows` are the model input vectors (in `names` order) of the symbols of ONE bar, `groups` their asset
     classes. Returns (new rows, new names) - new lists, the inputs are never mutated."""
@@ -121,7 +127,7 @@ def rank_input_matrix(
     return out_rows, out_names
 
 
-def rank_input_frame(frame, names: Sequence[str], groups, settings: Mapping, *, date_column: str = "date"):
+def rank_input_frame(frame: pd.DataFrame, names: Sequence[str], groups: Sequence[Any] | pd.Series, settings: Mapping[str, Any], *, date_column: str = "date") -> pd.DataFrame:
     """Offline form, same values as rank_input_matrix per (date, group): returns a copy of `frame` with the scaled
     inputs replaced (or `<name>_csr` columns added). `groups` is aligned to `frame` (a Series or a sequence)."""
     import numpy as np
@@ -145,8 +151,8 @@ def rank_input_frame(frame, names: Sequence[str], groups, settings: Mapping, *, 
     return out
 
 
-def apply_cross_sectional_inputs(frame, config: Mapping | None, names: Sequence[str], *, ticker_column: str = "ticker",
-                                 date_column: str = "date"):
+def apply_cross_sectional_inputs(frame: pd.DataFrame, config: Mapping[str, Any] | None, names: Sequence[str], *, ticker_column: str = "ticker",
+                                 date_column: str = "date") -> pd.DataFrame:
     """The trainer's / offline scorer's one call: `frame` unchanged when the setting is off, else ranked per (date, class)
     with each row's class from the config universe (the same mapping main.py uses)."""
     settings = settings_from_config(config)

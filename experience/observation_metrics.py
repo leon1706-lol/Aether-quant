@@ -11,16 +11,19 @@ not which function to call.
 from __future__ import annotations
 
 import numpy as np
+from typing import Any
 
 SIGNALS = ("buy", "sell", "hold")
 ACTIONS = ("observe", "simulate", "trade", "reduce_risk", "retrain_candidate")
 
 
 def count_observations(events: list[dict]) -> int:
+    """The number of observation-mode events."""
     return len(events)
 
 
 def signal_distribution(events: list[dict]) -> dict[str, int]:
+    """How many observation-mode events carried each signal."""
     counts = {signal: 0 for signal in SIGNALS}
     for event in events:
         signal = event.get("signal")
@@ -30,6 +33,7 @@ def signal_distribution(events: list[dict]) -> dict[str, int]:
 
 
 def action_distribution(events: list[dict]) -> dict[str, int]:
+    """How many observation-mode events took each action."""
     counts = {action: 0 for action in ACTIONS}
     for event in events:
         action = event.get("action")
@@ -39,6 +43,7 @@ def action_distribution(events: list[dict]) -> dict[str, int]:
 
 
 def rejected_by_reason(events: list[dict]) -> dict[str, int]:
+    """How many observation-mode decisions were rejected for each reason."""
     counts: dict[str, int] = {}
     for event in events:
         if event.get("action") == "trade":
@@ -58,7 +63,8 @@ def _realized_pnls(events: list[dict]) -> list[float]:
     return pnls
 
 
-def simulated_win_loss(events: list[dict]) -> dict:
+def simulated_win_loss(events: list[dict]) -> dict[str, Any]:
+    """Wins, losses and win rate of the simulated round trips in observation mode."""
     pnls = _realized_pnls(events)
     wins = sum(1 for pnl in pnls if pnl > 0)
     losses = sum(1 for pnl in pnls if pnl < 0)
@@ -79,6 +85,7 @@ def _simulated_equity_series(events: list[dict]) -> list[float]:
 
 
 def simulated_sharpe(events: list[dict], periods_per_year: int = 252) -> float:
+    """The annualised Sharpe of the simulated equity in observation mode; 0.0 with fewer than two points."""
     equity_series = _simulated_equity_series(events)
     if len(equity_series) < 2:
         return 0.0
@@ -98,6 +105,7 @@ def simulated_sharpe(events: list[dict], periods_per_year: int = 252) -> float:
 
 
 def simulated_max_drawdown(events: list[dict]) -> float:
+    """The largest peak-to-trough fall of the simulated equity in observation mode, as a negative fraction."""
     equity_series = _simulated_equity_series(events)
     if not equity_series:
         return 0.0
@@ -112,7 +120,8 @@ def simulated_max_drawdown(events: list[dict]) -> float:
     return max_drawdown
 
 
-def compute_observation_summary(events: list[dict]) -> dict:
+def compute_observation_summary(events: list[dict]) -> dict[str, Any]:
+    """The observation-mode summary the readiness checks read: counts, distributions, rejections and the simulated record."""
     return {
         "count_observations": count_observations(events),
         "signal_distribution": signal_distribution(events),

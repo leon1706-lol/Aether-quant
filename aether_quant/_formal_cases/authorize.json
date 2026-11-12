@@ -1,0 +1,6248 @@
+{
+ "target": "authorize",
+ "spec_files": [
+  "AetherFormal/Authorize.lean"
+ ],
+ "cases": [
+  {
+   "input": {
+    "role": 1,
+    "required": 3,
+    "auth_required": false,
+    "anonymous": false,
+    "all": false,
+    "accounts": [],
+    "account": "b"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 1,
+    "auth_required": true,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "c"
+    ],
+    "account": "c"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 1,
+    "auth_required": false,
+    "anonymous": false,
+    "all": true,
+    "accounts": [],
+    "account": "b"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 2,
+    "auth_required": true,
+    "anonymous": false,
+    "all": true,
+    "accounts": [],
+    "account": "a"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 3,
+    "auth_required": true,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "a"
+    ],
+    "account": "c"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 2,
+    "auth_required": true,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "a"
+    ],
+    "account": null
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 3,
+    "auth_required": true,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "c"
+    ],
+    "account": null
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 2,
+    "auth_required": true,
+    "anonymous": false,
+    "all": false,
+    "accounts": [],
+    "account": null
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 3,
+    "auth_required": true,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "c",
+     "b"
+    ],
+    "account": "c"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 2,
+    "auth_required": true,
+    "anonymous": false,
+    "all": true,
+    "accounts": [],
+    "account": "c"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 1,
+    "auth_required": true,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "b"
+    ],
+    "account": null
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 3,
+    "auth_required": false,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "b",
+     "c"
+    ],
+    "account": "a"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 3,
+    "auth_required": false,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "c"
+    ],
+    "account": null
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 3,
+    "auth_required": false,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "a"
+    ],
+    "account": "a"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 3,
+    "auth_required": true,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "c",
+     "a"
+    ],
+    "account": null
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 3,
+    "auth_required": true,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "c",
+     "b"
+    ],
+    "account": null
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 3,
+    "auth_required": true,
+    "anonymous": true,
+    "all": false,
+    "accounts": [
+     "c",
+     "a"
+    ],
+    "account": null
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 1,
+    "auth_required": false,
+    "anonymous": false,
+    "all": false,
+    "accounts": [],
+    "account": "c"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 3,
+    "auth_required": false,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "b"
+    ],
+    "account": "b"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 2,
+    "auth_required": true,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "c"
+    ],
+    "account": "b"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 1,
+    "auth_required": false,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "a"
+    ],
+    "account": null
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 3,
+    "auth_required": true,
+    "anonymous": true,
+    "all": true,
+    "accounts": [
+     "b",
+     "a"
+    ],
+    "account": "b"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 3,
+    "auth_required": true,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "a"
+    ],
+    "account": "b"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 3,
+    "auth_required": true,
+    "anonymous": true,
+    "all": false,
+    "accounts": [],
+    "account": "b"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 1,
+    "auth_required": true,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "c",
+     "a"
+    ],
+    "account": "a"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 3,
+    "auth_required": true,
+    "anonymous": true,
+    "all": false,
+    "accounts": [],
+    "account": "a"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 1,
+    "auth_required": false,
+    "anonymous": true,
+    "all": false,
+    "accounts": [
+     "a"
+    ],
+    "account": null
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 1,
+    "auth_required": false,
+    "anonymous": false,
+    "all": true,
+    "accounts": [],
+    "account": "c"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 3,
+    "auth_required": false,
+    "anonymous": true,
+    "all": true,
+    "accounts": [
+     "a"
+    ],
+    "account": "c"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 1,
+    "auth_required": false,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "a",
+     "b"
+    ],
+    "account": "b"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 1,
+    "auth_required": true,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "b"
+    ],
+    "account": "c"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 2,
+    "auth_required": true,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "a"
+    ],
+    "account": "b"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 2,
+    "auth_required": true,
+    "anonymous": true,
+    "all": false,
+    "accounts": [],
+    "account": "b"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 2,
+    "auth_required": true,
+    "anonymous": false,
+    "all": true,
+    "accounts": [],
+    "account": "a"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 3,
+    "auth_required": false,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "a"
+    ],
+    "account": "c"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 1,
+    "auth_required": true,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "b"
+    ],
+    "account": "a"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 3,
+    "auth_required": true,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "b"
+    ],
+    "account": "a"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 1,
+    "auth_required": true,
+    "anonymous": false,
+    "all": true,
+    "accounts": [],
+    "account": null
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 2,
+    "auth_required": true,
+    "anonymous": true,
+    "all": false,
+    "accounts": [
+     "b"
+    ],
+    "account": "b"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 1,
+    "auth_required": false,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "a"
+    ],
+    "account": null
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 2,
+    "auth_required": false,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "c"
+    ],
+    "account": null
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 2,
+    "auth_required": true,
+    "anonymous": false,
+    "all": false,
+    "accounts": [],
+    "account": "c"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 1,
+    "auth_required": false,
+    "anonymous": false,
+    "all": false,
+    "accounts": [],
+    "account": "a"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 3,
+    "auth_required": true,
+    "anonymous": false,
+    "all": true,
+    "accounts": [],
+    "account": "a"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 2,
+    "auth_required": false,
+    "anonymous": false,
+    "all": true,
+    "accounts": [],
+    "account": "b"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 2,
+    "auth_required": true,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "a"
+    ],
+    "account": "b"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 1,
+    "auth_required": true,
+    "anonymous": false,
+    "all": true,
+    "accounts": [],
+    "account": "a"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 3,
+    "auth_required": false,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "c"
+    ],
+    "account": "a"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 2,
+    "auth_required": false,
+    "anonymous": true,
+    "all": false,
+    "accounts": [
+     "c"
+    ],
+    "account": "c"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 2,
+    "auth_required": true,
+    "anonymous": false,
+    "all": true,
+    "accounts": [],
+    "account": "b"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 1,
+    "auth_required": true,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "c",
+     "a"
+    ],
+    "account": "b"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 3,
+    "auth_required": false,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "c"
+    ],
+    "account": null
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 1,
+    "auth_required": true,
+    "anonymous": true,
+    "all": true,
+    "accounts": [
+     "c",
+     "a"
+    ],
+    "account": null
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 1,
+    "auth_required": false,
+    "anonymous": false,
+    "all": true,
+    "accounts": [],
+    "account": null
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 1,
+    "auth_required": true,
+    "anonymous": false,
+    "all": true,
+    "accounts": [],
+    "account": "a"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 1,
+    "auth_required": false,
+    "anonymous": false,
+    "all": false,
+    "accounts": [],
+    "account": null
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 1,
+    "auth_required": false,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "a"
+    ],
+    "account": "a"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 3,
+    "auth_required": true,
+    "anonymous": false,
+    "all": true,
+    "accounts": [],
+    "account": "c"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 2,
+    "auth_required": false,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "a",
+     "c"
+    ],
+    "account": null
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 2,
+    "auth_required": true,
+    "anonymous": true,
+    "all": false,
+    "accounts": [
+     "c"
+    ],
+    "account": "a"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 2,
+    "auth_required": true,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "b"
+    ],
+    "account": "b"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 2,
+    "auth_required": true,
+    "anonymous": false,
+    "all": false,
+    "accounts": [],
+    "account": null
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 2,
+    "auth_required": false,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "a",
+     "b"
+    ],
+    "account": null
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 3,
+    "auth_required": true,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "b"
+    ],
+    "account": "b"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 1,
+    "auth_required": true,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "a",
+     "c"
+    ],
+    "account": "b"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 1,
+    "auth_required": true,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "c",
+     "a"
+    ],
+    "account": null
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 1,
+    "auth_required": false,
+    "anonymous": false,
+    "all": true,
+    "accounts": [],
+    "account": "a"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 3,
+    "auth_required": false,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "c"
+    ],
+    "account": "b"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 1,
+    "auth_required": false,
+    "anonymous": true,
+    "all": false,
+    "accounts": [
+     "c"
+    ],
+    "account": null
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 1,
+    "auth_required": false,
+    "anonymous": false,
+    "all": false,
+    "accounts": [],
+    "account": "c"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 2,
+    "auth_required": false,
+    "anonymous": false,
+    "all": true,
+    "accounts": [],
+    "account": "c"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 1,
+    "auth_required": true,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "c"
+    ],
+    "account": "b"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 3,
+    "auth_required": true,
+    "anonymous": false,
+    "all": true,
+    "accounts": [],
+    "account": "a"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 2,
+    "auth_required": true,
+    "anonymous": true,
+    "all": true,
+    "accounts": [
+     "b"
+    ],
+    "account": null
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 1,
+    "auth_required": true,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "a"
+    ],
+    "account": "b"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 3,
+    "auth_required": true,
+    "anonymous": false,
+    "all": false,
+    "accounts": [],
+    "account": "c"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 3,
+    "auth_required": false,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "a"
+    ],
+    "account": "a"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 1,
+    "auth_required": true,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "a"
+    ],
+    "account": "a"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 3,
+    "auth_required": false,
+    "anonymous": false,
+    "all": false,
+    "accounts": [],
+    "account": null
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 3,
+    "auth_required": true,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "c"
+    ],
+    "account": "b"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 2,
+    "auth_required": false,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "b",
+     "a"
+    ],
+    "account": "b"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 1,
+    "auth_required": true,
+    "anonymous": false,
+    "all": true,
+    "accounts": [],
+    "account": "c"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 2,
+    "auth_required": true,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "c",
+     "a"
+    ],
+    "account": "a"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 1,
+    "auth_required": true,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "a"
+    ],
+    "account": "c"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 3,
+    "auth_required": false,
+    "anonymous": true,
+    "all": true,
+    "accounts": [
+     "a"
+    ],
+    "account": null
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 2,
+    "auth_required": false,
+    "anonymous": false,
+    "all": true,
+    "accounts": [],
+    "account": null
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 3,
+    "auth_required": true,
+    "anonymous": false,
+    "all": false,
+    "accounts": [],
+    "account": "b"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 1,
+    "auth_required": true,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "c",
+     "a"
+    ],
+    "account": "b"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 1,
+    "auth_required": true,
+    "anonymous": false,
+    "all": true,
+    "accounts": [],
+    "account": "c"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 3,
+    "auth_required": false,
+    "anonymous": true,
+    "all": true,
+    "accounts": [
+     "c",
+     "b"
+    ],
+    "account": "a"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 2,
+    "auth_required": true,
+    "anonymous": true,
+    "all": false,
+    "accounts": [
+     "b"
+    ],
+    "account": "b"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 1,
+    "auth_required": false,
+    "anonymous": false,
+    "all": false,
+    "accounts": [],
+    "account": "c"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 2,
+    "auth_required": true,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "b"
+    ],
+    "account": null
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 1,
+    "auth_required": false,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "c"
+    ],
+    "account": "c"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 2,
+    "auth_required": false,
+    "anonymous": true,
+    "all": false,
+    "accounts": [
+     "c"
+    ],
+    "account": "a"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 2,
+    "auth_required": true,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "b"
+    ],
+    "account": null
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 3,
+    "auth_required": true,
+    "anonymous": true,
+    "all": false,
+    "accounts": [],
+    "account": "c"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 3,
+    "auth_required": true,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "c"
+    ],
+    "account": "a"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 1,
+    "auth_required": true,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "a",
+     "b"
+    ],
+    "account": "a"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 1,
+    "auth_required": true,
+    "anonymous": false,
+    "all": true,
+    "accounts": [],
+    "account": "a"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 1,
+    "auth_required": false,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "b",
+     "c"
+    ],
+    "account": null
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 3,
+    "auth_required": true,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "b"
+    ],
+    "account": "b"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 3,
+    "auth_required": true,
+    "anonymous": false,
+    "all": false,
+    "accounts": [],
+    "account": null
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 1,
+    "auth_required": true,
+    "anonymous": true,
+    "all": false,
+    "accounts": [
+     "b",
+     "a"
+    ],
+    "account": "c"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 3,
+    "auth_required": false,
+    "anonymous": false,
+    "all": false,
+    "accounts": [],
+    "account": null
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 2,
+    "auth_required": true,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "a"
+    ],
+    "account": "a"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 3,
+    "auth_required": false,
+    "anonymous": true,
+    "all": false,
+    "accounts": [],
+    "account": "c"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 1,
+    "auth_required": false,
+    "anonymous": false,
+    "all": true,
+    "accounts": [],
+    "account": "c"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 2,
+    "auth_required": true,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "a"
+    ],
+    "account": "a"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 3,
+    "auth_required": false,
+    "anonymous": false,
+    "all": true,
+    "accounts": [],
+    "account": null
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 2,
+    "auth_required": true,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "b"
+    ],
+    "account": "a"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 1,
+    "auth_required": true,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "b"
+    ],
+    "account": "c"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 2,
+    "auth_required": true,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "a"
+    ],
+    "account": "c"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 3,
+    "auth_required": true,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "c",
+     "a"
+    ],
+    "account": "c"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 2,
+    "auth_required": false,
+    "anonymous": false,
+    "all": false,
+    "accounts": [],
+    "account": null
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 2,
+    "auth_required": true,
+    "anonymous": false,
+    "all": true,
+    "accounts": [],
+    "account": null
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 2,
+    "auth_required": false,
+    "anonymous": true,
+    "all": true,
+    "accounts": [],
+    "account": "c"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 3,
+    "auth_required": false,
+    "anonymous": true,
+    "all": false,
+    "accounts": [],
+    "account": "c"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 2,
+    "auth_required": false,
+    "anonymous": false,
+    "all": true,
+    "accounts": [],
+    "account": "b"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 1,
+    "auth_required": true,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "c",
+     "a"
+    ],
+    "account": null
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 1,
+    "auth_required": true,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "b",
+     "a"
+    ],
+    "account": "c"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 1,
+    "auth_required": false,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "a",
+     "b"
+    ],
+    "account": "c"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 2,
+    "auth_required": true,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "a"
+    ],
+    "account": "c"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 3,
+    "auth_required": false,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "b",
+     "c"
+    ],
+    "account": "b"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 3,
+    "auth_required": true,
+    "anonymous": false,
+    "all": true,
+    "accounts": [],
+    "account": null
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 3,
+    "auth_required": true,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "c"
+    ],
+    "account": "a"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 2,
+    "auth_required": false,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "c",
+     "a"
+    ],
+    "account": null
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 2,
+    "auth_required": true,
+    "anonymous": true,
+    "all": true,
+    "accounts": [],
+    "account": "b"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 2,
+    "auth_required": true,
+    "anonymous": true,
+    "all": false,
+    "accounts": [
+     "c"
+    ],
+    "account": "a"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 3,
+    "auth_required": true,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "b"
+    ],
+    "account": "c"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 2,
+    "auth_required": true,
+    "anonymous": true,
+    "all": true,
+    "accounts": [
+     "b",
+     "c"
+    ],
+    "account": "c"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 3,
+    "auth_required": true,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "c",
+     "b"
+    ],
+    "account": null
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 1,
+    "auth_required": true,
+    "anonymous": true,
+    "all": false,
+    "accounts": [],
+    "account": "b"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 2,
+    "auth_required": true,
+    "anonymous": false,
+    "all": true,
+    "accounts": [],
+    "account": "a"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 2,
+    "auth_required": false,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "b",
+     "c"
+    ],
+    "account": "c"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 1,
+    "auth_required": true,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "b"
+    ],
+    "account": "b"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 2,
+    "auth_required": true,
+    "anonymous": true,
+    "all": true,
+    "accounts": [
+     "a",
+     "c"
+    ],
+    "account": "c"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 1,
+    "auth_required": false,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "c"
+    ],
+    "account": null
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 3,
+    "auth_required": false,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "a",
+     "c"
+    ],
+    "account": "a"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 3,
+    "auth_required": true,
+    "anonymous": true,
+    "all": true,
+    "accounts": [
+     "a"
+    ],
+    "account": "b"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 1,
+    "auth_required": true,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "b"
+    ],
+    "account": "a"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 2,
+    "auth_required": false,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "c"
+    ],
+    "account": "c"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 3,
+    "auth_required": true,
+    "anonymous": false,
+    "all": false,
+    "accounts": [],
+    "account": "b"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 2,
+    "auth_required": false,
+    "anonymous": true,
+    "all": false,
+    "accounts": [
+     "a",
+     "c"
+    ],
+    "account": null
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 1,
+    "auth_required": true,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "c"
+    ],
+    "account": null
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 2,
+    "auth_required": true,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "c"
+    ],
+    "account": "c"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 3,
+    "auth_required": true,
+    "anonymous": false,
+    "all": true,
+    "accounts": [],
+    "account": "b"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 3,
+    "auth_required": false,
+    "anonymous": true,
+    "all": true,
+    "accounts": [
+     "c",
+     "b"
+    ],
+    "account": "b"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 2,
+    "auth_required": false,
+    "anonymous": true,
+    "all": false,
+    "accounts": [
+     "c"
+    ],
+    "account": "c"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 2,
+    "auth_required": true,
+    "anonymous": true,
+    "all": true,
+    "accounts": [
+     "a",
+     "b"
+    ],
+    "account": "b"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 2,
+    "auth_required": true,
+    "anonymous": true,
+    "all": true,
+    "accounts": [
+     "c",
+     "b"
+    ],
+    "account": "b"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 3,
+    "auth_required": true,
+    "anonymous": true,
+    "all": true,
+    "accounts": [
+     "a",
+     "b"
+    ],
+    "account": "a"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 3,
+    "auth_required": false,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "a"
+    ],
+    "account": "a"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 2,
+    "auth_required": false,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "a"
+    ],
+    "account": "a"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 2,
+    "auth_required": true,
+    "anonymous": true,
+    "all": false,
+    "accounts": [
+     "b",
+     "c"
+    ],
+    "account": null
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 2,
+    "auth_required": true,
+    "anonymous": true,
+    "all": true,
+    "accounts": [],
+    "account": null
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 2,
+    "auth_required": false,
+    "anonymous": false,
+    "all": true,
+    "accounts": [],
+    "account": "a"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 3,
+    "auth_required": false,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "a"
+    ],
+    "account": "a"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 1,
+    "auth_required": false,
+    "anonymous": false,
+    "all": false,
+    "accounts": [],
+    "account": "b"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 3,
+    "auth_required": true,
+    "anonymous": false,
+    "all": true,
+    "accounts": [],
+    "account": null
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 2,
+    "auth_required": false,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "a"
+    ],
+    "account": "c"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 3,
+    "auth_required": false,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "a",
+     "c"
+    ],
+    "account": null
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 2,
+    "auth_required": true,
+    "anonymous": true,
+    "all": true,
+    "accounts": [],
+    "account": "c"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 1,
+    "auth_required": false,
+    "anonymous": false,
+    "all": false,
+    "accounts": [],
+    "account": "b"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 2,
+    "auth_required": true,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "a",
+     "b"
+    ],
+    "account": null
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 3,
+    "auth_required": false,
+    "anonymous": true,
+    "all": false,
+    "accounts": [
+     "b"
+    ],
+    "account": null
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 1,
+    "auth_required": false,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "c"
+    ],
+    "account": "a"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 1,
+    "auth_required": true,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "c"
+    ],
+    "account": "b"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 1,
+    "auth_required": true,
+    "anonymous": true,
+    "all": true,
+    "accounts": [],
+    "account": "a"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 3,
+    "auth_required": true,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "b"
+    ],
+    "account": null
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 2,
+    "auth_required": true,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "a",
+     "c"
+    ],
+    "account": null
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 2,
+    "auth_required": false,
+    "anonymous": true,
+    "all": false,
+    "accounts": [
+     "b"
+    ],
+    "account": "c"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 1,
+    "auth_required": false,
+    "anonymous": true,
+    "all": false,
+    "accounts": [
+     "a",
+     "b"
+    ],
+    "account": "c"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 3,
+    "auth_required": false,
+    "anonymous": true,
+    "all": false,
+    "accounts": [],
+    "account": "b"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 3,
+    "auth_required": true,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "a",
+     "b"
+    ],
+    "account": null
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 3,
+    "auth_required": true,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "a"
+    ],
+    "account": "c"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 2,
+    "auth_required": true,
+    "anonymous": true,
+    "all": true,
+    "accounts": [
+     "a"
+    ],
+    "account": "b"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 3,
+    "auth_required": false,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "a",
+     "c"
+    ],
+    "account": "c"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 1,
+    "auth_required": true,
+    "anonymous": false,
+    "all": false,
+    "accounts": [],
+    "account": "a"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 1,
+    "auth_required": false,
+    "anonymous": false,
+    "all": false,
+    "accounts": [],
+    "account": "b"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 3,
+    "auth_required": true,
+    "anonymous": false,
+    "all": true,
+    "accounts": [],
+    "account": "c"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 1,
+    "auth_required": false,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "a",
+     "b"
+    ],
+    "account": "c"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 1,
+    "auth_required": true,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "b"
+    ],
+    "account": "c"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 2,
+    "auth_required": true,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "a"
+    ],
+    "account": "c"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 1,
+    "auth_required": true,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "b"
+    ],
+    "account": null
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 2,
+    "auth_required": false,
+    "anonymous": false,
+    "all": true,
+    "accounts": [],
+    "account": "a"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 3,
+    "auth_required": true,
+    "anonymous": true,
+    "all": false,
+    "accounts": [
+     "b"
+    ],
+    "account": "b"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 2,
+    "auth_required": true,
+    "anonymous": false,
+    "all": false,
+    "accounts": [],
+    "account": "b"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 2,
+    "auth_required": false,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "b",
+     "a"
+    ],
+    "account": "c"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 3,
+    "auth_required": false,
+    "anonymous": false,
+    "all": true,
+    "accounts": [],
+    "account": null
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 2,
+    "auth_required": true,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "c"
+    ],
+    "account": "a"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 3,
+    "auth_required": true,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "a"
+    ],
+    "account": "c"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 3,
+    "auth_required": false,
+    "anonymous": false,
+    "all": false,
+    "accounts": [],
+    "account": "a"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 2,
+    "auth_required": false,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "c"
+    ],
+    "account": "b"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 3,
+    "auth_required": true,
+    "anonymous": false,
+    "all": true,
+    "accounts": [],
+    "account": "a"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 1,
+    "auth_required": false,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "b"
+    ],
+    "account": "a"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 3,
+    "auth_required": true,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "c",
+     "a"
+    ],
+    "account": "b"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 2,
+    "auth_required": true,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "b",
+     "a"
+    ],
+    "account": "a"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 1,
+    "auth_required": false,
+    "anonymous": false,
+    "all": false,
+    "accounts": [],
+    "account": "c"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 2,
+    "auth_required": false,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "b",
+     "a"
+    ],
+    "account": "a"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 2,
+    "auth_required": false,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "c",
+     "b"
+    ],
+    "account": "c"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 1,
+    "auth_required": true,
+    "anonymous": true,
+    "all": true,
+    "accounts": [
+     "c",
+     "a"
+    ],
+    "account": null
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 3,
+    "auth_required": true,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "a",
+     "b"
+    ],
+    "account": "a"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 1,
+    "auth_required": true,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "a",
+     "b"
+    ],
+    "account": null
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 3,
+    "auth_required": true,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "b"
+    ],
+    "account": "a"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 3,
+    "auth_required": false,
+    "anonymous": false,
+    "all": true,
+    "accounts": [],
+    "account": null
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 2,
+    "auth_required": true,
+    "anonymous": false,
+    "all": false,
+    "accounts": [],
+    "account": "a"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 3,
+    "auth_required": false,
+    "anonymous": true,
+    "all": false,
+    "accounts": [],
+    "account": "c"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 3,
+    "auth_required": false,
+    "anonymous": true,
+    "all": false,
+    "accounts": [],
+    "account": "b"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 2,
+    "auth_required": false,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "c"
+    ],
+    "account": "c"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 1,
+    "auth_required": false,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "b",
+     "a"
+    ],
+    "account": "c"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 1,
+    "auth_required": false,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "c"
+    ],
+    "account": "a"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 3,
+    "auth_required": false,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "b"
+    ],
+    "account": "a"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 3,
+    "auth_required": true,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "a",
+     "c"
+    ],
+    "account": null
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 3,
+    "auth_required": false,
+    "anonymous": true,
+    "all": false,
+    "accounts": [
+     "c"
+    ],
+    "account": null
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 2,
+    "auth_required": true,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "c"
+    ],
+    "account": "a"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 1,
+    "auth_required": false,
+    "anonymous": true,
+    "all": false,
+    "accounts": [],
+    "account": "a"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 3,
+    "auth_required": false,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "c"
+    ],
+    "account": "b"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 2,
+    "auth_required": true,
+    "anonymous": true,
+    "all": false,
+    "accounts": [],
+    "account": null
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 3,
+    "auth_required": true,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "b",
+     "a"
+    ],
+    "account": "c"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 3,
+    "auth_required": false,
+    "anonymous": true,
+    "all": true,
+    "accounts": [
+     "a"
+    ],
+    "account": null
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 3,
+    "auth_required": true,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "a",
+     "c"
+    ],
+    "account": null
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 3,
+    "auth_required": true,
+    "anonymous": true,
+    "all": true,
+    "accounts": [],
+    "account": "a"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 2,
+    "auth_required": true,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "b",
+     "c"
+    ],
+    "account": "b"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 1,
+    "auth_required": false,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "a"
+    ],
+    "account": null
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 2,
+    "auth_required": false,
+    "anonymous": true,
+    "all": false,
+    "accounts": [
+     "c"
+    ],
+    "account": "a"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 2,
+    "auth_required": false,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "b"
+    ],
+    "account": null
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 2,
+    "auth_required": false,
+    "anonymous": true,
+    "all": true,
+    "accounts": [
+     "b"
+    ],
+    "account": "c"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 1,
+    "auth_required": false,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "a"
+    ],
+    "account": "c"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 2,
+    "auth_required": false,
+    "anonymous": false,
+    "all": false,
+    "accounts": [],
+    "account": "b"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 3,
+    "auth_required": false,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "b"
+    ],
+    "account": "b"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 2,
+    "auth_required": true,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "c"
+    ],
+    "account": null
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 1,
+    "auth_required": false,
+    "anonymous": true,
+    "all": true,
+    "accounts": [
+     "a",
+     "b"
+    ],
+    "account": "c"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 3,
+    "auth_required": true,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "c"
+    ],
+    "account": "a"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 3,
+    "auth_required": true,
+    "anonymous": false,
+    "all": false,
+    "accounts": [],
+    "account": null
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 2,
+    "auth_required": true,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "b"
+    ],
+    "account": "b"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 2,
+    "auth_required": true,
+    "anonymous": true,
+    "all": true,
+    "accounts": [
+     "b"
+    ],
+    "account": "a"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 2,
+    "auth_required": false,
+    "anonymous": true,
+    "all": true,
+    "accounts": [],
+    "account": "c"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 1,
+    "auth_required": false,
+    "anonymous": true,
+    "all": true,
+    "accounts": [],
+    "account": "a"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 2,
+    "auth_required": false,
+    "anonymous": true,
+    "all": false,
+    "accounts": [
+     "c"
+    ],
+    "account": "c"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 2,
+    "auth_required": false,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "a",
+     "c"
+    ],
+    "account": "a"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 2,
+    "auth_required": false,
+    "anonymous": false,
+    "all": true,
+    "accounts": [],
+    "account": "a"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 1,
+    "auth_required": true,
+    "anonymous": false,
+    "all": true,
+    "accounts": [],
+    "account": "b"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 3,
+    "auth_required": true,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "c"
+    ],
+    "account": "c"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 1,
+    "auth_required": false,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "a",
+     "c"
+    ],
+    "account": "a"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 1,
+    "auth_required": true,
+    "anonymous": true,
+    "all": true,
+    "accounts": [
+     "a",
+     "c"
+    ],
+    "account": null
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 3,
+    "auth_required": true,
+    "anonymous": false,
+    "all": false,
+    "accounts": [],
+    "account": "a"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 1,
+    "auth_required": false,
+    "anonymous": true,
+    "all": false,
+    "accounts": [],
+    "account": "a"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 3,
+    "auth_required": false,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "c",
+     "b"
+    ],
+    "account": null
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 3,
+    "auth_required": false,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "c"
+    ],
+    "account": "a"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 1,
+    "auth_required": false,
+    "anonymous": false,
+    "all": true,
+    "accounts": [],
+    "account": null
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 2,
+    "auth_required": false,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "a",
+     "b"
+    ],
+    "account": "c"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 1,
+    "auth_required": false,
+    "anonymous": true,
+    "all": true,
+    "accounts": [
+     "b"
+    ],
+    "account": null
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 1,
+    "auth_required": true,
+    "anonymous": false,
+    "all": true,
+    "accounts": [],
+    "account": "b"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 2,
+    "auth_required": true,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "a",
+     "c"
+    ],
+    "account": "b"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 3,
+    "auth_required": false,
+    "anonymous": false,
+    "all": false,
+    "accounts": [],
+    "account": null
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 2,
+    "auth_required": true,
+    "anonymous": false,
+    "all": false,
+    "accounts": [],
+    "account": null
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 1,
+    "auth_required": true,
+    "anonymous": false,
+    "all": true,
+    "accounts": [],
+    "account": "a"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 1,
+    "auth_required": true,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "b"
+    ],
+    "account": "c"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 2,
+    "auth_required": false,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "b",
+     "a"
+    ],
+    "account": "c"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 2,
+    "auth_required": true,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "b"
+    ],
+    "account": "a"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 1,
+    "auth_required": true,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "b"
+    ],
+    "account": "a"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 1,
+    "auth_required": false,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "b"
+    ],
+    "account": "b"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 1,
+    "auth_required": false,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "c",
+     "b"
+    ],
+    "account": "c"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 2,
+    "auth_required": true,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "b",
+     "a"
+    ],
+    "account": "b"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 3,
+    "auth_required": true,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "a"
+    ],
+    "account": "a"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 1,
+    "auth_required": false,
+    "anonymous": true,
+    "all": true,
+    "accounts": [
+     "a"
+    ],
+    "account": "c"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 3,
+    "auth_required": false,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "b"
+    ],
+    "account": "c"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 2,
+    "auth_required": false,
+    "anonymous": true,
+    "all": true,
+    "accounts": [
+     "c"
+    ],
+    "account": "a"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 1,
+    "auth_required": false,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "a"
+    ],
+    "account": null
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 1,
+    "auth_required": true,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "b"
+    ],
+    "account": null
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 1,
+    "auth_required": true,
+    "anonymous": false,
+    "all": false,
+    "accounts": [],
+    "account": null
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 2,
+    "auth_required": false,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "b",
+     "c"
+    ],
+    "account": "b"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 2,
+    "auth_required": true,
+    "anonymous": false,
+    "all": true,
+    "accounts": [],
+    "account": "a"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 1,
+    "auth_required": true,
+    "anonymous": false,
+    "all": true,
+    "accounts": [],
+    "account": "b"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 2,
+    "auth_required": false,
+    "anonymous": false,
+    "all": false,
+    "accounts": [],
+    "account": "b"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 3,
+    "auth_required": false,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "a"
+    ],
+    "account": "c"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 2,
+    "auth_required": false,
+    "anonymous": true,
+    "all": false,
+    "accounts": [],
+    "account": "b"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 1,
+    "auth_required": true,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "a"
+    ],
+    "account": "c"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 1,
+    "auth_required": false,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "b"
+    ],
+    "account": "a"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 3,
+    "auth_required": true,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "b"
+    ],
+    "account": "a"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 3,
+    "auth_required": true,
+    "anonymous": false,
+    "all": true,
+    "accounts": [],
+    "account": "c"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 1,
+    "auth_required": true,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "b"
+    ],
+    "account": null
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 3,
+    "auth_required": true,
+    "anonymous": false,
+    "all": true,
+    "accounts": [],
+    "account": "c"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 1,
+    "auth_required": true,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "c",
+     "a"
+    ],
+    "account": "b"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 1,
+    "auth_required": true,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "b"
+    ],
+    "account": "a"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 2,
+    "auth_required": true,
+    "anonymous": true,
+    "all": false,
+    "accounts": [
+     "a"
+    ],
+    "account": "a"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 1,
+    "auth_required": true,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "c"
+    ],
+    "account": null
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 1,
+    "auth_required": false,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "b"
+    ],
+    "account": null
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 3,
+    "auth_required": false,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "b",
+     "c"
+    ],
+    "account": "c"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 1,
+    "auth_required": false,
+    "anonymous": false,
+    "all": false,
+    "accounts": [],
+    "account": "a"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 2,
+    "auth_required": false,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "c",
+     "a"
+    ],
+    "account": null
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 1,
+    "auth_required": true,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "a"
+    ],
+    "account": "b"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 2,
+    "auth_required": false,
+    "anonymous": true,
+    "all": true,
+    "accounts": [],
+    "account": null
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 3,
+    "auth_required": false,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "b",
+     "a"
+    ],
+    "account": null
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 3,
+    "auth_required": false,
+    "anonymous": false,
+    "all": false,
+    "accounts": [],
+    "account": "b"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 3,
+    "auth_required": false,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "c"
+    ],
+    "account": "c"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 3,
+    "auth_required": false,
+    "anonymous": false,
+    "all": false,
+    "accounts": [],
+    "account": "b"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 1,
+    "auth_required": false,
+    "anonymous": false,
+    "all": true,
+    "accounts": [],
+    "account": "b"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 3,
+    "auth_required": false,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "c",
+     "b"
+    ],
+    "account": "c"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 3,
+    "auth_required": false,
+    "anonymous": true,
+    "all": true,
+    "accounts": [],
+    "account": "b"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 2,
+    "auth_required": false,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "c",
+     "a"
+    ],
+    "account": null
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 3,
+    "auth_required": false,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "c"
+    ],
+    "account": "c"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 2,
+    "auth_required": false,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "a",
+     "b"
+    ],
+    "account": "b"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 1,
+    "auth_required": false,
+    "anonymous": true,
+    "all": false,
+    "accounts": [],
+    "account": "a"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 3,
+    "auth_required": true,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "a"
+    ],
+    "account": "c"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 1,
+    "auth_required": false,
+    "anonymous": false,
+    "all": false,
+    "accounts": [],
+    "account": "c"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 2,
+    "auth_required": true,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "b",
+     "c"
+    ],
+    "account": "c"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 2,
+    "auth_required": true,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "b"
+    ],
+    "account": "a"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 1,
+    "auth_required": true,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "b"
+    ],
+    "account": "a"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 3,
+    "auth_required": true,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "a",
+     "c"
+    ],
+    "account": null
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 2,
+    "auth_required": false,
+    "anonymous": true,
+    "all": false,
+    "accounts": [
+     "b",
+     "c"
+    ],
+    "account": "c"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 1,
+    "auth_required": true,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "a"
+    ],
+    "account": "b"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 3,
+    "auth_required": true,
+    "anonymous": true,
+    "all": true,
+    "accounts": [
+     "a",
+     "c"
+    ],
+    "account": "a"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 3,
+    "auth_required": false,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "b",
+     "a"
+    ],
+    "account": "a"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 1,
+    "auth_required": true,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "a"
+    ],
+    "account": null
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 1,
+    "auth_required": true,
+    "anonymous": true,
+    "all": true,
+    "accounts": [],
+    "account": null
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 1,
+    "auth_required": false,
+    "anonymous": true,
+    "all": false,
+    "accounts": [
+     "a"
+    ],
+    "account": "a"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 2,
+    "auth_required": true,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "b"
+    ],
+    "account": null
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 3,
+    "auth_required": true,
+    "anonymous": true,
+    "all": false,
+    "accounts": [
+     "a",
+     "c"
+    ],
+    "account": "a"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 3,
+    "auth_required": true,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "c"
+    ],
+    "account": "a"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 2,
+    "auth_required": true,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "a"
+    ],
+    "account": "b"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 3,
+    "auth_required": true,
+    "anonymous": false,
+    "all": true,
+    "accounts": [],
+    "account": "b"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 1,
+    "auth_required": true,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "c"
+    ],
+    "account": null
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 2,
+    "auth_required": false,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "a"
+    ],
+    "account": "b"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 1,
+    "auth_required": false,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "c"
+    ],
+    "account": "a"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 2,
+    "auth_required": false,
+    "anonymous": false,
+    "all": false,
+    "accounts": [],
+    "account": null
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 2,
+    "auth_required": false,
+    "anonymous": false,
+    "all": true,
+    "accounts": [],
+    "account": "a"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 2,
+    "auth_required": true,
+    "anonymous": false,
+    "all": true,
+    "accounts": [],
+    "account": "c"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 2,
+    "auth_required": false,
+    "anonymous": false,
+    "all": false,
+    "accounts": [],
+    "account": null
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 3,
+    "auth_required": false,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "c",
+     "a"
+    ],
+    "account": "a"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 3,
+    "auth_required": true,
+    "anonymous": true,
+    "all": false,
+    "accounts": [
+     "b",
+     "c"
+    ],
+    "account": "b"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 1,
+    "auth_required": false,
+    "anonymous": true,
+    "all": false,
+    "accounts": [],
+    "account": "a"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 2,
+    "auth_required": true,
+    "anonymous": true,
+    "all": false,
+    "accounts": [],
+    "account": "b"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 1,
+    "auth_required": false,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "a"
+    ],
+    "account": "a"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 2,
+    "auth_required": false,
+    "anonymous": false,
+    "all": false,
+    "accounts": [],
+    "account": "b"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 2,
+    "auth_required": true,
+    "anonymous": false,
+    "all": true,
+    "accounts": [],
+    "account": "b"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 3,
+    "auth_required": false,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "a"
+    ],
+    "account": "b"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 2,
+    "auth_required": true,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "b"
+    ],
+    "account": null
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 1,
+    "auth_required": false,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "c"
+    ],
+    "account": "a"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 2,
+    "auth_required": false,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "c",
+     "b"
+    ],
+    "account": "c"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 3,
+    "auth_required": true,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "c"
+    ],
+    "account": "a"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 2,
+    "auth_required": false,
+    "anonymous": false,
+    "all": true,
+    "accounts": [],
+    "account": null
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 3,
+    "auth_required": true,
+    "anonymous": true,
+    "all": false,
+    "accounts": [
+     "c",
+     "b"
+    ],
+    "account": null
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 1,
+    "auth_required": true,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "a",
+     "b"
+    ],
+    "account": "a"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 2,
+    "auth_required": true,
+    "anonymous": false,
+    "all": false,
+    "accounts": [],
+    "account": null
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 3,
+    "auth_required": true,
+    "anonymous": false,
+    "all": false,
+    "accounts": [],
+    "account": "a"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 2,
+    "auth_required": false,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "b"
+    ],
+    "account": "c"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 1,
+    "auth_required": false,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "b"
+    ],
+    "account": null
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 3,
+    "auth_required": false,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "c",
+     "a"
+    ],
+    "account": "a"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 1,
+    "auth_required": true,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "b",
+     "c"
+    ],
+    "account": null
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 2,
+    "auth_required": false,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "b"
+    ],
+    "account": "c"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 3,
+    "auth_required": false,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "c"
+    ],
+    "account": "b"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 2,
+    "auth_required": false,
+    "anonymous": false,
+    "all": false,
+    "accounts": [],
+    "account": null
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 1,
+    "auth_required": false,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "b"
+    ],
+    "account": null
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 2,
+    "auth_required": false,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "b"
+    ],
+    "account": null
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 2,
+    "auth_required": true,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "c",
+     "b"
+    ],
+    "account": "a"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 3,
+    "auth_required": true,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "b"
+    ],
+    "account": "a"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 2,
+    "auth_required": true,
+    "anonymous": true,
+    "all": false,
+    "accounts": [
+     "a",
+     "c"
+    ],
+    "account": "c"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 1,
+    "auth_required": true,
+    "anonymous": false,
+    "all": true,
+    "accounts": [],
+    "account": "b"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 3,
+    "auth_required": false,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "c"
+    ],
+    "account": null
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 3,
+    "auth_required": false,
+    "anonymous": false,
+    "all": false,
+    "accounts": [],
+    "account": "a"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 3,
+    "auth_required": false,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "c",
+     "b"
+    ],
+    "account": "a"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 3,
+    "auth_required": false,
+    "anonymous": true,
+    "all": false,
+    "accounts": [],
+    "account": null
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 2,
+    "auth_required": false,
+    "anonymous": true,
+    "all": true,
+    "accounts": [
+     "c"
+    ],
+    "account": null
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 2,
+    "auth_required": true,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "c"
+    ],
+    "account": "b"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 2,
+    "auth_required": false,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "c",
+     "b"
+    ],
+    "account": "a"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 3,
+    "auth_required": false,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "b"
+    ],
+    "account": "c"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 3,
+    "auth_required": true,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "c"
+    ],
+    "account": "b"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 2,
+    "auth_required": true,
+    "anonymous": true,
+    "all": true,
+    "accounts": [
+     "b"
+    ],
+    "account": null
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 3,
+    "auth_required": true,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "a",
+     "c"
+    ],
+    "account": "b"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 1,
+    "auth_required": true,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "a"
+    ],
+    "account": "a"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 2,
+    "auth_required": false,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "c"
+    ],
+    "account": "b"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 1,
+    "auth_required": true,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "c",
+     "a"
+    ],
+    "account": "b"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 2,
+    "auth_required": false,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "c",
+     "b"
+    ],
+    "account": "a"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 3,
+    "auth_required": true,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "b"
+    ],
+    "account": "b"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 1,
+    "auth_required": false,
+    "anonymous": true,
+    "all": true,
+    "accounts": [],
+    "account": "a"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 1,
+    "auth_required": true,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "b"
+    ],
+    "account": "a"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 2,
+    "auth_required": true,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "a"
+    ],
+    "account": null
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 1,
+    "auth_required": true,
+    "anonymous": false,
+    "all": true,
+    "accounts": [],
+    "account": null
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 1,
+    "auth_required": true,
+    "anonymous": false,
+    "all": false,
+    "accounts": [],
+    "account": null
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 1,
+    "auth_required": false,
+    "anonymous": false,
+    "all": false,
+    "accounts": [],
+    "account": null
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 3,
+    "auth_required": true,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "a"
+    ],
+    "account": "b"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 1,
+    "auth_required": false,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "b"
+    ],
+    "account": "a"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 1,
+    "auth_required": false,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "c"
+    ],
+    "account": "c"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 2,
+    "auth_required": true,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "a"
+    ],
+    "account": "a"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 1,
+    "auth_required": true,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "c",
+     "b"
+    ],
+    "account": "b"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 1,
+    "auth_required": true,
+    "anonymous": false,
+    "all": true,
+    "accounts": [],
+    "account": "c"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 2,
+    "auth_required": true,
+    "anonymous": true,
+    "all": true,
+    "accounts": [],
+    "account": "c"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 1,
+    "auth_required": false,
+    "anonymous": true,
+    "all": true,
+    "accounts": [
+     "c"
+    ],
+    "account": "b"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 1,
+    "auth_required": true,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "a"
+    ],
+    "account": "a"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 1,
+    "auth_required": true,
+    "anonymous": true,
+    "all": false,
+    "accounts": [],
+    "account": "a"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 3,
+    "auth_required": true,
+    "anonymous": true,
+    "all": false,
+    "accounts": [
+     "c",
+     "a"
+    ],
+    "account": null
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 2,
+    "auth_required": true,
+    "anonymous": false,
+    "all": false,
+    "accounts": [
+     "c"
+    ],
+    "account": "c"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 3,
+    "required": 3,
+    "auth_required": true,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "c",
+     "a"
+    ],
+    "account": "b"
+   },
+   "expected": {
+    "granted": true
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 2,
+    "auth_required": true,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "b"
+    ],
+    "account": "c"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 3,
+    "auth_required": true,
+    "anonymous": true,
+    "all": true,
+    "accounts": [],
+    "account": "c"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 1,
+    "required": 2,
+    "auth_required": false,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "b"
+    ],
+    "account": null
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 3,
+    "auth_required": true,
+    "anonymous": true,
+    "all": false,
+    "accounts": [],
+    "account": "a"
+   },
+   "expected": {
+    "granted": false
+   }
+  },
+  {
+   "input": {
+    "role": 2,
+    "required": 2,
+    "auth_required": true,
+    "anonymous": false,
+    "all": true,
+    "accounts": [
+     "a"
+    ],
+    "account": "a"
+   },
+   "expected": {
+    "granted": true
+   }
+  }
+ ],
+ "spec_sha256": "6c3dc3729dfd3ff20934623831713e64f823b7cd215576eb1032139b272bbc9a"
+}

@@ -1,0 +1,386 @@
+{
+ "dashboard": {
+  "asset_heatmap": [
+   {
+    "excess_return": 0.180914,
+    "exposure_rate": 0.602266,
+    "max_drawdown": -0.910464,
+    "sharpe": -0.040531,
+    "signal_bias": "positive",
+    "strategy_return": 0.004985,
+    "ticker": "ADAUSD",
+    "trade_count": 1085
+   },
+   {
+    "excess_return": -1.167713,
+    "exposure_rate": 0.756941,
+    "max_drawdown": -0.800974,
+    "sharpe": 0.336537,
+    "signal_bias": "positive",
+    "strategy_return": 0.048212,
+    "ticker": "BCHUSD",
+    "trade_count": 1346
+   },
+   {
+    "excess_return": -1.061244,
+    "exposure_rate": 0.772805,
+    "max_drawdown": -0.667887,
+    "sharpe": 0.505868,
+    "signal_bias": "positive",
+    "strategy_return": 0.03921,
+    "ticker": "BTCUSD",
+    "trade_count": 1378
+   },
+   {
+    "excess_return": -1.024912,
+    "exposure_rate": 0.681586,
+    "max_drawdown": -0.852149,
+    "sharpe": 0.273808,
+    "signal_bias": "positive",
+    "strategy_return": 0.032723,
+    "ticker": "DOGEUSD",
+    "trade_count": 1220
+   },
+   {
+    "excess_return": -0.115786,
+    "exposure_rate": 0.606232,
+    "max_drawdown": -0.882246,
+    "sharpe": 0.025809,
+    "signal_bias": "positive",
+    "strategy_return": -0.011022,
+    "ticker": "ETCUSD",
+    "trade_count": 1092
+   },
+   {
+    "excess_return": -0.603964,
+    "exposure_rate": 0.764873,
+    "max_drawdown": -0.740487,
+    "sharpe": 0.198266,
+    "signal_bias": "positive",
+    "strategy_return": 0.011688,
+    "ticker": "ETHUSD",
+    "trade_count": 1364
+   },
+   {
+    "excess_return": -1.181588,
+    "exposure_rate": 0.689518,
+    "max_drawdown": -0.816548,
+    "sharpe": 0.32829,
+    "signal_bias": "positive",
+    "strategy_return": 0.021708,
+    "ticker": "LINKUSD",
+    "trade_count": 1240
+   },
+   {
+    "excess_return": -0.288161,
+    "exposure_rate": 0.713314,
+    "max_drawdown": -0.729828,
+    "sharpe": 0.091869,
+    "signal_bias": "positive",
+    "strategy_return": 0.028566,
+    "ticker": "LTCUSD",
+    "trade_count": 1279
+   },
+   {
+    "excess_return": -1.185118,
+    "exposure_rate": 0.650425,
+    "max_drawdown": -0.757049,
+    "sharpe": 0.325127,
+    "signal_bias": "neutral",
+    "strategy_return": 0.025281,
+    "ticker": "XLMUSD",
+    "trade_count": 1169
+   },
+   {
+    "excess_return": -1.330018,
+    "exposure_rate": 0.41983,
+    "max_drawdown": -0.72056,
+    "sharpe": 0.664208,
+    "signal_bias": "positive",
+    "strategy_return": 0.019986,
+    "ticker": "XRPUSD",
+    "trade_count": 751
+   },
+   {
+    "excess_return": -4.885128,
+    "exposure_rate": 0.721246,
+    "max_drawdown": -0.913027,
+    "sharpe": 1.610781,
+    "signal_bias": "positive",
+    "strategy_return": 0.044493,
+    "ticker": "ZECUSD",
+    "trade_count": 1289
+   }
+  ],
+  "runtime_mode": "demo",
+  "scorecards": [
+   {
+    "format": "currency",
+    "key": "nav",
+    "label": "Demo NAV",
+    "value": 114533.895735
+   },
+   {
+    "format": "percent",
+    "key": "cagr",
+    "label": "CAGR",
+    "value": 0.02846
+   },
+   {
+    "format": "number",
+    "key": "sharpe",
+    "label": "Sharpe (no T-bill)",
+    "value": 0.431474
+   },
+   {
+    "format": "percent",
+    "key": "max_drawdown",
+    "label": "Max drawdown",
+    "value": 0.108125
+   },
+   {
+    "format": "number",
+    "key": "pbo",
+    "label": "PBO (8 variants)",
+    "value": 0.842857
+   },
+   {
+    "format": "percent",
+    "key": "gross",
+    "label": "Gross exposure",
+    "value": 0.115007
+   }
+  ],
+  "simulated_mode": true,
+  "strategy_snapshot": {
+   "buy_and_hold": {
+    "annualized_return": 0.103923,
+    "annualized_volatility": 0.510882,
+    "max_drawdown": -0.675913,
+    "sharpe": 0.504365,
+    "total_return": 0.622007
+   },
+   "excess_return_vs_buy_and_hold": -0.476669,
+   "exposure_rate": 0.959207,
+   "rows": 1765,
+   "strategy": {
+    "annualized_return": 0.02846,
+    "annualized_volatility": 0.07216,
+    "max_drawdown": -0.108125,
+    "sharpe": 0.431474,
+    "total_return": 0.145339
+   },
+   "trade_count": 239,
+   "turnover": 2.701313
+  },
+  "visualization_stage": "demo"
+ },
+ "insight": "Demo: t3_crypto_trend_blend_x_eos on 11 coins, 2022-01-01 to 2026-10-31. Sharpe 0.43 without T-bill carry; no verified edge.",
+ "kill_switch": {
+  "observed": {},
+  "reason": "demo data: the kill switch is not evaluated",
+  "recommended_action": "none",
+  "severity": "none",
+  "thresholds": {},
+  "triggers": [],
+  "tripped": false
+ },
+ "mode": "demo",
+ "observation": {
+  "allow_live_orders": false,
+  "count_observations": 1765,
+  "is_observation_mode": true,
+  "mode": "demo",
+  "simulated_equity": 114533.895735,
+  "simulated_exposure": 0.115007,
+  "simulated_max_drawdown": -0.108125,
+  "simulated_sharpe": 0.431474,
+  "simulated_turnover": 2.701313,
+  "visually_distinct_banner": "DEMO DATA: the shipped rule on the bundled sample (aq hello). No broker, no model, no live orders."
+ },
+ "portfolio": {
+  "cash": 101361.737095,
+  "invested_positions": 10,
+  "total_portfolio_value": 114533.895735
+ },
+ "positions": [
+  {
+   "quantity": 5119.919393,
+   "symbol": "ADAUSD",
+   "weight": 0.008611
+  },
+  {
+   "quantity": 3.007582,
+   "symbol": "BCHUSD",
+   "weight": 0.007484
+  },
+  {
+   "quantity": 0.026513,
+   "symbol": "BTCUSD",
+   "weight": 0.017923
+  },
+  {
+   "quantity": 15108.698418,
+   "symbol": "DOGEUSD",
+   "weight": 0.009961
+  },
+  {
+   "quantity": 149.213472,
+   "symbol": "ETCUSD",
+   "weight": 0.009234
+  },
+  {
+   "quantity": 0.663244,
+   "symbol": "ETHUSD",
+   "weight": 0.013045
+  },
+  {
+   "quantity": 200.91041,
+   "symbol": "LINKUSD",
+   "weight": 0.020403
+  },
+  {
+   "quantity": 23.679582,
+   "symbol": "LTCUSD",
+   "weight": 0.01151
+  },
+  {
+   "quantity": 693.459151,
+   "symbol": "XRPUSD",
+   "weight": 0.007565
+  },
+  {
+   "quantity": 0.84876,
+   "symbol": "ZECUSD",
+   "weight": 0.009271
+  }
+ ],
+ "project": "Aether Quant",
+ "reconciliation": {
+  "reason": "demo data: there is no broker to reconcile against",
+  "status": "not_applicable"
+ },
+ "risk": {
+  "daily_drawdown": 0.000258,
+  "max_daily_drawdown_pct": 0.05,
+  "max_leverage": 1.0,
+  "max_position_weight": 0.05,
+  "max_total_drawdown_pct": 0.15,
+  "total_drawdown": 0.071662,
+  "trade_lock_active": false,
+  "trade_lock_reason": ""
+ },
+ "signals": {
+  "ADAUSD": {
+   "execution_note": "demo: no order is placed",
+   "reason": "trend votes over 20/60/120 sessions",
+   "security_type": "crypto",
+   "signal": "buy",
+   "symbol": "ADAUSD",
+   "target_weight": 0.009199,
+   "ticker": "ADAUSD",
+   "trading_eligible": true
+  },
+  "BCHUSD": {
+   "execution_note": "demo: no order is placed",
+   "reason": "trend votes over 20/60/120 sessions",
+   "security_type": "crypto",
+   "signal": "buy",
+   "symbol": "BCHUSD",
+   "target_weight": 0.007347,
+   "ticker": "BCHUSD",
+   "trading_eligible": true
+  },
+  "BTCUSD": {
+   "execution_note": "demo: no order is placed",
+   "reason": "trend votes over 20/60/120 sessions",
+   "security_type": "crypto",
+   "signal": "buy",
+   "symbol": "BTCUSD",
+   "target_weight": 0.018466,
+   "ticker": "BTCUSD",
+   "trading_eligible": true
+  },
+  "DOGEUSD": {
+   "execution_note": "demo: no order is placed",
+   "reason": "trend votes over 20/60/120 sessions",
+   "security_type": "crypto",
+   "signal": "buy",
+   "symbol": "DOGEUSD",
+   "target_weight": 0.01021,
+   "ticker": "DOGEUSD",
+   "trading_eligible": true
+  },
+  "ETCUSD": {
+   "execution_note": "demo: no order is placed",
+   "reason": "trend votes over 20/60/120 sessions",
+   "security_type": "crypto",
+   "signal": "buy",
+   "symbol": "ETCUSD",
+   "target_weight": 0.00989,
+   "ticker": "ETCUSD",
+   "trading_eligible": true
+  },
+  "ETHUSD": {
+   "execution_note": "demo: no order is placed",
+   "reason": "trend votes over 20/60/120 sessions",
+   "security_type": "crypto",
+   "signal": "buy",
+   "symbol": "ETHUSD",
+   "target_weight": 0.013397,
+   "ticker": "ETHUSD",
+   "trading_eligible": true
+  },
+  "LINKUSD": {
+   "execution_note": "demo: no order is placed",
+   "reason": "trend votes over 20/60/120 sessions",
+   "security_type": "crypto",
+   "signal": "buy",
+   "symbol": "LINKUSD",
+   "target_weight": 0.019907,
+   "ticker": "LINKUSD",
+   "trading_eligible": true
+  },
+  "LTCUSD": {
+   "execution_note": "demo: no order is placed",
+   "reason": "trend votes over 20/60/120 sessions",
+   "security_type": "crypto",
+   "signal": "buy",
+   "symbol": "LTCUSD",
+   "target_weight": 0.011692,
+   "ticker": "LTCUSD",
+   "trading_eligible": true
+  },
+  "XLMUSD": {
+   "execution_note": "demo: no order is placed",
+   "reason": "no positive trend vote",
+   "security_type": "crypto",
+   "signal": "hold",
+   "symbol": "XLMUSD",
+   "target_weight": 0.0,
+   "ticker": "XLMUSD",
+   "trading_eligible": true
+  },
+  "XRPUSD": {
+   "execution_note": "demo: no order is placed",
+   "reason": "trend votes over 20/60/120 sessions",
+   "security_type": "crypto",
+   "signal": "buy",
+   "symbol": "XRPUSD",
+   "target_weight": 0.009296,
+   "ticker": "XRPUSD",
+   "trading_eligible": true
+  },
+  "ZECUSD": {
+   "execution_note": "demo: no order is placed",
+   "reason": "trend votes over 20/60/120 sessions",
+   "security_type": "crypto",
+   "signal": "buy",
+   "symbol": "ZECUSD",
+   "target_weight": 0.009095,
+   "ticker": "ZECUSD",
+   "trading_eligible": true
+  }
+ },
+ "updated_at": "2026-10-31T00:00:00Z"
+}

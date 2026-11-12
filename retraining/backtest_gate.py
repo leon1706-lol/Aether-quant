@@ -10,9 +10,10 @@ Lean-backtest IO wrapper this module's caller may also want to run first.
 from __future__ import annotations
 
 import math
+from typing import Any
 
 
-def _strategy_block(report: dict, key: str) -> dict:
+def _strategy_block(report: dict[str, Any], key: str) -> dict[str, Any]:
     return report.get("backtest", {}).get(key, {})
 
 
@@ -28,7 +29,7 @@ def _finite_or_default(value, default: float = 0.0) -> float:
     return as_float if math.isfinite(as_float) else default
 
 
-def compare_backtests(active_report: dict, candidate_report: dict, config: dict) -> dict:
+def compare_backtests(active_report: dict[str, Any], candidate_report: dict[str, Any], config: dict[str, Any]) -> dict[str, Any]:
     """3-way (active / candidate / buy-and-hold) comparison, plus an optional
     4th risk-adjusted-benchmark row.
 

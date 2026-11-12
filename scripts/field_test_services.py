@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import subprocess
 import sys
 import time
@@ -27,6 +26,7 @@ sys.path.insert(0, str(ROOT))
 from audit.hash_chain import verify_chain  # noqa: E402
 from audit.postgres_audit import fetch_all_events_ordered  # noqa: E402
 from audit.redis_queue import ORDER_PLACEMENT, AuditQueue, build_audit_event  # noqa: E402
+from execution.secrets_io import secret_env  # noqa: E402
 
 
 def drain(worker, *, limit: int = 50) -> int:
@@ -60,7 +60,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--start-cmd", default=None)
     parser.add_argument("--events", type=int, default=50)
     args = parser.parse_args(argv)
-    redis_url, dsn = os.environ.get("AETHER_REDIS_URL", ""), os.environ.get("AETHER_POSTGRES_DSN", "")
+    redis_url, dsn = secret_env("REDIS_URL", ""), secret_env("POSTGRES_DSN", "")
     if not redis_url or not dsn:
         print("set AETHER_REDIS_URL and AETHER_POSTGRES_DSN", file=sys.stderr)
         return 2

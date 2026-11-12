@@ -27,6 +27,7 @@ from typing import Any
 
 from .hash_chain import GENESIS_HASH, canonical_timestamp, compute_entry_hash
 from .status_export import build_audit_status_view, write_status_file
+from execution.secrets_io import secret_env
 
 logger = logging.getLogger(__name__)
 
@@ -163,7 +164,7 @@ class PostgresWorker:
             self._redis = _redis_client
         else:
             import redis as redis_lib
-            url = os.environ.get("AETHER_REDIS_URL", redis_url)
+            url = secret_env("REDIS_URL", redis_url)
             self._redis = redis_lib.from_url(url, socket_connect_timeout=5, socket_timeout=5)
             # V5.4.7 (#120): warn instead of crash-looping when Redis is
             # down at container start; run()'s backoff loop retries.
@@ -177,7 +178,7 @@ class PostgresWorker:
             self._conn = _pg_conn
         else:
             import psycopg
-            dsn = os.environ.get("AETHER_POSTGRES_DSN", postgres_dsn)
+            dsn = secret_env("POSTGRES_DSN", postgres_dsn)
             self._conn = psycopg.connect(dsn, autocommit=False)
             logger.info("AuditPostgresWorker: PostgreSQL connected.")
 
@@ -205,7 +206,7 @@ class PostgresWorker:
             self._conn.close()
         except Exception:
             pass
-        dsn = os.environ.get("AETHER_POSTGRES_DSN", postgres_dsn)
+        dsn = secret_env("POSTGRES_DSN", postgres_dsn)
         self._conn = psycopg.connect(dsn, autocommit=False)
         ensure_schema(self._conn)
         logger.info("AuditPostgresWorker: PostgreSQL reconnected.")
@@ -427,8 +428,8 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    redis_url = os.environ.get("AETHER_REDIS_URL", "redis://localhost:6380/0")
-    postgres_dsn = os.environ.get("AETHER_POSTGRES_DSN", "")
+    redis_url = secret_env("REDIS_URL", "redis://localhost:6380/0")
+    postgres_dsn = secret_env("POSTGRES_DSN", "")
 
     worker = PostgresWorker(
         redis_url=redis_url,

@@ -13,6 +13,11 @@ from pathlib import Path
 import pandas as pd
 
 from portfolio import crypto_signals, filing_signals
+from typing import TYPE_CHECKING, Any
+
+
+if TYPE_CHECKING:
+    from evaluation.wide_context import WideCell
 
 
 class MissingInput(FileNotFoundError):
@@ -81,7 +86,7 @@ BUILDERS: dict[str, Callable[[object, Mapping], pd.DataFrame]] = {
 }
 
 
-def build_trial_table(builder: str, params: Mapping | None, cell) -> pd.DataFrame:
+def build_trial_table(builder: str, params: Mapping[str, Any] | None, cell: WideCell) -> pd.DataFrame:
     """One builder's table on this cell. `cross_asset_trend` takes its `tickers` from the params."""
     if builder not in BUILDERS:
         raise KeyError(f"unknown builder {builder!r}; expected one of {sorted(BUILDERS)}")
@@ -91,7 +96,7 @@ def build_trial_table(builder: str, params: Mapping | None, cell) -> pd.DataFram
     return BUILDERS[builder](cell, arguments)
 
 
-def apply_gate(table: pd.DataFrame, gate: str | None, cell) -> pd.DataFrame:
+def apply_gate(table: pd.DataFrame, gate: str | None, cell: WideCell) -> pd.DataFrame:
     """An optional gate on the finished table. `regime`: no signal while BTC is below its 120-session average."""
     if not gate:
         return table

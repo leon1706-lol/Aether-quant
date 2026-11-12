@@ -38,6 +38,7 @@ from portfolio.options_strategy import (
     _legs_tuple_from_roles,
     select_strategy_legs,
 )
+from typing import Any
 
 
 @dataclass(frozen=True)
@@ -57,7 +58,7 @@ class MarginSizingDecision:
     margin_utilization: float        # margin_required / portfolio_value
     sizing_reason: str
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "strategy_name": self.strategy_name,
             "legs": [
@@ -131,7 +132,7 @@ def build_margin_position_sizing(
     max_margin_utilization: float = 0.40,
     pct_of_underlying_value: float = 0.20,
     min_pct_of_underlying_value: float = 0.10,
-    **selector_tuning_kwargs,
+    **selector_tuning_kwargs: Any,
 ) -> MarginSizingDecision | None:
     """The single public entry point for every margin-tier strategy
     (risk_tier in {"margin_naked", "margin_uncovered_leg",
@@ -258,7 +259,7 @@ def build_margin_position_sizing_for_legs(
 
 
 def _naked_margin_requirement_for_naked_tier(
-    spec, legs_by_role: dict, underlying_price: float, contract_multiplier: float,
+    spec, legs_by_role: dict[str, Any], underlying_price: float, contract_multiplier: float,
     pct_of_underlying_value: float, min_pct_of_underlying_value: float,
 ) -> float:
     """naked_call/naked_put: the single short leg's own naked margin.
@@ -287,7 +288,7 @@ def _naked_margin_requirement_for_naked_tier(
 
 
 def _uncovered_leg_margin_requirement(
-    spec, legs_by_role: dict, underlying_price: float, contract_multiplier: float,
+    spec, legs_by_role: dict[str, Any], underlying_price: float, contract_multiplier: float,
     pct_of_underlying_value: float, min_pct_of_underlying_value: float,
 ) -> float:
     """bull_call_ladder/bear_put_ladder only (risk_tier ==
@@ -307,7 +308,7 @@ def _uncovered_leg_margin_requirement(
     )
 
 
-def _bounded_backspread_max_loss(spec, legs_by_role: dict, contract_multiplier: float) -> float:
+def _bounded_backspread_max_loss(spec, legs_by_role: dict[str, Any], contract_multiplier: float) -> float:
     """call_backspread/put_backspread only (risk_tier ==
     "margin_bounded_backspread") - defined max loss per spread unit:
     (strike_width - net_credit) * contract_multiplier, occurring at the

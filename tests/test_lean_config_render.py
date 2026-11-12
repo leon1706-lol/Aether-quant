@@ -119,3 +119,30 @@ def test_a_crypto_universe_with_interactive_brokers_credentials_is_flagged():
     assert validate_live_crypto_route(equity_only, ["ib-account"]) == []
     disabled = dict(config, phase_v2={"crypto_risk": {"enabled": False}})
     assert validate_live_crypto_route(disabled, ["ib-account"]) == []
+
+
+def test_coinbase_keys_and_account_prefixes_render(tmp_path):
+    """V6.6.5 (#348/#349): the crypto venue's keys render, and an account reads only its own prefixed variables."""
+    from execution.lean_config_render import account_env_name, render_lean_config
+
+    base = {"coinbase-api-key": "", "coinbase-api-secret": "", "ib-password": ""}
+    env = {"AETHER_COINBASE_API_KEY": "cb-key", "AETHER_COINBASE_API_SECRET": "cb-secret", "AETHER_LIVE1_IB_PASSWORD": "live1-pw"}
+    rendered, filled = render_lean_config(base, env)
+    assert rendered["coinbase-api-key"] == "cb-key" and set(filled) == {"coinbase-api-key", "coinbase-api-secret"}
+    rendered, filled = render_lean_config(base, env, account_id="live1")
+    assert filled == ["ib-password"] and rendered["coinbase-api-key"] == ""
+    assert account_env_name("AETHER_IB_PASSWORD", "paper-2") == "AETHER_PAPER_2_IB_PASSWORD"
+
+
+def test_stored_secrets_win_over_plain_environment(tmp_path, monkeypatch):
+    from execution import lean_config_render
+
+    secret = tmp_path / "cb"
+    secret.write_text("cb-from-file\n", encoding="utf-8")
+    monkeypatch.setenv("AETHER_COINBASE_API_KEY_FILE", str(secret))
+    monkeypatch.setattr("execution.secrets_io.keyring_get", lambda service, user: None)
+    stored = lean_config_render.stored_secret_environment()
+    assert stored == {"AETHER_COINBASE_API_KEY": "cb-from-file"}
+    merged = lean_config_render.build_render_environment(os_environ={"AETHER_COINBASE_API_KEY": "from-env"})
+    assert merged["AETHER_COINBASE_API_KEY"] == "cb-from-file"
+    assert lean_config_render.build_render_environment(os_environ={"AETHER_COINBASE_API_KEY": "from-env"}, stored={})["AETHER_COINBASE_API_KEY"] == "from-env"

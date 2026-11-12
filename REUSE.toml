@@ -1,0 +1,23 @@
+# V6.6.5 (#347): the license of every path (https://reuse.software/spec-3.3/). Later annotations override earlier ones
+# for the same file, so the default (the trading system, PolyForm Noncommercial) comes first and the library after it.
+# tests/test_licensing.py checks that every file the wheel ships is Apache-2.0 and main.py is not.
+version = 1
+
+[[annotations]]
+path = "**"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 Leon Schwarzkopf"
+SPDX-License-Identifier = "LicenseRef-PolyForm-Noncommercial-1.0.0"
+
+[[annotations]]
+path = [
+    "aether_quant/**", "analyzer/**", "audit/**", "data_pipeline/**", "evaluation/**", "execution/**", "experience/**", "experts/**",
+    "features/**", "inference/**", "liquidity/**", "moe/**", "monitoring/**", "notifications/**", "performance/**", "portfolio/**",
+    "regime/**", "retraining/**", "risk/**", "topology/**",
+    "aq_cli.py", "docs_facts.py", "generate_backtest_report.py", "generate_evaluation_report.py", "json_safety.py", "performance_probe.py",
+    "risk_controls.py",
+    "webui/**", "notebooks/**", "docs/**", "examples/**", "formal/**", "mkdocs.yml", "Dockerfile", "NOTICE", "LICENSES/Apache-2.0.txt",
+]
+precedence = "override"
+SPDX-FileCopyrightText = "2026 Leon Schwarzkopf"
+SPDX-License-Identifier = "Apache-2.0"

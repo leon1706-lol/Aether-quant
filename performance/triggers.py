@@ -23,6 +23,7 @@ from experience.observation_metrics import (
     simulated_win_loss,
 )
 from performance.rank_ic_monitor import compute_production_rank_ic
+from typing import Any
 
 SEVERITIES = ("info", "warning", "critical")
 TRIGGER_TYPES = (
@@ -172,7 +173,7 @@ def _make_trigger(
     metric_value: float,
     threshold: float,
     message: str,
-) -> dict:
+) -> dict[str, Any]:
     return {
         "trigger_id": str(uuid.uuid4()),
         "created_at": _now_iso(),
@@ -189,6 +190,7 @@ def _make_trigger(
 
 
 def observation_count_trigger(events: list[dict], interval: int = 100) -> list[dict]:
+    """A routine trigger every `interval` observations."""
     count = len(events)
     if interval <= 0 or count == 0 or count % interval != 0:
         return []
@@ -234,6 +236,7 @@ def executed_trade_count_trigger(events: list[dict], interval: int = 100) -> lis
 
 
 def drawdown_trigger(events: list[dict], max_drawdown_threshold: float = -0.10) -> list[dict]:
+    """A trigger when the simulated or real drawdown is worse than the threshold."""
     if not events:
         return []
 
@@ -318,6 +321,7 @@ def sharpe_degradation_trigger(
     min_sharpe: float = 0.3,
     window: int = 100,
 ) -> list[dict]:
+    """A trigger when the simulated Sharpe over the window falls below the floor."""
     windowed = events[-window:] if window > 0 else events
     if len(windowed) < 2:
         return []
@@ -395,6 +399,7 @@ def win_rate_trigger(
     min_win_rate: float = 0.45,
     window: int = 100,
 ) -> list[dict]:
+    """A trigger when the win rate over the window falls below the floor."""
     windowed = events[-window:] if window > 0 else events
     result = simulated_win_loss(windowed)
     total = result["wins"] + result["losses"]
@@ -425,6 +430,7 @@ def confidence_decay_trigger(
     decay_ratio_threshold: float = 0.5,
     instability_std_threshold: float = 0.25,
 ) -> list[dict]:
+    """A trigger when the model's confidence falls well below its earlier level or turns unstable over the window."""
     confidences = [float(event["confidence"]) for event in events if event.get("confidence") is not None]
     prior = confidences[-2 * window : -window]
     recent = confidences[-window:]
@@ -475,6 +481,7 @@ def regime_shift_trigger(
     window: int = 20,
     sensitivity: float = 0.6,
 ) -> list[dict]:
+    """A trigger when the dominant regime changed across the window beyond the sensitivity."""
     regimes = [
         event["regime"]["primary_regime"]
         for event in events
@@ -511,11 +518,12 @@ def liquidity_warning_trigger(
     max_liquidity_rejection_rate: float = 0.25,
     window: int = 100,
 ) -> list[dict]:
+    """A trigger when liquidity vetoes too many decisions in the window."""
     windowed = events[-window:] if window > 0 else events
     if len(windowed) < 5:
         return []
 
-    def action_of(event: dict) -> str | None:
+    def action_of(event: dict[str, Any]) -> str | None:
         return (event.get("liquidity") or {}).get("recommended_action")
 
     total = len(windowed)
@@ -563,10 +571,11 @@ def risk_lock_trigger(
     events: list[dict],
     max_consecutive_locked_events: int = 20,
 ) -> list[dict]:
+    """A trigger when trading has been locked for too many consecutive events."""
     if not events:
         return []
 
-    def is_locked(event: dict) -> bool:
+    def is_locked(event: dict[str, Any]) -> bool:
         return bool((event.get("portfolio") or {}).get("trade_lock_active"))
 
     mode = _latest_mode(events)
@@ -836,10 +845,11 @@ def trigger_frequency_spike(
 
 def evaluate_all_triggers(
     events: list[dict],
-    config: dict,
+    config: dict[str, Any],
     recent_triggers: list[dict] | None = None,
     rank_ic_observations: list[dict] | None = None,
-) -> dict:
+) -> dict[str, Any]:
+    """Every performance trigger on the recent events, deduplicated against the recent ones (what the retraining worker reads)."""
     generated_at = _now_iso()
     enabled = bool(config.get("enabled", True))
 

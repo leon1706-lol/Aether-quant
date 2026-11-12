@@ -40,6 +40,7 @@ from __future__ import annotations
 import math
 from collections.abc import Mapping
 from dataclasses import asdict, dataclass
+from typing import Any
 
 
 def _is_finite_number(value) -> bool:
@@ -58,6 +59,7 @@ def _is_finite_number(value) -> bool:
 
 @dataclass(frozen=True)
 class BookAllocation:
+    """One name's place in the rank book: long or short, its multiplier, its predicted rank and why it was chosen."""
     role: str
     book_role_multiplier: float
     predicted_rank_20d: float
@@ -73,7 +75,7 @@ class BookAllocation:
     rank_head: str = "blend"
     target_weight: float | None = None
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
 
@@ -206,8 +208,8 @@ def _select_book_group(
     previous_allocations: dict[str, BookAllocation] | None = None,
     hysteresis_rank_margin: float = 0.0,
     spread_check_ranks: dict[str, float] | None = None,
-    rolling_ic_gate_result: dict | None = None,
-    veto_reason_out: dict | None = None,
+    rolling_ic_gate_result: dict[str, Any] | None = None,
+    veto_reason_out: dict[str, Any] | None = None,
 ) -> dict[str, BookAllocation]:
     """Core discrete top-N-long / bottom-N-short selection over an already-
     filtered `{symbol: predicted_rank_20d}` pool - shared by the pooled
@@ -356,8 +358,8 @@ def build_rank_based_book(
     previous_allocations: dict[str, BookAllocation] | None = None,
     hysteresis_rank_margin: float = 0.0,
     spread_check_ranks: dict[str, float] | None = None,
-    rolling_ic_gate_result: dict | None = None,
-    veto_reason_out: dict | None = None,
+    rolling_ic_gate_result: dict[str, Any] | None = None,
+    veto_reason_out: dict[str, Any] | None = None,
 ) -> dict[str, BookAllocation]:
     """Discrete top-N-long / bottom-N-short book construction from each
     symbol's predicted_rank_20d for this bar. Continuous rank-weighted
@@ -483,7 +485,7 @@ def build_rank_based_book(
     return allocations
 
 
-def pct_returns_from_closes(closes: list) -> list[float]:
+def pct_returns_from_closes(closes: list[Any]) -> list[float]:
     """V5.4.4 - close-to-close simple returns from a symbol's rolling
     close window (main.py's `self.symbol_windows[symbol]` "close" values,
     oldest first). The per-symbol return history `apply_hrp_weights()`
@@ -618,7 +620,7 @@ def tranche_offsets(rebalance_every_bars: int, tranches: int) -> list[int]:
 
 
 def tranche_book_params(top_n: int, bottom_n: int, gross_exposure_cap: float, tranches: int,
-                        max_active_positions: int | None = None) -> dict:
+                        max_active_positions: int | None = None) -> dict[str, Any]:
     """One tranche's share of the book: ceil(top_n / K) longs and ceil(bottom_n / K) shorts (a side with 0 names stays 0),
     gross cap / K and, when given, ceil(position cap / K) positions. K = 1 returns the book's own values."""
     count = max(1, int(tranches))
@@ -705,7 +707,7 @@ def build_book_raw_weights(
     return raw_weights
 
 
-def remember_formed_book(previous_formed: dict | None, new_allocations: dict | None) -> dict:
+def remember_formed_book(previous_formed: dict[str, Any] | None, new_allocations: dict[str, Any] | None) -> dict[str, Any]:
     """V5.5.0 (Problems.md #128) - the hysteresis memory a veto must NOT wipe.
 
     main.py stored every rebalance result into the one dict it also uses as
@@ -821,15 +823,15 @@ def build_book_history_record(
     raw_scores_by_symbol: dict[str, float],
     target_weights_by_symbol: dict[str, float],
     sector_by_symbol: dict[str, str],
-    rank_signal_policy: dict,
+    rank_signal_policy: dict[str, Any],
     full_universe_signals: dict[str, dict] | None = None,
     book_member_decisions: dict[str, dict] | None = None,
     gate_veto_reason: str | None = None,
     feature_snapshot: dict[str, dict] | None = None,
     run_id: str | None = None,
-    rolling_ic_state: dict | None = None,
+    rolling_ic_state: dict[str, Any] | None = None,
     member_probabilities: dict[str, dict] | None = None,
-) -> dict:
+) -> dict[str, Any]:
     """V5.2.2 (development/Problems.md) - a diagnostic snapshot of one
     rebalance bar's book, for `main.py`'s optional (config-gated, off by
     default, backtest-only) book-history log. Exists to make a real,
@@ -1003,7 +1005,7 @@ def book_history_mode_allowed(runtime_mode: str, enabled: bool, paper_enabled: b
     return False, False
 
 
-def resolve_class_weight_caps(raw: dict | None) -> dict[str, dict]:
+def resolve_class_weight_caps(raw: dict[str, Any] | None) -> dict[str, dict]:
     """`phase_v2.class_weight_caps` -> {asset_class: {"per_name_cap", "class_gross_cap", "exempt"}} for the enabled classes.
     Absent/empty = no caps (the pre-V5.8.0 behaviour). A cap of 0 or less means "no cap on that dimension"."""
     caps: dict[str, dict] = {}
@@ -1025,7 +1027,7 @@ def resolve_class_weight_caps(raw: dict | None) -> dict[str, dict]:
     return caps
 
 
-def crypto_core_only_settings(class_weight_caps_config: dict | None) -> tuple[bool, frozenset[str]]:
+def crypto_core_only_settings(class_weight_caps_config: dict[str, Any] | None) -> tuple[bool, frozenset[str]]:
     """(core_only, core names) from `phase_v2.class_weight_caps.crypto`: `core_only` (V6.4.0, default false, lead L9) keeps the
     crypto pairs that are not `exempt` (the proven core, BTC / LTC) out of the main book's candidates."""
     entry = (class_weight_caps_config or {}).get("crypto")

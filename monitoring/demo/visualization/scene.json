@@ -1,0 +1,198 @@
+{
+ "dimensions": {
+  "depth": 1,
+  "height": 100,
+  "width": 100
+ },
+ "layout": "topology",
+ "links": [
+  {
+   "source": "portfolio",
+   "strength": 0.008611,
+   "target": "ADAUSD"
+  },
+  {
+   "source": "portfolio",
+   "strength": 0.007484,
+   "target": "BCHUSD"
+  },
+  {
+   "source": "portfolio",
+   "strength": 0.017923,
+   "target": "BTCUSD"
+  },
+  {
+   "source": "portfolio",
+   "strength": 0.009961,
+   "target": "DOGEUSD"
+  },
+  {
+   "source": "portfolio",
+   "strength": 0.009234,
+   "target": "ETCUSD"
+  },
+  {
+   "source": "portfolio",
+   "strength": 0.013045,
+   "target": "ETHUSD"
+  },
+  {
+   "source": "portfolio",
+   "strength": 0.020403,
+   "target": "LINKUSD"
+  },
+  {
+   "source": "portfolio",
+   "strength": 0.01151,
+   "target": "LTCUSD"
+  },
+  {
+   "source": "portfolio",
+   "strength": 0.0,
+   "target": "XLMUSD"
+  },
+  {
+   "source": "portfolio",
+   "strength": 0.007565,
+   "target": "XRPUSD"
+  },
+  {
+   "source": "portfolio",
+   "strength": 0.009271,
+   "target": "ZECUSD"
+  }
+ ],
+ "nodes": [
+  {
+   "id": "portfolio",
+   "intensity": 0.115007,
+   "kind": "portfolio",
+   "label": "Book",
+   "value": 114533.895735,
+   "x": 0.0,
+   "y": 0.0,
+   "z": 0.0
+  },
+  {
+   "detail": "trend votes over 20/60/120 sessions",
+   "id": "ADAUSD",
+   "intensity": 0.422075,
+   "kind": "asset",
+   "label": "ADAUSD",
+   "value": 0.008611,
+   "x": 38.219739,
+   "y": 50.350085,
+   "z": 0.855876
+  },
+  {
+   "detail": "trend votes over 20/60/120 sessions",
+   "id": "BCHUSD",
+   "intensity": 0.366824,
+   "kind": "asset",
+   "label": "BCHUSD",
+   "value": 0.007484,
+   "x": 28.341874,
+   "y": 17.131342,
+   "z": 0.95
+  },
+  {
+   "detail": "trend votes over 20/60/120 sessions",
+   "id": "BTCUSD",
+   "intensity": 0.87845,
+   "kind": "asset",
+   "label": "BTCUSD",
+   "value": 0.017923,
+   "x": 66.252925,
+   "y": 51.346408,
+   "z": 0.556635
+  },
+  {
+   "detail": "trend votes over 20/60/120 sessions",
+   "id": "DOGEUSD",
+   "intensity": 0.488216,
+   "kind": "asset",
+   "label": "DOGEUSD",
+   "value": 0.009961,
+   "x": 47.841504,
+   "y": 55.005207,
+   "z": 0.760825
+  },
+  {
+   "detail": "trend votes over 20/60/120 sessions",
+   "id": "ETCUSD",
+   "intensity": 0.452598,
+   "kind": "asset",
+   "label": "ETCUSD",
+   "value": 0.009234,
+   "x": 37.800019,
+   "y": 39.146908,
+   "z": 0.806566
+  },
+  {
+   "detail": "trend votes over 20/60/120 sessions",
+   "id": "ETHUSD",
+   "intensity": 0.639366,
+   "kind": "asset",
+   "label": "ETHUSD",
+   "value": 0.013045,
+   "x": 73.430451,
+   "y": 58.932664,
+   "z": 0.6729
+  },
+  {
+   "detail": "trend votes over 20/60/120 sessions",
+   "id": "LINKUSD",
+   "intensity": 1.0,
+   "kind": "asset",
+   "label": "LINKUSD",
+   "value": 0.020403,
+   "x": 59.260889,
+   "y": 78.587886,
+   "z": 0.816937
+  },
+  {
+   "detail": "trend votes over 20/60/120 sessions",
+   "id": "LTCUSD",
+   "intensity": 0.564156,
+   "kind": "asset",
+   "label": "LTCUSD",
+   "value": 0.01151,
+   "x": 22.197652,
+   "y": 66.301581,
+   "z": 0.716089
+  },
+  {
+   "detail": "no positive trend vote",
+   "id": "XLMUSD",
+   "intensity": 0.0,
+   "kind": "asset",
+   "label": "XLMUSD",
+   "value": 0.0,
+   "x": 49.677592,
+   "y": 70.687883,
+   "z": 0.789838
+  },
+  {
+   "detail": "trend votes over 20/60/120 sessions",
+   "id": "XRPUSD",
+   "intensity": 0.370769,
+   "kind": "asset",
+   "label": "XRPUSD",
+   "value": 0.007565,
+   "x": 56.130836,
+   "y": 48.971286,
+   "z": 0.780646
+  },
+  {
+   "detail": "trend votes over 20/60/120 sessions",
+   "id": "ZECUSD",
+   "intensity": 0.454409,
+   "kind": "asset",
+   "label": "ZECUSD",
+   "value": 0.009271,
+   "x": 70.846518,
+   "y": 13.538751,
+   "z": 0.95
+  }
+ ]
+}

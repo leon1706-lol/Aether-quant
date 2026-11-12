@@ -1,0 +1,83 @@
+# aether_quant.features
+
+Pure feature functions: technical indicators, sensitivity features, per-date cross-sectional ranks and the as-of (lookahead-free) beta labels.
+
+::: aether_quant.features
+    options:
+      members:
+        - CrossAssetTimeline
+        - LateBarCrossAssetCache
+        - WideBars
+        - analytic_convexity
+        - analytic_modified_duration
+        - apply_cross_sectional_inputs
+        - asof_beta_by_row
+        - asof_residual_forward_return
+        - asof_rolling_beta
+        - asset_class_by_ticker
+        - asset_class_of
+        - average_true_range_pct
+        - bar_available_at
+        - baw_american_price
+        - bollinger_pctb
+        - bond_dv01
+        - bs_price
+        - build_asof_rank_labels
+        - compute_greeks
+        - credit_spread_level
+        - credit_spread_proxy
+        - cross_asset_inputs
+        - cross_sectional_momentum_rank
+        - cross_sectional_rank
+        - cross_sectional_residualize
+        - crypto_risk_appetite_proxy
+        - day_ordinal
+        - days_since_filing
+        - delta
+        - distance_from_52w_high
+        - duration_beta_from_arrays
+        - empirical_duration_beta
+        - expand_input_names
+        - extended_info_features
+        - fill_forward_open_forex_days
+        - fx_carry_3m
+        - fx_sleeve_scores
+        - gamma
+        - growth_rows
+        - implied_volatility
+        - info_features
+        - is_late_bar_asset
+        - lean_market_holidays
+        - load_sector_mapping
+        - long_frame
+        - macd_histogram_normalized
+        - momentum_from_closes
+        - nearest_yield_curve_point
+        - price_features
+        - rank_input_frame
+        - rank_input_matrix
+        - ranked_input_names
+        - relative_strength_index
+        - residual_daily
+        - resolve_bond_duration_beta_mode
+        - resolve_cross_sectional_inputs
+        - resolve_forex_lean_holidays
+        - returns_from_closes
+        - rho
+        - rolling_duration_beta
+        - rolling_duration_beta_series
+        - rolling_sensitivity
+        - sensitivity_features_vector
+        - sensitivity_interaction
+        - settings_from_config
+        - split_forex_ticker
+        - theta
+        - ts_momentum_score
+        - ts_momentum_series
+        - vega
+        - volume_zscore
+        - wide_label
+        - yield_curve_curvature
+        - yield_curve_level
+        - yield_curve_slope
+        - yield_curve_slope_proxy

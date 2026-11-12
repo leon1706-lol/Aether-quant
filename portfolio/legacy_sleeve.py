@@ -19,6 +19,7 @@ non-book symbol, the offline simulator reads the same config.
 from __future__ import annotations
 
 import math
+from typing import Any
 
 DEFAULT_LEGACY_SLEEVE_CONFIG = {
     "enabled": False,
@@ -28,7 +29,7 @@ DEFAULT_LEGACY_SLEEVE_CONFIG = {
 }
 
 
-def resolve_legacy_sleeve_config(raw: dict | None) -> dict:
+def resolve_legacy_sleeve_config(raw: dict[str, Any] | None) -> dict[str, Any]:
     """Normalize `phase_v2.legacy_sleeve`; any malformed value falls back to
     the default (sleeve disabled == the pre-V5.5.0 unbounded behavior)."""
     config = dict(DEFAULT_LEGACY_SLEEVE_CONFIG)
@@ -74,9 +75,9 @@ def apply_legacy_sleeve_policy(
     is_currently_invested: bool,
     book_is_active: bool,
     sleeve_gross_used: float,
-    sleeve_config: dict,
+    sleeve_config: dict[str, Any],
     is_book_owned: bool = False,
-) -> dict:
+) -> dict[str, Any]:
     """Decide how much of a non-book symbol's legacy signal may trade.
 
     Returns {"signal", "target_weight", "reason", "sleeve_gross_used"}.
@@ -117,7 +118,7 @@ def apply_legacy_sleeve_policy(
             "sleeve_gross_used": sleeve_gross_used,
         }
 
-    def _hold(reason: str) -> dict:
+    def _hold(reason: str) -> dict[str, Any]:
         return {"signal": "hold", "target_weight": 0.0, "reason": reason, "sleeve_gross_used": sleeve_gross_used}
 
     if not book_is_active and not sleeve_config.get("trade_when_book_vetoed", False):
@@ -144,7 +145,7 @@ def apply_legacy_sleeve_policy(
     }
 
 
-def resolve_legacy_signal_params(config: dict, decision_threshold: float) -> dict:
+def resolve_legacy_signal_params(config: dict[str, Any], decision_threshold: float) -> dict[str, Any]:
     """The probability signal's settings, read the way main.py reads them (V6.1.0: one definition for main.py and the
     offline legacy replay): buy / sell thresholds around the baseline model's `decision_threshold`
     (`phase5.backtest.*_threshold_offset`, clamped to [0.25, 0.75]), the adaptive sell band (`phase_v2.exits.adaptive_band_*`)

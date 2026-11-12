@@ -6,12 +6,14 @@ import math
 from dataclasses import asdict, dataclass
 
 from .rl_sizing import rl_sizing_multiplier as _rl_sizing_multiplier
+from typing import Any
 
 TRADING_DAYS_PER_YEAR = 252
 
 
 @dataclass(frozen=True)
 class PositionSizingDecision:
+    """One position's sizing: the base and final weight and every multiplier between them (volatility, topology, rank, RL, cost)."""
     base_target_weight: float
     target_weight: float
     rolling_volatility: float
@@ -34,7 +36,7 @@ class PositionSizingDecision:
     cost_multiplier: float = 1.0
     cost_sizing_reason: str = "cost_sizing_disabled_or_absent"
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
 
@@ -43,6 +45,7 @@ def classify_volatility_regime(
     low_volatility_threshold: float,
     high_volatility_threshold: float,
 ) -> str:
+    """Low, normal or high volatility for the sizing multiplier."""
     volatility = abs(float(rolling_volatility))
     if volatility >= high_volatility_threshold:
         return "high_volatility"
@@ -194,12 +197,13 @@ def build_dynamic_position_sizing(
     rank_sizing_enabled: bool = False,
     min_rank_multiplier: float = 0.75,
     max_rank_multiplier: float = 1.25,
-    rl_model: dict | None = None,
-    rl_state: dict | None = None,
+    rl_model: dict[str, Any] | None = None,
+    rl_state: dict[str, Any] | None = None,
     rl_sizing_enabled: bool = False,
     min_rl_multiplier: float = 0.6,
     max_rl_multiplier: float = 1.0,
 ) -> PositionSizingDecision:
+    """Size one position: the base weight scaled by confidence, volatility, topology, rank, RL and cost multipliers, never past the cap and never flipped."""
     base_target_weight = float(base_target_weight)
     # V6.4.3: a non-finite base target sizes to nothing (it used to come out as a NaN target weight).
     if not math.isfinite(base_target_weight):

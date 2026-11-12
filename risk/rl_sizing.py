@@ -36,6 +36,7 @@ from __future__ import annotations
 import json
 import math
 from pathlib import Path
+from typing import Any
 
 # Fixed, order-significant state key list - the trained artifact carries
 # its OWN copy of this same list (model["state_keys"]) and
@@ -80,11 +81,11 @@ DEFAULT_MAX_RL_MULTIPLIER = 1.0
 
 
 def build_rl_sizing_state(
-    base_features: dict,
+    base_features: dict[str, Any],
     confidence: float,
     state_keys: list[str] | None = None,
-    extra_state: dict | None = None,
-) -> dict | None:
+    extra_state: dict[str, Any] | None = None,
+) -> dict[str, Any] | None:
     """Pulls RL_SIZING_STATE_KEYS out of the SAME base_features dict
     main.py's _build_model_input_impl() already assembled this bar (plus
     the model's own separately-computed confidence score, not itself a
@@ -131,8 +132,8 @@ def _softmax_argmax_index(scores: list[float]) -> int:
 
 
 def rl_sizing_multiplier(
-    model: dict | None,
-    state: dict | None,
+    model: dict[str, Any] | None,
+    state: dict[str, Any] | None,
     rl_sizing_enabled: bool,
     min_rl_multiplier: float = DEFAULT_MIN_RL_MULTIPLIER,
     max_rl_multiplier: float = DEFAULT_MAX_RL_MULTIPLIER,
@@ -209,7 +210,7 @@ def rl_sizing_multiplier(
     return clamped, "rl_sizing_policy_scaled_sizing"
 
 
-def load_rl_sizing_model(path: Path) -> dict | None:
+def load_rl_sizing_model(path: Path) -> dict[str, Any] | None:
     """Missing file -> None (fresh checkout / never trained - the
     documented default state). Malformed JSON -> None (never raises).
     Mirrors main.py's own "missing/malformed model -> None, never a hard
@@ -223,7 +224,7 @@ def load_rl_sizing_model(path: Path) -> dict | None:
         return None
 
 
-def resolve_rl_shadow_guard(raw: dict | None) -> dict:
+def resolve_rl_shadow_guard(raw: dict[str, Any] | None) -> dict[str, Any]:
     """`phase_v2.dynamic_risk.rl_shadow_guard` -> {"enabled", "window_bars", "tolerance_nav_fraction"}; absent =
     disabled (RL, when enabled, is never switched off by its own track record - the pre-V5.8.0 behaviour)."""
     raw = raw or {}
@@ -253,7 +254,7 @@ def rl_excess_return(positions: dict[str, tuple[float, float]], returns: dict[st
     return total
 
 
-def rl_shadow_guard_allows(excess_history: list[float], guard: dict) -> bool:
+def rl_shadow_guard_allows(excess_history: list[float], guard: dict[str, Any]) -> bool:
     """True while RL may size: always when the guard is off; otherwise the summed excess return over the trailing
     `window_bars` must not be below -`tolerance_nav_fraction` (RL that has cost more than the tolerance against
     constant sizing falls back to 1.0 until the loss leaves the window)."""

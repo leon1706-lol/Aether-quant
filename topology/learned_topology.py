@@ -30,6 +30,7 @@ other.
 from __future__ import annotations
 
 import math
+from typing import Any
 
 FEATURE_KEYS = ("volatility", "momentum", "correlation_strength", "liquidity_score", "regime_risk_score")
 TOPOLOGY_SOURCES = ("deterministic", "learned", "hybrid", "fallback")
@@ -56,7 +57,7 @@ def _clamp(value: float, low: float, high: float) -> float:
     return max(low, min(high, value))
 
 
-def _normalize(vector: dict, feature_stats: dict) -> dict:
+def _normalize(vector: dict[str, Any], feature_stats: dict[str, Any]) -> dict[str, Any]:
     normalized = {}
     for key in FEATURE_KEYS:
         value = float(vector.get(key, 0.0) or 0.0)
@@ -67,11 +68,11 @@ def _normalize(vector: dict, feature_stats: dict) -> dict:
     return normalized
 
 
-def _euclidean_distance(a: dict, b: dict) -> float:
+def _euclidean_distance(a: dict[str, Any], b: dict[str, Any]) -> float:
     return math.sqrt(sum((value - float(b.get(key, 0.0) or 0.0)) ** 2 for key, value in a.items()))
 
 
-def _softmax_neg_distances(distances: dict, temperature: float) -> dict:
+def _softmax_neg_distances(distances: dict[str, Any], temperature: float) -> dict[str, Any]:
     if not distances:
         return {}
     temperature = max(float(temperature), 1e-6)
@@ -82,7 +83,7 @@ def _softmax_neg_distances(distances: dict, temperature: float) -> dict:
     return {key: value / total for key, value in exponentials.items()}
 
 
-def _normalized_entropy(probabilities: dict) -> float:
+def _normalized_entropy(probabilities: dict[str, Any]) -> float:
     count = len(probabilities)
     if count <= 1:
         return 0.0
@@ -90,7 +91,7 @@ def _normalized_entropy(probabilities: dict) -> float:
     return _clamp(entropy / math.log(count), 0.0, 1.0)
 
 
-def _jaccard_distance(a: set, b: set) -> float:
+def _jaccard_distance(a: set[Any], b: set[Any]) -> float:
     union = a | b
     if not union:
         return 0.0
@@ -101,7 +102,7 @@ def _apply_offset(base: float, offset: float, confidence: float, max_shift: floa
     return base + _clamp(offset * confidence, -max_shift, max_shift)
 
 
-def liquidity_score_from_decision(liquidity: dict) -> float:
+def liquidity_score_from_decision(liquidity: dict[str, Any]) -> float:
     """Maps a liquidity.market_liquidity.LiquidityDecision-shaped dict (or
     any dict carrying participation_rate/estimated_slippage) into a single
     0..1 liquidity_score feature - higher is more liquid. Shared by
@@ -113,7 +114,7 @@ def liquidity_score_from_decision(liquidity: dict) -> float:
     return _clamp(1.0 - min(1.0, participation_rate * 10.0 + slippage * 5.0), 0.0, 1.0)
 
 
-def _neighbor_probabilities(symbol: str, normalized_by_symbol: dict, temperature: float) -> dict:
+def _neighbor_probabilities(symbol: str, normalized_by_symbol: dict[str, Any], temperature: float) -> dict[str, Any]:
     own = normalized_by_symbol.get(symbol)
     if own is None:
         return {}
@@ -124,20 +125,20 @@ def _neighbor_probabilities(symbol: str, normalized_by_symbol: dict, temperature
 
 
 def _score_node(
-    node: dict,
-    normalized_by_symbol: dict,
-    prototypes: list,
+    node: dict[str, Any],
+    normalized_by_symbol: dict[str, Any],
+    prototypes: list[Any],
     distance_scale: float,
     cluster_dominant_regime_label: str,
-    cluster_peers: set,
-    previous_neighbors: set,
+    cluster_peers: set[Any],
+    previous_neighbors: set[Any],
     *,
     temperature: float,
     top_n_neighbors: int,
     min_confidence_for_learned: float,
     max_offset_xy: float,
     max_offset_z: float,
-) -> dict:
+) -> dict[str, Any]:
     """Pure per-node scoring against a trained prototype set. Raises on
     malformed inputs - callers catch and fall back per-node."""
     symbol = node["symbol"]
@@ -193,15 +194,15 @@ def _score_node(
 
 
 def learned_sizing_inputs(
-    vector: dict,
-    model: dict | None,
-    feature_schema: dict | None,
+    vector: dict[str, Any],
+    model: dict[str, Any] | None,
+    feature_schema: dict[str, Any] | None,
     *,
     cluster_regime_label: str | None = None,
     peer_distance: float = 0.5,
     temperature: float = DEFAULT_TEMPERATURE,
     min_confidence_for_learned: float = DEFAULT_MIN_CONFIDENCE_FOR_LEARNED,
-) -> dict:
+) -> dict[str, Any]:
     """The three numbers `risk.position_sizing.topology_sizing_multiplier` reads, for ONE node from its feature vector
     alone: the same prototype distances, softmax confidence and regime-mismatch term `_score_node` computes. The peer
     term (`_jaccard_distance` of the learned neighbours vs the deterministic cluster peers) needs the whole bar's
@@ -232,18 +233,18 @@ def learned_sizing_inputs(
 
 
 def apply_learned_topology(
-    deterministic_topology: dict,
+    deterministic_topology: dict[str, Any],
     symbol_features: dict[str, dict] | None = None,
     previous_neighbors_by_symbol: dict[str, list[str]] | None = None,
-    model: dict | None = None,
-    feature_schema: dict | None = None,
+    model: dict[str, Any] | None = None,
+    feature_schema: dict[str, Any] | None = None,
     *,
     temperature: float = DEFAULT_TEMPERATURE,
     top_n_neighbors: int = DEFAULT_TOP_N_NEIGHBORS,
     min_confidence_for_learned: float = DEFAULT_MIN_CONFIDENCE_FOR_LEARNED,
     max_offset_xy: float = DEFAULT_MAX_OFFSET_XY,
     max_offset_z: float = DEFAULT_MAX_OFFSET_Z,
-) -> dict:
+) -> dict[str, Any]:
     """Overlay learned cluster probabilities/uncertainty/offsets on top of a
     deterministic MarketTopology.to_dict()-shaped payload.
 

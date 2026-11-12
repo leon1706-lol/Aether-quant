@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
+from typing import Any
 
 
 def _dates(values) -> pd.Series:
@@ -153,7 +154,7 @@ def cash_profitability(fundamentals: pd.DataFrame, index: pd.Index, columns: pd.
     return (flow / assets.where(assets > 0.0)).replace([np.inf, -np.inf], np.nan)
 
 
-def fred_as_known(series: dict, index: pd.Index, *, keys: tuple[str, ...] = ("treasury_10yr", "treasury_3mo", "credit_spread_baa10y"), lag_sessions: int = 1) -> pd.DataFrame:
+def fred_as_known(series: dict[str, Any], index: pd.Index, *, keys: tuple[str, ...] = ("treasury_10yr", "treasury_3mo", "credit_spread_baa10y"), lag_sessions: int = 1) -> pd.DataFrame:
     """FRED series (`{key: Series by date}`) as the session knows them: carried across days with no mark, then read `lag_sessions` late, since FRED's daily marks post after the equity close."""
     columns = {}
     for key in keys:

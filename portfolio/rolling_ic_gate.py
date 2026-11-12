@@ -58,6 +58,7 @@ verification result to either one cleanly.
 from __future__ import annotations
 
 from evaluation.rank_ic_core import aggregate_rank_ic_observations, resolve_realized_rank_ic_observations
+from typing import Any
 
 # Same "this condition can never fire" sentinel convention as
 # risk/kill_switch.py::_NEVER_BELOW - enabling this gate must never, by
@@ -72,7 +73,7 @@ def compute_rolling_ic_state(
     horizon_days: int,
     rolling_window_days: int,
     min_names_per_date: int = 2,
-) -> dict:
+) -> dict[str, Any]:
     """Resolves `event_buffer` (main.py's own flat, in-memory
     {"ticker", "created_at", "resolved_predicted_rank_20d", "close_price"}
     deque, or the offline replay/calibration tools' equivalent) via
@@ -121,7 +122,7 @@ def compute_rolling_ic_state(
     }
 
 
-def evaluate_rolling_ic_gate(rolling_ic_state: dict, config: dict) -> dict:
+def evaluate_rolling_ic_gate(rolling_ic_state: dict[str, Any], config: dict[str, Any]) -> dict[str, Any]:
     """Pure decision function - the direct sibling of
     portfolio.book_construction.compute_confidence_spread()'s consumer at
     _select_book_group(). `rolling_ic_state` is compute_rolling_ic_state()'s
@@ -187,7 +188,7 @@ LATE_BAR_SECURITY_TYPES = frozenset({"forex", "crypto"})
 LATE_BAR_EVENT_COUNTS = ("per_tick", "once")
 
 
-def resolve_late_bar_event_count(gate_config: dict | None) -> str:
+def resolve_late_bar_event_count(gate_config: dict[str, Any] | None) -> str:
     """`rolling_ic_gate.late_bar_event_count` (V6.2.0): "per_tick" (default, the behaviour up to V6.1.0) records a
     crypto / forex symbol's event on its own midnight tick AND again on the next equity tick, where its last bar is
     re-scored, so it weighs twice per date in the gate's IC; "once" records it on its own tick only."""

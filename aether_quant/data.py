@@ -37,6 +37,7 @@ from data_pipeline.filing_text import (
     similarity_rows as filing_similarity_rows,
     tokens as filing_tokens,
 )
+from data_pipeline.public_candles import bars_to_panel, candle_windows, candles_url, coinbase_product, default_get_json, fetch_daily_bars, parse_candles
 
 __all__ = [
     "adaptive_sell_threshold",
@@ -105,4 +106,12 @@ __all__ = [
     "user_agent",
     "write_fundamentals",
     "yahoo_symbol_for_member",
+    # V6.6.5: Coinbase public candles, no key (fetch_daily_bars takes the network as get_json)
+    "bars_to_panel",
+    "candle_windows",
+    "candles_url",
+    "coinbase_product",
+    "default_get_json",
+    "fetch_daily_bars",
+    "parse_candles",
 ]

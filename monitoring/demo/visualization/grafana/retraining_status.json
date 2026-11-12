@@ -1,0 +1,10 @@
+{
+ "active_model": null,
+ "generated_at": "2026-10-31T00:00:00Z",
+ "last_trigger": null,
+ "latest_candidate": null,
+ "latest_retraining_event": null,
+ "rollback_available": false,
+ "rollback_candidates": [],
+ "validation_status": "demo: the shipped book is a rule, not a model"
+}

@@ -53,12 +53,33 @@ Lean's fill model has no bid-ask awareness, so this is where spread reaches a fi
 - **`paper_readiness.py` (pure):** `evaluate_broker_config()`, `evaluate_observation_readiness()`, `evaluate_live_risk_posture()`.
 - **`paper_readiness_io.py`, `paper_readiness_report.py`:** `aq paper-readiness`, writing `visualization/grafana/paper_readiness_report.json`.
 - **`paper_readiness_scheduler.py`:** keeps that report fresh.
-- **`live_credentials.py`, `live_credentials_io.py`:** credential checks, without ever printing a secret.
+- **`live_credentials.py`, `live_credentials_io.py`:** credential checks, without ever printing a secret. `load_live_credentials(account_id)` reads an account's own keys.
+- **`live_readiness.py` (pure), `live_readiness_io.py`:** the paper-to-live scorecard (`aq live-readiness`, `/api/readiness`). It has 21 metrics in six groups, and unknown counts as fail. Thresholds live in `phase_v2.live_readiness`, which is report-only unless `enforce_before_live` is set (V6.6.5, #352).
+- **`field_test.py` (pure):** the gated injectors and the judge of the broker-free field test (`scripts/lean_smoke/field_test.py`, #351). They act only when the config, `AQ_FIELD_TEST=1` and a non-live mode all agree.
+
+## Cost models: `cost_models.py`
+
+Composable cost models for research (`aether_quant.costs`, #345): the `CostModel` protocol, `LinearCostModel`, `SquareRootImpactModel` and `CompositeCostModel`, plus the `coinbase_model()` and `ib_equity_model()` presets over the live fee functions. Every result is finite and never negative.
+
+## Accounts: `accounts.py`, `accounts_io.py`
+
+The registry of deployments (`accounts.json`, template `accounts.example.json`, #349).
+
+- **Overrides only tighten** the base config, which is proved in `formal/AetherFormal/AccountOverrides.lean`.
+- **`main.py`** resolves `AQ_ACCOUNT` or the Lean parameter `aq-account` and applies `apply_risk_overrides`, the same function the offline loaders use.
+- **A named account** gets its own state directory (`state/accounts/<id>/`), override file, secrets prefix and audit tag. The default account changes nothing.
 
 ## Secrets
 
+- **`secrets.py` (pure), `secrets_io.py`:** each named secret resolves, first match wins, from:
+  1. a `*_FILE` file
+  2. a Docker secret (`/run/secrets/aether_<name>`)
+  3. `AETHER_<NAME>` (`AETHER_<ACCOUNT>_<NAME>` for a named account)
+  4. the OS keyring
+
+  Values travel as `SecretValue`, which never shows itself. `secret_env()` is the drop-in for `os.environ.get("AETHER_*")`. See `aq secrets` (#348).
 - **`secret_scan.py`:** `aq secrets-check`, the pre-commit guard.
-- **`lean_config_render.py`:** `aq render-lean-config`. Secrets stay in the gitignored `lean.live.json`, and the tracked `lean.json` stays empty. It warns that IB can't fill crypto (#192).
+- **`lean_config_render.py`:** `aq render-lean-config [--account]`. Secrets stay in the gitignored `lean.live.json` (`lean.live.<id>.json`), and the tracked `lean.json` stays empty. Coinbase's key pair renders too. It warns that IB can't fill crypto (#192).
 
 ## Going to paper
 

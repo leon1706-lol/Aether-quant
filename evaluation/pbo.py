@@ -14,6 +14,11 @@ import itertools
 import math
 
 import numpy as np
+from typing import TYPE_CHECKING, Any
+
+
+if TYPE_CHECKING:
+    from numpy.typing import ArrayLike
 
 
 def _sharpe(block_sums: np.ndarray, block_sq: np.ndarray, block_n: np.ndarray, mask: np.ndarray, periods: int) -> np.ndarray:
@@ -28,7 +33,7 @@ def _sharpe(block_sums: np.ndarray, block_sq: np.ndarray, block_n: np.ndarray, m
     return sharpe
 
 
-def probability_of_backtest_overfitting(returns, *, blocks: int = 16, periods_per_year: int = 252) -> dict:
+def probability_of_backtest_overfitting(returns: ArrayLike, *, blocks: int = 16, periods_per_year: int = 252) -> dict[str, Any]:
     """{"pbo", "num_combinations", "num_trials", "lambda_quantiles", "degradation_slope", "degradation_intercept",
     "prob_oos_loss"}; `pbo` is None when there are fewer than 2 trials or fewer rows than blocks."""
     matrix = np.asarray(returns, dtype=float)

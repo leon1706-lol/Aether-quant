@@ -34,7 +34,7 @@ Stop at the first red item. **No verified edge exists, so no live capital.**
 
 1. **Freeze:** `aq test` green, `ruff check .` clean, `aq secrets-check` passes, `python scripts/ml_manifest.py` equals the manifest of the last Lean run.
 2. **Image:** `aq docker build` on the deploy host, then `aq docker up`; `GET /api/assets-status` returns 200.
-3. **Config:** `aq render-lean-config` from `.env.live`. Secrets go only in the gitignored `lean.live.json`. `phase_v2.runtime.mode` stays `observation` until step 4.
+3. **Config:** `aq render-lean-config` (`--account <id>` for a named account) from the stored secrets (see "Secrets"). Secrets go only in the gitignored `lean.live.json` / `lean.live.<id>.json`. `phase_v2.runtime.mode` stays `observation` until step 4.
 4. **Gate:** `aq paper-readiness`, then set the mode to `paper`.
 5. **Dashboard (Operations page):** check the target-weights sleeve, the venue listing guard and every enabled `sleeve_guards` entry reading `sleeve_guard_ok`.
 6. **Crypto venue:** QuantConnect's IB brokerage doesn't support crypto (#192), so a Coinbase key is needed; `aq render-lean-config` warns about it. Crypto exits rest as limit orders (`phase_v2.limit_orders.exit_asset_classes`).
@@ -44,12 +44,12 @@ Stop at the first red item. **No verified edge exists, so no live capital.**
 
 Everything up to the broker is built and proved without an account. In order, each an owner decision:
 
-1. Keys in `lean.json` on the host only, never in a repo file; `aq secrets-check`.
+1. Store the keys with `aq secrets set COINBASE_API_KEY` (and `COINBASE_API_SECRET`, `IB_*`), or as Docker secrets; never in `lean.json` or another repo file. `aq secrets status` shows where each resolves; `aq secrets-check` guards commits.
 2. Check the Coinbase account offers the sleeve's 11 USD pairs (EOS left the book on 2026-11-07, #311).
 3. `aq docker build` on the deploy host.
 4. In a paper config only: `phase_v2.target_weights.live_reload: true`, `weights_path: ml/generations/blended_weights.csv`, `weights_sha256: ""`. Set `enabled: true` in `ml/generations/policy.json`.
 5. `aq paper-readiness`, then the paper run under the protocol below.
-6. Live capital is a separate decision, after the forward ledger and the paper verdict.
+6. Live capital is a separate decision, after the forward ledger and the paper verdict: `aq live-readiness` must read READY (see "Paper to live").
 
 ## Paper period protocol
 
@@ -124,6 +124,58 @@ Research a pre-registered round, freeze one candidate, read the holdouts once, s
 4. `aq cycle schedule install` registers a weekly retrain-if-due job. `aq cycle schedule show` prints it first.
 
 `--host codespace` drives the training Codespace from any machine and stops it however the run ends. It bills the owner's budget, so no schedule uses it unless asked.
+
+## Secrets
+
+Every credential resolves, first match wins, from a file named by `AETHER_<NAME>_FILE`, the Docker secret `/run/secrets/aether_<name>`, the variable `AETHER_<NAME>`, or the OS keyring (`aq secrets set NAME`). A named account uses `AETHER_<ACCOUNT>_<NAME>`.
+
+- **On a host without Docker:** `pip install keyring`, then `aq secrets set` each name. `aq secrets status` should show "stored safely".
+- **With Docker:** write `secrets/postgres_password` and `secrets/postgres_dsn` (gitignored), then `docker compose -f docker-compose.yml -f docker-compose.secrets.yml up -d`.
+- **Rotation:** set the new value, run `aq render-lean-config [--account <id>]`, restart the deployment (`aq live down/up`), then revoke the old key at the venue.
+- **A leaked key:**
+    1. Revoke it at the venue first.
+    2. Run `aq trade-lock --on [--account <id>]`.
+    3. Rotate the key as above.
+    4. Check `aq audit-log --verify` and the CI secret scan.
+    5. Write it up in Problems.
+
+## Accounts
+
+1. Copy `accounts.example.json` to `accounts.json` and add the account. Use an id, a broker (`paper`, `coinbase` or `interactive_brokers`), its Lean environment, and optional `mode`, `capital_usd` and `risk_overrides`.
+2. `aq accounts validate`. Any override looser than `config.json` is refused.
+3. Store the account's secrets as `AETHER_<ID>_*`, then `aq accounts status`.
+4. `aq render-lean-config --account <id>`, then `aq live up --account <id> --dry-run`, then without `--dry-run`.
+5. Check `aq live-readiness --account <id>`.
+6. **Retiring an account:** `aq trade-lock --on --account <id>`, flatten, then `aq live down --account <id>`. Remove it from `accounts.json` only after its state is archived.
+
+## Users
+
+1. `aq users add <name> --role viewer|operator|admin [--accounts a,b]` prints the token once. Store it in a password manager.
+2. With any user, the API and dashboard need the token. Operators lock trading from the Operations page; admins unlock it.
+3. **Revoking:** `aq users remove <name>`.
+4. **Serving the LAN:** set `AETHER_QUANT_BIND=0.0.0.0` only with users configured.
+5. Every lock and unlock is in `state/api_actions.jsonl` (hash-chained) and, with Redis up, in the audit log.
+
+## Backups
+
+- `python scripts/backup_postgres.py --docker` (or with `pg_dump` installed and the DSN stored) writes `state/backups/aether_quant_<stamp>.dump`. It keeps 14 and records `last_backup.json` for the scorecard.
+- Schedule it daily on a deploy host.
+- **Restore:** `pg_restore --clean --if-exists -d <dsn> state/backups/<file>.dump`, then `aq audit-log --verify`.
+
+## Field test
+
+`python scripts/lean_smoke/field_test.py` on a host with Docker and the `aether-quant-lean:17900` image. It needs no key and about an hour.
+
+- **What it runs:** `main.py` in `live-paper` on a fake feed, with the compose Redis and Postgres, three times:
+    1. the order, drift, shock and outages
+    2. a restart
+    3. two accounts at once
+- **Where it writes:** `ml/evaluation/field_test/<date>/report.json`, which the scorecard reads. A report older than 90 days fails the scorecard.
+- **On the 4 GB PC:** close other apps, boot WSL by hand (`Start-Process wsl.exe -ArgumentList '-d','docker-desktop','-e','sleep','86400'`), then start Docker Desktop.
+
+## Paper to live
+
+`aq live-readiness [--account <id>] [--paper-check <report>]` must read READY before any live capital. Unknown counts as fail, and the scorecard measures each item in [`docs/live/paper-to-live.md`](docs/live/paper-to-live.md). `aq live-readiness --docs` refreshes that page's table. Live capital stays an owner decision even then.
 
 ## Incidents
 

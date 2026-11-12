@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=61.0", "setuptools-scm>=8"]
+requires = ["setuptools>=77.0", "setuptools-scm>=8"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -7,8 +7,13 @@ name = "aether-quant"
 dynamic = ["version"]
 description = "Aether Quant: a self-adapting trading research system, its library and the aq CLI"
 readme = "README.md"
-license = "LicenseRef-PolyForm-Noncommercial-1.0.0"
+# V6.6.5 (#347): what the wheel ships is the library, Apache-2.0; the trading system in the repo stays PolyForm Noncommercial (LICENSE, REUSE.toml)
+license = "Apache-2.0"
+license-files = ["LICENSES/Apache-2.0.txt", "NOTICE"]
 requires-python = ">=3.10"
+# V6.6.5 (#342): a bare `pip install aether-quant` is the research-only install: numpy and pandas, no torch, no Lean, no
+# Docker. tests/test_lite_install.py imports every facade and runs `aq hello --offline` with everything else blocked.
+dependencies = ["numpy>=1.24", "pandas>=2.0"]
 authors = [
     { name = "leon1706-lol" },
 ]
@@ -20,12 +25,13 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Topic :: Office/Business :: Financial :: Investment",
 ]
-keywords = ["algorithmic-trading", "quantitative-finance", "pytorch", "quantconnect"]
+keywords = ["algorithmic-trading", "quantitative-finance", "backtesting", "overfitting", "deflated-sharpe", "pytorch", "quantconnect"]
 
 [project.urls]
 Homepage = "https://github.com/leon1706-lol/Aether-quant"
 Repository = "https://github.com/leon1706-lol/Aether-quant"
 Changelog = "https://github.com/leon1706-lol/Aether-quant/blob/main/development/Changelog.md"
+Documentation = "https://leon1706-lol.github.io/Aether-quant/"
 
 # Version comes from the git tag that triggered the release (e.g. v2.2.0 ->
 # 2.2.0) - no manual version bump anywhere in this repo. Falls back to a
@@ -37,11 +43,18 @@ Changelog = "https://github.com/leon1706-lol/Aether-quant/blob/main/development/
 [project.scripts]
 aq = "aq_cli:main"
 
-# V6.4.3: what the aether_quant library needs beyond the stdlib (the full system installs requirements/requirements.txt).
 [project.optional-dependencies]
-lib = ["numpy", "pandas"]
-research = ["numpy", "pandas", "pyarrow", "scipy", "scikit-learn", "statsmodels"]
-train = ["numpy", "pandas", "pyarrow", "scikit-learn", "torch"]
+lib = []
+research = ["pyarrow", "scipy", "scikit-learn", "statsmodels", "httpx[http2]>=0.27.0"]
+notebooks = ["aether-quant[research]", "matplotlib", "ipykernel", "nbclient", "nbformat"]
+dashboard = ["fastapi>=0.110.0", "uvicorn>=0.29.0"]
+live = ["redis>=5.0.0", "psycopg[binary]>=3.1", "keyring", "ibapi>=9.81", "lean>=1.0.225"]
+train = ["pyarrow", "scikit-learn", "joblib>=1.3.0", "torch"]
+docs = ["mkdocs-material", "mkdocstrings[python]", "mkdocs-jupyter"]
+full = [
+    "aether-quant[research,dashboard,live,train]", "flask>=3.0.0", "aiofiles>=23.0", "python-dotenv>=1.0.0", "pyyaml>=6.0",
+    "requests>=2.31.0", "aether-vault==1.7.1",
+]
 
 [tool.setuptools]
 # Explicit, not auto-discovered: backtests/*/code/ contains full copies of
@@ -84,7 +97,7 @@ py-modules = ["aq_cli", "docs_facts", "generate_backtest_report", "generate_eval
 packages = ["risk", "execution", "data_pipeline", "evaluation", "portfolio", "features", "audit", "inference", "analyzer", "monitoring", "topology", "liquidity", "experience", "aether_quant", "moe", "regime", "retraining", "notifications", "experts", "performance"]
 
 [tool.setuptools.package-data]
-aether_quant = ["py.typed", "README.md", "_formal_cases/*.json"]
+aether_quant = ["py.typed", "README.md", "_formal_cases/*.json", "_sample/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -115,6 +128,8 @@ select = ["E", "F"]
 
 [tool.ruff.lint.per-file-ignores]
 "webui/**" = ["E", "F"]
+# V6.6.5: tutorials import where a step first needs a module, and their markdown cells are prose
+"notebooks/**" = ["E402", "E501"]
 "main.py" = ["E501", "F403", "F405"]
 "**/__init__.py" = ["F401"]
 "scripts/profile_inference.py" = ["E501"]

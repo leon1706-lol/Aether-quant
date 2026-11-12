@@ -17,6 +17,7 @@ unfiltered list in a test.
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 
 _ACTIVE_EVENT_STATUSES = ("planned", "running", "promoted")
 
@@ -67,7 +68,7 @@ def _parse_timestamp(value) -> datetime:
     return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
 
 
-def _trigger_priority_score(trigger: dict, eligible: list[dict]) -> float:
+def _trigger_priority_score(trigger: dict[str, Any], eligible: list[dict]) -> float:
     """Combines severity + trigger-type importance + two persistence-aware
     bonuses: a "regime shift plus a topology trigger co-occurring" combo
     bonus (a regime shift alongside topology uncertainty/drift is a
@@ -98,7 +99,7 @@ def _trigger_priority_score(trigger: dict, eligible: list[dict]) -> float:
     return severity_score + type_score + combo_bonus + repeat_bonus
 
 
-def select_candidate_trigger(triggers: list[dict], config: dict) -> dict | None:
+def select_candidate_trigger(triggers: list[dict], config: dict[str, Any]) -> dict[str, Any] | None:
     """Highest-priority trigger among those with retrain_candidate=True and
     an eligible severity, ties broken by newest first.
 
@@ -124,6 +125,7 @@ def select_candidate_trigger(triggers: list[dict], config: dict) -> dict | None:
 
 
 def min_observations_satisfied(observation_count: int, min_observations: int) -> bool:
+    """Whether enough observations have accumulated to consider retraining."""
     return observation_count >= min_observations
 
 
@@ -156,6 +158,7 @@ def cooldown_remaining_seconds(recent_events: list[dict], cooldown_minutes: floa
 
 
 def count_events_in_last_day(recent_events: list[dict], now: datetime) -> int:
+    """How many of the events were created in the 24 hours before `now`."""
     return sum(1 for event in recent_events if (now - _parse_timestamp(event["created_at"])).total_seconds() <= 86400)
 
 
@@ -163,13 +166,12 @@ def evaluate_retraining_plan(
     triggers: list[dict],
     recent_events: list[dict],
     observation_count: int,
-    config: dict,
+    config: dict[str, Any],
     now: datetime,
-) -> dict:
+) -> dict[str, Any]:
     """Top-level pure decision. Checks run in order; the first failure
-    short-circuits with an explanatory reason.
+    short-circuits with an explanatory reason. The result is:
 
-    Returns:
         {
           "should_plan": bool,
           "reason": str,

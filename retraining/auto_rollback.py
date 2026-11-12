@@ -13,14 +13,15 @@ should fire automatically instead of waiting for a human to run
 """
 
 from __future__ import annotations
+from typing import Any
 
 
 def select_rollback_target(
-    active_version: dict,
+    active_version: dict[str, Any],
     version_history: list[dict],
-    degradation_signals: dict,
-    config: dict,
-) -> dict:
+    degradation_signals: dict[str, Any],
+    config: dict[str, Any],
+) -> dict[str, Any]:
     """Returns {"should_rollback": bool, "to_version_id": str | None,
     "reason": str, "failures": list[str]}.
 

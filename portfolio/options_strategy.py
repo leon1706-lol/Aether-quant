@@ -27,10 +27,16 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any
+
+
+if TYPE_CHECKING:
+    from datetime import date
 
 
 @dataclass(frozen=True)
 class OptionsPositionDecision:
+    """One option order: contracts, right, strike, expiry and the reasons for it."""
     contracts: int
     right: str
     strike: float
@@ -47,7 +53,7 @@ class OptionsPositionDecision:
     # must treat that as "no order can be placed", never a crash.
     contract_symbol: object = None
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         """Deliberately NOT dataclasses.asdict(self) - asdict() deep-copies
         every field, and a raw Lean Symbol (a C#/.NET interop object) isn't
         guaranteed deepcopy-safe. Manual field access avoids that risk
@@ -68,7 +74,7 @@ class OptionsPositionDecision:
         }
 
 
-def select_single_leg_contract(available_chain: list[dict], target_delta: float, right: str) -> dict | None:
+def select_single_leg_contract(available_chain: list[dict], target_delta: float, right: str) -> dict[str, Any] | None:
     """Picks the chain entry of the requested `right` ("call"/"put") whose
     |delta| is closest to |target_delta| - nearest-strike-by-delta
     selection, no ML, no spread construction. Each entry in
@@ -103,7 +109,7 @@ def _affordable_contracts(contracts: int, debit_per_share, portfolio_value: floa
 
 
 def _size_single_leg_contract(
-    contract: dict,
+    contract: dict[str, Any],
     right: str,
     target_delta: float,
     portfolio_value: float,
@@ -193,7 +199,7 @@ def build_options_position_sizing(
 
 
 def build_options_position_sizing_for_contract(
-    held_contract: dict,
+    held_contract: dict[str, Any],
     portfolio_value: float,
     max_vega_budget_pct_of_equity: float = 0.02,
 ) -> OptionsPositionDecision | None:
@@ -276,7 +282,7 @@ class OptionsSpreadPositionDecision:
     net_vega: float  # fraction of portfolio_value the sized position's net vega consumes - same "budget used" semantic as OptionsPositionDecision.vega_budget_used, not a raw per-unit vega number
     sizing_reason: str
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         """Same manual-field-access convention as OptionsPositionDecision.to_dict()
         above - never dataclasses.asdict(), the legs' contract_symbol
         fields are real Lean Symbol objects, not deepcopy-safe."""
@@ -349,8 +355,8 @@ def select_vertical_spread_legs(
 
 
 def _size_vertical_spread(
-    long_row: dict,
-    short_row: dict,
+    long_row: dict[str, Any],
+    short_row: dict[str, Any],
     right: str,
     strategy_name: str,
     portfolio_value: float,
@@ -444,8 +450,8 @@ def build_vertical_spread_position_sizing(
 
 
 def build_vertical_spread_position_sizing_for_legs(
-    held_long: dict,
-    held_short: dict,
+    held_long: dict[str, Any],
+    held_short: dict[str, Any],
     portfolio_value: float,
     max_vega_budget_pct_of_equity: float = 0.02,
 ) -> OptionsSpreadPositionDecision | None:
@@ -925,14 +931,14 @@ def group_chain_by_expiry(available_chain: list[dict]) -> dict[str, list[dict]]:
     return grouped
 
 
-def _nearest_by_delta(rows: list[dict], right: str, target_delta: float) -> dict | None:
+def _nearest_by_delta(rows: list[dict], right: str, target_delta: float) -> dict[str, Any] | None:
     candidates = [r for r in rows if str(r.get("right", "")).lower() == right and r.get("delta") is not None]
     if not candidates:
         return None
     return min(candidates, key=lambda r: abs(abs(r["delta"]) - abs(target_delta)))
 
 
-def _nearest_by_strike(rows: list[dict], right: str, target_strike: float) -> dict | None:
+def _nearest_by_strike(rows: list[dict], right: str, target_strike: float) -> dict[str, Any] | None:
     candidates = [r for r in rows if str(r.get("right", "")).lower() == right and r.get("strike") is not None]
     if not candidates:
         return None
@@ -1485,7 +1491,7 @@ def select_strategy_legs(
     available_chain: list[dict],
     target_delta: float,
     grouped_chain_by_expiry: dict[str, list[dict]] | None = None,
-    **tuning_kwargs,
+    **tuning_kwargs: Any,
 ) -> dict[str, dict] | None:
     """Single dispatch point every caller (main.py, tests) should use
     instead of calling a shape-family selector directly - looks up
@@ -1542,7 +1548,7 @@ class OptionsMultiLegPositionDecision:
     net_vega: float                       # fraction of portfolio_value the sized position's net vega consumes
     sizing_reason: str
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         """Same manual-field-access convention as every other decision
         dataclass in this module - never dataclasses.asdict()."""
         return {
@@ -1700,7 +1706,7 @@ def build_multi_leg_position_sizing(
     target_delta_at_full_confidence: float = 0.60,
     max_vega_budget_pct_of_equity: float = 0.02,
     grouped_chain_by_expiry: dict[str, list[dict]] | None = None,
-    **selector_tuning_kwargs,
+    **selector_tuning_kwargs: Any,
 ) -> OptionsMultiLegPositionDecision | None:
     """The single public entry point for every NEW (V4.5) vega-budget-tier
     strategy - dispatches leg selection via select_strategy_legs(), then
@@ -1896,7 +1902,7 @@ def rerank_enabled_strategies_by_score(
     )
 
 
-def resolve_enabled_strategy_names(asset: dict, global_default: list[str]) -> list[str]:
+def resolve_enabled_strategy_names(asset: dict[str, Any], global_default: list[str]) -> list[str]:
     """V4.6 (development/Problems.md #59's own deferred item) - per-asset
     `enabled_strategy_names` override: an option asset's `phase1.universe.
     assets` entry may carry an optional
@@ -1983,7 +1989,7 @@ def build_covered_protective_position_sizing(
     )
 
 
-def option_auto_close_due(current_date, expiry_date, auto_close_days_before_expiry: int = 2) -> bool:
+def option_auto_close_due(current_date: date, expiry_date: date, auto_close_days_before_expiry: int = 2) -> bool:
     """§9.5 - the narrow expiry-day safety net: True once `expiry_date` is
     within auto_close_days_before_expiry calendar days of current_date.
     Pure date comparison, mirroring risk/futures_risk.py::rollover_due()'s

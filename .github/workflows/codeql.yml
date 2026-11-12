@@ -1,0 +1,44 @@
+name: CodeQL
+
+# V6.6.5 (#353): GitHub's code scanning on the Python, the web UI's TypeScript and the workflows themselves. Findings go
+# to the repository's Security tab; the default query suite, so a finding is a real issue rather than a style note.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "17 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [python, javascript-typescript, actions]
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: none
+          config: |
+            paths-ignore:
+              - backtests
+              - backtests_invalid
+              - webui/node_modules
+              - webui/dist
+
+      - uses: github/codeql-action/analyze@v3
+        with:
+          category: /language:${{ matrix.language }}

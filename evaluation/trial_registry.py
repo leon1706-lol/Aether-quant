@@ -12,11 +12,12 @@ from __future__ import annotations
 import json
 import math
 from pathlib import Path
+from typing import Any
 
 SPLIT = "backtest"
 
 
-def collect_trials(payload, phase: str, path: tuple[str, ...] = ()) -> list[dict]:
+def collect_trials(payload: Any, phase: str, path: tuple[str, ...] = ()) -> list[dict]:
     """(phase, path, median Sharpe) for every `<...>/backtest/{median_net_sharpe}` summary in a research payload."""
     trials: list[dict] = []
     if isinstance(payload, dict):
@@ -65,7 +66,8 @@ def _ledger_trials(path: Path) -> list[dict]:
     ]
 
 
-def build_registry(evaluation_dir: Path) -> dict:
+def build_registry(evaluation_dir: Path) -> dict[str, Any]:
+    """Every trial ever scored, collected from the research reports under `evaluation_dir`, for the deflated Sharpe's N."""
     trials: list[dict] = []
     sources = []
     for research in sorted(Path(evaluation_dir).glob("v*/research.json")):

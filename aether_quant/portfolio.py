@@ -1,6 +1,8 @@
 """Book construction: rank-based long/short selection, neutrality, tranches, class caps and the sleeve loss guard
 (formally verified in formal/AetherFormal/{BookNeutrality,BookConstruction,SleeveGuard}.lean)."""
 
+from __future__ import annotations
+
 from portfolio.book_construction import (
     BookAllocation,
     apply_class_weight_caps,
@@ -168,9 +170,14 @@ from portfolio.book_construction import (
     update_book_owned_symbols,
 )
 from portfolio.rank_signal import rank_group_by_symbol, resolve_rank_signal_policy, sector_relative_scores, select_raw_rank_score
+from typing import TYPE_CHECKING
 
 
-def compute_hrp_weights(returns):
+if TYPE_CHECKING:
+    import pandas as pd
+
+
+def compute_hrp_weights(returns: "pd.DataFrame") -> "pd.Series":
     """Hierarchical risk parity weights (portfolio/hrp_allocation.py; needs scipy, imported on call)."""
     from portfolio.hrp_allocation import compute_hrp_weights as _compute
 

@@ -14,6 +14,7 @@ from __future__ import annotations
 import datetime
 import hashlib
 import json
+from typing import Any
 
 # The hash of the very first entry in the chain (no predecessor to link to) -
 # a fixed, well-known genesis value rather than None/empty-string, so an
@@ -21,7 +22,7 @@ import json
 GENESIS_HASH = "0" * 64
 
 
-def canonical_timestamp(value) -> str:
+def canonical_timestamp(value: datetime | str) -> str:
     """The text a row's timestamp is hashed as, and read back as (Problems #339). Postgres stores `created_at` in a TIMESTAMPTZ column and returns a `datetime`, while the hash was taken over
     the producer's string, so a chain read back from a real database could not be verified: `verify_chain` raised on the datetime, and would have mismatched on the offset's spelling even if
     it had not. A datetime, or an ISO 8601 string that parses, is written in UTC as `YYYY-MM-DDTHH:MM:SSZ` (with microseconds only when there are some); anything else is returned as it is.
@@ -40,7 +41,7 @@ def canonical_timestamp(value) -> str:
     return moment.strftime("%Y-%m-%dT%H:%M:%S.%fZ") if moment.microsecond else moment.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def compute_entry_hash(prev_hash: str, event_type: str, created_at: str, payload: dict) -> str:
+def compute_entry_hash(prev_hash: str, event_type: str, created_at: str, payload: dict[str, Any]) -> str:
     """sha256(prev_hash || event_type || created_at || canonical-JSON payload).
 
     `created_at` must be a string (ISO 8601), not a datetime - callers own

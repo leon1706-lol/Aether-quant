@@ -50,6 +50,7 @@ def residual_daily(close: pd.DataFrame, market: str = MARKET, window: int = RESI
 
 
 def price_features(bars: WideBars, market: str = MARKET) -> dict[str, pd.DataFrame]:
+    """The wide panel's price features (returns, residual returns, volatility, momentum and more) as date x ticker tables."""
     close = bars.close
     daily = close.pct_change(fill_method=None)
     bench = daily[market]

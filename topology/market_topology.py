@@ -9,6 +9,11 @@ from dataclasses import asdict, dataclass, field
 from typing import Callable
 
 import numpy as np
+from typing import TYPE_CHECKING, Any
+
+
+if TYPE_CHECKING:
+    from numpy.typing import ArrayLike
 
 
 ANNUALIZATION_FACTOR = math.sqrt(252)
@@ -16,7 +21,7 @@ ELEVATED_VOLATILITY_THRESHOLD = 0.45
 
 
 def resolve_elevated_volatility_thresholds(
-    raw_threshold: float | dict | None,
+    raw_threshold: float | dict[str, Any] | None,
     asset_class_by_symbol: dict[str, str | None],
 ) -> tuple[float, dict[str, float]]:
     """V5.5.0 (Problems.md #129) - normalize `phase_v2.topology.elevated_volatility_threshold`.
@@ -61,7 +66,7 @@ EMBEDDING_MAX_RADIUS = 42.0
 EMBEDDING_Z_SEED_SPREAD = 40.0
 
 
-def _dimensions_for(embedding_dimensions: int) -> dict:
+def _dimensions_for(embedding_dimensions: int) -> dict[str, Any]:
     """Scene bounds for the active embedding mode. depth stays 1 in 2D
     mode - there z is the volatility encoding on a 0..1 scale, not a
     spatial axis - and becomes 100 in 3D mode, matching width/height so
@@ -71,6 +76,7 @@ def _dimensions_for(embedding_dimensions: int) -> dict:
 
 @dataclass(frozen=True)
 class TopologyNode:
+    """One name's place in the topology: its cluster, 3D position, distance from the market and risk label."""
     symbol: str
     cluster_id: str
     x: float
@@ -93,34 +99,37 @@ class TopologyNode:
     top_peers: list[str]
     top_peer_returns: list[float]
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
 
 @dataclass(frozen=True)
 class TopologyLink:
+    """A correlation link between two names."""
     source: str
     target: str
     correlation: float
     distance: float
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
 
 @dataclass(frozen=True)
 class TopologyCluster:
+    """One cluster of correlated names, with its average correlation."""
     cluster_id: str
     members: list[str]
     average_correlation: float
     dominant_regime_label: str
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
 
 @dataclass(frozen=True)
 class MarketTopology:
+    """The market's correlation topology on one bar: nodes, links, clusters and the reasons for its state."""
     state: str
     nodes: list[TopologyNode]
     links: list[TopologyLink]
@@ -148,7 +157,7 @@ class MarketTopology:
     # build_market_topology()) is unaffected.
     correlation_change_history: list[float] = field(default_factory=list)
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "state": self.state,
             "nodes": [node.to_dict() for node in self.nodes],
@@ -432,7 +441,7 @@ def rank_correlated_peers(
 
 
 def rank_correlated_peers_from_row(
-    row_index: int, symbols: list[str], correlation_row, top_n: int, alphabetical_positions=None
+    row_index: int, symbols: list[str], correlation_row: ArrayLike, top_n: int, alphabetical_positions: ArrayLike | None=None
 ) -> list[str]:
     """rank_correlated_peers() on one row of the full correlation matrix (V5.8.0): the same ordering - descending
     correlation, ties by symbol name - via one stable lexsort instead of a Python sort with a lookup per pair.

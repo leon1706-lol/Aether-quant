@@ -22,6 +22,7 @@ MARKET_CODES = ("P", "S")
 
 
 def quarters(start_year: int, end_year: int, end_quarter: int) -> list[tuple[int, int]]:
+    """Every (year, quarter) from `start_year` Q1 to `end_year` Q`end_quarter`, oldest first."""
     return [(year, quarter) for year in range(start_year, end_year + 1) for quarter in (1, 2, 3, 4) if (year, quarter) <= (end_year, end_quarter)]
 
 

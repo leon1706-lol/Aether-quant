@@ -1,0 +1,126 @@
+site_name: Aether Quant
+site_description: A research toolkit for systematic trading, and the self-adapting trading system built on it
+site_url: https://leon1706-lol.github.io/Aether-quant/
+repo_url: https://github.com/leon1706-lol/Aether-quant
+repo_name: leon1706-lol/Aether-quant
+edit_uri: edit/main/docs/
+docs_dir: docs
+strict: true
+
+theme:
+  name: material
+  features:
+    - navigation.sections
+    - navigation.top
+    - content.code.copy
+    - search.suggest
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: deep orange
+      toggle:
+        icon: material/weather-night
+        name: Dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: deep orange
+      toggle:
+        icon: material/weather-sunny
+        name: Light mode
+
+plugins:
+  - search
+  - mkdocs-jupyter:
+      execute: false
+      include_source: true
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [.]
+          options:
+            # the facades re-export these packages' objects: load them so every alias resolves to its documented target
+            preload_modules: [risk, portfolio, execution, evaluation, features, data_pipeline, audit, inference, analyzer, monitoring, topology, liquidity, experience, moe, regime, retraining, notifications, experts, performance, json_safety, risk_controls]
+            docstring_style: google
+            show_source: false
+            show_root_heading: false
+            show_signature_annotations: true
+            separate_signature: true
+            show_if_no_docstring: true
+            filters: ["!^_"]
+            members_order: alphabetical
+            heading_level: 2
+
+markdown_extensions:
+  - admonition
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.highlight
+  - pymdownx.superfences
+
+nav:
+  - Home: index.md
+  - Getting started:
+      - Install: getting-started/install.md
+      - Hello world: getting-started/hello-world.md
+      - The dashboard: getting-started/dashboard.md
+  - Tutorials:
+      - Hello world: tutorials/00_hello_world.ipynb
+      - Signal evaluation: tutorials/01_signal_evaluation.ipynb
+      - Book construction: tutorials/02_book_construction.ipynb
+      - Overfitting tests: tutorials/03_overfitting_tests.ipynb
+  - Guide:
+      - Signals: guide/signals.md
+      - Sizing: guide/sizing.md
+      - Neutrality: guide/neutrality.md
+      - Costs: guide/costs.md
+      - Backtesting: guide/backtesting.md
+      - Overfitting: guide/overfitting.md
+      - Research cycle: guide/research-cycle.md
+      - Safety: guide/safety.md
+  - Live trading:
+      - Paper to live: live/paper-to-live.md
+      - Secrets: live/secrets.md
+      - Accounts: live/accounts.md
+      - Users: live/users.md
+      - Field test: live/field-test.md
+  - API reference:
+      - Overview: reference/index.md
+      # AQ:REFERENCE_NAV_START (scripts/build_docs.py)
+      - aether_quant.analyzer: reference/analyzer.md
+      - aether_quant.audit: reference/audit.md
+      - aether_quant.backtest: reference/backtest.md
+      - aether_quant.costs: reference/costs.md
+      - aether_quant.cycle: reference/cycle.md
+      - aether_quant.data: reference/data.md
+      - aether_quant.evaluation: reference/evaluation.md
+      - aether_quant.execution: reference/execution.md
+      - aether_quant.experience: reference/experience.md
+      - aether_quant.experts: reference/experts.md
+      - aether_quant.features: reference/features.md
+      - aether_quant.formal: reference/formal.md
+      - aether_quant.hello: reference/hello.md
+      - aether_quant.inference: reference/inference.md
+      - aether_quant.io: reference/io.md
+      - aether_quant.liquidity: reference/liquidity.md
+      - aether_quant.moe: reference/moe.md
+      - aether_quant.monitoring: reference/monitoring.md
+      - aether_quant.neutrality: reference/neutrality.md
+      - aether_quant.notifications: reference/notifications.md
+      - aether_quant.overfitting: reference/overfitting.md
+      - aether_quant.performance: reference/performance.md
+      - aether_quant.portfolio: reference/portfolio.md
+      - aether_quant.regime: reference/regime.md
+      - aether_quant.research: reference/research.md
+      - aether_quant.retraining: reference/retraining.md
+      - aether_quant.risk: reference/risk.md
+      - aether_quant.samples: reference/samples.md
+      - aether_quant.signals: reference/signals.md
+      - aether_quant.sizing: reference/sizing.md
+      - aether_quant.topology: reference/topology.md
+      - aether_quant.training: reference/training.md
+      # AQ:REFERENCE_NAV_END
+  - About:
+      - License: about/license.md
+      - Security: about/security.md
+      - Changelog: about/changelog.md

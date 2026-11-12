@@ -14,5 +14,7 @@ import AetherFormal.GenerationGlide
 import AetherFormal.Admission
 import AetherFormal.SessionResolve
 import AetherFormal.HoldoutOnce
+import AetherFormal.AccountOverrides
+import AetherFormal.Authorize
 import AetherFormal.Real
 import AetherFormal.GenCases

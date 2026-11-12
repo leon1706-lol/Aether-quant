@@ -39,6 +39,9 @@ jobs:
       # stored as a secret. Requires a one-time Trusted Publisher setup on
       # the PyPI project page (repo + this workflow filename).
       id-token: write
+      # V6.6.5 (#353): build provenance for the wheel and sdist
+      attestations: write
+      contents: read
     steps:
       - uses: actions/checkout@v7
         with:
@@ -53,20 +56,48 @@ jobs:
           pip install build
           python -m build
 
+      - name: Attest build provenance of the wheel and sdist
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-path: "dist/*"
+
+      - name: SBOM of the wheel's dependencies (CycloneDX)
+        run: |
+          python -m venv "$RUNNER_TEMP/sbom"
+          "$RUNNER_TEMP/sbom/bin/pip" install dist/*.whl "cyclonedx-bom==4.6.1"
+          "$RUNNER_TEMP/sbom/bin/cyclonedx-py" environment "$RUNNER_TEMP/sbom" --output-format JSON --output-file sbom-wheel.cdx.json
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: sbom-wheel
+          path: sbom-wheel.cdx.json
+
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
 
+  # V6.6.5 (#344, #353): two images from one Dockerfile: the engine (default target) and the light dashboard, each with
+  # an SBOM and a provenance attestation.
   publish-docker:
     runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: engine
+            image: ghcr.io/leon1706-lol/aether-quant
+          - target: dashboard
+            image: ghcr.io/leon1706-lol/aether-quant-dashboard
     permissions:
       contents: read
       packages: write
+      id-token: write
+      attestations: write
     env:
       # Hardcoded lowercase, not derived from ${{ github.repository }}:
       # the repo is leon1706-lol/Aether-quant (capital A), but Docker image
       # references must be all-lowercase - using github.repository directly
       # would fail with "invalid reference format".
-      IMAGE_NAME: ghcr.io/leon1706-lol/aether-quant
+      IMAGE_NAME: ${{ matrix.image }}
     steps:
       - uses: actions/checkout@v7
 
@@ -86,9 +117,12 @@ jobs:
             type=semver,pattern={{version}}
             type=raw,value=latest
 
-      - uses: docker/build-push-action@v6
+      - id: build
+        uses: docker/build-push-action@v6
         with:
           context: .
+          target: ${{ matrix.target }}
+          build-args: AQ_VERSION=${{ github.ref_name }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -98,8 +132,23 @@ jobs:
           # (deps installed before source COPY, see development/Problems.md).
           # mode=max caches every intermediate layer, not just the final
           # image, so the npm ci/pip install layers survive between runs.
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=${{ matrix.target }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.target }}
+
+      - name: Attest the image's provenance
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-name: ${{ matrix.image }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
+
+      - name: SBOM of the image (CycloneDX)
+        uses: anchore/sbom-action@v0
+        with:
+          image: ${{ matrix.image }}@${{ steps.build.outputs.digest }}
+          format: cyclonedx-json
+          output-file: sbom-${{ matrix.target }}.cdx.json
+          upload-artifact: true
 
   # Creates the GitHub Release itself, once per tag. Notes are auto-generated
   # (commit list since the previous tag); the body additionally points at the

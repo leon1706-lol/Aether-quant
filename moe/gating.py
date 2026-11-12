@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 
 from inference import run_exported_model
+from typing import Any
 
 
 EXPERT_NAMES = ("bullish", "bearish", "sideways", "volatility")
@@ -26,6 +27,7 @@ GATING_MODEL_FEATURE_KEYS = (
 
 @dataclass(frozen=True)
 class ExpertGateWeight:
+    """One expert's weight in the gated blend, with its raw score."""
     expert: str
     weight: float
     raw_score: float
@@ -39,12 +41,13 @@ class ExpertGateWeight:
     magnitude: float | None = None
     volatility: float | None = None
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
 
 @dataclass(frozen=True)
 class GatingDecision:
+    """The gated probability of an up move, the baseline and expert inputs, and each expert's weight."""
     final_probability_up: float
     baseline_probability_up: float | None
     expert_probability_up: float | None
@@ -56,7 +59,7 @@ class GatingDecision:
     final_volatility: float | None = None
     sequence_blended: bool = False
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         payload = asdict(self)
         payload["weights"] = [weight.to_dict() for weight in self.weights]
         return payload
@@ -66,11 +69,11 @@ def _clamp(value: float, lower: float = 0.0, upper: float = 1.0) -> float:
     return max(lower, min(float(value), upper))
 
 
-def _expert_metrics(expert_training_metrics: dict, expert_name: str) -> dict:
+def _expert_metrics(expert_training_metrics: dict[str, Any], expert_name: str) -> dict[str, Any]:
     return dict(expert_training_metrics.get("experts", {}).get(expert_name, {}))
 
 
-def _quality_multiplier(metrics: dict) -> tuple[float, str, bool]:
+def _quality_multiplier(metrics: dict[str, Any]) -> tuple[float, str, bool]:
     quality_gate = metrics.get("quality_gate", {})
     quality_status = str(quality_gate.get("quality_status", metrics.get("quality_status", "unknown")))
     gating_eligible = bool(quality_gate.get("gating_eligible", metrics.get("gating_eligible", False)))
@@ -83,11 +86,11 @@ def _quality_multiplier(metrics: dict) -> tuple[float, str, bool]:
     return 0.35, quality_status, True
 
 
-def _performance_score(metrics: dict) -> float:
+def _performance_score(metrics: dict[str, Any]) -> float:
     validation = metrics.get("validation", {})
     backtest = metrics.get("backtest", {})
 
-    def _metric(source: dict, key: str, default: float) -> float:
+    def _metric(source: dict[str, Any], key: str, default: float) -> float:
         # V5.4.7 (#121): `or default` coerced a legitimate stored 0.0
         # (a real measured value) into the neutral default; only a MISSING
         # key should take the default.
@@ -121,7 +124,7 @@ def _performance_score(metrics: dict) -> float:
     return _clamp(score, 0.05, 1.0)
 
 
-def _regime_alignment(expert_name: str, regime: dict) -> tuple[float, str]:
+def _regime_alignment(expert_name: str, regime: dict[str, Any]) -> tuple[float, str]:
     trend_regime = str(regime.get("trend_regime", "unknown"))
     volatility_regime = str(regime.get("volatility_regime", "unknown"))
     risk_regime = str(regime.get("risk_regime", "unknown"))
@@ -158,7 +161,7 @@ def _regime_alignment(expert_name: str, regime: dict) -> tuple[float, str]:
 
 
 def build_gating_model_features(
-    regime: dict,
+    regime: dict[str, Any],
     baseline_probability_up: float | None,
     weights: list[ExpertGateWeight],
 ) -> list[float]:
@@ -220,18 +223,18 @@ def _weighted_blend(weights: list[ExpertGateWeight], attribute: str) -> float | 
 
 
 def build_gating_decision(
-    regime: dict,
-    expert_training_metrics: dict,
+    regime: dict[str, Any],
+    expert_training_metrics: dict[str, Any],
     expert_probabilities: dict[str, float | None],
     baseline_probability_up: float | None = None,
     baseline_weight: float = 0.25,
-    gating_model: dict | None = None,
-    gating_feature_schema: dict | None = None,
+    gating_model: dict[str, Any] | None = None,
+    gating_feature_schema: dict[str, Any] | None = None,
     expert_magnitudes: dict[str, float | None] | None = None,
     expert_volatilities: dict[str, float | None] | None = None,
     baseline_magnitude: float | None = None,
     baseline_volatility: float | None = None,
-    sequence_prediction: dict | None = None,
+    sequence_prediction: dict[str, Any] | None = None,
     sequence_weight: float = 0.0,
     excluded_experts: tuple[str, ...] | frozenset[str] = (),
 ) -> GatingDecision:

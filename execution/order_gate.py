@@ -8,6 +8,11 @@ unit-testable without a Lean runtime on sys.path.
 from __future__ import annotations
 
 import math
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
+    from datetime import datetime
 
 VALID_MODES = ("backtest", "observation", "paper", "live")
 DEFAULT_FALLBACK_MODE = "observation"
@@ -134,7 +139,7 @@ def resolve_fill_slippage_source(raw_source: str | None) -> str:
     return DEFAULT_FILL_SLIPPAGE_SOURCE
 
 
-def liquidity_cost_fraction(liquidity_payload: dict, source: str) -> float:
+def liquidity_cost_fraction(liquidity_payload: dict[str, Any], source: str) -> float:
     """Pick which liquidity/market_liquidity.py::LiquidityDecision field
     (already a fraction, e.g. 0.001 = 10bps) feeds the fill-slippage
     estimate, per resolve_fill_slippage_source()'s normalized source.
@@ -152,7 +157,7 @@ def liquidity_cost_fraction(liquidity_payload: dict, source: str) -> float:
 
 def resolve_slippage_bps(
     symbol_key: str,
-    slippage_bps_by_symbol: dict,
+    slippage_bps_by_symbol: dict[str, Any],
     max_bps: float = MAX_LIQUIDITY_SLIPPAGE_BPS,
 ) -> float:
     """Pure lookup + clamp: how many bps of slippage to charge symbol_key,
@@ -184,7 +189,7 @@ def resolve_slippage_bps(
 def resolve_fill_slippage(
     symbol_key: str,
     reference_price: float,
-    slippage_bps_by_symbol: dict,
+    slippage_bps_by_symbol: dict[str, Any],
     max_bps: float = MAX_LIQUIDITY_SLIPPAGE_BPS,
 ) -> float:
     """Pure lookup + clamp + apply, used by main.py's real Lean
@@ -198,7 +203,7 @@ def simulate_fill(
     target_weight: float,
     equity: float,
     slippage_bps: float = 0.0,
-) -> dict:
+) -> dict[str, Any]:
     """Pure hypothetical fill-price/quantity/notional math.
 
     Quantity/notional are purely a function of the target portfolio weight,
@@ -225,7 +230,7 @@ def simulate_fill(
 LIMIT_EXIT_REASONS = frozenset({"model_sell", "rotation", "max_holding_age_exceeded"})
 
 
-def resolve_limit_setting_by_class(asset_class: str | None, by_class: dict | None, default):
+def resolve_limit_setting_by_class(asset_class: str | None, by_class: dict[str, Any] | None, default: float) -> float:
     """A limit-order setting (`offset_multiplier`, `unfilled_timeout_bars`) for one asset class (V6.0.0): the class's entry in
     `phase_v2.limit_orders.<setting>_by_class` when present, else the global value. Classes absent from the dict (every
     class by default, the dict being empty) behave exactly as before."""
@@ -234,7 +239,7 @@ def resolve_limit_setting_by_class(asset_class: str | None, by_class: dict | Non
     return default
 
 
-def resolve_exit_order_route(asset_class: str | None, exit_reason: str | None, exit_asset_classes) -> str:
+def resolve_exit_order_route(asset_class: str | None, exit_reason: str | None, exit_asset_classes: Iterable[str] | None) -> str:
     """"limit" or "market" for a full exit (V6.0.0, todo lead 3: crypto exits were all market orders at 80 bps against
     ~60 bps for the maker entries). A limit exit needs the class listed in `phase_v2.limit_orders.exit_asset_classes`
     (default empty = every exit stays a market order, as before) and a reason from LIMIT_EXIT_REASONS; the timeout
@@ -360,7 +365,7 @@ def resolve_limit_order_timeout_action(
     status: str,
     quantity_remaining: float,
     fallback_enabled: bool,
-) -> dict:
+) -> dict[str, Any]:
     """Mirrors _process_pending_limit_order_timeouts()'s per-leg branch
     once a tracked order has sat unfilled for
     phase_v2.limit_orders.unfilled_timeout_bars bars: an already-resolved
@@ -383,7 +388,7 @@ def resolve_limit_order_timeout_action(
 
 
 def resolve_pending_order_action(
-    existing_pending: dict | None,
+    existing_pending: dict[str, Any] | None,
     is_buy: bool,
     bar_index: int,
     timeout_bars: int,
@@ -475,8 +480,8 @@ IMMEDIATE_FILL_SECONDS = 3600.0
 def slippage_reference_price(
     submit_price: float | None,
     fill_bar_open: float | None,
-    submitted_at=None,
-    filled_at=None,
+    submitted_at: datetime | None=None,
+    filled_at: datetime | None=None,
     immediate_fill_seconds: float = IMMEDIATE_FILL_SECONDS,
 ) -> tuple[float | None, str]:
     """V5.8.0 (todo lead 3): which price a fill's slippage is measured from. An order that fills within

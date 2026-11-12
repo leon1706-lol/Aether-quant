@@ -32,6 +32,7 @@ RISK_ASSETS_TREND = ("SPY", "QQQ", "IWM", "EEM", "TLT", "IEF", "USO")
 
 @dataclass(frozen=True)
 class WeightSettings:
+    """How a sleeve's signal becomes weights: the volatility target, the gross cap and the per-name and per-class caps."""
     target_vol: float = 0.07
     gross_cap: float = 1.4
     name_cap: float = 0.15
@@ -41,6 +42,7 @@ class WeightSettings:
 
 @dataclass(frozen=True)
 class SleeveSpec:
+    """A sleeve to research or trade: its id, track, kind (time series or cross-sectional), family, universe, rebalance cadence and parameters."""
     id: str
     track: str
     kind: str
@@ -166,6 +168,7 @@ def residual_momentum(panel: ResearchPanel, spec: SleeveSpec) -> pd.DataFrame:
 
 
 def low_volatility(panel: ResearchPanel, spec: SleeveSpec) -> pd.DataFrame:
+    """Minus the trailing volatility of each name's returns: the low-volatility signal."""
     known = panel.known[_columns(panel, spec.universe)]
     return -known.pct_change(fill_method=None).rolling(VOL_WINDOW, min_periods=VOL_WINDOW).std()
 
@@ -254,6 +257,7 @@ FAMILIES: dict[str, Callable[[ResearchPanel, SleeveSpec], pd.DataFrame]] = {
 
 
 def sleeve_signal(spec: SleeveSpec, panel: ResearchPanel) -> pd.DataFrame:
+    """The sleeve's raw signal, masked where a name lacks enough history for its risk estimate."""
     signal = FAMILIES[spec.family](panel, spec)
     # a signal never trades a ticker without enough price history for its risk estimate
     history = panel.known[signal.columns].notna().rolling(MIN_HISTORY, min_periods=MIN_HISTORY).sum() >= MIN_HISTORY

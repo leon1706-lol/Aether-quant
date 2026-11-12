@@ -4,9 +4,14 @@ rank on the day is the comparable part. Pure pandas, no I/O."""
 from __future__ import annotations
 
 import pandas as pd
+from typing import TYPE_CHECKING
 
 
-def cross_sectional_rank(frame: pd.DataFrame, columns, *, date_column: str = "date", group_column: str | None = None) -> pd.DataFrame:
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+
+
+def cross_sectional_rank(frame: pd.DataFrame, columns: Sequence[str], *, date_column: str = "date", group_column: str | None = None) -> pd.DataFrame:
     """Percentile rank of each of `columns` within its date (and `group_column`, e.g. the asset class, when given),
     centred to [-0.5, 0.5]. NaN stays NaN; ties get the average rank. Same index as `frame`."""
     columns = list(columns)

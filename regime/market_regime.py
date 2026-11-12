@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import asdict, dataclass
+from typing import Any
 
 
 TRADING_DAYS_PER_YEAR = 252
@@ -11,6 +12,7 @@ TRADING_DAYS_PER_YEAR = 252
 
 @dataclass(frozen=True)
 class MarketRegimeVector:
+    """The market's state on one bar: primary, trend, volatility and risk regimes, with the inputs behind them."""
     primary_regime: str
     trend_regime: str
     volatility_regime: str
@@ -24,7 +26,7 @@ class MarketRegimeVector:
     confidence: float
     reasons: list[str]
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
 
@@ -49,6 +51,7 @@ def classify_trend_regime(
     bullish_threshold: float = 0.02,
     bearish_threshold: float = -0.02,
 ) -> tuple[str, float]:
+    """Bullish, bearish or sideways from 5- and 20-day momentum against the thresholds."""
     trend_score = 0.35 * _finite_float(momentum_5d) + 0.65 * _finite_float(momentum_20d)
     if trend_score >= bullish_threshold:
         return "bullish", trend_score
@@ -62,6 +65,7 @@ def classify_volatility_state(
     low_volatility_threshold: float = 0.01,
     high_volatility_threshold: float = 0.03,
 ) -> str:
+    """Low, normal or high volatility against the two thresholds."""
     volatility = abs(_finite_float(rolling_volatility))
     if volatility >= high_volatility_threshold:
         return "high_volatility"
@@ -79,6 +83,7 @@ def classify_risk_regime(
     risk_on_drawdown_threshold: float = 0.03,
     high_correlation_threshold: float = 0.75,
 ) -> tuple[str, float]:
+    """Risk-on, neutral or risk-off from the trend and volatility regimes, the drawdown and the average correlation."""
     normalized_drawdown = _normalize_drawdown(drawdown)
     correlation = max(-1.0, min(_finite_float(average_correlation), 1.0))
 
@@ -110,7 +115,7 @@ def classify_risk_regime(
 
 
 def build_market_regime_vector(
-    features: dict,
+    features: dict[str, Any],
     portfolio_drawdown: float = 0.0,
     average_correlation: float = 0.0,
     bullish_threshold: float = 0.02,
@@ -121,6 +126,7 @@ def build_market_regime_vector(
     risk_on_drawdown_threshold: float = 0.03,
     high_correlation_threshold: float = 0.75,
 ) -> MarketRegimeVector:
+    """Classify the market's trend, volatility and risk regimes from one bar's features, drawdown and correlation."""
     momentum_5d = _finite_float(features.get("momentum_5d", features.get("close_to_close_return_5d", 0.0)))
     momentum_20d = _finite_float(features.get("momentum_20d", features.get("close_to_close_return_20d", 0.0)))
     rolling_volatility = abs(_finite_float(features.get("rolling_volatility_20d", features.get("rolling_volatility_5d", 0.0))))
@@ -188,7 +194,7 @@ def build_market_regime_vector(
 
 
 def build_model_input_regime_vector(
-    features: dict,
+    features: dict[str, Any],
     average_correlation: float = 0.0,
     bullish_threshold: float = 0.02,
     bearish_threshold: float = -0.02,

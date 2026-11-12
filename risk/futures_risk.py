@@ -28,6 +28,7 @@ import logging
 from dataclasses import asdict, dataclass
 from datetime import date
 from pathlib import Path
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +37,7 @@ DEFAULT_CONTRACT_SPECS_PATH = Path(__file__).resolve().parents[1] / "data" / "re
 
 @dataclass(frozen=True)
 class FuturesSizingDecision:
+    """One futures order's size: contracts, notional, margin and the caps that bound it."""
     contract_count: int
     notional_value: float
     margin_required: float
@@ -46,11 +48,11 @@ class FuturesSizingDecision:
     max_margin_utilization: float
     sizing_reason: str
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
 
-def load_futures_contract_specs(path: Path = DEFAULT_CONTRACT_SPECS_PATH) -> dict:
+def load_futures_contract_specs(path: Path = DEFAULT_CONTRACT_SPECS_PATH) -> dict[str, Any]:
     """Defensive load - returns {} (not a raised exception) on a missing or
     unparseable specs file, same convention as train.py::load_sector_mapping().
     A missing spec for a given ticker means build_futures_position_sizing()
@@ -68,7 +70,7 @@ def build_futures_position_sizing(
     base_target_weight: float,
     confidence: float,
     price: float,
-    contract_spec: dict | None,
+    contract_spec: dict[str, Any] | None,
     portfolio_value: float,
     target_margin_utilization: float = 0.20,
     max_margin_utilization: float = 0.40,
@@ -170,7 +172,7 @@ def build_live_contract_spec(
     initial_margin_usd: float,
     description: str = "",
     exchange: str = "",
-) -> dict:
+) -> dict[str, Any]:
     """Constructs a contract_spec dict in the exact shape
     build_futures_position_sizing() already consumes (same keys
     load_futures_contract_specs() produces from the static JSON file),

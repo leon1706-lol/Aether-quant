@@ -20,9 +20,10 @@ for data that isn't itself part of the per-bar runtime state.
 from __future__ import annotations
 
 from portfolio.options_strategy import MULTI_LEG_STRATEGY_REGISTRY
+from typing import Any
 
 
-def build_strategy_catalog() -> dict:
+def build_strategy_catalog() -> dict[str, Any]:
     """Returns {"strategies": [{"name", "leg_count", "risk_tier",
     "shape_family", "has_expiry_pair"}, ...], "total_count": int} - sorted
     by name for a stable, deterministic response."""

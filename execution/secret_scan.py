@@ -17,6 +17,7 @@ Only field NAMES are ever returned, never the secret values.
 """
 
 from __future__ import annotations
+from typing import Any
 
 # A lean.json key is treated as a secret if it ends with any of these. Covers
 # the whole stock template's credential surface (api keys/secrets, passwords,
@@ -49,10 +50,11 @@ SECRET_FIELD_EXACT: frozenset[str] = frozenset(
 
 
 def is_secret_field(field: str) -> bool:
+    """Whether a config field name holds a secret (an exact name or a secret-like suffix)."""
     return field in SECRET_FIELD_EXACT or field.endswith(SECRET_FIELD_SUFFIXES)
 
 
-def find_populated_secret_fields(lean_config: dict) -> list[str]:
+def find_populated_secret_fields(lean_config: dict[str, Any]) -> list[str]:
     """Return the sorted names of every secret-looking lean.json field that has
     a non-empty string value. Empty template -> empty list."""
     populated = [

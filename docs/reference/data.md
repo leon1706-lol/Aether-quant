@@ -1,0 +1,80 @@
+# aether_quant.data
+
+Parsers and tables of the data pipeline (fetchers and backfills stay in `data_pipeline/`).
+
+::: aether_quant.data
+    options:
+      members:
+        - adaptive_sell_threshold
+        - bars_to_panel
+        - base_asset
+        - candle_windows
+        - candles_url
+        - canonical_issuer
+        - change_by_session
+        - coinbase_product
+        - collect_cached_eps
+        - count_cosine
+        - coverage_by_year
+        - daily_funding
+        - default_get_json
+        - derive_signal
+        - extended_rows
+        - fetch_daily_bars
+        - filing_earnings_rows
+        - filing_similarity_rows
+        - filing_tokens
+        - finra_symbol
+        - first_filings_annual
+        - flatten_fill_forward_bar
+        - fundamentals_rows
+        - fundamentals_table
+        - funding_url
+        - fx_pair_scores
+        - hashed_counts
+        - insider_net_table
+        - is_member
+        - kline_url
+        - liquid_universe
+        - list_symbols
+        - listed_months
+        - load_membership
+        - macro_scores
+        - market_cap_table
+        - member_days_by_year
+        - merge_submission_pages
+        - midpoint_bar_from_quote_bar
+        - months_between
+        - opportunistic
+        - pad_sequence_history
+        - parse_annual_text
+        - parse_aqr_sheet
+        - parse_candles
+        - parse_day
+        - parse_french_zip
+        - parse_funding_zip
+        - parse_kline_zip
+        - parse_membership
+        - parse_quarter
+        - parse_zip_bytes
+        - price_breaks
+        - prior_year_filing_pairs
+        - quarterly_first_filings
+        - quarterly_ttm_rows
+        - quarters
+        - read_eps
+        - read_fundamentals
+        - read_positioning
+        - read_splits
+        - sector_for_sic
+        - short_ratio_table
+        - split_adjusted_eps
+        - split_factor_after
+        - standardised_surprises
+        - surprise_table
+        - suspect_interval
+        - tickers_touching
+        - truncate_at_swap
+        - user_agent
+        - write_fundamentals
+        - yahoo_symbol_for_member

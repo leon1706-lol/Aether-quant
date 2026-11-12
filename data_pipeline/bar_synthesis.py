@@ -7,9 +7,14 @@ method body - see each function's docstring for its origin line."""
 from __future__ import annotations
 
 from types import SimpleNamespace
+from typing import TYPE_CHECKING, Any
 
 
-def midpoint_bar_from_quote_bar(quote_bar):
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+
+def midpoint_bar_from_quote_bar(quote_bar: Any) -> SimpleNamespace | None:
     """V4.6 - forex quote-bar (bid/ask) to trade-bar-shaped midpoint OHLC
     (main.py::_midpoint_bar_from_quote_bar verbatim). Volume is always
     0.0 - forex quote data carries no trade-volume concept. Returns None
@@ -40,7 +45,7 @@ def _first_attribute(source, names: tuple[str, ...], default):
     return default
 
 
-def flatten_fill_forward_bar(bar: dict, previous_close: float) -> dict:
+def flatten_fill_forward_bar(bar: dict[str, Any], previous_close: float) -> dict[str, Any]:
     """A fill-forward bar the way the training dataset builds it (`train.fill_forward_forex_frame`): flat at the
     previous close with no volume. Lean's own fill-forward bar repeats the previous bar's range, so a trailing ATR or
     high-low spread window that contains one differs from the dataset's (V6.0.0, todo lead 4)."""
@@ -92,7 +97,7 @@ def derive_signal(
     buy_threshold: float,
     effective_sell_threshold: float,
     max_position_weight: float,
-    record_observation=None,
+    record_observation: Callable[[str | None, float], None] | None=None,
     symbol_key: str | None = None,
 ) -> tuple[str, float, float]:
     """Signal classification extracted from main.py::_derive_signal()

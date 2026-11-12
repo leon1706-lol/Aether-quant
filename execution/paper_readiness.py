@@ -15,6 +15,7 @@ that additionally evaluates observation-mode readiness.
 """
 
 from __future__ import annotations
+from typing import Any
 
 _PAPER_REASON_ALL_CONFIRMED = "paper_broker_config_confirmed"
 _PAPER_REASON_MISSING_BROKERAGE = "paper_broker_config_missing_brokerage"
@@ -28,7 +29,7 @@ _LIVE_REASON_RISK_POSTURE_UNSAFE = "live_broker_config_risk_posture_unsafe"
 _LIVE_REASON_UNSAFE_DB_PASSWORD = "live_broker_config_unsafe_db_password"
 
 
-def evaluate_paper_broker_config(paper_trading_config: dict) -> tuple[bool, str]:
+def evaluate_paper_broker_config(paper_trading_config: dict[str, Any]) -> tuple[bool, str]:
     """mode='paper' gate. All three must be true:
     - brokerage is a non-empty known value
     - live_data_provider_configured (human-set attestation - a live market
@@ -46,7 +47,7 @@ def evaluate_paper_broker_config(paper_trading_config: dict) -> tuple[bool, str]
     return True, _PAPER_REASON_ALL_CONFIRMED
 
 
-def evaluate_live_risk_posture(risk_config: dict, live_config: dict) -> tuple[bool, str]:
+def evaluate_live_risk_posture(risk_config: dict[str, Any], live_config: dict[str, Any]) -> tuple[bool, str]:
     """Sanity ceiling for mode='live' - not a redesign of the drawdown
     circuit breaker, just a guard against live mode running with an
     accidentally-loose (or disabled) risk config that was fine for
@@ -68,10 +69,10 @@ def evaluate_live_risk_posture(risk_config: dict, live_config: dict) -> tuple[bo
 
 
 def evaluate_live_broker_config(
-    paper_trading_config: dict,
+    paper_trading_config: dict[str, Any],
     live_credentials_present: bool,
-    risk_config: dict | None = None,
-    live_config: dict | None = None,
+    risk_config: dict[str, Any] | None = None,
+    live_config: dict[str, Any] | None = None,
     postgres_dsn: str | None = None,
 ) -> tuple[bool, str]:
     """mode='live' gate (V2-22). You cannot go straight to live without a
@@ -106,10 +107,10 @@ def evaluate_live_broker_config(
 
 def evaluate_broker_config(
     mode: str,
-    paper_trading_config: dict,
+    paper_trading_config: dict[str, Any],
     live_credentials_present: bool = False,
-    risk_config: dict | None = None,
-    live_config: dict | None = None,
+    risk_config: dict[str, Any] | None = None,
+    live_config: dict[str, Any] | None = None,
     postgres_dsn: str | None = None,
 ) -> tuple[bool, str]:
     """Single entrypoint main.py._order_permission() calls regardless of
@@ -128,7 +129,7 @@ def evaluate_broker_config(
     return evaluate_paper_broker_config(paper_trading_config)
 
 
-def evaluate_velocity_decision(config: dict) -> tuple[bool, str]:
+def evaluate_velocity_decision(config: dict[str, Any]) -> tuple[bool, str]:
     """A target-weights run must not reach a broker on a velocity setting nobody decided (Problems.md #278). `R-VEL1` records it in
     `phase_v2.target_weights.velocity_decision`, whichever way it went. Any other path has its own gates."""
     target = ((config or {}).get("phase_v2") or {}).get("target_weights") or {}
@@ -138,7 +139,7 @@ def evaluate_velocity_decision(config: dict) -> tuple[bool, str]:
     return (True, f"velocity_decision: {decision}") if decision else (False, "target_weights_velocity_decision_missing")
 
 
-def evaluate_observation_readiness(summary: dict, thresholds: dict) -> dict:
+def evaluate_observation_readiness(summary: dict[str, Any], thresholds: dict[str, Any]) -> dict[str, Any]:
     """Turns 4 of the 5 bullets in development/infrastructure.md's "Paper"
     checklist into code, given an already-computed
     observation summary (experience.observation_metrics.compute_observation_summary()

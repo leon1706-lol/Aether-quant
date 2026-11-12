@@ -10,6 +10,7 @@ from pathlib import Path
 import pandas as pd
 
 from regime import build_market_regime_vector
+from typing import Any
 
 
 EXPERT_DEFINITIONS = {
@@ -34,6 +35,7 @@ EXPERT_DEFINITIONS = {
 
 @dataclass(frozen=True)
 class ExpertDatasetSummary:
+    """One expert's training slice: its name, what it covers and how many rows it holds."""
     expert: str
     description: str
     rows: int
@@ -46,16 +48,16 @@ class ExpertDatasetSummary:
     date_end: str | None
     filter: dict
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
 
-def _phase_v2_regime_config(config: dict | None) -> dict:
+def _phase_v2_regime_config(config: dict[str, Any] | None) -> dict[str, Any]:
     config = config or {}
     return config.get("phase_v2", {}).get("regime_detection", {})
 
 
-def annotate_dataset_with_regimes(dataset: pd.DataFrame, config: dict | None = None) -> pd.DataFrame:
+def annotate_dataset_with_regimes(dataset: pd.DataFrame, config: dict[str, Any] | None = None) -> pd.DataFrame:
     """Return a copy of the dataset with V2 regime columns added."""
     result = dataset.copy()
     regime_config = _phase_v2_regime_config(config)
@@ -82,7 +84,7 @@ def annotate_dataset_with_regimes(dataset: pd.DataFrame, config: dict | None = N
     return result
 
 
-def _filter_for_expert(dataset: pd.DataFrame, expert_filter: dict) -> pd.Series:
+def _filter_for_expert(dataset: pd.DataFrame, expert_filter: dict[str, Any]) -> pd.Series:
     mask = pd.Series(True, index=dataset.index)
     for column, allowed_values in expert_filter.items():
         regime_column = f"regime_{column}"
@@ -90,7 +92,7 @@ def _filter_for_expert(dataset: pd.DataFrame, expert_filter: dict) -> pd.Series:
     return mask
 
 
-def _summarize_expert_dataset(expert: str, definition: dict, frame: pd.DataFrame) -> ExpertDatasetSummary:
+def _summarize_expert_dataset(expert: str, definition: dict[str, Any], frame: pd.DataFrame) -> ExpertDatasetSummary:
     split_counts = frame["split"].value_counts().to_dict() if "split" in frame.columns else {}
     positive_target_rate = None
     if "target_direction" in frame.columns and len(frame) > 0:
@@ -117,10 +119,11 @@ def _summarize_expert_dataset(expert: str, definition: dict, frame: pd.DataFrame
 
 def build_expert_dataset_manifest(
     dataset: pd.DataFrame,
-    dataset_manifest: dict,
-    config: dict | None = None,
-    expert_definitions: dict | None = None,
+    dataset_manifest: dict[str, Any],
+    config: dict[str, Any] | None = None,
+    expert_definitions: dict[str, Any] | None = None,
 ) -> tuple[pd.DataFrame, dict]:
+    """The manifest of each expert's slice of the training dataset (bullish, bearish, sideways, volatility)."""
     annotated = annotate_dataset_with_regimes(dataset, config)
     definitions = expert_definitions or EXPERT_DEFINITIONS
 
@@ -160,7 +163,7 @@ def build_expert_dataset_manifest(
 
 def write_expert_dataset_artifacts(
     annotated_dataset: pd.DataFrame,
-    manifest: dict,
+    manifest: dict[str, Any],
     output_dir: Path,
     manifest_path: Path,
 ) -> None:

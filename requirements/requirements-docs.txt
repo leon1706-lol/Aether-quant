@@ -1,0 +1,7 @@
+# V6.6.5 (#346): the docs site (mkdocs.yml), pinned for CI's docs job and pages.yml. `pip install "aether-quant[docs]"`
+# installs the same tools unpinned. mkdocstrings reads the code statically, so no library dependency is needed.
+mkdocs==1.6.1
+mkdocs-material==9.8.1
+mkdocstrings==1.0.8
+mkdocstrings-python==2.0.10
+mkdocs-jupyter==0.27.0

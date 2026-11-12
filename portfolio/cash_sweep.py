@@ -18,6 +18,7 @@ main.py and the offline simulator call the same functions. Pure, NaN-safe.
 from __future__ import annotations
 
 import math
+from typing import Any
 
 # Lean DefaultBrokerageModel.GetLeverage for a margin account (main.py sets no brokerage model)
 LEAN_DEFAULT_LEVERAGE = {"equity": 2.0, "crypto": 1.0, "forex": 50.0, "cfd": 50.0}
@@ -44,7 +45,7 @@ def _finite(value, default: float) -> float:
     return number if math.isfinite(number) else default
 
 
-def resolve_cash_sweep_config(raw: dict | None) -> dict:
+def resolve_cash_sweep_config(raw: dict[str, Any] | None) -> dict[str, Any]:
     """`phase_v2.cash_sweep` with defaults; out-of-range numbers fall back to the default rather than raise."""
     raw = raw or {}
     config = {
@@ -83,7 +84,7 @@ def strategy_reserve(
     book_short: float,
     other_budget_remaining: float,
     neutral_budget: float = 0.0,
-) -> dict:
+) -> dict[str, Any]:
     """Gross the strategy may add by the next session, by side, and the margin it would hold. On a rebalance attempt a
     whole new book can be ordered (long up to half the cap, short up to half the cap and `max_short_exposure`) while the
     current one is still held, since sells free nothing until they fill; otherwise only the formed book's unfilled part.
@@ -107,7 +108,7 @@ def strategy_reserve(
 
 
 def cash_sweep_target_weight(
-    *, long_weight: float, short_weight: float, margin_used: float, reserve: dict, config: dict
+    *, long_weight: float, short_weight: float, margin_used: float, reserve: dict[str, Any], config: dict[str, Any]
 ) -> float:
     """Sweep weight (fraction of NAV) inside both limits and `max_weight`; 0.0 for any non-finite input."""
     values = [long_weight, short_weight, margin_used, reserve.get("long"), reserve.get("short"), reserve.get("margin")]
@@ -129,7 +130,7 @@ def sweep_order_needed(current_weight: float, target_weight: float, min_trade_we
     return current > target + 1e-9 or abs(target - current) >= float(min_trade_weight)
 
 
-def advance_strategy_value(state: dict | None, total_value: float, sweep_profit: float) -> tuple[dict, float]:
+def advance_strategy_value(state: dict[str, Any] | None, total_value: float, sweep_profit: float) -> tuple[dict, float]:
     """The value the risk controls read: an index that compounds the strategy's own P&L (the portfolio's change minus the
     sweep's) over the TOTAL value the strategy is sized on, starting at the first total value seen. Subtracting the
     cumulative carry from the total instead (V6.2.0's first BT1) divides the strategy's dollar P&L by a smaller base than

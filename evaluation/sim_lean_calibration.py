@@ -15,11 +15,15 @@ Pure; no I/O.
 from __future__ import annotations
 
 import numpy as np
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable, Sequence
 
 LADDER_ORDER = ("v580", "phase", "next_open", "min_fee", "live_gates", "calibrated", "v610_member_pass", "v610_mechanisms", "v610")
 
 
-def rung_attribution(variants: dict[str, dict], order=LADDER_ORDER) -> list[dict]:
+def rung_attribution(variants: dict[str, dict], order: Sequence[str]=LADDER_ORDER) -> list[dict]:
     """[{"rung", "daily_correlation", "delta_correlation", "annual_return_gap", "delta_gap"}] along the ladder."""
     rows, previous = [], None
     for name in order:
@@ -40,7 +44,7 @@ def rung_attribution(variants: dict[str, dict], order=LADDER_ORDER) -> list[dict
     return rows
 
 
-def daily_gap_breakdown(lean: dict[str, float], offline: dict[str, float], *, rebalance_dates=(), worst_share: float = 0.05) -> dict:
+def daily_gap_breakdown(lean: dict[str, float], offline: dict[str, float], *, rebalance_dates: Iterable[str]=(), worst_share: float = 0.05) -> dict[str, Any]:
     """Statistics of the daily gap offline - lean over their common dates."""
     common = sorted(set(lean) & set(offline))
     if len(common) < 3:
@@ -68,7 +72,7 @@ def daily_gap_breakdown(lean: dict[str, float], offline: dict[str, float], *, re
     return out
 
 
-def gap_report(calibration: dict, *, variant: str = "calibrated") -> dict:
+def gap_report(calibration: dict[str, Any], *, variant: str = "calibrated") -> dict[str, Any]:
     """{window: {"ladder": rung_attribution, "best_rung", "judged": the `variant` row}} for a lean_calibration.py report."""
     out = {}
     for name, window in (calibration.get("windows") or {}).items():

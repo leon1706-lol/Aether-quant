@@ -8,9 +8,14 @@ total with each name left out in turn.
 from __future__ import annotations
 
 import numpy as np
+from typing import TYPE_CHECKING, Any
 
 
-def round_trips_from_closed_trades(run: dict, tickers: set[str] | None = None) -> list[dict]:
+if TYPE_CHECKING:
+    from numpy.typing import ArrayLike
+
+
+def round_trips_from_closed_trades(run: dict[str, Any], tickers: set[str] | None = None) -> list[dict]:
     """[{"ticker", "pnl" (net of fees), "notional", "entry"}] for the run's closed trades, restricted to `tickers`
     (upper-case) when given. Trades with several symbols (option combos) are skipped."""
     trades = ((run.get("result") or {}).get("totalPerformance") or {}).get("closedTrades") or []
@@ -31,7 +36,7 @@ def round_trips_from_closed_trades(run: dict, tickers: set[str] | None = None) -
     return out
 
 
-def bootstrap_mean_pnl(pnls, n: int = 10000, seed: int = 7, confidence: float = 0.95) -> dict:
+def bootstrap_mean_pnl(pnls: ArrayLike, n: int = 10000, seed: int = 7, confidence: float = 0.95) -> dict[str, Any]:
     """Mean P&L per trade with a percentile bootstrap interval; `p_mean_le_0` = the share of resampled means <= 0."""
     values = np.asarray([float(value) for value in pnls if np.isfinite(value)], dtype=float)
     if len(values) < 2:
@@ -68,7 +73,7 @@ def leave_one_name_out(totals_by_name: dict[str, float]) -> dict[str, float]:
     return {name: total - value for name, value in totals_by_name.items()}
 
 
-def repeatable(bootstrap: dict, leave_one_out: dict[str, float]) -> bool:
+def repeatable(bootstrap: dict[str, Any], leave_one_out: dict[str, float]) -> bool:
     """The L9 verdict: the bootstrap interval's lower end is above zero AND every leave-one-name-out total stays positive."""
     low = bootstrap.get("ci_low")
     return low is not None and low > 0.0 and bool(leave_one_out) and all(value > 0.0 for value in leave_one_out.values())

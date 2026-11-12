@@ -33,6 +33,7 @@ EW_MIN_SESSIONS = 20
 
 @dataclass(frozen=True)
 class GlidePolicy:
+    """How capital moves between generations: the glide length, a newcomer's entry share, the retirement floor and the paper caps."""
     glide_sessions: int = 252
     entry_share: float = 0.30
     retire_share: float = 0.05  # 10% of a 0.0127 weight is below the 0.002 deadband: a residue that could never trade
@@ -57,6 +58,7 @@ def _finite(value, default: float) -> float:
 
 
 def resolve_glide_policy(raw: Mapping | None) -> GlidePolicy:
+    """A `GlidePolicy` from config, every share clipped to [0, 1] and every missing or non-finite value at its default."""
     raw = raw or {}
     defaults = GlidePolicy()
 

@@ -1569,7 +1569,7 @@ def test_ib_status_credentials_missing(capsys):
 
     out = capsys.readouterr().out
     assert exit_code == 1
-    assert "aq lean set ib-account" in out
+    assert "aq secrets set IB_ACCOUNT" in out and "aq render-lean-config" in out
 
 
 def test_ib_status_reachable(capsys):
@@ -1700,7 +1700,8 @@ def test_read_update_cache_returns_empty_dict_when_missing(tmp_path):
         assert aq_cli._read_update_cache() == {}
 
 
-def test_check_for_update_prints_notice_when_outdated(tmp_path, capsys):
+def test_check_for_update_prints_notice_when_outdated(tmp_path, capsys, monkeypatch):
+    monkeypatch.delenv("AQ_SKIP_UPDATE_CHECK", raising=False)  # a shell that sets it would otherwise fail this test
     with patch("aq_cli.UPDATE_CACHE_PATH", tmp_path / "update_check.json"), patch(
         "aq_cli.installed_version", return_value="1.0.0"
     ), patch("aq_cli._fetch_latest_version_from_pypi", return_value="2.0.0"):

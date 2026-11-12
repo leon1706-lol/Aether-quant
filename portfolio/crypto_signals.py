@@ -9,6 +9,11 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
+    from typing import Any
 
 BTC = "BTCUSD"
 CORE = ("BTCUSD", "ETHUSD")
@@ -128,7 +133,7 @@ def core_constant(known: pd.DataFrame, core: tuple[str, ...] = CORE) -> pd.DataF
 FORWARD_BUILDERS = ("low_vol", "lottery_max", "high_proximity", "short_reversal", "low_beta", "idio_vol", "trend_votes", "breadth_timing", "core_constant")
 
 
-def forward_table(spec, known: pd.DataFrame) -> pd.DataFrame:
+def forward_table(spec: Mapping[str, Any], known: pd.DataFrame) -> pd.DataFrame:
     """A round-4C trial as the forward feed can compute it, from the marks alone (no volume, no funding): `{"builder": name, "params": {...}, "gate": "regime"}` for one signal, or
     `{"rank_mean": [spec, ...], "minimum": n, "gate": "regime"}` for a composite. The builder comes from a closed set. `breadth_timing` counts every coin in `known` as liquid, since the feed
     holds only the coins the definition lists."""

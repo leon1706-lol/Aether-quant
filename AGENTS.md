@@ -84,7 +84,7 @@ Lean backtests run on a temporary DinD Codespace (`scripts/codespace_lean_run.ps
 
 `forward-ledger.yml` and `research-cycle.yml` run each session on free runners and write only to branch `forward-ledger`.
 
-`.github/workflows/ci.yml` (Python 3.11): `python-tests` (ubuntu and windows, 80% coverage gate), `python-lint`, `dependency-audit`, `webui-tests`, `cli-smoke`, `workflows-lint`, and the guard jobs: fast-guards, subsystem-matrix, wheel-smoke, python-compat, docker-checks, secret-scan, parity-smoke, test-count-drift. `tests/test_ci_workflows.py` pins the shape: update it with any workflow change. No Lean backtest in CI. A Docker rebuild is required before any paper or live deploy once material code lands.
+`.github/workflows/ci.yml` (Python 3.11): `python-tests` (ubuntu and windows, 80% coverage gate, coverage XML/JSON/HTML), `python-lint`, `dependency-audit`, `webui-tests` (with coverage and a blocking `npm audit`), `cli-smoke`, `workflows-lint`, and the guard jobs: fast-guards, subsystem-matrix, wheel-smoke, python-compat, docker-checks (dashboard image smoke and trivy), secret-scan (blocking on the tree), parity-smoke, test-count-drift, lite-install, typecheck, docs, notebooks and bandit. `codeql.yml`, `scorecard.yml` and `pages.yml` (docs, coverage and the coverage badge on GitHub Pages) run beside it. `tests/test_ci_workflows.py` pins the shape: update it with any workflow change. No Lean backtest in CI. A Docker rebuild is required before any paper or live deploy once material code lands.
 
 ## Wrap-up checklist
 

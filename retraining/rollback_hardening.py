@@ -7,9 +7,10 @@ executing. The degradation score is a continuous 0-1 weighted composite of
 all trigger severities, giving more signal than the binary flags alone."""
 
 from __future__ import annotations
+from typing import Any
 
 
-def compute_degradation_score(degradation_signals: dict, *, weights: dict | None = None) -> float:
+def compute_degradation_score(degradation_signals: dict[str, Any], *, weights: dict[str, Any] | None = None) -> float:
     """Continuous 0-1 composite of all trigger severities.
 
     Default weights: kill_switch_tripped=0.40 (most severe), net_sharpe_decay=0.25,
@@ -26,11 +27,11 @@ def compute_degradation_score(degradation_signals: dict, *, weights: dict | None
 
 
 def select_rollback_target_dry_run(
-    active_version: dict,
+    active_version: dict[str, Any],
     version_history: list[dict],
-    degradation_signals: dict,
-    config: dict,
-) -> dict:
+    degradation_signals: dict[str, Any],
+    config: dict[str, Any],
+) -> dict[str, Any]:
     """Dry-run wrapper around select_rollback_target(): identical return
     shape plus `dry_run: True` so callers can audit rollback decisions
     without executing them."""

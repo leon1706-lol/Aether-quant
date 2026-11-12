@@ -15,17 +15,19 @@ from __future__ import annotations
 import math
 from collections.abc import Sequence
 from dataclasses import dataclass
+from typing import Any
 
 
 @dataclass(frozen=True)
 class SleeveGuardConfig:
+    """Settings of a sleeve's loss guard: on or off, the loss limit as a share of NAV and the lookback."""
     enabled: bool = False
     max_loss_fraction_nav: float = 0.01
     lookback_bars: int = 60
     cooldown_bars: int = 60
 
 
-def resolve_sleeve_guard_config(raw: dict | None) -> SleeveGuardConfig:
+def resolve_sleeve_guard_config(raw: dict[str, Any] | None) -> SleeveGuardConfig:
     """Config block -> SleeveGuardConfig; absent or malformed keys fall back to the defaults (disabled)."""
     raw = raw or {}
 
@@ -66,7 +68,7 @@ def evaluate_sleeve_guard(
     *,
     current_bar: int,
     suspended_until_bar: int | None = None,
-) -> dict:
+) -> dict[str, Any]:
     """Decides whether the sleeve may trade on `current_bar`.
 
     `pnl_increments` is the sleeve's per-bar P&L history (dollars, or NAV fractions with `nav=1.0`), oldest first.

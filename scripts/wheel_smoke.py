@@ -102,7 +102,7 @@ def check_library() -> list[str]:
                                                        sector_max_net_weight=0.1)[0] == {},
         "risk": lambda m: m.cap_target_weight(0.1, 0.0, 1.0) == (0.1, False),
         "io": lambda m: m.sanitize_json_finite([float("nan")]) == [None],
-        "formal": lambda m: len(m.targets()) == 16 and bool(m.load_cases("order_gate")["cases"]),
+        "formal": lambda m: len(m.targets()) == 18 and bool(m.load_cases("order_gate")["cases"]),
         "cycle": lambda m: m.update_generation_shares({"a": 1.0, "b": 0.0}, {"a": "active", "b": "ramping"}, {}, {}, m.GlidePolicy())["b"] == 0.3,
         "training": lambda m: m.purge_label_overlap(["train", "train", "validation"], 1) == ["train", "purged", "validation"],
         "regime": lambda m: callable(m.build_market_regime_vector),
@@ -121,6 +121,14 @@ def check_library() -> list[str]:
         "evaluation": lambda m: m.newey_west_t_stat([0.1, 0.2, 0.3], lags=1) != 0.0,
         "features": lambda m: m.cross_sectional_rank.__name__ == "cross_sectional_rank",
         "inference": lambda m: callable(m.run_exported_model),
+        "sizing": lambda m: m.kelly_fraction(0.01, 0.04, fraction=1.0, cap=10.0) == 0.25,
+        "neutrality": lambda m: abs(m.net_beta(m.beta_neutralize({"a": 1.0, "b": 0.5}, {"a": 1.0, "b": 2.0}), {"a": 1.0, "b": 2.0})) < 1e-12,
+        "costs": lambda m: m.LinearCostModel(commission_bps=1.0, half_spread_bps=2.0).cost_bps(1e4) == 3.0,
+        "overfitting": lambda m: m.haircut_sharpe(1.0, 2520, 1, method="bonferroni")["haircut"] < 1e-9,
+        "backtest": lambda m: callable(m.backtest) and callable(m.simulate_target_weights),
+        "signals": lambda m: callable(m.forward_rank_targets),
+        "samples": lambda m: m.load_sample_prices().shape[1] == 11,
+        "hello": lambda m: m.HELLO_RULE["id"] == "t3_crypto_trend_blend_x_eos",
     }
     for name, check in checks.items():
         try:

@@ -14,6 +14,10 @@ definition for `train.py` and `main.py`: no formula is duplicated.
 from __future__ import annotations
 
 from data_pipeline.fred_backfill import series_value_asof
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from datetime import date
 
 FX_CARRY_FEATURE_NAME = "fx_carry_3m"
 
@@ -45,7 +49,7 @@ def split_forex_ticker(ticker: str) -> tuple[str, str] | None:
 def fx_carry_3m(
     ticker: str,
     asset_class: str | None,
-    current_date,
+    current_date: date,
     fred_series: dict[str, list[dict]],
     publication_lag_days: dict[str, int] | None = None,
 ) -> float:

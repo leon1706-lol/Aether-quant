@@ -35,6 +35,11 @@ ib_config.py
 config.local.json
 lean.local.json
 lean.live.json
+lean.live.*.json
+# V6.6.5: per-account renders, the accounts registry, API users, per-account state and Docker secrets files
+/accounts.json
+/state/
+/secrets/
 lean.json
 *.key
 *.pem
@@ -53,3 +58,29 @@ cpp_inference_ext/install_log*.txt
 data_pre2013/
 data_wide/
 data_crypto_wide/
+
+# V6.6.5: large local trees that no image needs (the context was ~600 MB without them)
+formal/.lake/
+backtests_invalid/
+data_backups/
+build/
+site/
+docs/tutorials/
+visualization/
+*.egg-info/
+.cache/
+.hypothesis/
+.pytest_cache/
+.ruff_cache/
+.matplotlib_cache/
+.coverage
+htmlcov/
+coverage.xml
+coverage.json
+config.json.bak
+config.json.*.bak
+# patterns are anchored at the context root: these match at any depth
+**/__pycache__/
+**/*.pyc
+**/node_modules/
+development/backups/

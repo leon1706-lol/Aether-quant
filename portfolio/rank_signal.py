@@ -18,9 +18,10 @@ mismatch). Two responsibilities, both pure:
 """
 
 from __future__ import annotations
+from typing import Any
 
 
-def resolve_rank_signal_policy(training_metrics_by_model: dict[str, dict | None], config: dict) -> dict:
+def resolve_rank_signal_policy(training_metrics_by_model: dict[str, dict | None], config: dict[str, Any]) -> dict[str, Any]:
     """Resolved ONCE in main.py::Initialize() (never per-bar - the
     promotion-gate verdicts this reads only change when a new model is
     installed). Reads phase_v2.rank_signal:
@@ -134,7 +135,7 @@ def _resolve_head_quality_status(
 
 
 def select_raw_rank_score(
-    sequence_prediction: dict | None, multitask_payload: dict | None, policy: dict
+    sequence_prediction: dict[str, Any] | None, multitask_payload: dict[str, Any] | None, policy: dict[str, Any]
 ) -> tuple[float | None, str]:
     """Replaces main.py's previous hardcode (always prefer the sequence
     model's rank_20d, fall back to multitask's). Now a weighted blend
@@ -225,7 +226,7 @@ def cross_sectional_rank_scores(scores_by_symbol: dict[str, float]) -> dict[str,
 MAIN_RANK_GROUP = "main"
 
 
-def rank_group_by_symbol(asset_class_by_symbol: dict[str, str | None], separate_rank_groups: dict | None) -> dict[str, str]:
+def rank_group_by_symbol(asset_class_by_symbol: dict[str, str | None], separate_rank_groups: dict[str, Any] | None) -> dict[str, str]:
     """{symbol: rank group} from `phase1.target.ranking.separate_rank_groups` ({group: [asset classes]}): a symbol whose
     class is listed under a group belongs to it, everything else to "main". The same mapping train.py uses to build the
     grouped rank targets (V5.7.0), so live ranks each group the way the model was trained."""

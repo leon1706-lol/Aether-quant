@@ -1,0 +1,61 @@
+# aether_quant.evaluation
+
+Evaluation statistics: rank IC with honest t-stats, Monte Carlo, Lean-exact Sharpe and PSR, deflated Sharpe and the cost-aware rank-book simulator.
+
+::: aether_quant.evaluation
+    options:
+      members:
+        - MarketPanel
+        - RankBookSimulationResult
+        - apply_isotonic
+        - apply_temperature
+        - balanced_accuracy
+        - best_threshold_by_class
+        - bet_starts
+        - bootstrap_mean_pnl
+        - brier_score
+        - calibration_report
+        - classification_scores
+        - coinbase_taker_bps
+        - compute_backtest_statistics
+        - compute_for_run_dir
+        - compute_participation_rate
+        - compute_sqrt_impact_bps
+        - cross_fitted_log_loss
+        - daily_returns
+        - default_fee_usd
+        - deflated_sharpe_ratio
+        - drawdown_episodes
+        - engine_log_status
+        - excluded_alpha_sharpe
+        - expected_calibration_error
+        - expected_max_sharpe
+        - fit_isotonic
+        - fit_temperature
+        - fundamental_law_ir
+        - hhi_concentration
+        - information_ratio
+        - lean_book_calls
+        - lean_statistics
+        - load_market_panel
+        - load_trial_sharpes
+        - log_loss
+        - max_drawdown
+        - minimum_detectable_alpha_sharpe
+        - monthly_counts
+        - newey_west_t_stat
+        - percentile
+        - power_of_t_test
+        - power_table
+        - probabilistic_sharpe_ratio
+        - r_lean13
+        - r_lean14
+        - rank_ic_from_arrays
+        - reliability_curve
+        - run_monte_carlo
+        - sharpe_ratio
+        - simulate_rank_book
+        - simulate_target_weights
+        - strategy_sharpe
+        - summarize_metric_stability
+        - verdict_for_run_dirs

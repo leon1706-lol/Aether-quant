@@ -3,3 +3,6 @@
 
 # Shell scripts run on Linux Codespaces: always LF in the working tree.
 *.sh text eol=lf
+
+# Compressed samples ship in the wheel byte for byte (aether_quant/_sample, V6.6.5).
+*.gz binary

@@ -31,6 +31,10 @@ from portfolio.financing import load_rate_series
 from portfolio.premia_signals import ResearchPanel, WeightSettings, known_closes
 from portfolio.target_weights import TargetWeightsConfig, resolve_target_weights_config
 from portfolio.wide_signals import crypto_tables, wide_tables
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 WIDE_ROOT = "data_wide"
 CRYPTO_ROOT = "data_crypto_wide"
@@ -46,6 +50,7 @@ SECTORS = (
 
 @dataclass
 class WideCell:
+    """A research cell with its context and, for the wide panels, its bars and membership."""
     cell: Cell
     context: ResearchContext
     bars: WideBars | None = None
@@ -58,7 +63,8 @@ class WideCell:
     data_dir: str = ""
 
 
-def path_config(base: dict) -> TargetWeightsConfig:
+def path_config(base: dict[str, Any]) -> TargetWeightsConfig:
+    """The target-weights config research runs on: the project's, with the research overrides."""
     return resolve_target_weights_config({**(base["phase_v2"].get("target_weights") or {}), **PATH_OVERRIDES})
 
 
@@ -95,6 +101,7 @@ def load_ohlcv(root: Path, tickers: list[str], rows: list[str], *, data_dir: str
 
 
 def load_raw_closes(root: Path, tickers: list[str], rows: list[str], *, data_dir: str) -> pd.DataFrame:
+    """Unadjusted closes of the tickers on the given rows, from `reference/raw_closes`."""
     series = {}
     for ticker in tickers:
         path = Path(root) / data_dir / "reference" / "raw_closes" / f"{ticker.lower()}.json"
@@ -123,18 +130,20 @@ def read_info(root: Path, *, data_dir: str) -> dict[str, pd.DataFrame | None]:
     }
 
 
-def project_tickers(base: dict, security_type: str) -> list[str]:
+def project_tickers(base: dict[str, Any], security_type: str) -> list[str]:
+    """The project universe's tickers of one security type."""
     return [str(asset["ticker"]) for asset in base["phase1"]["universe"]["assets"] if asset["security_type"] == security_type]
 
 
-def _context(market: MarketPanel, panel: ResearchPanel, base: dict, root: Path, *, data_dir: str, settings: WeightSettings) -> ResearchContext:
+def _context(market: MarketPanel, panel: ResearchPanel, base: dict[str, Any], root: Path, *, data_dir: str, settings: WeightSettings) -> ResearchContext:
     rf_dates, rf_rates = load_rate_series(Path(root) / data_dir / "alternative" / "interest-rate" / "usa" / "interest-rate.csv")
     return ResearchContext(
         market, panel, path_config(base), base["phase_v2"]["cash_sweep"], rf_dates, rf_rates, lambda ticker, date: 0.0, lambda ticker, date: True, settings,
     )
 
 
-def wide_config_for(base: dict, root: Path, tickers: set[str], *, data_dir: str = WIDE_ROOT) -> dict:
+def wide_config_for(base: dict[str, Any], root: Path, tickers: set[str], *, data_dir: str = WIDE_ROOT) -> dict[str, Any]:
+    """The config of the wide research root: the project's, widened to the given tickers and the wide manifest."""
     import sys
 
     sys.path.insert(0, str(Path(root) / "scripts"))
@@ -145,7 +154,7 @@ def wide_config_for(base: dict, root: Path, tickers: set[str], *, data_dir: str 
 
 
 def equity_cell(
-    root: Path, base: dict, cell_name: str, *, freeze_path: Path | None = None, freeze_digest: str | None = None, data_dir: str = WIDE_ROOT,
+    root: Path, base: dict[str, Any], cell_name: str, *, freeze_path: Path | None = None, freeze_digest: str | None = None, data_dir: str = WIDE_ROOT,
     settings: WeightSettings = WIDE_SETTINGS, with_features: bool = True, with_info: bool = True,
 ) -> WideCell:
     """The cell's context, features and w-tables. Sectors come from SEC; a name with none is never ranked."""
@@ -211,7 +220,7 @@ def equity_cell(
 
 
 def crypto_cell(
-    root: Path, base: dict, cell_name: str, *, freeze_path: Path | None = None, freeze_digest: str | None = None, data_dir: str = CRYPTO_ROOT,
+    root: Path, base: dict[str, Any], cell_name: str, *, freeze_path: Path | None = None, freeze_digest: str | None = None, data_dir: str = CRYPTO_ROOT,
     settings: WeightSettings = WIDE_SETTINGS, side: str | None = None,
 ) -> WideCell:
     """Binance's coins under the Coinbase cost model. Side A coins enter a later cell only from 2023-01, so the part selection read stays out.
@@ -272,7 +281,7 @@ def lag_onto(table: pd.DataFrame, index: pd.Index, *, limit: int = 7) -> pd.Data
     return shifted.reindex(shifted.index.union(index)).ffill(limit=limit).reindex(index)
 
 
-def crypto_ic(signal: pd.DataFrame, known: pd.DataFrame, *, start: str, end: str, min_names: int = 8, horizon: int = 20) -> dict:
+def crypto_ic(signal: pd.DataFrame, known: pd.DataFrame, *, start: str, end: str, min_names: int = 8, horizon: int = 20) -> dict[str, Any]:
     """A crypto signal's rank IC with the next `horizon` days' return on the same coins, with the non-overlapping t."""
     target = known.shift(-horizon) / known - 1.0
     return signal_ic_t(signal, target, start=start, end=end, horizon=horizon, min_names=min_names)
@@ -290,7 +299,7 @@ def liquid_mask_for_cell(liquid: pd.DataFrame, cell: Cell, project: list[str]) -
     return mask
 
 
-def signal_ic_t(table: pd.DataFrame, label: pd.DataFrame, *, start: str, end: str, horizon: int = 20, min_names: int = 20) -> dict:
+def signal_ic_t(table: pd.DataFrame, label: pd.DataFrame, *, start: str, end: str, horizon: int = 20, min_names: int = 20) -> dict[str, Any]:
     """The signal's rank IC with the label, with the t on non-overlapping dates (a 20-session label overlaps itself)."""
     from evaluation.research_harness import daily_rank_ic, ic_summary
 
@@ -303,11 +312,13 @@ def signal_ic_t(table: pd.DataFrame, label: pd.DataFrame, *, start: str, end: st
     return {key: summary.get(key) for key in ("num_dates", "mean_ic", "nonoverlap_t", "num_nonoverlap_dates", "hac_t", "ic_by_year")}
 
 
-def daily_returns_for(context: ResearchContext, weights: Mapping, *, start: str, end: str) -> pd.Series:
+def daily_returns_for(context: ResearchContext, weights: Mapping[str, Any], *, start: str, end: str) -> pd.Series:
+    """The daily excess returns of a book of weights over [start, end] in this context's simulator."""
     return context.simulate(weights, start, end)["strategy_excess"]
 
 
-def sharpe_at_sessions(series: pd.Series, sessions) -> float | None:
+def sharpe_at_sessions(series: pd.Series, sessions: Sequence[str] | pd.Index) -> float | None:
+    """The annual Sharpe of a daily series sampled at the given sessions."""
     from evaluation.premia_research import annual_sharpe
 
     return annual_sharpe(series, sessions=sessions)

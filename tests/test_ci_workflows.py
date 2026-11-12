@@ -197,6 +197,10 @@ V550_JOBS = (
     "fast-guards", "subsystem-matrix", "wheel-smoke", "python-compat", "docker-checks",
     "parity-smoke", "secret-scan", "test-count-drift",
 )
+V665_JOBS = ("lite-install", "typecheck", "docs", "notebooks", "bandit")
+CODEQL = ROOT / ".github" / "workflows" / "codeql.yml"
+SCORECARD = ROOT / ".github" / "workflows" / "scorecard.yml"
+PAGES = ROOT / ".github" / "workflows" / "pages.yml"
 
 
 def _scripts(job: dict) -> str:
@@ -262,16 +266,21 @@ def test_docker_checks_lint_validate_and_never_build_the_lean_image():
 
 def test_advisory_jobs_are_advisory_and_blocking_jobs_are_not():
     jobs = _load(CI)["jobs"]
-    for advisory in ("secret-scan", "test-count-drift"):
-        assert jobs[advisory].get("continue-on-error") is True, f"{advisory} is advisory until proven against real history"
-    for blocking in ("fast-guards", "subsystem-matrix", "wheel-smoke", "python-compat", "docker-checks", "parity-smoke"):
+    assert jobs["test-count-drift"].get("continue-on-error") is True, "the badge drift is warn-only"
+    for blocking in ("fast-guards", "subsystem-matrix", "wheel-smoke", "python-compat", "docker-checks", "parity-smoke", "secret-scan", *V665_JOBS):
         assert not jobs[blocking].get("continue-on-error"), f"{blocking} must be able to fail the build"
     assert "gitleaks/releases/download/v8.18.4/" in _scripts(jobs["secret-scan"]), "gitleaks must be version-pinned"
     assert "--config .gitleaks.toml" in _scripts(jobs["secret-scan"]), "the scan must use the repo allowlist"
     assert (ROOT / ".gitleaks.toml").is_file()
+    # V6.6.5 (#353): the working-tree scan blocks; the history scan is the one advisory step, until its first report is reviewed
+    steps = jobs["secret-scan"]["steps"]
+    tree = next(s for s in steps if "--no-git" in s.get("run", ""))
+    history = next(s for s in steps if "gitleaks detect" in s.get("run", "") and "--no-git" not in s.get("run", ""))
+    assert not tree.get("continue-on-error") and history.get("continue-on-error") is True
+    assert steps[0]["with"]["fetch-depth"] == 0, "a history scan needs the history"
     assert "check_test_count_drift.py" in _scripts(jobs["test-count-drift"])
     audit_step = next(s for s in jobs["webui-tests"]["steps"] if "npm audit" in s.get("run", ""))
-    assert audit_step.get("continue-on-error") is True
+    assert not audit_step.get("continue-on-error"), "V6.6.5: npm audit of runtime dependencies blocks"
 
 
 def test_every_job_that_installs_the_requirements_on_linux_installs_cpu_torch_first():
@@ -324,3 +333,59 @@ def test_agents_md_describes_the_real_ci_not_the_old_single_job_version():
     assert "Python 3.11" in agents
     for job in ("fast-guards", "wheel-smoke", "subsystem-matrix"):
         assert job in agents
+
+
+
+def test_v665_jobs_exist_with_timeouts_and_check_what_they_claim():
+    jobs = _load(CI)["jobs"]
+    assert set(V665_JOBS) <= set(jobs)
+    assert not [name for name in V665_JOBS if "timeout-minutes" not in jobs[name]]
+    lite = _scripts(jobs["lite-install"])
+    assert "python -m build --wheel" in lite and "aq hello --offline" in lite and "pip install -e" not in lite
+    assert all(heavy in lite for heavy in ("torch", "lean", "fastapi", "scipy")), "the light install is checked for every heavy package"
+    assert "scripts/type_completeness.py" in _scripts(jobs["typecheck"]) and "pyright==1.1.409" in _scripts(jobs["typecheck"])
+    docs = _scripts(jobs["docs"])
+    assert "mkdocs build --strict" in docs and "scripts/build_docs.py --check" in docs and "requirements/requirements-docs.txt" in docs
+    assert "scripts/build_notebooks.py --check --execute" in _scripts(jobs["notebooks"])
+    assert '"bandit==1.9.4"' in _scripts(jobs["bandit"]) and "-lll" in _scripts(jobs["bandit"])
+    assert "--cov-report=json" in _scripts(jobs["python-tests"]) and "coverage_badge.py" in _scripts(jobs["python-tests"])
+    assert any("--coverage" in s.get("run", "") for s in jobs["webui-tests"]["steps"])
+
+
+def test_docker_checks_build_and_smoke_the_dashboard_and_scan_with_a_pinned_trivy():
+    job = _load(CI)["jobs"]["docker-checks"]
+    script = _scripts(job)
+    assert "docker build --target dashboard" in script and "/api/health" in script and '"demo":true' in script
+    assert "--profile dashboard config -q" in script and "docker-compose.secrets.yml" in script
+    trivy = [step for step in job["steps"] if "trivy-action" in step.get("uses", "")]
+    assert len(trivy) == 2 and all(step["uses"] == "aquasecurity/trivy-action@0.28.0" for step in trivy)
+    assert all(step["with"]["exit-code"] == "1" and step["with"]["severity"] == "CRITICAL" for step in trivy)
+
+
+def test_codeql_scorecard_and_pages_have_least_privilege():
+    codeql = _load(CODEQL)
+    assert codeql["permissions"] == {"contents": "read"}
+    assert codeql["jobs"]["analyze"]["permissions"]["security-events"] == "write"
+    assert set(codeql["jobs"]["analyze"]["strategy"]["matrix"]["language"]) == {"python", "javascript-typescript", "actions"}
+    scorecard = _load(SCORECARD)
+    assert scorecard["permissions"] == "read-all"
+    assert any(step.get("with", {}).get("publish_results") is True for step in scorecard["jobs"]["analysis"]["steps"])
+    pages = _load(PAGES)
+    on = pages.get(True) or pages.get("on")
+    assert on["workflow_run"]["workflows"] == ["CI"] and on["workflow_run"]["branches"] == ["main"]
+    assert "head_branch == 'main'" in pages["jobs"]["build"]["if"] and "conclusion == 'success'" in pages["jobs"]["build"]["if"]
+    assert pages["permissions"] == {"contents": "read"}
+    assert pages["jobs"]["deploy"]["permissions"] == {"pages": "write", "id-token": "write"}
+    assert "coverage_badge.py" in _scripts(pages["jobs"]["build"])
+
+
+def test_release_publishes_both_images_with_sbom_and_provenance():
+    release = _load(RELEASE)
+    docker = release["jobs"]["publish-docker"]
+    targets = {entry["target"]: entry["image"] for entry in docker["strategy"]["matrix"]["include"]}
+    assert targets == {"engine": "ghcr.io/leon1706-lol/aether-quant", "dashboard": "ghcr.io/leon1706-lol/aether-quant-dashboard"}
+    uses = [step.get("uses", "") for step in docker["steps"]]
+    assert any(u.startswith("actions/attest-build-provenance@") for u in uses) and any(u.startswith("anchore/sbom-action@") for u in uses)
+    pypi_uses = [step.get("uses", "") for step in release["jobs"]["publish-pypi"]["steps"]]
+    assert any(u.startswith("actions/attest-build-provenance@") for u in pypi_uses)
+    assert "cyclonedx-py" in _scripts(release["jobs"]["publish-pypi"])

@@ -26,7 +26,6 @@ from __future__ import annotations
 import argparse
 import json
 import logging
-import os
 import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -55,6 +54,7 @@ from retraining.orchestrator import (
 )
 from retraining.postgres_registry import ensure_schema
 from performance.postgres_triggers import ensure_schema as ensure_performance_schema, fetch_triggers_since, insert_triggers
+from execution.secrets_io import secret_env
 
 logger = logging.getLogger(__name__)
 
@@ -96,7 +96,7 @@ class RetrainingWorker:
         else:
             import psycopg
 
-            dsn = os.environ.get("AETHER_POSTGRES_DSN", postgres_dsn)
+            dsn = secret_env("POSTGRES_DSN", postgres_dsn)
             self._conn = psycopg.connect(dsn, autocommit=False)
             logger.info("RetrainingWorker: PostgreSQL connected.")
 
@@ -345,7 +345,7 @@ def main() -> None:
     parser.add_argument("--poll-interval", type=int, default=None, help="Overrides phase_v2.retraining.worker.poll_interval_seconds")
     args = parser.parse_args()
 
-    postgres_dsn = os.environ.get("AETHER_POSTGRES_DSN", "")
+    postgres_dsn = secret_env("POSTGRES_DSN", "")
     config = _load_retraining_config()
     poll_interval = args.poll_interval
     if poll_interval is None:

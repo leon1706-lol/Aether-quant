@@ -16,7 +16,7 @@ Gets data into Lean's local `data/` folder, which training and backtesting both 
 
 ## Reference series
 
-- **`fred_backfill.py` (`aq backfill fred`):** Treasury yields, credit spreads, VIX, financial conditions and FX 3-month rates, cached in `data/reference/fred_series/`, with no API key. Read through `series_value_asof()`, which respects publication lag.
+- **`fred_backfill.py` (`aq backfill fred`):** Treasury yields, credit spreads, VIX, financial conditions and FX 3-month rates, cached in `data/reference/fred_series/`, with no API key. httpx is imported only when a series is fetched, so the module loads on the light install. Read through `series_value_asof()`, which respects publication lag.
 - **`dividend_backfill.py` (`aq backfill dividends`):** ex-dates and a projected next date, for early-assignment scoring.
 - **`cftc_cot.py`:** speculators' positioning, keyed by publication date.
 
@@ -34,6 +34,7 @@ Free, with no account. They write to the research roots (`data_wide/`, `data_cry
 - **`sec_form345.py`:** insider trades by filing date. **`finra_short_volume.py`:** daily short ratios.
 - **`binance_archive.py`:** spot klines and funding, delisted pairs included.
 - **`factor_library.py`:** French's and AQR's daily factors.
+- **`public_candles.py` (`aq hello`, `aether_quant.data`):** Coinbase's keyless daily candles, paged at 300 rows and cached in `~/.cache/aether-quant/candles`. It takes closed bars only, names a coin that fails, and uses urllib only, so it works on the light install (#343). `scripts/build_hello_sample.py` freezes the 185 KB sample the wheel ships.
 
 ## Helpers
 

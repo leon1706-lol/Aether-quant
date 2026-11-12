@@ -51,7 +51,6 @@ from __future__ import annotations
 import argparse
 import json
 import logging
-import os
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -61,6 +60,7 @@ from sklearn.linear_model import LogisticRegression
 
 from inference.strategy_selector_inference import FEATURE_KEYS
 from performance.postgres_triggers import fetch_recent_events
+from execution.secrets_io import secret_env
 
 LOGGER = logging.getLogger("aether_quant.train_strategy_selector")
 ROOT = Path(__file__).resolve().parent
@@ -181,7 +181,7 @@ def main() -> int:
 
         import psycopg
 
-        dsn = os.environ.get("AETHER_POSTGRES_DSN", args.postgres_dsn)
+        dsn = secret_env("POSTGRES_DSN", args.postgres_dsn)
         conn = psycopg.connect(dsn, autocommit=False)
         try:
             since = datetime.now(timezone.utc) - timedelta(days=lookback_days)

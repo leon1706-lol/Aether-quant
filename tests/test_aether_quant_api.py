@@ -14,8 +14,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 SNAPSHOT = ROOT / "tests" / "data" / "aether_quant_api.json"
 MODULES = (
-    "analyzer", "audit", "cycle", "data", "evaluation", "execution", "experience", "experts", "features", "formal", "inference", "io", "liquidity", "moe", "monitoring", "notifications", "performance",
-    "portfolio", "regime", "research", "retraining", "risk", "topology", "training",
+    "analyzer", "audit", "backtest", "costs", "cycle", "data", "evaluation", "execution", "experience", "experts", "features", "formal", "hello", "inference", "io", "liquidity",
+    "moe", "monitoring", "neutrality", "notifications", "overfitting", "performance", "portfolio", "regime", "research", "retraining", "risk", "samples", "signals", "sizing",
+    "topology", "training",
 )
 HEAVY = ("torch", "AlgorithmImports", "redis", "psycopg", "psycopg2", "fastapi", "uvicorn", "sklearn")
 

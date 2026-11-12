@@ -24,6 +24,10 @@ put at 0.0).
 from __future__ import annotations
 
 import math
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from datetime import date
 
 _SQRT_2PI = math.sqrt(2.0 * math.pi)
 
@@ -57,7 +61,7 @@ def early_exercise_optimal_for_dividend(extrinsic_value: float | None, expected_
     return extrinsic_value < expected_dividend_amount
 
 
-def days_to_next_ex_dividend(current_date, next_ex_dividend_date) -> int | None:
+def days_to_next_ex_dividend(current_date: date | None, next_ex_dividend_date: date | None) -> int | None:
     """Pure date arithmetic, mirrors options_strategy.option_auto_close_due()'s
     own calendar-day-diff pattern. None when either input is missing -
     never raises."""

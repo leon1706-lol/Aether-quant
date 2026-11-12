@@ -26,6 +26,7 @@ from pathlib import Path
 import pandas as pd
 
 from data_pipeline.sp500_membership import canonical_issuer
+from typing import Any
 
 SALT = "aq-v660-names"
 BENCHMARK_TICKERS = ("SPY", "AGG")
@@ -36,6 +37,7 @@ STALE_ROWS = 5
 
 @dataclass(frozen=True)
 class Cell:
+    """One research cell: a universe side and a date window, holdout or free, that trials are scored on."""
     name: str
     side: str
     start: str
@@ -81,12 +83,14 @@ def coin_side(ticker: str, project_coins: Iterable[str] = ()) -> str:
 
 
 def names_in_cell(cell: Cell, tickers: Iterable[str], project: Iterable[str]) -> list[str]:
+    """The tickers a cell may trade: all of them for side AB, else those on the cell's side of the split."""
     project = list(project)
     side_of = coin_side if cell.universe == "crypto" else name_side
     return sorted(ticker for ticker in tickers if cell.side == "AB" or side_of(ticker, project) == cell.side)
 
 
 def freeze_digest_of(path: Path) -> str:
+    """SHA-256 of a freeze file's bytes, the digest a holdout read must quote."""
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
@@ -144,7 +148,7 @@ def record_holdout_read(path: Path, *, candidate: str, cells: tuple[str, ...], d
         handle.write(json.dumps({"candidate": candidate, "cells": list(cells), "digest": digest, "created_at": created_at}, sort_keys=True) + "\n")
 
 
-def write_freeze(path: Path, payload: Mapping) -> str:
+def write_freeze(path: Path, payload: Mapping[str, Any]) -> str:
     """Writes the freeze file once and returns its digest. Refuses to overwrite: a second freeze would be a second look."""
     path = Path(path)
     if path.exists():

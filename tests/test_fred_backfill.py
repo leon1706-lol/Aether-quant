@@ -132,7 +132,7 @@ class _FakeHttpxClient:
 
 def _patched_httpx_client(get_side_effect):
     return patch(
-        "data_pipeline.fred_backfill.httpx.Client",
+        "httpx.Client",
         return_value=_FakeHttpxClient(get_side_effect),
     )
 

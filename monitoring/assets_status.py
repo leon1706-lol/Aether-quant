@@ -102,7 +102,7 @@ def build_assets_status(config: dict, lean_config: dict, runtime_guards: dict | 
     }
 
 
-def build_assets_status_from_disk() -> dict:
+def build_assets_status_from_disk(root: Path | None = None) -> dict:
     """Convenience wrapper reading config.json/lean.json from their
     canonical repo-root paths - used by callers (the API server) that don't
     already have both loaded, mirroring aq_cli.py::cmd_assets()'s own
@@ -118,18 +118,20 @@ def build_assets_status_from_disk() -> dict:
     """
     import json
 
+    config_path, lean_path, state_path = (CONFIG_PATH, LEAN_JSON_PATH, ROOT_DIR / "visualization" / "state.json") if root is None else (
+        Path(root) / "config.json", Path(root) / "lean.json", Path(root) / "visualization" / "state.json")
     try:
-        config = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+        config = json.loads(config_path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         # V5.4.7 (#120): a missing/mid-write config.json previously 500'd
         # the endpoint; degrade to an empty universe view instead.
         config = {}
     try:
-        lean_config = json.loads(LEAN_JSON_PATH.read_text(encoding="utf-8"))
+        lean_config = json.loads(lean_path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         lean_config = {}
     try:
-        runtime_state = json.loads((ROOT_DIR / "visualization" / "state.json").read_text(encoding="utf-8"))
+        runtime_state = json.loads(state_path.read_text(encoding="utf-8"))
         runtime_guards = runtime_state.get("sleeve_guards") if isinstance(runtime_state, dict) else None
     except (OSError, ValueError):
         runtime_guards = None

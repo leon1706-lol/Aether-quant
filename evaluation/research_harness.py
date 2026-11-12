@@ -15,6 +15,13 @@ import pandas as pd
 from evaluation.gate_audit import daily_rank_ic
 from evaluation.rank_book_simulator import summarize_metric_stability
 from evaluation.rank_ic_core import newey_west_t_stat
+from typing import TYPE_CHECKING, Any
+
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+
+    from numpy.typing import ArrayLike
 
 
 def _t_stat(values: np.ndarray) -> float:
@@ -23,7 +30,7 @@ def _t_stat(values: np.ndarray) -> float:
     return float(np.mean(values) / (np.std(values, ddof=1) / np.sqrt(len(values))))
 
 
-def block_bootstrap_mean_ci(values, *, block: int, draws: int = 1000, seed: int = 7, confidence: float = 0.95) -> list[float] | None:
+def block_bootstrap_mean_ci(values: ArrayLike, *, block: int, draws: int = 1000, seed: int = 7, confidence: float = 0.95) -> list[float] | None:
     """Percentile CI of the mean of a serially correlated series, resampling contiguous blocks of `block` values."""
     series = np.asarray(values, dtype=float)
     n = len(series)
@@ -39,7 +46,7 @@ def block_bootstrap_mean_ci(values, *, block: int, draws: int = 1000, seed: int 
     return [float(np.quantile(means, tail)), float(np.quantile(means, 1.0 - tail))]
 
 
-def ic_summary(ic_by_date: dict[str, float], *, horizon: int, era_days: int = 90, bootstrap_draws: int = 1000, seed: int = 7) -> dict:
+def ic_summary(ic_by_date: dict[str, float], *, horizon: int, era_days: int = 90, bootstrap_draws: int = 1000, seed: int = 7) -> dict[str, Any]:
     """Statistics of one daily IC series ({date: ic})."""
     if not ic_by_date:
         return {"num_dates": 0, "mean_ic": 0.0, "t": 0.0, "nonoverlap_t": 0.0, "hac_t": 0.0, "ci95": None, "eras": None,
@@ -67,10 +74,10 @@ def ic_summary(ic_by_date: dict[str, float], *, horizon: int, era_days: int = 90
 
 
 def evaluate_signal(frame: pd.DataFrame, *, score_column: str, date_column: str = "date", ticker_column: str = "ticker",
-                    split_column: str = "split", splits=("validation", "backtest"), horizons=(5, 20),
+                    split_column: str = "split", splits: Sequence[str]=("validation", "backtest"), horizons: Sequence[int]=(5, 20),
                     target_template: str = "target_rank_{h}d", class_column: str | None = None,
                     regime_column: str | None = None, min_names_per_date: int = 20, era_days: int = 90,
-                    bootstrap_draws: int = 1000, seed: int = 7) -> dict:
+                    bootstrap_draws: int = 1000, seed: int = 7) -> dict[str, Any]:
     """{split: {"h<horizon>": ic_summary, "by_class": ..., "by_regime": ..., "decay": {horizon: mean_ic}}}."""
     report: dict = {"score_column": score_column, "splits": {}}
     for split in splits:

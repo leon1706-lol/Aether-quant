@@ -9,6 +9,8 @@ pip install -r requirements/requirements-dev.txt
 pip install -e .     # registers the `aq` command
 ```
 
+To use only the library, `pip install -e .` pulls only numpy and pandas; `.[research]`, `.[notebooks]`, `.[docs]` and `.[full]` add the rest. `tests/test_lite_install.py` keeps the light install importable.
+
 - **Python <!--fact:python.ci-->3.11<!--/fact-->** is what CI runs.
 - **Docker** is only needed for real backtests. The first run downloads the Lean engine image (about 40 GB). Tests, `aq evaluate` and profiling run without it.
 - **Optional:** Node.js for `webui/`; Docker Compose for Redis and Postgres.
@@ -25,6 +27,7 @@ aq test          # the suite, and it refreshes the README badge
 - **Register every new test file** in `aq_cli.py`'s `_SUBSYSTEM_TEST_FILES`, or filtered runs skip it.
 - **Run `aq test`, or `pytest` from the root** so `testpaths` applies; never `pytest .` (#8, `tests/README.md`).
 - **Real Lean backtests** are run by the maintainer. Don't block a PR on one.
+- **Docs and notebooks:** `python scripts/build_docs.py` then `mkdocs build --strict` (`pip install -r requirements/requirements-docs.txt`); notebooks are edited in `notebooks/src/*.py` and rebuilt with `python scripts/build_notebooks.py --execute`.
 
 CI runs the suite on Ubuntu and Windows with an 80% coverage gate, plus ruff, the frontend tests, a CLI smoke battery, actionlint and guard jobs. A red job means don't merge, even if your local run was green.
 
@@ -65,4 +68,9 @@ Push a tag `vX.Y.Z` on `main` after writing its Changelog entry. `release.yml` t
 
 ## License
 
-PolyForm Noncommercial 1.0.0. By opening a PR you agree your contribution may be used under the same terms.
+Two licenses, mapped path by path in [`LICENSE`](LICENSE) and [`REUSE.toml`](REUSE.toml):
+
+- **Apache-2.0:** the library, i.e. everything the wheel and the dashboard image ship, plus `webui/`, `notebooks/`, `docs/`, `examples/` and `formal/`.
+- **PolyForm Noncommercial 1.0.0:** the trading system, including `main.py`, the trainers, `ml/`, `config.json`, `scripts/` and the research records.
+
+Inbound equals outbound: a contribution is licensed under the license of the path it changes. A new file takes the license its path matches in `REUSE.toml`, and `tests/test_licensing.py` checks the wheel.

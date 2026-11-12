@@ -41,6 +41,7 @@ from portfolio.target_weights import (
     update_missing_bars,
     weights_at_tick,
 )
+from typing import Any
 
 SWEEP_CLASS = "cash_sweep"
 CRYPTO_LOT = 1e-6
@@ -54,6 +55,7 @@ def coinbase_taker_bps(date: str) -> float:
 
 
 def default_fee_usd(asset_class: str, notional: float, date: str, config: TargetWeightsConfig) -> float:
+    """The fee the target-weights simulator charges one fill: Coinbase taker on crypto, 0.2 bps (min $2) on forex, the equity terms otherwise."""
     if asset_class == "crypto":
         return abs(notional) * coinbase_taker_bps(date) / 1e4
     if asset_class == "forex":
@@ -76,7 +78,7 @@ class MarketPanel:
         return {ticker: i for i, ticker in enumerate(self.tickers)}
 
 
-def load_market_panel(root: Path, config: dict, *, extra_equity: tuple[str, ...] = ("BIL",), data_dir: str = "data") -> MarketPanel:
+def load_market_panel(root: Path, config: dict[str, Any], *, extra_equity: tuple[str, ...] = ("BIL",), data_dir: str = "data") -> MarketPanel:
     """Every universe asset plus the sweep ticker, from the Lean zips under `root/data_dir`."""
     from data_pipeline.data_audit import asset_zip_paths, read_lean_daily_zip
 
@@ -137,7 +139,7 @@ def simulate_target_weights(
     start: str,
     end: str,
     nav: float = 100_000.0,
-    sweep_config: dict | None = None,
+    sweep_config: dict[str, Any] | None = None,
     sweep_ticker: str = "BIL",
     rf_dates: list[str] | None = None,
     rf_rates: list[float] | None = None,
@@ -146,7 +148,7 @@ def simulate_target_weights(
     max_drawdown_velocity: float | None = None,
     fee_fn: Callable[[str, float, str, TargetWeightsConfig], float] = default_fee_usd,
     lot_size: Mapping[str, float] | None = None,
-) -> dict:
+) -> dict[str, Any]:
     """One path over [start, end]. Returns {"nav", "strategy" (ex-sweep daily return), "strategy_excess" (that, less the
     risk-free return on the net capital invested), "total" (daily return), "gross", "fees", "financing", "turnover", "fills",
     "locked_on"}, the series indexed by calendar date.

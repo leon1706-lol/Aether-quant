@@ -1,0 +1,600 @@
+{
+ "clusters": [
+  {
+   "average_correlation": 0.715512,
+   "cluster_id": "cluster_0",
+   "dominant_regime_label": "unknown",
+   "members": [
+    "ADAUSD",
+    "BCHUSD",
+    "BTCUSD",
+    "DOGEUSD",
+    "ETCUSD",
+    "ETHUSD",
+    "LINKUSD",
+    "LTCUSD",
+    "XLMUSD",
+    "XRPUSD"
+   ]
+  },
+  {
+   "average_correlation": 0.0,
+   "cluster_id": "cluster_1",
+   "dominant_regime_label": "unknown",
+   "members": [
+    "ZECUSD"
+   ]
+  }
+ ],
+ "dimensions": {
+  "depth": 1,
+  "height": 100,
+  "width": 100
+ },
+ "links": [
+  {
+   "correlation": 0.650151,
+   "distance": 0.349849,
+   "source": "ADAUSD",
+   "target": "BCHUSD"
+  },
+  {
+   "correlation": 0.77553,
+   "distance": 0.22447,
+   "source": "ADAUSD",
+   "target": "BTCUSD"
+  },
+  {
+   "correlation": 0.837555,
+   "distance": 0.162445,
+   "source": "ADAUSD",
+   "target": "DOGEUSD"
+  },
+  {
+   "correlation": 0.783249,
+   "distance": 0.216751,
+   "source": "ADAUSD",
+   "target": "ETCUSD"
+  },
+  {
+   "correlation": 0.705235,
+   "distance": 0.294765,
+   "source": "ADAUSD",
+   "target": "ETHUSD"
+  },
+  {
+   "correlation": 0.671603,
+   "distance": 0.328397,
+   "source": "ADAUSD",
+   "target": "LINKUSD"
+  },
+  {
+   "correlation": 0.690904,
+   "distance": 0.309096,
+   "source": "ADAUSD",
+   "target": "LTCUSD"
+  },
+  {
+   "correlation": 0.744883,
+   "distance": 0.255117,
+   "source": "ADAUSD",
+   "target": "XLMUSD"
+  },
+  {
+   "correlation": 0.813255,
+   "distance": 0.186745,
+   "source": "ADAUSD",
+   "target": "XRPUSD"
+  },
+  {
+   "correlation": 0.573435,
+   "distance": 0.426565,
+   "source": "ADAUSD",
+   "target": "ZECUSD"
+  },
+  {
+   "correlation": 0.572112,
+   "distance": 0.427888,
+   "source": "BCHUSD",
+   "target": "BTCUSD"
+  },
+  {
+   "correlation": 0.634556,
+   "distance": 0.365444,
+   "source": "BCHUSD",
+   "target": "DOGEUSD"
+  },
+  {
+   "correlation": 0.740512,
+   "distance": 0.259488,
+   "source": "BCHUSD",
+   "target": "ETCUSD"
+  },
+  {
+   "correlation": 0.557869,
+   "distance": 0.442131,
+   "source": "BCHUSD",
+   "target": "LTCUSD"
+  },
+  {
+   "correlation": 0.509051,
+   "distance": 0.490949,
+   "source": "BCHUSD",
+   "target": "XLMUSD"
+  },
+  {
+   "correlation": 0.632747,
+   "distance": 0.367253,
+   "source": "BCHUSD",
+   "target": "XRPUSD"
+  },
+  {
+   "correlation": 0.594553,
+   "distance": 0.405447,
+   "source": "BCHUSD",
+   "target": "ZECUSD"
+  },
+  {
+   "correlation": 0.828082,
+   "distance": 0.171918,
+   "source": "BTCUSD",
+   "target": "DOGEUSD"
+  },
+  {
+   "correlation": 0.715986,
+   "distance": 0.284014,
+   "source": "BTCUSD",
+   "target": "ETCUSD"
+  },
+  {
+   "correlation": 0.88518,
+   "distance": 0.11482,
+   "source": "BTCUSD",
+   "target": "ETHUSD"
+  },
+  {
+   "correlation": 0.690815,
+   "distance": 0.309185,
+   "source": "BTCUSD",
+   "target": "LINKUSD"
+  },
+  {
+   "correlation": 0.63669,
+   "distance": 0.36331,
+   "source": "BTCUSD",
+   "target": "LTCUSD"
+  },
+  {
+   "correlation": 0.739767,
+   "distance": 0.260233,
+   "source": "BTCUSD",
+   "target": "XLMUSD"
+  },
+  {
+   "correlation": 0.881067,
+   "distance": 0.118933,
+   "source": "BTCUSD",
+   "target": "XRPUSD"
+  },
+  {
+   "correlation": 0.571619,
+   "distance": 0.428381,
+   "source": "BTCUSD",
+   "target": "ZECUSD"
+  },
+  {
+   "correlation": 0.801968,
+   "distance": 0.198032,
+   "source": "DOGEUSD",
+   "target": "ETCUSD"
+  },
+  {
+   "correlation": 0.750043,
+   "distance": 0.249957,
+   "source": "DOGEUSD",
+   "target": "ETHUSD"
+  },
+  {
+   "correlation": 0.722357,
+   "distance": 0.277643,
+   "source": "DOGEUSD",
+   "target": "LINKUSD"
+  },
+  {
+   "correlation": 0.724053,
+   "distance": 0.275947,
+   "source": "DOGEUSD",
+   "target": "LTCUSD"
+  },
+  {
+   "correlation": 0.809671,
+   "distance": 0.190329,
+   "source": "DOGEUSD",
+   "target": "XLMUSD"
+  },
+  {
+   "correlation": 0.878285,
+   "distance": 0.121715,
+   "source": "DOGEUSD",
+   "target": "XRPUSD"
+  },
+  {
+   "correlation": 0.546921,
+   "distance": 0.453079,
+   "source": "DOGEUSD",
+   "target": "ZECUSD"
+  },
+  {
+   "correlation": 0.684213,
+   "distance": 0.315787,
+   "source": "ETCUSD",
+   "target": "ETHUSD"
+  },
+  {
+   "correlation": 0.684382,
+   "distance": 0.315618,
+   "source": "ETCUSD",
+   "target": "LINKUSD"
+  },
+  {
+   "correlation": 0.725302,
+   "distance": 0.274698,
+   "source": "ETCUSD",
+   "target": "LTCUSD"
+  },
+  {
+   "correlation": 0.72486,
+   "distance": 0.27514,
+   "source": "ETCUSD",
+   "target": "XLMUSD"
+  },
+  {
+   "correlation": 0.794263,
+   "distance": 0.205737,
+   "source": "ETCUSD",
+   "target": "XRPUSD"
+  },
+  {
+   "correlation": 0.594988,
+   "distance": 0.405012,
+   "source": "ETCUSD",
+   "target": "ZECUSD"
+  },
+  {
+   "correlation": 0.744633,
+   "distance": 0.255367,
+   "source": "ETHUSD",
+   "target": "LINKUSD"
+  },
+  {
+   "correlation": 0.617342,
+   "distance": 0.382658,
+   "source": "ETHUSD",
+   "target": "LTCUSD"
+  },
+  {
+   "correlation": 0.735069,
+   "distance": 0.264931,
+   "source": "ETHUSD",
+   "target": "XLMUSD"
+  },
+  {
+   "correlation": 0.789892,
+   "distance": 0.210108,
+   "source": "ETHUSD",
+   "target": "XRPUSD"
+  },
+  {
+   "correlation": 0.56109,
+   "distance": 0.43891,
+   "source": "ETHUSD",
+   "target": "ZECUSD"
+  },
+  {
+   "correlation": 0.68065,
+   "distance": 0.31935,
+   "source": "LINKUSD",
+   "target": "LTCUSD"
+  },
+  {
+   "correlation": 0.810464,
+   "distance": 0.189536,
+   "source": "LINKUSD",
+   "target": "XLMUSD"
+  },
+  {
+   "correlation": 0.687602,
+   "distance": 0.312398,
+   "source": "LINKUSD",
+   "target": "XRPUSD"
+  },
+  {
+   "correlation": 0.564307,
+   "distance": 0.435693,
+   "source": "LINKUSD",
+   "target": "ZECUSD"
+  },
+  {
+   "correlation": 0.689739,
+   "distance": 0.310261,
+   "source": "LTCUSD",
+   "target": "XLMUSD"
+  },
+  {
+   "correlation": 0.642975,
+   "distance": 0.357025,
+   "source": "LTCUSD",
+   "target": "XRPUSD"
+  },
+  {
+   "correlation": 0.509523,
+   "distance": 0.490477,
+   "source": "LTCUSD",
+   "target": "ZECUSD"
+  },
+  {
+   "correlation": 0.825008,
+   "distance": 0.174992,
+   "source": "XLMUSD",
+   "target": "XRPUSD"
+  },
+  {
+   "correlation": 0.538642,
+   "distance": 0.461358,
+   "source": "XLMUSD",
+   "target": "ZECUSD"
+  },
+  {
+   "correlation": 0.581018,
+   "distance": 0.418982,
+   "source": "XRPUSD",
+   "target": "ZECUSD"
+  }
+ ],
+ "nodes": [
+  {
+   "cluster_id": "cluster_0",
+   "correlation_strength": 0.741374,
+   "market_distance": 0.258626,
+   "regime_label": "unknown",
+   "symbol": "ADAUSD",
+   "top_peer_returns": [
+    -0.004483,
+    -0.003827,
+    -0.018283
+   ],
+   "top_peers": [
+    "DOGEUSD",
+    "XRPUSD",
+    "ETCUSD"
+   ],
+   "topology_risk": "elevated",
+   "volatility_pressure": 0.605876,
+   "x": 38.219739,
+   "y": 50.350085,
+   "z": 0.855876
+  },
+  {
+   "cluster_id": "cluster_0",
+   "correlation_strength": 0.586163,
+   "market_distance": 0.413837,
+   "regime_label": "unknown",
+   "symbol": "BCHUSD",
+   "top_peer_returns": [
+    -0.018283,
+    -0.011494,
+    -0.004483
+   ],
+   "top_peers": [
+    "ETCUSD",
+    "ADAUSD",
+    "DOGEUSD"
+   ],
+   "topology_risk": "elevated",
+   "volatility_pressure": 0.765726,
+   "x": 28.341874,
+   "y": 17.131342,
+   "z": 0.95
+  },
+  {
+   "cluster_id": "cluster_0",
+   "correlation_strength": 0.747248,
+   "market_distance": 0.252752,
+   "regime_label": "unknown",
+   "symbol": "BTCUSD",
+   "top_peer_returns": [
+    0.005172,
+    -0.003827,
+    -0.004483
+   ],
+   "top_peers": [
+    "ETHUSD",
+    "XRPUSD",
+    "DOGEUSD"
+   ],
+   "topology_risk": "normal",
+   "volatility_pressure": 0.306635,
+   "x": 66.252925,
+   "y": 51.346408,
+   "z": 0.556635
+  },
+  {
+   "cluster_id": "cluster_0",
+   "correlation_strength": 0.776286,
+   "market_distance": 0.223714,
+   "regime_label": "unknown",
+   "symbol": "DOGEUSD",
+   "top_peer_returns": [
+    -0.003827,
+    -0.011494,
+    0.003156
+   ],
+   "top_peers": [
+    "XRPUSD",
+    "ADAUSD",
+    "BTCUSD"
+   ],
+   "topology_risk": "elevated",
+   "volatility_pressure": 0.510825,
+   "x": 47.841504,
+   "y": 55.005207,
+   "z": 0.760825
+  },
+  {
+   "cluster_id": "cluster_0",
+   "correlation_strength": 0.739415,
+   "market_distance": 0.260585,
+   "regime_label": "unknown",
+   "symbol": "ETCUSD",
+   "top_peer_returns": [
+    -0.004483,
+    -0.003827,
+    -0.011494
+   ],
+   "top_peers": [
+    "DOGEUSD",
+    "XRPUSD",
+    "ADAUSD"
+   ],
+   "topology_risk": "elevated",
+   "volatility_pressure": 0.556566,
+   "x": 37.800019,
+   "y": 39.146908,
+   "z": 0.806566
+  },
+  {
+   "cluster_id": "cluster_0",
+   "correlation_strength": 0.71206,
+   "market_distance": 0.28794,
+   "regime_label": "unknown",
+   "symbol": "ETHUSD",
+   "top_peer_returns": [
+    0.003156,
+    -0.003827,
+    -0.004483
+   ],
+   "top_peers": [
+    "BTCUSD",
+    "XRPUSD",
+    "DOGEUSD"
+   ],
+   "topology_risk": "normal",
+   "volatility_pressure": 0.4229,
+   "x": 73.430451,
+   "y": 58.932664,
+   "z": 0.6729
+  },
+  {
+   "cluster_id": "cluster_0",
+   "correlation_strength": 0.686005,
+   "market_distance": 0.313995,
+   "regime_label": "unknown",
+   "symbol": "LINKUSD",
+   "top_peer_returns": [
+    -0.008398,
+    0.005172,
+    -0.004483
+   ],
+   "top_peers": [
+    "XLMUSD",
+    "ETHUSD",
+    "DOGEUSD"
+   ],
+   "topology_risk": "elevated",
+   "volatility_pressure": 0.566937,
+   "x": 59.260889,
+   "y": 78.587886,
+   "z": 0.816937
+  },
+  {
+   "cluster_id": "cluster_0",
+   "correlation_strength": 0.662836,
+   "market_distance": 0.337164,
+   "regime_label": "unknown",
+   "symbol": "LTCUSD",
+   "top_peer_returns": [
+    -0.018283,
+    -0.004483,
+    -0.011494
+   ],
+   "top_peers": [
+    "ETCUSD",
+    "DOGEUSD",
+    "ADAUSD"
+   ],
+   "topology_risk": "elevated",
+   "volatility_pressure": 0.466089,
+   "x": 22.197652,
+   "y": 66.301581,
+   "z": 0.716089
+  },
+  {
+   "cluster_id": "cluster_0",
+   "correlation_strength": 0.732057,
+   "market_distance": 0.267943,
+   "regime_label": "unknown",
+   "symbol": "XLMUSD",
+   "top_peer_returns": [
+    -0.003827,
+    0.018298,
+    -0.004483
+   ],
+   "top_peers": [
+    "XRPUSD",
+    "LINKUSD",
+    "DOGEUSD"
+   ],
+   "topology_risk": "elevated",
+   "volatility_pressure": 0.539838,
+   "x": 49.677592,
+   "y": 70.687883,
+   "z": 0.789838
+  },
+  {
+   "cluster_id": "cluster_0",
+   "correlation_strength": 0.771677,
+   "market_distance": 0.228323,
+   "regime_label": "unknown",
+   "symbol": "XRPUSD",
+   "top_peer_returns": [
+    0.003156,
+    -0.004483,
+    -0.008398
+   ],
+   "top_peers": [
+    "BTCUSD",
+    "DOGEUSD",
+    "XLMUSD"
+   ],
+   "topology_risk": "elevated",
+   "volatility_pressure": 0.530646,
+   "x": 56.130836,
+   "y": 48.971286,
+   "z": 0.780646
+  },
+  {
+   "cluster_id": "cluster_1",
+   "correlation_strength": 0.0,
+   "market_distance": 1.0,
+   "regime_label": "unknown",
+   "symbol": "ZECUSD",
+   "top_peer_returns": [
+    -0.018283,
+    -0.029158,
+    -0.003827
+   ],
+   "top_peers": [
+    "ETCUSD",
+    "BCHUSD",
+    "XRPUSD"
+   ],
+   "topology_risk": "isolated",
+   "volatility_pressure": 0.992633,
+   "x": 70.846518,
+   "y": 13.538751,
+   "z": 0.95
+  }
+ ],
+ "reasons": [],
+ "state": "ready"
+}

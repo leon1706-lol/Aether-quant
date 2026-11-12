@@ -12,6 +12,7 @@ import os
 import sys
 from collections.abc import Mapping, Sequence
 from pathlib import Path
+from typing import Any
 
 GIB = 1024.0 ** 3
 JUDGE_SESSIONS = (60, 252)
@@ -40,7 +41,7 @@ def total_memory_bytes() -> int | None:
         return None
 
 
-def ram_preflight(host: str, *, total_bytes: int | None = None, min_gb: float = 14.0) -> dict:
+def ram_preflight(host: str, *, total_bytes: int | None = None, min_gb: float = 14.0) -> dict[str, Any]:
     """Whether this host may train. A local machine below the minimum refuses with the numbers: a retrain killed for memory hours in costs more than a clear no. Unknown RAM refuses too."""
     if host not in HOSTS:
         raise ValueError(f"unknown host {host!r}; expected one of {HOSTS}")
@@ -60,7 +61,7 @@ def retrain_stages(*, data_present: bool) -> list[str]:
     return ([] if data_present else [BOOTSTRAP_STAGE]) + list(RETRAIN_STAGES)
 
 
-def retrain_due(*, sessions_since_retrain: int | None, decay_states: Mapping[str, str], every_sessions: int = RETRAIN_EVERY_SESSIONS) -> dict:
+def retrain_due(*, sessions_since_retrain: int | None, decay_states: Mapping[str, str], every_sessions: int = RETRAIN_EVERY_SESSIONS) -> dict[str, Any]:
     """By the calendar, or because the book's generation is decaying. It reports; it starts nothing."""
     decaying = sorted(name for name, state in decay_states.items() if state in ("decaying", "dead", "tripped"))
     if decaying:
@@ -71,7 +72,7 @@ def retrain_due(*, sessions_since_retrain: int | None, decay_states: Mapping[str
 
 
 def due_actions(
-    generations: Mapping[str, Mapping], judged: Mapping, *, session: str | None, sessions_behind: int = 0, sessions_since_retrain: int | None = None, broker_keys: bool = False, policy_enabled: bool = False,
+    generations: Mapping[str, Mapping], judged: Mapping[str, Any], *, session: str | None, sessions_behind: int = 0, sessions_since_retrain: int | None = None, broker_keys: bool = False, policy_enabled: bool = False,
     record_started: bool = True,
 ) -> list[dict]:
     """What a person or a job should do next, most urgent first."""
@@ -110,7 +111,7 @@ def due_actions(
     return actions
 
 
-def status_view(generations: Mapping[str, Mapping], judged: Mapping, actions: Sequence[Mapping], *, session: str | None, policy: Mapping) -> dict:
+def status_view(generations: Mapping[str, Mapping], judged: Mapping[str, Any], actions: Sequence[Mapping], *, session: str | None, policy: Mapping[str, Any]) -> dict[str, Any]:
     """The one view `aq cycle status`, the API and the dashboard all read. No secret and no path outside the repo."""
     latest = judged.get("latest_allocation") or {}
     # Before the first allocation row, the book is whatever is active: that is what `scripts/cycle_daily.py` starts from.
@@ -166,6 +167,7 @@ def sessions_since_retrain(run_root: Path, sessions: Sequence[str]) -> int | Non
     return None if newest is None else sum(1 for day in sessions if day > newest)
 
 
-def read_json_or(path: Path, default):
+def read_json_or(path: Path, default: Any) -> Any:
+    """A JSON file's content, or `default` when the file does not exist."""
     path = Path(path)
     return json.loads(path.read_text(encoding="utf-8")) if path.exists() else default

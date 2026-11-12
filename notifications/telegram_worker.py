@@ -24,7 +24,6 @@ from __future__ import annotations
 import argparse
 import json
 import logging
-import os
 import time
 from pathlib import Path
 
@@ -39,6 +38,7 @@ from notifications.postgres_telegram import (
 )
 from notifications.telegram_alerts import format_session_summary_alert, format_trigger_alert, should_alert_trigger
 from notifications.telegram_client import TelegramClient
+from execution.secrets_io import secret_env
 
 logger = logging.getLogger(__name__)
 
@@ -83,7 +83,7 @@ class TelegramWorker:
         else:
             import psycopg
 
-            dsn = os.environ.get("AETHER_POSTGRES_DSN", postgres_dsn)
+            dsn = secret_env("POSTGRES_DSN", postgres_dsn)
             self._conn = psycopg.connect(dsn, autocommit=False)
             logger.info("TelegramWorker: PostgreSQL connected.")
 
@@ -191,7 +191,7 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    postgres_dsn = os.environ.get("AETHER_POSTGRES_DSN", "")
+    postgres_dsn = secret_env("POSTGRES_DSN", "")
     config = _load_telegram_config()
     poll_interval = args.poll_interval
     if poll_interval is None:

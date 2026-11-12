@@ -33,6 +33,10 @@ from portfolio.premia_signals import (
     sleeve_signal,
 )
 from portfolio.target_weights import TargetWeightsConfig, resolve_target_weights_config
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
 
 PHASES = 5
 ANNUALIZATION = 365.0
@@ -40,7 +44,7 @@ SESSION_ANNUALIZATION = 252.0
 FRED_KEYS = ("treasury_10yr", "treasury_3mo", "credit_spread_baa10y", "implied_volatility_vix", "implied_volatility_3m")
 
 
-def annual_sharpe(daily: pd.Series, *, sessions=None) -> float | None:
+def annual_sharpe(daily: pd.Series, *, sessions: Iterable[str] | None=None) -> float | None:
     """Given `sessions`, the series is compounded onto them and annualised at 252: a panel has no weekend rows before its first
     crypto bar, and sqrt(365) on session rows inflates a Sharpe about 1.2 times. Without them, calendar rows at sqrt(365)."""
     annualization = ANNUALIZATION
@@ -57,6 +61,7 @@ def annual_sharpe(daily: pd.Series, *, sessions=None) -> float | None:
 
 
 def max_drawdown(daily: pd.Series) -> float:
+    """The largest peak-to-trough fall of the compounded daily returns, as a positive fraction."""
     if daily.empty:
         return 0.0
     curve = (1.0 + daily.fillna(0.0)).cumprod().to_numpy()
@@ -64,6 +69,7 @@ def max_drawdown(daily: pd.Series) -> float:
 
 
 def phase_offsets(rebalance_every: int, phases: int = PHASES) -> list[int]:
+    """The start offsets a rebalance cycle is averaged over, so no trial depends on its starting day."""
     return sorted({int(i * rebalance_every / phases) for i in range(phases)})
 
 
@@ -74,6 +80,7 @@ def nulls_for(spec: SleeveSpec) -> tuple[str, ...]:
 
 @dataclass
 class ResearchContext:
+    """Everything a research trial runs against: the market panel, the signal panel, the path config and the simulator."""
     market: MarketPanel
     panel: ResearchPanel
     config: TargetWeightsConfig
@@ -84,7 +91,7 @@ class ResearchContext:
     listed: Callable[[str, str], bool]
     settings: WeightSettings = field(default_factory=WeightSettings)
 
-    def simulate(self, weights: Mapping[str, Mapping[str, float]], start: str, end: str, *, max_drawdown_velocity: float | None = None, max_total_drawdown: float | None = None) -> dict:
+    def simulate(self, weights: Mapping[str, Mapping[str, float]], start: str, end: str, *, max_drawdown_velocity: float | None = None, max_total_drawdown: float | None = None) -> dict[str, Any]:
         return simulate_target_weights(
             weights, self.market, self.config, start=start, end=end, sweep_config=self.sweep, rf_dates=self.rf_dates,
             rf_rates=self.rf_rates, carry_fn=self.carry, max_drawdown_velocity=max_drawdown_velocity,
@@ -96,7 +103,8 @@ class ResearchContext:
         return None if tuple(spec.universe) == ("crypto",) else self.market.sessions
 
 
-def build_context(root: Path, config: dict, *, data_dir: str = "data") -> ResearchContext:
+def build_context(root: Path, config: dict[str, Any], *, data_dir: str = "data") -> ResearchContext:
+    """Build a `ResearchContext` from the repo's data: the market panel, known closes, FRED, CFTC and carry inputs, and listing dates."""
     from data_pipeline.cftc_cot import change_by_session, fx_pair_scores, macro_scores, read_positioning
     from data_pipeline.fred_backfill import load_cached_fred_series
     from features.fx_carry import fx_carry_3m
@@ -134,14 +142,15 @@ def build_context(root: Path, config: dict, *, data_dir: str = "data") -> Resear
     )
 
 
-def weights_for(spec: SleeveSpec, context: ResearchContext, signal: pd.DataFrame, *, start: str, end: str, phase_offset: int) -> dict:
+def weights_for(spec: SleeveSpec, context: ResearchContext, signal: pd.DataFrame, *, start: str, end: str, phase_offset: int) -> dict[str, Any]:
+    """The sleeve's weights over [start, end] in this context, from one phase offset."""
     return signal_to_weights(
         signal, context.panel, kind=spec.kind, rebalance_every=spec.rebalance_every, phase_offset=phase_offset,
         settings=context.settings, start=start, end=end, listed=context.listed, top_k=spec.params.get("top_k"),
     )
 
 
-def score_sleeve(spec: SleeveSpec, context: ResearchContext, *, start: str, split: str, end: str, signal: pd.DataFrame | None = None) -> dict:
+def score_sleeve(spec: SleeveSpec, context: ResearchContext, *, start: str, split: str, end: str, signal: pd.DataFrame | None = None) -> dict[str, Any]:
     """Median over the phases of the ex-T-bill Sharpe: pooled and on both sides of `split`."""
     signal = sleeve_signal(spec, context.panel) if signal is None else signal
     sessions = context.sessions_for(spec)
@@ -158,7 +167,7 @@ def score_sleeve(spec: SleeveSpec, context: ResearchContext, *, start: str, spli
         gross.append(float(result["gross"].mean()) if not result["gross"].empty else 0.0)
         daily_by_phase[offset] = strategy
 
-    def median(values: list) -> float | None:
+    def median(values: list[Any]) -> float | None:
         finite = [value for value in values if value is not None]
         return float(np.median(finite)) if finite else None
 
@@ -192,7 +201,8 @@ def placebo_p_value(observed: float | None, placebos: list[float]) -> float:
     return (1.0 + sum(value >= observed for value in placebos)) / (len(placebos) + 1.0)
 
 
-def passes_sharpe_clauses(score: Mapping, *, half_floor: float = 0.40, pooled_floor: float = 0.50) -> bool:
+def passes_sharpe_clauses(score: Mapping[str, Any], *, half_floor: float = 0.40, pooled_floor: float = 0.50) -> bool:
+    """Whether a trial's pooled Sharpe and both halves' Sharpes clear their floors (R-SLEEVE3's Sharpe clauses)."""
     values = (score.get("sharpe"), score.get("sharpe_first_half"), score.get("sharpe_second_half"))
     return (
         all(value is not None for value in values)
@@ -200,7 +210,7 @@ def passes_sharpe_clauses(score: Mapping, *, half_floor: float = 0.40, pooled_fl
     )
 
 
-def selection_gate(scores: list[dict], p_values: Mapping[str, Mapping[str, float]], *, max_survivors: int = 5, max_correlation: float = 0.7, alpha: float = 0.05) -> dict:
+def selection_gate(scores: list[dict], p_values: Mapping[str, Mapping[str, float]], *, max_survivors: int = 5, max_correlation: float = 0.7, alpha: float = 0.05) -> dict[str, Any]:
     """R-SLEEVE2. A survivor passes both Sharpe clauses and every placebo test; among survivors the higher Sharpe keeps its place
     against any other with daily correlation above `max_correlation`; at most `max_survivors` remain."""
     passing = []
@@ -230,7 +240,7 @@ def selection_gate(scores: list[dict], p_values: Mapping[str, Mapping[str, float
     return {"survivors": [score["id"] for score in survivors], "failed": failed}
 
 
-def _first_phase(score: Mapping) -> pd.Series | None:
+def _first_phase(score: Mapping[str, Any]) -> pd.Series | None:
     daily = score.get("daily") or {}
     return daily[min(daily)] if daily else None
 

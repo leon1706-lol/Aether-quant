@@ -1964,6 +1964,10 @@
                 "every_n_ticks": 20,
                 "backtest_only_at_shutdown": false,
                 "compact_json_in_backtest": true
+            },
+            "field_test": {
+                "enabled": false,
+                "_note": "V6.6.5 (#351): only scripts/lean_smoke/field_test.sh turns this on, in a temp config, with AQ_FIELD_TEST=1 and a paper mode."
             }
         },
         "performance_triggers": {
@@ -2591,6 +2595,23 @@
                     "LTCUSD"
                 ],
                 "core_only": false
+            }
+        },
+        "live_readiness": {
+            "_note": "V6.6.5 (#352): thresholds of the paper-to-live scorecard (aq live-readiness). Report-only: enforce_before_live true makes main.py refuse live mode unless the last scorecard is ready.",
+            "enforce_before_live": false,
+            "thresholds": {
+                "forward_sessions_min": 60,
+                "forward_alpha_t_min": 2.0,
+                "book_dsr_min": 0.95,
+                "round_pbo_max": 0.5,
+                "paper_trading_days_min": 120,
+                "paper_rebalances_min": 6,
+                "field_test_max_age_days": 90,
+                "max_total_drawdown_pct_max": 0.15,
+                "backup_max_age_days": 7,
+                "verification_max_age_days": 30,
+                "mutation_score_min": 0.9
             }
         }
     },

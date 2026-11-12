@@ -54,7 +54,9 @@ services:
       context: .
     container_name: aether-quant-engine
     ports:
-      - "${AETHER_QUANT_PORT:-8001}:8000"
+      # V6.6.5 (#350): localhost only by default, like Redis and Postgres. Set AETHER_QUANT_BIND=0.0.0.0 to serve the
+      # LAN, and only with API auth on (a users file, RUNBOOK "Users"): the API includes the audit log.
+      - "${AETHER_QUANT_BIND:-127.0.0.1}:${AETHER_QUANT_PORT:-8001}:8000"
     volumes:
       - ./visualization:/app/visualization
       - ./ml:/app/ml
@@ -87,6 +89,19 @@ services:
         condition: service_healthy
     networks:
       - aether-net
+
+  # V6.6.5 (#344): the dashboard alone with demo data, no database or engine (`aq webui --docker` runs the same image).
+  # `docker compose --profile dashboard up dashboard`, then http://localhost:8080
+  dashboard:
+    image: ${AQ_DASHBOARD_IMAGE:-aether-quant-dashboard:latest}
+    build:
+      context: .
+      target: dashboard
+    container_name: aether-quant-dashboard
+    profiles:
+      - dashboard
+    ports:
+      - "127.0.0.1:${AQ_DASHBOARD_PORT:-8080}:8000"
 
   lean:
     # Pinned to the same build aq_cli.py::PINNED_LEAN_ENGINE_IMAGE uses for
@@ -126,15 +141,20 @@ services:
   lean-live:
     # Same pin rationale as the `lean` service above.
     image: ${LEAN_IMAGE:-quantconnect/lean:17900}
+    # V6.6.5 (#349): `aq live up --account <id>` starts one more container per account from this service
+    # (`docker compose run --name aether-quant-lean-live-<id>`), on the same network as Redis and Postgres.
     container_name: aether-quant-lean-live
     profiles:
       - lean-live
     working_dir: /workspace
-    command: ["bash", "-lc", "lean live deploy . --environment ${LEAN_LIVE_ENVIRONMENT:-live-paper}"]
+    # --lean-config: the rendered, secret-bearing file (`aq render-lean-config [--account <id>]`); lean.json (no secrets) by
+    # default, as before. AQ_ACCOUNT reaches the algorithm's own container through --extra-docker-config.
+    command: ["bash", "-lc", "lean live deploy . --environment ${LEAN_LIVE_ENVIRONMENT:-live-paper} --lean-config ${LEAN_LIVE_CONFIG:-lean.json} --extra-docker-config '{\"environment\": {\"AQ_ACCOUNT\": \"${AQ_ACCOUNT:-}\"}}'"]
     environment:
       AETHER_REDIS_URL: redis://redis:6379/0
       AETHER_POSTGRES_DSN: postgresql://${POSTGRES_USER:-aether}:${POSTGRES_PASSWORD:-aether_dev_password}@postgres:5432/${POSTGRES_DB:-aether_quant}
       LEAN_LIVE_ENVIRONMENT: ${LEAN_LIVE_ENVIRONMENT:-live-paper}
+      AQ_ACCOUNT: ${AQ_ACCOUNT:-}
     volumes:
       - ./:/workspace
     depends_on:

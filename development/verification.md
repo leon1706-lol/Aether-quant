@@ -27,7 +27,7 @@ Every way this project is verified, and when each one is required. The table is 
 | `prove` | `aq prove` | the Lean 4 specs build (Mathlib) | Codespace, CI | 5 min (Mathlib cached) | stdout; CI formal.yml | every change to formal/ or a modelled file |
 | `prove_sorry` | `aq prove --check-sorry` | no sorry or admit in any spec | PC, CI | 1 s | stdout; tests/test_formal_no_sorry.py | every commit |
 | `axioms` | `python scripts/check_axioms.py` | every theorem rests on the three standard axioms, but two named native_decide findings | Codespace, CI | 2 min | stdout; CI formal.yml | every change to formal/ |
-| `differential` | `aq test --formal` | the Python functions equal the Lean models on thousands of computed cases (16 targets) | PC, CI | 1 min | aether_quant/_formal_cases/*.json | every commit |
+| `differential` | `aq test --formal` | the Python functions equal the Lean models on thousands of computed cases (18 targets) | PC, CI | 1 min | aether_quant/_formal_cases/*.json | every commit |
 | `properties` | `pytest tests/test_v664_properties.py` | invariants of the order gate, admission, session, shares, weight caps, hash chain and JSON safety hold for every input (hypothesis, derandomized) | PC, CI | 2 min | stdout | every commit |
 | `mutation` | `python scripts/mutation_check.py --out ml/evaluation/v664/mutation.json` | the tests of seven safety and ledger modules notice a changed comparison, operator or constant | Codespace | 1-2 h | ml/evaluation/v664/mutation.json | a phase |
 | `on_data` | `pytest tests/test_main_on_data_target_weights.py` | on_data() on the shipped path places the orders the pure rebalance function says, across a week | PC, CI | 10 s | stdout | every change to main.py |
@@ -52,24 +52,41 @@ Every way this project is verified, and when each one is required. The table is 
 | `audit_verify` | `aq audit-log --verify` | the audit chain in Postgres is intact (a real database; #339) | Codespace | 5 s | stdout | a phase |
 | `paper_readiness` | `aq paper-readiness` | the paper-readiness checklist against real services | Codespace | 5 s | visualization/grafana/paper_readiness_report.json | a phase |
 | `field_test_services` | `python scripts/field_test_services.py (scripts/field_services.sh up)` | audit events flow Redis to Postgres, a tampered row is found, each service restarts underneath a running pipeline | Codespace | 2 min | ml/evaluation/v664/field_test_services.json | a phase |
+| `lean_smoke:field_test` | `python scripts/lean_smoke/field_test.py` | main.py on Lean's paper brokerage places and fills an order, an injected drift breaches reconciliation, an injected shock trips the kill switch and flattens the book, a restart resumes, Redis and Postgres outages pass, two accounts run apart, the audit chain verifies | PC, Codespace | 1 h | ml/evaluation/field_test/<date>/report.json | a phase; a change to the safety path |
+| `live_readiness` | `aq live-readiness` | every paper-to-live condition, measured; unknown counts as fail | PC | 10 s | visualization/grafana/live_readiness.json, docs/live/paper-to-live.md | a phase; before any live capital |
+| `lite_install` | `pytest tests/test_lite_install.py (a clean venv with the built wheel: aq hello --offline)` | the base install (numpy, pandas) imports every facade and runs aq hello | PC, CI | 1 min | ml/evaluation/v665/lite_install.json | every commit |
+| `hello` | `aq hello [--offline]` | the five-minute start downloads keyless data, backtests the shipped rule and reports | PC | 30-60 s | stdout, --json | a release |
+| `type_completeness` | `python scripts/type_completeness.py` | every export of aether_quant is fully annotated; the floor only rises | PC, CI | 20 s | ml/evaluation/v665/type_completeness.json | every commit |
+| `docs_site` | `python scripts/build_docs.py && mkdocs build --strict` | the docs site builds with no warning, every facade has a reference page | PC, CI | 1 min | site/ | every change to docs/ or a public docstring |
+| `notebooks` | `python scripts/build_notebooks.py --check --execute` | the four tutorials match their sources and run clean | PC, CI | 5 min | notebooks/*.ipynb | every change to notebooks/ or the library |
+| `dashboard_image` | `docker build --target dashboard -t aether-quant-dashboard . && docker run -p 8080:8000` | the light dashboard image builds, serves the UI and answers /api/health in demo mode | PC, CI | 5 min | ml/evaluation/v665/dashboard.json | every change to Dockerfile, webui/ or monitoring/ |
+| `bandit` | `bandit -r <shipped packages> -lll -c pyproject.toml` | no high-severity static finding in shipped code | PC, CI | 1 min | stdout | every commit |
 | `ci:python-tests` | `CI: ubuntu and windows, coverage gate 80%` | the suite on both platforms | CI | 6 min | GitHub Actions | every push |
 | `ci:python-lint` | `CI: ruff and py_compile main.py` | lint and syntax | CI | 1 min | GitHub Actions | every push |
 | `ci:dependency-audit` | `CI: pip-audit` | no known-vulnerable pinned dependency | CI | 3 min | GitHub Actions | every push |
-| `ci:webui-tests` | `CI: tsc, oxlint, vitest, build` | the dashboard builds and its tests pass | CI | 1 min | GitHub Actions | every push |
+| `ci:webui-tests` | `CI: tsc, oxlint (jsx-a11y), vitest with coverage, build, npm audit` | the dashboard builds, its tests pass and no runtime dependency has a high advisory | CI | 2 min | GitHub Actions | every push |
 | `ci:cli-smoke` | `CI: aq --help, config get, secrets-check` | the CLI starts from a clean install | CI | 1 min | GitHub Actions | every push |
 | `ci:workflows-lint` | `CI: actionlint` | workflow syntax | CI | 10 s | GitHub Actions | every push |
 | `ci:fast-guards` | `CI: guard tests` | registration, help surface, workflows, packaging, docs, library gate | CI | 1 min | GitHub Actions | every push |
 | `ci:subsystem-matrix` | `CI: aq test --<bucket> for each of 15 buckets` | each bucket stands alone | CI | 2 min each | GitHub Actions | every push |
 | `ci:wheel-smoke` | `CI: build and install the wheel outside the checkout` | the package works installed | CI | 1 min | GitHub Actions | every push |
 | `ci:python-compat` | `CI: byte-compile and vermin on Python 3.10` | the floor in requires-python holds | CI | 1 min | GitHub Actions | every push |
-| `ci:docker-checks` | `CI: hadolint, compose config` | the Dockerfiles lint and the compose file parses | CI | 1 min | GitHub Actions | every push |
+| `ci:docker-checks` | `CI: hadolint, compose config, dashboard build and smoke, trivy` | the Dockerfiles lint, the compose files parse, the dashboard image serves and has no fixable critical CVE | CI | 6 min | GitHub Actions | every push |
+| `ci:lite-install` | `CI: the wheel in a clean venv with no extras` | the light install imports every facade and runs aq hello --offline | CI | 2 min | GitHub Actions | every push |
+| `ci:typecheck` | `CI: scripts/type_completeness.py (pyright advisory)` | the public API stays fully annotated | CI | 1 min | GitHub Actions | every push |
+| `ci:docs` | `CI: mkdocs build --strict` | the docs site builds | CI | 2 min | GitHub Actions (site artifact) | every push |
+| `ci:notebooks` | `CI: build_notebooks.py --check --execute` | the tutorials run | CI | 6 min | GitHub Actions | every push |
+| `ci:bandit` | `CI: bandit -lll` | no high-severity static finding | CI | 1 min | GitHub Actions | every push |
 | `ci:parity-smoke` | `CI: parity tests and feature_parity_audit --synthetic-only` | live and offline compute the same features | CI | 1 min | GitHub Actions | every push |
-| `ci:secret-scan` | `CI: gitleaks` | no secret in history | CI | 10 s | GitHub Actions | every push |
+| `ci:secret-scan` | `CI: gitleaks (blocking on the tree, advisory on history)` | no secret in a tracked file | CI | 10 s | GitHub Actions | every push |
 | `ci:test-count-drift` | `CI: README badge against the collected count` | the badge is current (advisory) | CI | 1 min | GitHub Actions | every push |
 | `wf:formal` | `.github/workflows/formal.yml` | the proofs, the sorry scan, regenerated cases and axioms on spec changes and monthly | GitHub | 10 min | GitHub Actions | every change to formal/ |
 | `wf:forward-ledger` | `.github/workflows/forward-ledger.yml` | one hash-chained forward row a session for the frozen rule | GitHub | 30 s | branch forward-ledger | every session |
 | `wf:research-cycle` | `.github/workflows/research-cycle.yml` | one row per tracked generation and the allocation a session | GitHub | 30 s | branch forward-ledger | every session |
 | `wf:keepalive` | `.github/workflows/keepalive.yml` | the schedules stay enabled | GitHub | 10 s | GitHub Actions | monthly |
-| `wf:release` | `.github/workflows/release.yml` | the tagged commit's suite, PyPI and the image (the tag is the owner's) | GitHub, owner | 15 min | GitHub Actions | a release |
+| `wf:release` | `.github/workflows/release.yml` | the tagged commit's suite, PyPI and both images with SBOMs and provenance (the tag is the owner's) | GitHub, owner | 20 min | GitHub Actions | a release |
+| `wf:codeql` | `.github/workflows/codeql.yml` | CodeQL over Python, TypeScript and the workflows | GitHub | 10 min | GitHub code scanning | every push to main; weekly |
+| `wf:scorecard` | `.github/workflows/scorecard.yml` | the OpenSSF Scorecard of the repository | GitHub | 2 min | GitHub code scanning, scorecard.dev | every push to main; weekly |
+| `wf:pages` | `.github/workflows/pages.yml` | the docs, coverage HTML and the coverage badge on GitHub Pages | GitHub | 3 min | https://leon1706-lol.github.io/Aether-quant/ | every green CI on main |
 | `wf:ci` | `.github/workflows/ci.yml` | the jobs above | GitHub | 6 min | GitHub Actions | every push |
 <!-- AQ:VERIFICATION_END -->

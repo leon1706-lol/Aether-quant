@@ -2,7 +2,7 @@
 
 Every bug and infrastructure issue found in this codebase, oldest first, with how it was fixed or why it stayed open. Numbers never change, because code and docs cite them; #73-76 don't exist, and #88 and #112 appear twice.
 
-**Entries:** <!--fact:problems.total-->339<!--/fact--> up to #<!--fact:problems.last-->341<!--/fact-->: <!--fact:problems.fixed-->309<!--/fact--> 🟢 `fixed` (changed and verified), <!--fact:problems.partial-->9<!--/fact--> 🟡 `partial` (shipped, verification pending), <!--fact:problems.closed-->18<!--/fact--> 🔴 `closed` (no code fix: declined, moot or superseded). Severity runs from 1 (cosmetic) to 10 (data loss or safety). Full text of older entries: [`backups/`](backups/README.md).
+**Entries:** <!--fact:problems.total-->351<!--/fact--> up to #<!--fact:problems.last-->353<!--/fact-->: <!--fact:problems.fixed-->320<!--/fact--> 🟢 `fixed` (changed and verified), <!--fact:problems.partial-->10<!--/fact--> 🟡 `partial` (shipped, verification pending), <!--fact:problems.closed-->18<!--/fact--> 🔴 `closed` (no code fix: declined, moot or superseded). Severity runs from 1 (cosmetic) to 10 (data loss or safety). Full text of older entries: [`backups/`](backups/README.md).
 
 **Open now** (each needs a broker key, a forward record or the laptop):
 
@@ -1713,3 +1713,101 @@ Every bug and infrastructure issue found in this codebase, oldest first, with ho
 
 **Problem:** nothing failed when a public function or module stayed out of the library; `aq prove` and `--check-sorry` ran in no CI job although `infrastructure.md` said they did; there was no property, mutation or axiom check; `on_data()` had only run with an empty slice; and the verification surfaces were listed nowhere. **Fix:** `scripts/library_gate.py` (pre-commit hook via `scripts/install_hooks.py`, CI's fast-guards, `codespace_verify`) fails a public name that no facade exports and that `tests/data/aether_quant_unexported.json` does not explain, and its legacy backlog can only shrink (655 unexported names became 288, and every new V6.6.4 module is exported); `tests/test_module_has_test.py` makes "one test file per module" a check; `tests/test_v664_properties.py` (hypothesis, derandomized); `scripts/mutation_check.py`; three new Lean specs, `scripts/check_axioms.py`, `tests/test_formal_no_sorry.py` and `.github/workflows/formal.yml`; `tests/test_main_on_data_target_weights.py` drives `on_data()` for a week of sessions; `aq verify` and `development/verification.md` list every surface. **Verification:** each has its tests; `ml/evaluation/v664/verification.json` holds the full run. **Mutation check (V6.6.4):** the first run changed one comparison, operator or constant at a time in seven safety and ledger modules and caught 186 of 272 mutants (68%; 53% to 85% per file), so every threshold now has a boundary test (`tests/test_v664_mutation_safety.py`, `tests/test_v664_mutation_ledgers.py`). A second run with a fresh seed, which the tests had not been written against, caught 246 of 272 (90%), and 262 of 272 (96%, every file at least 90%) after its own survivors were tested; what is left is equivalent (a price or bps of exactly zero gives zero slippage either way, tolerance edges of 1e-9, a date equal to its anchor selects no sessions). **Proofs (V6.6.4):** the Lean specs build on a Codespace, the regenerated differential cases equal the committed ones, there is no `sorry`, and all 186 theorems rest on the standard axioms (one `native_decide` finding in BookNeutrality is named and listed). Evidence: `ml/evaluation/v664/mutation_summary.json`, `proofs/`.
 
+### 342. `pip install aether-quant` could not import its own library (V6.6.5)
+🟢 `fixed` · 7/10
+
+**Problem:** `pyproject.toml` had no `dependencies`, so a bare install had no numpy. Four facades (`cycle`, `evaluation`, `features`, `research`) failed even on the `[research]` extra, because `data_pipeline/fred_backfill.py` imported httpx at module level and no extra listed it. No test or CI job ever installed the package without the full requirements. **Fix:** the base dependencies are numpy and pandas. The extras are `research`, `notebooks`, `dashboard`, `live`, `train`, `docs` and `full`, and httpx is imported where it is used. `aq_cli.main(argv)` takes arguments so the light paths run in process. **Verification:** `tests/test_lite_install.py` blocks 24 optional packages, then imports every facade and runs `aq --help` and `aq hello --offline`. A real clean venv on the PC holds only numpy, pandas, python-dateutil and tzdata (145 MB) and runs `aq hello --offline` in 35 s (`ml/evaluation/v665/lite_install.json`). CI's new `lite-install` job repeats it on the built wheel.
+
+### 343. No five-minute start: no demo command, no sample data, no notebook (V6.6.5)
+🟢 `fixed` · 6/10
+
+**Problem:** every first step needed the 40 GB Lean image, the trained models or a dataset the repo does not ship. The only examples ran on synthetic numbers. **Fix:** `aq hello` downloads the 11 coins' daily bars from Coinbase's public candles (`data_pipeline/public_candles.py`: keyless, paged, cached, only closed bars, a failed coin named), runs the shipped rule `t3_crypto_trend_blend_x_eos` through `evaluation/backtest_api.backtest` with Coinbase costs, and prints benchmarks and overfitting checks: PSR, PBO over 8 variants, the deflated Sharpe, the 217-trial haircut and the minimum track record. A 185 KB sample in the wheel is the offline fallback. Four notebooks (`notebooks/`, built from percent-format sources by `scripts/build_notebooks.py`) open in Colab. Building it found a pandas difference: pandas 2's `DataFrame.from_dict` drops a date whose weights dict is empty, so an empty decision held the book, where pandas 3 closed it. `rule_weights` now builds rows explicitly and both agree. **Verification:** `tests/test_hello_world.py` (rule equals the tracked candidate, no lookahead, golden Sharpe 0.43, the empty-decision regression) and `tests/test_public_candles.py`. On the PC, `aq hello` takes 26 s offline and 49 s online, and all four notebooks run clean (`tests/test_notebooks.py`, CI's `notebooks` job).
+
+### 344. The dashboard was empty without a running system and only came in the 10 GB engine image (V6.6.5)
+🟢 `fixed` · 5/10
+
+**Problem:** the API read only runtime files that a fresh checkout lacks. The only image was the engine, with CUDA torch, and the engine port was published to the LAN. **Fix:** `AQ_DASHBOARD_ROOT` and `AQ_DASHBOARD_DEMO` point the API at another tree. `scripts/build_dashboard_demo.py` writes deterministic demo data (13 files, 71 KB) from `aq hello`. The Dockerfile gains a `wheel-builder` and a `dashboard` target that installs only the wheel, plus the UI and the demo, runs as a non-root user and has a healthcheck. The engine installs CPU torch, and compose binds the engine to 127.0.0.1. `aq webui --docker` runs it. The web UI gains a demo banner, an onboarding empty state, sign-in, an account selector, a Readiness page, a Trade Lock panel and jsx-a11y lint. The jest-dom matchers are now registered explicitly: the `/vitest` side-effect entry left them unregistered on this PC and failed every UI test. **Verification:** `tests/test_dashboard_demo.py` (a rebuild is byte-identical, and every GET route answers from the demo), 113 of 113 vitest, tsc, oxlint and the build. On the PC's Docker, `docker build --target dashboard` succeeds, and the image runs as `aq`. Its healthcheck reports healthy, `/` serves the UI, and all 20 GET routes answer 200 with `/api/health` reporting `demo: true` (`ml/evaluation/v665/dashboard.json`). The first build sent a ~600 MB context, because `.dockerignore` patterns are anchored at the root and missed `formal/.lake`, the backups and nested caches; they now match at any depth. Removing the pandas and numpy test suites and pip took the image from 461 MB to 373 MB (253 MB unpacked).
+
+### 345. The library lacked basic research tools, and nothing grouped it by job (V6.6.5)
+🟢 `fixed` · 5/10
+
+**Problem:** the library had no Kelly sizing, no whole-book volatility targeting, no beta or factor neutrality, no composable cost model, no general backtest of arbitrary weights, no minimum track record, no haircut Sharpe, and no signal tools from prices. Its 24 facades were organised by subsystem, not by task. **Fix:** new pure modules, each with its own tests:
+
+- `risk/kelly.py`, `risk/vol_target.py`
+- `portfolio/neutrality.py`
+- `execution/cost_models.py`
+- `evaluation/backtest_api.py`
+- `evaluation/overfitting.py`
+- `evaluation/signal_tools.py`
+
+Eight facades group them by job: `sizing`, `neutrality`, `costs`, `overfitting`, `backtest`, `signals`, `samples` and `hello`, for 32 facades. With the accounts, secrets, field-test, readiness and auth rules from #348-#352 it exports 928 names. **Verification:** `backtest()` agrees with `simulate_target_weights` to 5e-9 a day on a synthetic equity panel. Hypothesis properties check that net beta is zero after neutralising, gross never exceeds the cap, and a cost is never negative or NaN. That property found a $1 minimum fee on a subnormal trade costing infinite bps; the minimum is now charged up to the notional. The API pin is regenerated and `scripts/library_gate.py` is green.
+
+### 346. The public API had no reference docs and a third of it was not fully typed (V6.6.5)
+🟢 `fixed` · 4/10
+
+**Problem:** 312 of the 844 exported functions and classes had a missing or bare annotation (`dict`, `Mapping`), 150 had no docstring, and there was no documentation site. **Fix:** two codemods parametrised the bare containers and annotated every parameter from its real use: `ArrayLike`, `WideCell`, `date`, and `TYPE_CHECKING` imports. Every export now has a docstring. `scripts/type_completeness.py` is the gate, with a floor that can only rise. The MkDocs site (`mkdocs.yml`, `docs/`) has getting started, the four tutorials, a guide whose examples run in tests, the live pages, an API reference generated per facade (`scripts/build_docs.py`) and the about pages. `pyright --verifytypes` found no package on this Windows editable install, so it runs as an advisory step in CI on the built wheel. **Verification:** 887 of 887 exported callables fully annotated, with the Part C exports included (`ml/evaluation/v665/type_completeness.json`). `tests/test_public_docstrings.py` and `tests/test_docs_site.py` pass, and `mkdocs build --strict` gives 0 warnings.
+
+### 347. The license kept institutions from using any part of the project (V6.6.5)
+🟢 `fixed` · 4/10
+
+**Problem:** the whole repository, library included, was under PolyForm Noncommercial. **Fix (owner decision 2026-11-08):** everything the wheel and the dashboard image ship moves to Apache-2.0 (`LICENSES/Apache-2.0.txt`, `NOTICE`), and so do the web UI, the notebooks, the docs, the examples and the Lean proofs. The trading system stays PolyForm Noncommercial. The map is in the root `LICENSE` and in `REUSE.toml`. The wheel metadata reads `License-Expression: Apache-2.0`, and releases up to 6.6.4 keep their old license. An audit found no third-party license header in the Apache paths. **Verification:** `tests/test_licensing.py` checks every file the wheel ships against `REUSE.toml`, and the built wheel's `.dist-info/licenses/` holds the Apache text and NOTICE. This is not legal advice: commercial terms for the PolyForm parts are the owner's to set.
+
+### 348. Secrets came only from plain environment variables, and Coinbase keys could not be rendered (V6.6.5)
+🟢 `fixed` · 6/10
+
+**Problem:** every credential was an `AETHER_*` variable, so there was no Docker secret, file or keyring option. `SECRET_ENV_MAP` had no Coinbase fields, though the crypto sleeve needs Coinbase (#192). RUNBOOK said to put keys in the tracked `lean.json`, which `aq secrets-check` forbids. `aq cycle status` looked for keys only in `lean.json`, and compose's `lean-live` never passed `--lean-config`. **Fix:** `execution/secrets.py` and `secrets_io.py` resolve each named secret from a `*_FILE` file, a Docker secret, the environment or the OS keyring. Values travel as a `SecretValue` that never shows itself, and named accounts are prefixed. Seventeen call sites read through `secret_env`, which equals the old `os.environ.get` when only the variable is set. The renderer takes the Coinbase pair and `--account`. Also new: `aq secrets status|set|delete`, `docker-compose.secrets.yml`, corrected key detection and hint, `lean-live --lean-config`, and ignore entries for `accounts.json`, `state/` and `secrets/`. **Verification:** `tests/test_secrets.py`, plus a hypothesis property that no status line, redaction or text form contains a secret.
+
+### 349. One account only (V6.6.5)
+🟢 `fixed` · 5/10
+
+**Problem:** the system had one credential set, one portfolio, one set of state files and one override file, and no account dimension in the audit log or the API. **Fix:** `execution/accounts.py` and `accounts_io.py` add a registry, `accounts.json`, whose overrides may only tighten the base config (proved in `formal/AetherFormal/AccountOverrides.lean`, with 320 differential cases). `main.py` resolves `AQ_ACCOUNT` or the Lean parameter `aq-account`. A named account writes under `state/accounts/<id>/`, reads its own overrides and secrets, and tags its audit events. The default account changes nothing. New commands: `aq accounts`, `aq live up|down --account`, `aq render-lean-config --account`, `aq trade-lock|kill-switch --account` and `aq evaluate --account`. The API gains `/api/accounts` and `?account=`. **Verification:** `tests/test_main_accounts.py` shows on the real config that the default account keeps the same config, paths and audit queue, and that a named one tightens and namespaces. `tests/test_accounts_parity.py` shows main.py and the offline loader derive the same effective config (rule 6). Unit and hypothesis tests cover the rest. In Lean, run `2026-11-12_11-22-15` (today's code, the pin's weights and window) reproduces pin `2026-11-07_17-54-01` order for order: 1974 of 1974 order events and all 27 statistics. In the field test, `paper-a` (paper) and `paper-b` (observation, tighter limits) ran at once, as `state/accounts/paper-a/` and `state/accounts/paper-b/`. Their audit events carry their own ids (`ml/evaluation/field_test/2026-11-11/report.json`).
+
+### 350. The API had no users, no auth and no write path, and was published to the LAN (V6.6.5)
+🟢 `fixed` · 6/10
+
+**Problem:** every route, the audit log included, was readable by anyone who could reach the port, and compose published that port on all interfaces. An operator could lock trading only from a shell. **Fix:** `monitoring/auth.py` and `auth_io.py` add viewer, operator and admin roles, random tokens stored as salted PBKDF2-SHA256 hashes, and per-account scope. `authorize` is proved never to grant above a role or outside a scope (`formal/AetherFormal/Authorize.lean`, 400 cases). With a users file, a middleware requires a bearer token on every `/api` route but `/api/health`. `POST /api/accounts/<id>/trade-lock` locks for an operator and unlocks for an admin; it writes the override main.py reads and a hash-chained `state/api_actions.jsonl` record. Also new: `aq users add|list|remove`, the engine bound to 127.0.0.1, and sign-in in the UI. With no users file, reads stay open and nothing can write, as before. **Verification:** `tests/test_api_auth.py` (401, 403, scope, lock and unlock, chain verified, an invalid users file refuses to serve), `tests/test_auth.py` with a hypothesis property, and the differential test.
+
+### 351. The safety paths had never run against orders, a trip, a breach or a restart (V6.6.5)
+🟡 `partial` · 7/10
+
+**Problem:** V6.6.4's live plumbing started main.py in `live-paper` and survived outages, but placed no order, tripped nothing and reconciled nothing (#228). **Fix:** `execution/field_test.py` adds injectors. They run only when the run's config and `AQ_FIELD_TEST=1` agree, and only in observation or in paper on Lean's own paper brokerage, never live; a property test checks this. One target row goes through the real `_apply_target_row`, injected drift hits the holdings reconciliation reads, and an injected drawdown velocity hits the kill switch. `FIELD_TEST` engine-log lines record what happened, and `judge_field_test` grades nine checks. A reconciliation breach is now an audit event of its own. `scripts/lean_smoke/field_test.py` runs three scenarios against real Redis and Postgres:
+
+1. orders, drift, the shock and both outages
+2. a restart on the same project
+3. two accounts at once
+
+**Verification:** 9 of 9 checks pass on the PC's Docker (`ml/evaluation/field_test/2026-11-11/report.json`, engine logs beside it, no traceback):
+
+- 14 orders submitted and filled.
+- The drift breached reconciliation at bar 8, with an audit event.
+- The shock tripped the kill switch on its own bar 14. The strategy's exposure was 0.0 from the next bar.
+- Redis and then Postgres were stopped under the running engine, which stayed up.
+- The restart's first reconciliation was clean.
+- `paper-a` and `paper-b` ran at once in separate state directories.
+- The 43-entry audit chain verifies and carries both account tags.
+
+Two findings came from running it, both fixed:
+
+- **The gate.** Paper orders need `allow_live_orders`, yet the first gate required it off, so no order could be placed. The gate now names Lean's paper brokerage instead.
+- **The flatness measure.** Flatness was first measured with the T-bill sweep included; the lock keeps the sweep on purpose (attempt 1, 8 of 9). It is now measured as the lock's own liquidation defines it.
+
+Lean's paper brokerage starts empty on each run, so the restart proves the state files and a clean first reconciliation, not broker-held positions. **Open:** a real broker (IB and Coinbase: #338, #192) and a paper period (#228).
+
+### 352. No measured checklist stood between paper and live (V6.6.5)
+🟢 `fixed` · 5/10
+
+**Problem:** the paper-to-live conditions were prose in RUNBOOK. The live broker gate ran only inside main.py, and `aq paper-readiness` never showed it. **Fix:** `execution/live_readiness.py` and `_io.py` build a scorecard of 21 metrics in six groups (edge, paper, safety, operations, code, accounts) from what the project already writes. Unknown counts as fail, and stale evidence fails. Thresholds live in `phase_v2.live_readiness`, which is report-only; `enforce_before_live`, off by default, makes main.py hold a live run in observation unless the last scorecard is ready. Also new: `aq live-readiness [--docs]`, `/api/readiness`, the Readiness page, `docs/live/paper-to-live.md` with the generated table, `scripts/backup_postgres.py`, and `aq paper-readiness` now reports the live gate. **Verification:** `tests/test_live_readiness.py` (a property: missing evidence is never ready), `tests/test_live_readiness_io.py` and `tests/test_backup_postgres.py`. At the phase end the real repo scores NOT READY: 7 pass, 6 fail, 8 unknown, with the field test, verification and mutation rows passing.
+
+### 353. CI scanned little and blocked less, with no coverage report or badges (V6.6.5)
+🟢 `fixed` · 4/10
+
+**Problem:** the gitleaks and npm audit jobs were advisory. There was no CodeQL, SAST, image scan, SBOM or provenance, coverage was a bare XML artifact, and the README had no CI, coverage or security badge. **Fix:**
+
+- **Blocking now:** gitleaks on the working tree (it passed on every run since V5.5.0); the history scan is advisory until reviewed. npm audit of runtime dependencies blocks too, after `npm audit fix` moved react-router to 7.18.5 and fflate to 0.8.3 with no breaking change.
+- **New CI jobs:** `lite-install`, `typecheck`, `docs`, `notebooks` and `bandit` (0 high findings in 49k lines).
+- **Image scans:** docker-checks builds and smoke-tests the dashboard image and scans the tree and the image with trivy.
+- **Coverage:** Python coverage gains JSON and HTML reports plus a run summary; vitest coverage is uploaded too.
+- **New workflows:** `codeql.yml`, `scorecard.yml`, and `pages.yml`, which publishes the docs, the coverage reports and a shields endpoint badge.
+- **Release:** both images go out, with SBOMs and build provenance.
+
+**Verification:** `tests/test_ci_workflows.py` pins every job, permission and version (30 tests), and actionlint 1.7.7 passes all nine workflows. The first CI run of the new jobs is the owner's push.

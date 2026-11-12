@@ -34,8 +34,6 @@ import csv
 import json
 import logging
 from datetime import date, timedelta
-
-import httpx
 from pathlib import Path
 
 from json_safety import atomic_write_text
@@ -301,6 +299,8 @@ def fetch_fred_series(series_id: str, start: str, end: str) -> list[dict]:
     disguising itself, which is worse than not disguising it at all.
     httpx's own honest default User-Agent (python-httpx/x.y) was verified
     working reliably; leave headers unset."""
+    import httpx  # the research extra; a top-level import broke four facades on a lite install (#342)
+
     url = FRED_CSV_URL.format(series_id=series_id)
     try:
         with httpx.Client(http2=True, timeout=15.0) as client:

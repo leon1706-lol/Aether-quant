@@ -17,7 +17,6 @@ from __future__ import annotations
 import argparse
 import json
 import logging
-import os
 import subprocess
 import sys
 import uuid
@@ -61,6 +60,7 @@ from retraining.status_export import build_status_view, write_status_file
 from retraining.validation_gate import evaluate_validation_gate
 from retraining.vault_client import commit_candidate_to_vault, restore_candidate_from_vault, vault_preflight
 from risk.manual_override import write_manual_trade_lock_override
+from execution.secrets_io import secret_env
 
 logger = logging.getLogger(__name__)
 
@@ -89,7 +89,7 @@ def _load_json_if_exists(path: Path) -> dict:
 def connect(postgres_dsn: str = ""):
     import psycopg
 
-    dsn = os.environ.get("AETHER_POSTGRES_DSN", postgres_dsn)
+    dsn = secret_env("POSTGRES_DSN", postgres_dsn)
     conn = psycopg.connect(dsn, autocommit=False)
     ensure_schema(conn)
     ensure_performance_schema(conn)  # performance_triggers table must exist before we read it

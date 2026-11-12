@@ -14,6 +14,7 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 from audit.hash_chain import GENESIS_HASH, compute_entry_hash, verify_chain
+from typing import Any
 
 # On the book, in order: gaining capital, a settled holder, still earning but falling short of its claim, on its way out. Several generations can sit in these at once.
 STAGES = ("candidate", "frozen", "shadow", "ramping", "active", "fading", "winding_down", "retired", "rejected")
@@ -30,6 +31,7 @@ LIFECYCLE_EVENT = "generation_lifecycle"
 
 @dataclass(frozen=True)
 class Generation:
+    """One model generation in the registry: its kind, admission tier, lifecycle stage, definition and admission evidence."""
     id: str
     kind: str
     tier: str
@@ -47,6 +49,7 @@ class Generation:
 
 @dataclass(frozen=True)
 class AdmissionEvidence:
+    """What the admission rule (R-ADMIT1) reads about a generation: its selection, hold and edge passes, forward record, decay state and guard."""
     selection_pass: bool = False
     hold_pass: bool = False
     edge_pass: bool = False
@@ -61,6 +64,7 @@ class AdmissionEvidence:
 
 
 def load_registry(path: Path) -> dict[str, Generation]:
+    """Read `ml/generations/registry.json` into `Generation` records by name, refusing an unknown stage."""
     raw = json.loads(Path(path).read_text(encoding="utf-8"))
     out: dict[str, Generation] = {}
     for entry in raw["generations"]:
@@ -167,11 +171,12 @@ def share_cap(generation: Generation, evidence: AdmissionEvidence, tier2_cap: fl
 
 
 def read_lifecycle(path: Path) -> list[dict]:
+    """The lifecycle log's rows, or [] when the file does not exist."""
     path = Path(path)
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()] if path.exists() else []
 
 
-def append_lifecycle(path: Path, *, event: str, payload: Mapping, created_at: str) -> dict:
+def append_lifecycle(path: Path, *, event: str, payload: Mapping[str, Any], created_at: str) -> dict[str, Any]:
     """A hash-chained line for each change of stage or vintage, so the record of how a generation reached the book can't be edited later without showing."""
     rows = read_lifecycle(path)
     previous = rows[-1]["hash"] if rows else GENESIS_HASH
@@ -186,4 +191,5 @@ def append_lifecycle(path: Path, *, event: str, payload: Mapping, created_at: st
 
 
 def lifecycle_is_intact(path: Path) -> tuple[bool, int | None]:
+    """Verify the hash chain of the lifecycle log: (valid, index of the first broken row or None)."""
     return verify_chain(read_lifecycle(path))

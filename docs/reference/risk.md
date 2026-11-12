@@ -1,0 +1,62 @@
+# aether_quant.risk
+
+Risk controls: the kill switch, the bounded sizing multipliers and the exposure / drawdown gates (formally verified in formal/AetherFormal/{KillSwitch,PositionSizing,RiskControls}.lean).
+
+::: aether_quant.risk
+    options:
+      members:
+        - ForexSizingDecision
+        - FuturesSizingDecision
+        - KillSwitchDecision
+        - PositionSizingDecision
+        - active_position_limit_reached
+        - assess_drawdown_lock
+        - asset_listed_on_venue
+        - book_candidate_trading_eligible
+        - build_dynamic_position_sizing
+        - build_forex_order_sizing_record
+        - build_forex_position_sizing
+        - build_futures_position_sizing
+        - build_live_contract_spec
+        - build_rl_sizing_state
+        - cap_forex_target_to_book_weight
+        - cap_target_weight
+        - classify_volatility_regime
+        - compute_forex_order_units
+        - compute_held_weight
+        - compute_incremental_order_quantity
+        - compute_position_exit_tracking_update
+        - cost_sizing_multiplier
+        - evaluate_kill_switch
+        - evaluate_non_model_exit
+        - is_backtest_safety_bypass_active
+        - is_cooldown_exempt
+        - is_position_resize_permitted
+        - is_regime_drawdown_bypass_active
+        - is_sticky_trade_lock_bypass_active
+        - load_forex_pair_specs
+        - load_futures_contract_specs
+        - load_rl_sizing_model
+        - load_venue_listing_dates
+        - projected_signed_quantity
+        - rank_sizing_multiplier
+        - read_kill_switch_manual_override
+        - read_manual_trade_lock_override
+        - resolve_asset_class_enabled
+        - resolve_benchmark_ticker
+        - resolve_futures_margin_source
+        - resolve_lean_window
+        - resolve_rl_shadow_guard
+        - resolve_trading_days_per_year
+        - rl_excess_return
+        - rl_shadow_guard_allows
+        - rl_sizing_multiplier
+        - rollover_due
+        - route_multi_leg_option_sizing
+        - route_position_sizing
+        - should_liquidate_disabled_asset_class_position
+        - should_lock_in_duration_beta
+        - should_scale_position
+        - topology_sizing_multiplier
+        - write_kill_switch_manual_override
+        - write_manual_trade_lock_override

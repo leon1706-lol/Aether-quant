@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# V6.6.5: vitest --coverage output
+coverage/

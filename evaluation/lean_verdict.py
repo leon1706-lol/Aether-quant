@@ -20,27 +20,31 @@ from __future__ import annotations
 import json
 import re
 from pathlib import Path
+from typing import Any
 
 MAX_SHARPE_LOSS = 0.10
 MAX_DRAWDOWN_WORSENING = 0.01  # fraction of NAV: 1 percentage point
 
 
-def _row(stats: dict, section: str, metric: str, column: str):
+def _row(stats: dict[str, Any], section: str, metric: str, column: str):
     for row in (stats.get("sections") or {}).get(section) or []:
         if row.get("metric") == metric:
             return row.get(column)
     return None
 
 
-def strategy_sharpe(stats: dict):
+def strategy_sharpe(stats: dict[str, Any]) -> Any:
+    """The strategy's annualised Sharpe (no risk-free rate) as the Lean report's statistics table prints it."""
     return _row(stats, "efficiency", "Annualized Sharpe ratio (no risk-free rate)", "strategy")
 
 
-def max_drawdown(stats: dict):
+def max_drawdown(stats: dict[str, Any]) -> Any:
+    """The portfolio's maximum drawdown as the Lean report's statistics table prints it."""
     return _row(stats, "runs", "Maximum drawdown", "portfolio")
 
 
-def engine_log_status(engine_log_text: str) -> dict:
+def engine_log_status(engine_log_text: str) -> dict[str, Any]:
+    """What a Lean engine log says about a run: whether teardown was reached, inference failures and a timed-out teardown."""
     return {
         "teardown_reached": bool(re.search(r"PythonInitializer\.Shutdown\(\): start", engine_log_text)),
         "inference_failures": len(re.findall(r"inference failed", engine_log_text)),
@@ -48,7 +52,7 @@ def engine_log_status(engine_log_text: str) -> dict:
     }
 
 
-def r_lean13(baseline: dict, candidate: dict, candidate_engine_log: str) -> dict:
+def r_lean13(baseline: dict[str, Any], candidate: dict[str, Any], candidate_engine_log: str) -> dict[str, Any]:
     """{"checks": {...}, "keep": bool, "values": {...}}; a value that cannot be read fails its clause."""
     base_sharpe, new_sharpe = strategy_sharpe(baseline), strategy_sharpe(candidate)
     base_drawdown, new_drawdown = max_drawdown(baseline), max_drawdown(candidate)
@@ -65,7 +69,7 @@ def r_lean13(baseline: dict, candidate: dict, candidate_engine_log: str) -> dict
     }
 
 
-def r_lean14(baseline: dict, candidate: dict, candidate_engine_log: str, margin: float = MAX_SHARPE_LOSS) -> dict:
+def r_lean14(baseline: dict[str, Any], candidate: dict[str, Any], candidate_engine_log: str, margin: float = MAX_SHARPE_LOSS) -> dict[str, Any]:
     """R-LEAN13 with clause (a) turned into superiority: the strategy Sharpe must beat the baseline's by `margin`."""
     result = r_lean13(baseline, candidate, candidate_engine_log)
     base_sharpe, new_sharpe = result["values"]["baseline_strategy_sharpe"], result["values"]["candidate_strategy_sharpe"]
@@ -79,14 +83,14 @@ def r_lean14(baseline: dict, candidate: dict, candidate_engine_log: str, margin:
 RULES = {"non_inferiority": ("R-LEAN13", r_lean13), "superiority": ("R-LEAN14", r_lean14)}
 
 
-def run_config(run_dir: Path, root: Path, fallback: dict) -> dict:
+def run_config(run_dir: Path, root: Path, fallback: dict[str, Any]) -> dict[str, Any]:
     """The config a run was frozen with (`ml/evaluation/run_configs/<folder>.json`), else `fallback`."""
     frozen = Path(root) / "ml" / "evaluation" / "run_configs" / f"{Path(run_dir).name}.json"
     return json.loads(frozen.read_text(encoding="utf-8")) if frozen.exists() else fallback
 
 
-def verdict_for_run_dirs(baseline_dir: Path, candidate_dir: Path, config: dict, root: Path, rule: str = "non_inferiority",
-                         margin: float = MAX_SHARPE_LOSS) -> dict:
+def verdict_for_run_dirs(baseline_dir: Path, candidate_dir: Path, config: dict[str, Any], root: Path, rule: str = "non_inferiority",
+                         margin: float = MAX_SHARPE_LOSS) -> dict[str, Any]:
     """Statistics of both run folders (`backtest_statistics.compute_for_run_dir`, each with its own frozen config) and the
     candidate's engine log."""
     from evaluation.backtest_statistics import compute_for_run_dir

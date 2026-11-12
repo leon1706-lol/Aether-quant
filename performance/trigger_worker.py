@@ -16,7 +16,6 @@ from __future__ import annotations
 import argparse
 import json
 import logging
-import os
 import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -33,6 +32,7 @@ from performance.postgres_triggers import (
 )
 from performance.rank_ic_monitor import compute_realized_rank_ic_observations
 from performance.triggers import evaluate_all_triggers
+from execution.secrets_io import secret_env
 
 logger = logging.getLogger(__name__)
 
@@ -75,7 +75,7 @@ class TriggerWorker:
         else:
             import psycopg
 
-            dsn = os.environ.get("AETHER_POSTGRES_DSN", postgres_dsn)
+            dsn = secret_env("POSTGRES_DSN", postgres_dsn)
             self._conn = psycopg.connect(dsn, autocommit=False)
             logger.info("TriggerWorker: PostgreSQL connected.")
 
@@ -171,7 +171,7 @@ def main() -> None:
     parser.add_argument("--poll-interval", type=int, default=30)
     args = parser.parse_args()
 
-    postgres_dsn = os.environ.get("AETHER_POSTGRES_DSN", "")
+    postgres_dsn = secret_env("POSTGRES_DSN", "")
     config = _load_performance_triggers_config()
 
     worker = TriggerWorker(postgres_dsn=postgres_dsn, config=config, poll_interval=args.poll_interval)

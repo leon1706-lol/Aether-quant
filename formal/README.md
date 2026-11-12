@@ -54,6 +54,8 @@ book-construction and neutrality functions).
 | `Admission.lean` | `evaluation/generation_registry.py` | R-ADMIT1 (Problems #335): `tier_none_never_capital`, `off_book_holds_nothing`, `retired_absorbing`, `rejected_absorbing`, `dying_leaves_the_book`, `tier_none_never_ramps`, `no_selection_no_ramp`, `lifted_cap_only_for_tier2` |
 | `SessionResolve.lean` | `evaluation/forward_ledger.resolve_session` | a late run records its session (Problems #332): `best_mem`, `best_le`, `best_newest`, `best_none_iff`, `resolve_default`, `resolve_override` |
 | `HoldoutOnce.lean` | `evaluation/research_cells.record_holdout_read` | a holdout is read once: `record_refuses_a_cell_already_read`, `record_adds_the_cells`, `second_read_refused`, `fresh_cells_are_readable`, `families_isolated` |
+| `AccountOverrides.lean` | `execution/accounts.apply_risk_overrides` | an account only tightens (V6.6.5, Problems #349): `lower_never_loosens`, `higher_never_loosens`, `looser_lower_refused`, `looser_higher_refused`, `unset_base_accepts`, `flag_only_off`, `mode_never_raised` |
+| `Authorize.lean` | `monitoring/auth.authorize` | never above a role or outside a scope (V6.6.5, #350): `never_above_role`, `never_outside_scope`, `anonymous_never_writes`, `anonymous_reads_only_when_auth_is_off`, `monotone_in_role` |
 | `Real.lean` | the headline theorems above | restated at `ℝ` |
 
 ## Findings

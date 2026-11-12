@@ -38,6 +38,10 @@ from evaluation.trial_ledger import append_trial, read_ledger
 from portfolio.premia_signals import DIRECT, POOLED, TS, XS, SleeveSpec
 from portfolio.signal_construction import build_table
 from portfolio.wide_signals import live_names_per_rebalance, rank_mean
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from evaluation.wide_context import WideCell
 
 HOLDOUT_LEDGER = Path("ml") / "generations" / "holdout_ledger.jsonl"
 KINDS = {"pooled": POOLED, "cross_sectional": XS, "time_series": TS, "direct": DIRECT}
@@ -46,6 +50,7 @@ HOLDOUT_FAMILIES = {"equity": ("V1", "V2", "V3"), "crypto": ("CV",)}
 
 @dataclass(frozen=True)
 class RoundSpec:
+    """A pre-registered research round: its name, cell, side, trials, rules file and the bar a trial must clear."""
     name: str
     cell: str
     side: str
@@ -76,10 +81,11 @@ def _write_json(path: Path, payload) -> None:
 
 
 def rules_sha_path(path: Path) -> Path:
+    """The `.sha256` file that pins a round's rules file."""
     return Path(path).with_suffix(".sha256")
 
 
-def write_rules(payload: Mapping, path: Path) -> str:
+def write_rules(payload: Mapping[str, Any], path: Path) -> str:
     """Writes a round's rule file once, with its hash beside it. A second write refuses: a changed rule needs a dated amendment."""
     path = Path(path)
     if path.exists():
@@ -117,6 +123,7 @@ def _paths(spec: RoundSpec) -> dict[str, Path]:
 
 
 def family_of(spec: RoundSpec) -> str:
+    """The holdout family of a round's cell: `crypto` for the crypto universe, `equity` otherwise."""
     return "crypto" if CELLS[spec.cell].universe == "crypto" else "equity"
 
 
@@ -133,6 +140,7 @@ def universe_for(spec: RoundSpec, trial: str) -> tuple[str, ...]:
 
 
 def spec_of(spec: RoundSpec, trial: str, universe: Sequence[str]) -> SleeveSpec:
+    """The `SleeveSpec` a round's trial runs as, from its registered entry."""
     entry = spec.trials[trial]
     params: dict = {"table": trial}
     if entry.get("top_k"):
@@ -140,7 +148,7 @@ def spec_of(spec: RoundSpec, trial: str, universe: Sequence[str]) -> SleeveSpec:
     return SleeveSpec(trial, spec.track, KINDS[str(entry.get("kind", "pooled"))], "external_score", tuple(universe), int(entry.get("rebalance_every", 20)), params)
 
 
-def score_file_table(path: Path, index, columns) -> pd.DataFrame | None:
+def score_file_table(path: Path, index: Sequence[str] | pd.Index, columns: Sequence[str] | pd.Index) -> pd.DataFrame | None:
     """A model's walk-forward scores as a session x ticker table, or None when the file isn't there."""
     path = Path(path)
     if not path.exists():
@@ -149,7 +157,7 @@ def score_file_table(path: Path, index, columns) -> pd.DataFrame | None:
     return frame.pivot_table(index="date", columns="ticker", values="score", aggfunc="last").reindex(index=index, columns=columns)
 
 
-def tradable_mask(entry: Mapping, table: pd.DataFrame, cell) -> pd.DataFrame:
+def tradable_mask(entry: Mapping[str, Any], table: pd.DataFrame, cell) -> pd.DataFrame:
     """What a table may hold. A pooled or cross-sectional trial holds the cell's members. A time-series or direct trial that names its assets (`params.tickers` or `params.ticker`)
     holds exactly those: ETFs and SPY are never index members, so the member mask silently emptied round 4E's e4 and e5 (no live names, Sharpe 0.0; Problems #336)."""
     if entry.get("kind") in ("time_series", "direct"):
@@ -161,7 +169,7 @@ def tradable_mask(entry: Mapping, table: pd.DataFrame, cell) -> pd.DataFrame:
     return cell.member
 
 
-def trial_table(spec: RoundSpec, trial: str, cell, built: dict[str, pd.DataFrame], *, score_dir: Path, score_suffix: str = "") -> pd.DataFrame | None:
+def trial_table(spec: RoundSpec, trial: str, cell: WideCell, built: dict[str, pd.DataFrame], *, score_dir: Path, score_suffix: str = "") -> pd.DataFrame | None:
     """One trial's table on this cell, or None when it can't be built yet (a model that didn't run). `built` holds earlier trials, which a composite
     may name. Masked to the cell's members, so nothing outside them can be held."""
     entry = spec.trials[trial]
@@ -201,14 +209,14 @@ def trial_table(spec: RoundSpec, trial: str, cell, built: dict[str, pd.DataFrame
     return apply_gate(build_table(recipe, lookup, cell.member, sectors=cell.sectors), entry.get("gate"), cell).where(cell.member)
 
 
-def _trial_context(context, entry: Mapping):
+def _trial_context(context, entry: Mapping[str, Any]):
     band = entry.get("min_weight_change")
     if band is None:
         return context
     return dataclasses.replace(context, config=dataclasses.replace(context.config, min_weight_change=float(band)))
 
 
-def live_rows(signal: pd.DataFrame, entry: Mapping) -> pd.DataFrame:
+def live_rows(signal: pd.DataFrame, entry: Mapping[str, Any]) -> pd.DataFrame:
     """The rows live names are counted on. A gated trial holds nothing while its gate is off, so the median over all rebalances would read the gate as a lack of names: it is counted on the rows
     where the gate is on (those with any value). An ungated trial counts every row, as before."""
     if entry.get("gate"):
@@ -230,7 +238,7 @@ def clause_overrides(spec: RoundSpec) -> dict[str, dict]:
     return out
 
 
-def passes_earlier_clauses(score: Mapping, *, min_live_names: int, no_ic: bool = False) -> bool:
+def passes_earlier_clauses(score: Mapping[str, Any], *, min_live_names: int, no_ic: bool = False) -> bool:
     """Everything in R-SLEEVE3 before the placebos: live names, the Sharpe clauses, and the rank-IC t (not for a trial the round lists in `no_ic_clause`)."""
     if not passes_sharpe_clauses(score):
         return False
@@ -242,7 +250,7 @@ def passes_earlier_clauses(score: Mapping, *, min_live_names: int, no_ic: bool =
     return t is not None and t >= 2.0
 
 
-def _failed_clause(score: Mapping, *, min_live_names: int) -> str:
+def _failed_clause(score: Mapping[str, Any], *, min_live_names: int) -> str:
     if (score.get("live_names") or {}).get("median", 0.0) < min_live_names:
         return "live_names"
     return "sharpe" if not passes_sharpe_clauses(score) else "ic"
@@ -259,7 +267,7 @@ def _load_selection_cell(spec: RoundSpec, root: Path, *, with_info: bool = True)
     return equity_cell(Path(root), base, spec.cell, with_info=with_info)
 
 
-def stage_score(spec: RoundSpec, *, cell, score_dir: Path, only: Sequence[str] = (), force: bool = False, ic_fn: Callable | None = None, emit: Callable[[str], None] = print) -> dict:
+def stage_score(spec: RoundSpec, *, cell: WideCell, score_dir: Path, only: Sequence[str] = (), force: bool = False, ic_fn: Callable[..., Any] | None = None, emit: Callable[[str], None] = print) -> dict[str, Any]:
     """Scores each trial not yet scored, saving after each one. A table that can't be built stays unscored and is named by the gate."""
     if ic_fn is None:
         from evaluation.wide_context import signal_ic_t as ic_fn
@@ -303,7 +311,7 @@ def stage_score(spec: RoundSpec, *, cell, score_dir: Path, only: Sequence[str] =
     return scores
 
 
-def stage_placebo(spec: RoundSpec, *, cell, score_dir: Path, draws: int = 100, force: bool = False, emit: Callable[[str], None] = print) -> dict:
+def stage_placebo(spec: RoundSpec, *, cell: WideCell, score_dir: Path, draws: int = 100, force: bool = False, emit: Callable[[str], None] = print) -> dict[str, Any]:
     """R-SLEEVE3's placebos, only for trials that pass every earlier clause."""
     paths = _paths(spec)
     scores = _read_json(paths["scores"], {})
@@ -341,7 +349,7 @@ def stage_placebo(spec: RoundSpec, *, cell, score_dir: Path, draws: int = 100, f
 
 def gate_report(
     scores: Mapping[str, Mapping], placebos: Mapping[str, Mapping], daily: pd.DataFrame, *, trials: Sequence[str], min_live_names: int = 150, overrides: Mapping[str, Mapping] | None = None,
-) -> dict:
+) -> dict[str, Any]:
     """R-SLEEVE3 from stored scores: a pure function, so a past round can be recomputed and compared."""
     overrides = overrides or {}
     eligible = {
@@ -368,7 +376,8 @@ def count_unrun_trials(spec: RoundSpec, unscored: Sequence[str], *, reason: str 
     return added
 
 
-def stage_gate(spec: RoundSpec) -> dict:
+def stage_gate(spec: RoundSpec) -> dict[str, Any]:
+    """Apply the round's selection gate to the scored and placebo-tested trials, and write the survivors."""
     paths = _paths(spec)
     scores = _read_json(paths["scores"], {})
     placebos = _read_json(paths["placebos"], {})
@@ -379,7 +388,7 @@ def stage_gate(spec: RoundSpec) -> dict:
     return gate
 
 
-def pbo_report(frames: Sequence[pd.DataFrame], columns: Sequence[str], *, window: tuple[str, str], blocks: int = 16) -> dict:
+def pbo_report(frames: Sequence[pd.DataFrame], columns: Sequence[str], *, window: tuple[str, str], blocks: int = 16) -> dict[str, Any]:
     """The probability of backtest overfitting over the named columns. A trial with no return on a date reads as flat, as a trial that didn't exist yet would be."""
     from evaluation.pbo import probability_of_backtest_overfitting
 
@@ -391,7 +400,8 @@ def pbo_report(frames: Sequence[pd.DataFrame], columns: Sequence[str], *, window
     return {"pbo": result.get("pbo"), "num_trials": len(present), "window": "..".join(window), "absent": [name for name in columns if name not in both.columns]}
 
 
-def stage_pbo(spec: RoundSpec, *, root: Path = Path(".")) -> dict:
+def stage_pbo(spec: RoundSpec, *, root: Path = Path(".")) -> dict[str, Any]:
+    """PBO by CSCV over the round's trials (and prior rounds' daily returns on the same cell), written beside the gate."""
     paths = _paths(spec)
     cell = CELLS[spec.cell]
     frames = [pd.read_parquet(Path(root) / path) for path in spec.prior_daily]
@@ -407,7 +417,7 @@ def holdouts_spent(path: Path) -> list[str]:
     return sorted({cell for entry in read_ledger(path) for cell in entry.get("cells", ())})
 
 
-def stage_freeze(spec: RoundSpec, candidate: Mapping, *, holdout_ledger: Path, code_digests: Mapping[str, str] | None = None) -> tuple[Path, str]:
+def stage_freeze(spec: RoundSpec, candidate: Mapping[str, Any], *, holdout_ledger: Path, code_digests: Mapping[str, str] | None = None) -> tuple[Path, str]:
     """Freezes one candidate, by rule. Refuses once any holdout has been read: the same data can't back a second candidate. Returns (path, digest)."""
     paths = _paths(spec)
     gate, pbo = _read_json(paths["gate"], {}), _read_json(paths["pbo"], {})
@@ -426,7 +436,7 @@ def stage_freeze(spec: RoundSpec, candidate: Mapping, *, holdout_ledger: Path, c
     return path, digest
 
 
-def r_hold1(reads: Mapping[str, Mapping]) -> dict:
+def r_hold1(reads: Mapping[str, Mapping]) -> dict[str, Any]:
     """R-HOLD1's clauses: V3 Sharpe >= 0.50 and alpha t >= 2.0; V1 and V2 Sharpe > 0. A missing figure fails."""
     def finite(value) -> float | None:
         return float(value) if value is not None and math.isfinite(float(value)) else None
@@ -440,7 +450,7 @@ def r_hold1(reads: Mapping[str, Mapping]) -> dict:
     return {"rule": "R-HOLD1", "passed": all(clauses.values()), "clauses": clauses, "reads": dict(reads)}
 
 
-def r_hold1_crypto(reads: Mapping[str, Mapping]) -> dict:
+def r_hold1_crypto(reads: Mapping[str, Mapping]) -> dict[str, Any]:
     """R-HOLD1 for a crypto candidate: CV Sharpe >= 0.50 and alpha t >= 2.0. A missing figure fails."""
     def finite(value) -> float | None:
         return float(value) if value is not None and math.isfinite(float(value)) else None
@@ -453,7 +463,7 @@ def r_hold1_crypto(reads: Mapping[str, Mapping]) -> dict:
 def stage_hold(
     spec: RoundSpec, trial: str, *, root: Path, freeze_path: Path, digest: str, holdout_ledger: Path, created_at: str, score_dir: Path,
     read_cell: Callable[[str], object] | None = None, alpha_fn: Callable[[pd.Series], Mapping] | None = None,
-) -> dict:
+) -> dict[str, Any]:
     """The one read of the holdouts. It records the read before opening anything: a crash after this still counts as spent."""
     from evaluation.premia_research import annual_sharpe, weights_for
     if Path(freeze_path).name != f"freeze_{trial}.json" or freeze_digest_of(Path(freeze_path)) != digest:
@@ -497,7 +507,7 @@ def _is_part_of(spec: RoundSpec, trial: str, other: str) -> bool:
     return other in (recipe.get("parts") or ())
 
 
-def stage_report(spec: RoundSpec, *, alpha_fn: Callable[[pd.Series], Mapping] | None = None) -> dict:
+def stage_report(spec: RoundSpec, *, alpha_fn: Callable[[pd.Series], Mapping] | None = None) -> dict[str, Any]:
     """The verdict in plain figures: survivors, PBO, and what this round can and can't exclude, per trial and at the best trial."""
     from evaluation.power_analysis import excluded_alpha_sharpe
 

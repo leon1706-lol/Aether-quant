@@ -31,6 +31,12 @@ TARGETS: dict[str, tuple[str, ...]] = {
     "execution/order_gate.py": ("tests/test_order_gate.py", "tests/test_v664_mutation_safety.py", "tests/test_formal_differential_order_gate.py"),
     "risk_controls.py": ("tests/test_risk_controls.py", "tests/test_v664_mutation_safety.py", "tests/test_v664_mutation_ledgers.py", "tests/test_formal_differential_risk_controls.py"),
     "risk/kill_switch.py": ("tests/test_kill_switch.py", "tests/test_v664_mutation_safety.py", "tests/test_v664_mutation_ledgers.py", "tests/test_formal_differential_kill_switch.py"),
+    # V6.6.5: accounts that only tighten, who may lock, secrets that never show, the live gate, the field test's gate
+    "execution/accounts.py": ("tests/test_accounts.py", "tests/test_accounts_parity.py", "tests/test_formal_differential_account_overrides.py"),
+    "monitoring/auth.py": ("tests/test_auth.py", "tests/test_formal_differential_authorize.py"),
+    "execution/secrets.py": ("tests/test_secrets.py", "tests/test_secrets_property.py"),
+    "execution/live_readiness.py": ("tests/test_live_readiness.py",),
+    "execution/field_test.py": ("tests/test_field_test.py",),
 }
 COMPARE = {ast.Lt: ast.LtE, ast.LtE: ast.Lt, ast.Gt: ast.GtE, ast.GtE: ast.Gt, ast.Eq: ast.NotEq, ast.NotEq: ast.Eq}
 ARITHMETIC = {ast.Add: ast.Sub, ast.Sub: ast.Add}

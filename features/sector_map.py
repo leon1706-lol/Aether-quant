@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 UNKNOWN_SECTOR_LABEL = "Unknown"
 
@@ -20,7 +21,7 @@ UNKNOWN_SECTOR_LABEL = "Unknown"
 DEFAULT_SECTOR_MAPPING_PATH = Path(__file__).resolve().parent.parent / "data" / "reference" / "sector_mapping.json"
 
 
-def load_sector_mapping(config: dict, *, default_path: Path = DEFAULT_SECTOR_MAPPING_PATH) -> dict[str, str]:
+def load_sector_mapping(config: dict[str, Any], *, default_path: Path = DEFAULT_SECTOR_MAPPING_PATH) -> dict[str, str]:
     """Ticker -> sector bucket, from the checked-in data/reference/sector_mapping.json
     (or an override path via config phase1.target.ranking.sector_neutral.mapping_path).
 

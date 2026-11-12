@@ -111,3 +111,40 @@ def test_live_plumbing_report_reads_stages_and_failures_from_logs():
     assert scenarios["alive_through_redis_and_postgres_outages"]["audit_push_failures_logged"] == 2 and report["not_proved"]
     dead = build_report({"engine": "nothing"}, {"engine": ""}, {})
     assert not any(item["passed"] for item in dead["scenarios"].values())
+
+
+def test_field_test_project_config_is_two_coins_by_the_minute_in_paper_with_the_plan_on():
+    import json
+
+    from execution.field_test import field_test_target, resolve_field_test_plan
+    from scripts.lean_smoke.make_field_test_config import COINS, project_config
+
+    base = json.loads((ROOT / "config.json").read_text(encoding="utf-8"))
+    before = json.dumps(base, sort_keys=True)
+    config = project_config(base)
+    assert json.dumps(base, sort_keys=True) == before, "config.json is read, never changed"
+    universe = config["phase1"]["universe"]
+    assert sorted(asset["ticker"] for asset in universe["assets"]) == sorted(COINS) and universe["resolution"] == "Minute"
+    phase_v2 = config["phase_v2"]
+    assert phase_v2["runtime"] == {"mode": "paper", "allow_live_orders": True}
+    assert phase_v2["paper_trading"]["brokerage"] == "lean_paper_brokerage" and phase_v2["target_weights"]["enabled"]
+    plan = resolve_field_test_plan(phase_v2["diagnostics"]["field_test"])
+    assert plan.enabled and field_test_target(plan, plan.order_after_bars)
+    assert plan.order_after_bars < plan.drift_after_bars < plan.shock_after_bars, "order, then drift, then the shock"
+    assert plan.drawdown_shock_pct > phase_v2["risk"]["kill_switch"]["max_drawdown_velocity_pct_per_bar"]
+
+
+def test_field_test_summary_reads_orders_trip_and_flat_book_from_the_log():
+    from execution.field_test import field_test_log_line, parse_field_test_log
+    from scripts.lean_smoke.field_test import summarize_run
+
+    lines = [field_test_log_line("order_row", 3, names=2)]
+    lines += [field_test_log_line("order_event", 3, status=status, symbol="BTCUSD") for status in ("Submitted", "Filled")]
+    # after the trip the cash sits in the T-bill sweep: gross stays high, the strategy's risk is zero
+    lines += [field_test_log_line("gross", bar, value=0.98 if bar < 14 else 0.9, risk=0.5 if bar < 14 else 0.0, locked=bar >= 14) for bar in range(1, 22)]
+    lines += [field_test_log_line("first_reconciliation", 2, breach=False), field_test_log_line("reconciliation_breach", 8),
+              field_test_log_line("shock", 14), field_test_log_line("kill_switch_tripped", 14, triggers="drawdown_velocity")]
+    summary = summarize_run(parse_field_test_log("\n".join(lines)))
+    assert summary["orders_submitted"] == 1 and summary["orders_filled"] == 1
+    assert summary["shock_bar"] == 14 and summary["kill_switch_trip_bar"] == 14 and summary["gross_after_trip"] == 0.0
+    assert summary["reconciliation_breach"] and summary["first_reconciliation_breach"] is False and summary["bars_seen"] == 21

@@ -1,5 +1,9 @@
 import { useQuery } from '@tanstack/react-query'
 import {
+  fetchAccounts,
+  fetchHealth,
+  fetchReadiness,
+  fetchWhoAmI,
   fetchAssetPerformance,
   fetchAssetsStatus,
   fetchAuditLog,
@@ -18,12 +22,29 @@ import {
 const REFRESH_MS = 5000
 const TRACING_REFRESH_MS = 15000
 
-export function useRuntimeState() {
+export function useRuntimeState(account = 'default') {
   return useQuery({
-    queryKey: ['state'],
-    queryFn: fetchState,
+    queryKey: ['state', account],
+    queryFn: () => fetchState(account),
     refetchInterval: REFRESH_MS,
   })
+}
+
+// V6.6.5: whether the feed is demo data and whether the API wants a token; who is signed in; the accounts; readiness.
+export function useHealth() {
+  return useQuery({ queryKey: ['health'], queryFn: fetchHealth, refetchInterval: TRACING_REFRESH_MS })
+}
+
+export function useWhoAmI(enabled: boolean) {
+  return useQuery({ queryKey: ['whoami'], queryFn: fetchWhoAmI, enabled, retry: false })
+}
+
+export function useAccounts() {
+  return useQuery({ queryKey: ['accounts'], queryFn: fetchAccounts, refetchInterval: TRACING_REFRESH_MS, retry: false })
+}
+
+export function useReadiness() {
+  return useQuery({ queryKey: ['readiness'], queryFn: fetchReadiness, refetchInterval: TRACING_REFRESH_MS, retry: false })
 }
 
 export function useScene() {

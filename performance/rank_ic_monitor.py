@@ -42,6 +42,7 @@ from evaluation.rank_ic_core import (
     aggregate_rank_ic_observations,
     resolve_realized_rank_ic_observations,
 )
+from typing import Any
 
 
 def compute_realized_rank_ic_observations(events: list[dict], horizon_days: int = 20) -> list[dict]:
@@ -50,7 +51,7 @@ def compute_realized_rank_ic_observations(events: list[dict], horizon_days: int 
     return resolve_realized_rank_ic_observations(events, horizon_days)
 
 
-def compute_production_rank_ic(observations: list[dict], non_overlapping_stride: int = 1) -> dict:
+def compute_production_rank_ic(observations: list[dict], non_overlapping_stride: int = 1) -> dict[str, Any]:
     """Thin re-export of evaluation.rank_ic_core.aggregate_rank_ic_observations()
     - see that function's docstring for the actual algorithm."""
     return aggregate_rank_ic_observations(observations, non_overlapping_stride=non_overlapping_stride)

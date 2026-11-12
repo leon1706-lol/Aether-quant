@@ -23,6 +23,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from typing import Any
 
 OUTPUT = Path(__file__).resolve().parent.parent / "data" / "reference" / "edgar_eps.csv"
 TICKERS_URL = "https://www.sec.gov/files/company_tickers.json"
@@ -37,7 +38,7 @@ YEAR_MIN_DAYS, YEAR_MAX_DAYS = 350, 380
 SPLITS_OUTPUT = OUTPUT.with_name("equity_splits.csv")
 
 
-def quarterly_first_filings(facts: dict) -> list[dict]:
+def quarterly_first_filings(facts: dict[str, Any]) -> list[dict]:
     """{period_start, period_end, filed, eps} for every standalone quarter, first filing only. Year-to-date and annual
     figures are dropped by their duration; the first tag with data wins."""
     usgaap = ((facts or {}).get("facts") or {}).get("us-gaap") or {}
@@ -79,7 +80,7 @@ FUNDAMENTALS_COLUMNS = ["ticker", "field", "period_end", "filed", "form", "value
 WIDE_USER_AGENT_VERSION = "6.6"
 
 
-def first_filings_annual(facts: dict, tag: str, *, taxonomy: str = "us-gaap") -> list[dict]:
+def first_filings_annual(facts: dict[str, Any], tag: str, *, taxonomy: str = "us-gaap") -> list[dict]:
     """{period_end, filed, form, value} per fiscal year, first filing only, from annual forms: what was public, not what a later
     restatement says. A figure may appear in many later filings as a comparative; only the earliest counts."""
     concept = ((facts or {}).get("facts") or {}).get(taxonomy, {}).get(tag) or {}
@@ -99,7 +100,7 @@ def first_filings_annual(facts: dict, tag: str, *, taxonomy: str = "us-gaap") ->
     return sorted(first.values(), key=lambda row: row["period_end"])
 
 
-def fundamentals_rows(facts: dict) -> list[dict]:
+def fundamentals_rows(facts: dict[str, Any]) -> list[dict]:
     """Every field's annual first filings. For a field with several tags, an earlier tag wins a fiscal year; a later one only fills
     years it doesn't have."""
     rows: list[dict] = []
@@ -124,7 +125,7 @@ QUARTERLY_FORMS = ("10-Q", "10-Q/A", *ANNUAL_FORMS)
 COMPARATIVE_TOLERANCE_DAYS = 7
 
 
-def _first_filed_durations(facts: dict, tag: str, *, taxonomy: str = "us-gaap") -> dict[tuple[str, str], dict]:
+def _first_filed_durations(facts: dict[str, Any], tag: str, *, taxonomy: str = "us-gaap") -> dict[tuple[str, str], dict]:
     """{(start, end): first filing} of a flow figure, across annual and quarterly forms."""
     concept = ((facts or {}).get("facts") or {}).get(taxonomy, {}).get(tag) or {}
     first: dict[tuple[str, str], dict] = {}
@@ -149,7 +150,7 @@ def _ttm_rows(durations: dict[tuple[str, str], dict]) -> list[dict]:
     annual = {end: row for (start, end), row in durations.items() if YEAR_MIN_DAYS <= _days_between(start, end) <= YEAR_MAX_DAYS}
     best: dict[str, dict] = {}
 
-    def offer(end: str, row: dict) -> None:
+    def offer(end: str, row: dict[str, Any]) -> None:
         if end not in best or row["filed"] < best[end]["filed"]:
             best[end] = {"period_end": end, **row}
 
@@ -177,7 +178,7 @@ def _ttm_rows(durations: dict[tuple[str, str], dict]) -> list[dict]:
     return sorted(best.values(), key=lambda item: item["period_end"])
 
 
-def _first_filed_instants(facts: dict, tag: str, *, taxonomy: str = "us-gaap") -> list[dict]:
+def _first_filed_instants(facts: dict[str, Any], tag: str, *, taxonomy: str = "us-gaap") -> list[dict]:
     """A balance-sheet figure per period end, first filing only, from annual and quarterly forms."""
     concept = ((facts or {}).get("facts") or {}).get(taxonomy, {}).get(tag) or {}
     first: dict[str, dict] = {}
@@ -191,7 +192,7 @@ def _first_filed_instants(facts: dict, tag: str, *, taxonomy: str = "us-gaap") -
     return sorted(first.values(), key=lambda row: row["period_end"])
 
 
-def quarterly_ttm_rows(facts: dict) -> list[dict]:
+def quarterly_ttm_rows(facts: dict[str, Any]) -> list[dict]:
     """`ttm_net_income`, `ttm_operating_cash_flow` and `assets_q`, in FUNDAMENTALS_COLUMNS' shape without the ticker."""
     rows: list[dict] = []
     for field, tags in TTM_TAGS.items():
@@ -204,7 +205,7 @@ def quarterly_ttm_rows(facts: dict) -> list[dict]:
     return rows
 
 
-def extended_rows(facts: dict) -> list[dict]:
+def extended_rows(facts: dict[str, Any]) -> list[dict]:
     """Every V6.6.1 field. For a field with several tags, an earlier tag wins a fiscal year, as in `fundamentals_rows`."""
     rows = list(quarterly_ttm_rows(facts))
     for field, tags in EXTENDED_ANNUAL_TAGS.items():
@@ -251,7 +252,7 @@ def fetch_extended(
     return rows, missing
 
 
-def sector_for_sic(sic) -> str:
+def sector_for_sic(sic: int | str | None) -> str:
     """A sector label from a SEC SIC code, in the GICS sector names. Coarse, and today's code rather than the code at each date: it
     only sets which names are ranked together. A company with no code is `unknown`, which is never traded."""
     try:
@@ -337,12 +338,14 @@ def collect_cached_eps(tickers: Iterable[str], cache_dir: Path) -> list[dict]:
 
 
 def write_fundamentals(rows: list[dict], path: Path) -> None:
+    """Write fundamentals rows as a gzipped CSV in the canonical column order, creating the folder."""
     frame = pd.DataFrame(rows, columns=FUNDAMENTALS_COLUMNS)
     Path(path).parent.mkdir(parents=True, exist_ok=True)
     frame.to_csv(path, index=False, lineterminator="\n", compression="gzip")
 
 
 def read_fundamentals(path: Path) -> pd.DataFrame:
+    """Read a cached EDGAR fundamentals table, with its keys and dates as strings."""
     return pd.read_csv(path, dtype={"ticker": str, "field": str, "period_end": str, "filed": str, "form": str, "value": float})
 
 
@@ -395,7 +398,7 @@ def user_agent() -> str:
     return f"AetherQuantResearch/6.5 {contact}" if contact else USER_AGENT
 
 
-def _get_json(url: str) -> dict:
+def _get_json(url: str) -> dict[str, Any]:
     import requests
 
     response = requests.get(url, timeout=60, headers={"User-Agent": user_agent(), "Accept": "application/json"})
@@ -435,6 +438,7 @@ def write_eps(rows: list[dict], path: Path = OUTPUT) -> None:
 
 
 def read_eps(path: Path = OUTPUT) -> pd.DataFrame:
+    """Read the cached EDGAR earnings-per-share table, with its date columns as strings."""
     return pd.read_csv(path, dtype={"ticker": str, "period_start": str, "period_end": str, "filed": str})
 
 
@@ -474,6 +478,7 @@ def write_splits(rows: list[dict], path: Path = SPLITS_OUTPUT) -> None:
 
 
 def read_splits(path: Path = SPLITS_OUTPUT) -> pd.DataFrame:
+    """Read the cached stock-split table, with ticker and date as strings."""
     return pd.read_csv(path, dtype={"ticker": str, "date": str})
 
 

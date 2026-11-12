@@ -26,7 +26,6 @@ from __future__ import annotations
 import argparse
 import json
 import logging
-import os
 import sys
 from collections import Counter
 from datetime import datetime, timedelta, timezone
@@ -37,6 +36,7 @@ from sklearn.cluster import KMeans
 
 from performance.postgres_triggers import fetch_recent_events
 from topology.learned_topology import FEATURE_KEYS, liquidity_score_from_decision
+from execution.secrets_io import secret_env
 
 LOGGER = logging.getLogger("aether_quant.train_topology")
 ROOT = Path(__file__).resolve().parent
@@ -346,7 +346,7 @@ def main() -> int:
         else:
             import psycopg
 
-            dsn = os.environ.get("AETHER_POSTGRES_DSN", args.postgres_dsn)
+            dsn = secret_env("POSTGRES_DSN", args.postgres_dsn)
             conn = psycopg.connect(dsn, autocommit=False)
             try:
                 since = datetime.now(timezone.utc) - timedelta(days=lookback_days)

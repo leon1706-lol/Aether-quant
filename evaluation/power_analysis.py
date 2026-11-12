@@ -9,6 +9,10 @@ from __future__ import annotations
 
 import math
 from statistics import NormalDist
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 _NORMAL = NormalDist()
 
@@ -40,7 +44,7 @@ def fundamental_law_ir(ic: float, names: int, rebalances_per_year: float, transf
     return float(transfer) * float(ic) * math.sqrt(breadth)
 
 
-def power_table(years_list=(3.3, 8.0, 15.8, 22.8), alpha_sharpes=(0.25, 0.5, 0.75, 1.0, 1.5), t_bar: float = 3.0) -> dict:
+def power_table(years_list: Sequence[float]=(3.3, 8.0, 15.8, 22.8), alpha_sharpes: Sequence[float]=(0.25, 0.5, 0.75, 1.0, 1.5), t_bar: float = 3.0) -> dict[str, Any]:
     """The table `ml/evaluation/v660/power.json` holds, written before any score of the phase exists."""
     return {
         "t_bar": t_bar,

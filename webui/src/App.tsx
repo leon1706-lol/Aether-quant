@@ -1,7 +1,8 @@
-import { lazy, Suspense } from 'react'
+import { lazy, Suspense, useState } from 'react'
 import { Route, Routes } from 'react-router-dom'
 import { useRuntimeState } from './api/hooks'
 import { AppShell } from './components/layout/AppShell'
+import { getAccount, setAccount } from './api/session'
 
 // V4.10 - route-level code-splitting. Overview/TopologyPage/NeuralNetworkPage
 // pull in @react-three/fiber/three.js scene renderers, which used to be
@@ -29,25 +30,33 @@ const TracingPage = lazy(() => import('./pages/TracingPage').then((m) => ({ defa
 // doesn't strictly need the code-splitting rationale above - kept lazy
 // anyway for consistency with every other route in this file.
 const EvaluationPage = lazy(() => import('./pages/EvaluationPage').then((m) => ({ default: m.EvaluationPage })))
+// V6.6.5 (#352): the paper-to-live scorecard and the accounts.
+const ReadinessPage = lazy(() => import('./pages/ReadinessPage').then((m) => ({ default: m.ReadinessPage })))
 
 function RouteLoadingFallback() {
   return <div className="flex items-center justify-center py-24 text-sm text-white/40">Loading…</div>
 }
 
 function App() {
-  const { data: state, isError } = useRuntimeState()
+  const [account, setAccountState] = useState(getAccount())
+  const { data: state, isError } = useRuntimeState(account)
+  const changeAccount = (next: string) => {
+    setAccount(next)
+    setAccountState(next)
+  }
 
   return (
-    <AppShell state={state} isError={isError}>
+    <AppShell state={state} isError={isError} account={account} onAccountChange={changeAccount}>
       <Suspense fallback={<RouteLoadingFallback />}>
         <Routes>
           <Route path="/" element={<Overview state={state} />} />
-          <Route path="/operations" element={<OperationsPage state={state} />} />
+          <Route path="/operations" element={<OperationsPage state={state} account={account} />} />
           <Route path="/risk" element={<RiskPage state={state} />} />
           <Route path="/options-strategy" element={<OptionsStrategyPage state={state} />} />
           <Route path="/topology" element={<TopologyPage state={state} />} />
           <Route path="/neural-network" element={<NeuralNetworkPage state={state} />} />
           <Route path="/evaluation" element={<EvaluationPage state={state} />} />
+          <Route path="/readiness" element={<ReadinessPage />} />
           <Route path="/tracing" element={<TracingPage />} />
         </Routes>
       </Suspense>

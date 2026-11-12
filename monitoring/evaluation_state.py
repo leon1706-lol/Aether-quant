@@ -17,11 +17,12 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 DEFAULT_ML_DIR = Path(__file__).resolve().parent.parent / "ml"
 
 
-def _load_json(path: Path) -> dict | list | None:
+def _load_json(path: Path) -> dict[str, Any] | list[Any] | None:
     if not path.exists():
         return None
     try:
@@ -31,7 +32,7 @@ def _load_json(path: Path) -> dict | list | None:
         return None
 
 
-def build_generations_state(ml_dir: Path | None = None) -> dict:
+def build_generations_state(ml_dir: Path | None = None) -> dict[str, Any]:
     """V6.6.1 - what `aq cycle status` wrote: the generations, their shares and what is due. A fresh checkout has no status yet, which is not an error."""
     payload = _load_json((ml_dir or DEFAULT_ML_DIR) / "generations" / "status.json")
     if not isinstance(payload, dict):
@@ -39,11 +40,11 @@ def build_generations_state(ml_dir: Path | None = None) -> dict:
     return {"available": True, **payload}
 
 
-def _not_evaluated(hint: str) -> dict:
+def _not_evaluated(hint: str) -> dict[str, Any]:
     return {"status": "not_evaluated", "hint": hint}
 
 
-def build_evaluation_state(ml_dir: Path | None = None) -> dict:
+def build_evaluation_state(ml_dir: Path | None = None) -> dict[str, Any]:
     """Reads ml/evaluation/{rank_book_simulation,capacity_report,
     cost_stress_report,ablation_report,book_spread_calibration,
     book_history_reconciliation,kill_switch_replay}.json plus the newest
@@ -107,7 +108,7 @@ def build_evaluation_state(ml_dir: Path | None = None) -> dict:
     }
 
 
-def _latest_walk_forward_summary(ml_dir: Path) -> dict | None:
+def _latest_walk_forward_summary(ml_dir: Path) -> dict[str, Any] | None:
     """The most recently modified ml/versions/walk-forward-*/walk_forward_summary.json,
     if any - `_run_walk_forward()` (train.py) writes one such directory per
     run, each with its own uuid-suffixed name, so "latest" is by file

@@ -11,6 +11,12 @@ from __future__ import annotations
 import math
 
 import numpy as np
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+
+    from numpy.typing import ArrayLike
 
 EPS = 1e-12
 
@@ -22,19 +28,21 @@ def _clean(probability, outcome) -> tuple[np.ndarray, np.ndarray]:
     return np.clip(p[keep], EPS, 1.0 - EPS), y[keep]
 
 
-def log_loss(probability, outcome) -> float | None:
+def log_loss(probability: ArrayLike, outcome: ArrayLike) -> float | None:
+    """Mean negative log-likelihood of the outcomes under the probabilities; None when empty."""
     p, y = _clean(probability, outcome)
     if len(p) == 0:
         return None
     return float(-np.mean(y * np.log(p) + (1.0 - y) * np.log(1.0 - p)))
 
 
-def brier_score(probability, outcome) -> float | None:
+def brier_score(probability: ArrayLike, outcome: ArrayLike) -> float | None:
+    """Mean squared error of the probabilities against the 0/1 outcomes; None when empty."""
     p, y = _clean(probability, outcome)
     return float(np.mean((p - y) ** 2)) if len(p) else None
 
 
-def reliability_curve(probability, outcome, bins: int = 10) -> list[dict]:
+def reliability_curve(probability: ArrayLike, outcome: ArrayLike, bins: int = 10) -> list[dict]:
     """Equal-width bins on [0, 1]: {"low", "high", "n", "mean_probability", "observed_rate"} for each non-empty bin."""
     p, y = _clean(probability, outcome)
     edges = np.linspace(0.0, 1.0, bins + 1)
@@ -48,7 +56,7 @@ def reliability_curve(probability, outcome, bins: int = 10) -> list[dict]:
     return rows
 
 
-def expected_calibration_error(probability, outcome, bins: int = 10) -> float | None:
+def expected_calibration_error(probability: ArrayLike, outcome: ArrayLike, bins: int = 10) -> float | None:
     """Sample-weighted mean |observed rate - mean probability| over the reliability bins."""
     rows = reliability_curve(probability, outcome, bins)
     total = sum(row["n"] for row in rows)
@@ -65,13 +73,13 @@ def _sigmoid(z: np.ndarray) -> np.ndarray:
     return 1.0 / (1.0 + np.exp(-z))
 
 
-def apply_temperature(probability, temperature: float) -> np.ndarray:
+def apply_temperature(probability: ArrayLike, temperature: float) -> np.ndarray:
     """sigmoid(logit(p) / T): T > 1 softens an over-confident head, T < 1 sharpens it, T = 1 is the identity."""
     p = np.clip(np.asarray(probability, dtype=float), EPS, 1.0 - EPS)
     return _sigmoid(_logit(p) / float(temperature))
 
 
-def fit_temperature(probability, outcome, low: float = 0.05, high: float = 20.0, iterations: int = 80) -> float | None:
+def fit_temperature(probability: ArrayLike, outcome: ArrayLike, low: float = 0.05, high: float = 20.0, iterations: int = 80) -> float | None:
     """The temperature minimising log-loss: a golden-section search on log T (the loss is unimodal in it)."""
     p, y = _clean(probability, outcome)
     if len(p) < 10 or len(np.unique(y)) < 2:
@@ -96,7 +104,7 @@ def fit_temperature(probability, outcome, low: float = 0.05, high: float = 20.0,
     return float(math.exp((a + b) / 2.0))
 
 
-def fit_isotonic(probability, outcome) -> dict | None:
+def fit_isotonic(probability: ArrayLike, outcome: ArrayLike) -> dict[str, Any] | None:
     """Pool-adjacent-violators on outcomes sorted by probability: {"x": block means of p, "y": calibrated rates} (both
     non-decreasing). None for fewer than 10 usable rows or a single class."""
     p, y = _clean(probability, outcome)
@@ -114,13 +122,13 @@ def fit_isotonic(probability, outcome) -> dict | None:
     return {"x": [block[2] / block[1] for block in merged], "y": [block[0] / block[1] for block in merged]}
 
 
-def apply_isotonic(probability, fit: dict) -> np.ndarray:
+def apply_isotonic(probability: ArrayLike, fit: dict[str, Any]) -> np.ndarray:
     """Piecewise-linear interpolation through the fitted block means, flat outside the fitted range."""
     p = np.clip(np.asarray(probability, dtype=float), 0.0, 1.0)
     return np.interp(p, fit["x"], fit["y"])
 
 
-def best_threshold_by_class(probability, outcome, classes, grid=None) -> dict[str, dict]:
+def best_threshold_by_class(probability: ArrayLike, outcome: ArrayLike, classes: ArrayLike, grid: Sequence[float] | None=None) -> dict[str, dict]:
     """{class: {"threshold", "balanced_accuracy", "n"}}: the threshold on `grid` (default 0.30..0.70 step 0.05) maximising
     balanced accuracy among that class's rows. A class lacking both outcomes, or with fewer than 20 rows, gets 0.5."""
     p = np.asarray(probability, dtype=float)
@@ -146,7 +154,8 @@ def best_threshold_by_class(probability, outcome, classes, grid=None) -> dict[st
     return out
 
 
-def balanced_accuracy(probability, outcome, threshold: float = 0.5) -> float | None:
+def balanced_accuracy(probability: ArrayLike, outcome: ArrayLike, threshold: float = 0.5) -> float | None:
+    """Mean of the hit rates on up and down outcomes at `threshold`; None without both classes."""
     p, y = _clean(probability, outcome)
     if len(p) == 0 or len(np.unique(y)) < 2:
         return None
@@ -154,7 +163,7 @@ def balanced_accuracy(probability, outcome, threshold: float = 0.5) -> float | N
     return float((call[y == 1].mean() + (~call)[y == 0].mean()) / 2.0)
 
 
-def cross_fitted_log_loss(probability, outcome, method: str) -> float | None:
+def cross_fitted_log_loss(probability: ArrayLike, outcome: ArrayLike, method: str) -> float | None:
     """Honest validation log-loss of a calibration method: fit on the first half (time order) and score the second, then
     swap, and average the two. `method` in {"raw", "temperature", "isotonic"}."""
     p, y = _clean(probability, outcome)
@@ -182,7 +191,7 @@ def cross_fitted_log_loss(probability, outcome, method: str) -> float | None:
     return float(np.mean(losses))
 
 
-def calibration_report(probability, outcome, classes=None, bins: int = 10) -> dict:
+def calibration_report(probability: ArrayLike, outcome: ArrayLike, classes: ArrayLike | None=None, bins: int = 10) -> dict[str, Any]:
     """Everything the L2 decision needs for one head on one split: the raw measures, a reliability curve, both fitted maps
     with their cross-fitted log-loss, and the per-class thresholds."""
     p, y = _clean(probability, outcome)

@@ -118,10 +118,12 @@ def months_between(start: str, end: str) -> list[str]:
 
 
 def kline_url(symbol: str, month: str) -> str:
+    """The data.binance.vision URL of one symbol's monthly daily-kline archive."""
     return f"{ARCHIVE_URL}/{KLINE_PREFIX}{symbol}/1d/{symbol}-1d-{month}.zip"
 
 
 def funding_url(symbol: str, month: str) -> str:
+    """The data.binance.vision URL of one symbol's monthly funding-rate archive."""
     return f"{ARCHIVE_URL}/{FUNDING_PREFIX}{symbol}/{symbol}-fundingRate-{month}.zip"
 
 

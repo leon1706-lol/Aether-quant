@@ -10,8 +10,8 @@ deferred inside send_message() so importing this module doesn't hard-require
 from __future__ import annotations
 
 import logging
-import os
 from typing import Callable
+from execution.secrets_io import secret_env
 
 logger = logging.getLogger(__name__)
 
@@ -37,8 +37,8 @@ class TelegramClient:
         chat_id: str = "",
         _send_fn: Callable[[str], bool] | None = None,
     ) -> None:
-        self.bot_token = os.environ.get("AETHER_TELEGRAM_BOT_TOKEN", bot_token)
-        self.chat_id = os.environ.get("AETHER_TELEGRAM_CHAT_ID", chat_id)
+        self.bot_token = secret_env("TELEGRAM_BOT_TOKEN", bot_token)
+        self.chat_id = secret_env("TELEGRAM_CHAT_ID", chat_id)
         self._send_fn = _send_fn
 
     def send_message(self, text: str) -> bool:

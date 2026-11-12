@@ -8,9 +8,11 @@ so results are read from a contract rather than from human text.
 """
 
 from __future__ import annotations
+from typing import Any
 
 
 def build_av_add_command(paths: list[str], av_binary: str = "av") -> list[str]:
+    """The `av add` command for the given paths."""
     return [av_binary, "add", *paths]
 
 
@@ -22,6 +24,7 @@ def build_av_commit_command(
     *,
     no_upload: bool = False,
 ) -> list[str]:
+    """The `av commit` command for a model version, with its message, tag and metrics."""
     cmd = [av_binary, "--output", "json", "commit", "-m", message]
     if tag:
         cmd += ["--tag", tag]
@@ -33,14 +36,17 @@ def build_av_commit_command(
 
 
 def build_av_push_command(av_binary: str = "av") -> list[str]:
+    """The `av push` command (JSON output)."""
     return [av_binary, "--output", "json", "push"]
 
 
 def build_av_status_command(av_binary: str = "av") -> list[str]:
+    """The `av status` command (JSON output)."""
     return [av_binary, "--output", "json", "status"]
 
 
 def build_av_head_command(av_binary: str = "av") -> list[str]:
+    """The `av log --limit 1` command (JSON output): the vault's head."""
     return [av_binary, "--output", "json", "log", "--limit", "1"]
 
 
@@ -49,7 +55,7 @@ def build_av_restore_command(commit_hash: str, paths: list[str], av_binary: str 
     return [av_binary, "--output", "json", "restore", "--source", commit_hash, *paths]
 
 
-def build_commit_plan(version_id: str, add_paths: list[str], metrics: dict[str, float], config: dict) -> dict:
+def build_commit_plan(version_id: str, add_paths: list[str], metrics: dict[str, float], config: dict[str, Any]) -> dict[str, Any]:
     """Assembles the full add -> commit -> push argv plan for one candidate.
 
     config = phase_v2.retraining.vault block. `push` defaults to True per

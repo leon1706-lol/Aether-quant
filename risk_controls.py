@@ -3,6 +3,11 @@
 from __future__ import annotations
 
 import math
+from typing import TYPE_CHECKING, Any
+
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
 
 
 def assess_drawdown_lock(
@@ -11,6 +16,7 @@ def assess_drawdown_lock(
     max_daily_drawdown_pct: float,
     max_total_drawdown_pct: float,
 ) -> tuple[bool, str | None]:
+    """Whether the daily or total drawdown has reached its limit, and which (total first): the sticky trade lock's test."""
     if total_drawdown <= -max_total_drawdown_pct:
         return True, "total_drawdown_limit_breached"
     if daily_drawdown <= -max_daily_drawdown_pct:
@@ -101,6 +107,7 @@ def active_position_limit_reached(
     max_active_positions: int,
     is_currently_invested: bool,
 ) -> bool:
+    """Whether a new position would exceed the active-position limit (a name already held never counts against it)."""
     return not is_currently_invested and active_positions >= max_active_positions
 
 
@@ -281,7 +288,7 @@ def build_forex_order_sizing_record(
     portfolio_value: float,
     close_price: float,
     order_units: int,
-) -> dict:
+) -> dict[str, Any]:
     """V5.2.7 (development/Problems.md) - a diagnostic snapshot of one
     forex order-sizing decision, for main.py's optional (config-gated,
     off by default, backtest-only) forex-order-sizing log. Exists
@@ -386,7 +393,7 @@ def compute_position_exit_tracking_update(
     held_quantity: float | None = None,
     average_entry_price: float | None = None,
     clear_stale_state: bool = False,
-) -> dict:
+) -> dict[str, Any]:
     """V4.10 - pure extraction of main.py::_update_position_exit_tracking().
 
     V5.5.0 (Problems.md #134): the closing fill also lands on the NEXT bar, so
@@ -469,7 +476,7 @@ def compute_position_exit_tracking_update(
     return {"action": "noop"}
 
 
-def resolve_lean_window(runtime: dict | None, windows: dict) -> tuple[tuple[int, int, int], tuple[int, int, int]]:
+def resolve_lean_window(runtime: dict[str, Any] | None, windows: dict[str, Any]) -> tuple[tuple[int, int, int], tuple[int, int, int]]:
     """((start y, m, d), (end y, m, d)) of the Lean run: `runtime.lean_window_override` {"start", "end"} when both are
     ISO dates, else `phase1.windows.backtest`. The override exists so a Lean run can cover the holdout period (V5.8.0 BT2)
     without editing `phase1.windows`, which also defines the dataset split the models were trained and judged on."""
@@ -484,7 +491,7 @@ def resolve_lean_window(runtime: dict | None, windows: dict) -> tuple[tuple[int,
     return _parts(start), _parts(end)
 
 
-def resolve_benchmark_ticker(runtime: dict | None, universe_tickers) -> str | None:
+def resolve_benchmark_ticker(runtime: dict[str, Any] | None, universe_tickers: Iterable[str]) -> str | None:
     """Ticker Lean's benchmark should follow (`runtime.benchmark_ticker`), or None to keep Lean's default.
 
     Lean's default benchmark is an internal HOUR SPY feed; the local hourly zip is Lean's sample file and ends 2021-03-31,
@@ -497,7 +504,7 @@ def resolve_benchmark_ticker(runtime: dict | None, universe_tickers) -> str | No
     return next((str(t) for t in universe_tickers if str(t).upper() == wanted), None)
 
 
-def resolve_trading_days_per_year(runtime: dict | None) -> int | None:
+def resolve_trading_days_per_year(runtime: dict[str, Any] | None) -> int | None:
     """`runtime.trading_days_per_year` for Lean's statistics (V6.2.0), or None to keep Lean's default (252 under the
     default brokerage model). The equity curve holds a point for every calendar day once crypto trades on weekends, so
     365 annualises it the way Lean itself does for a crypto brokerage. Only Lean's reported statistics change."""

@@ -21,6 +21,7 @@ BLEND_LOOKBACKS = (63, 126, 252)
 
 @dataclass(frozen=True)
 class TrendSleeveConfig:
+    """Settings of the trend sleeve: on or off, its symbols, the signal and the volatility target."""
     enabled: bool = False
     symbols: tuple[str, ...] = ()
     signal: str = "sign_252"
@@ -38,6 +39,7 @@ class TrendSleeveConfig:
 
 
 def signal_lookbacks(signal: str) -> tuple[int, ...]:
+    """The lookbacks a trend signal name stands for (`sign_252` is 252; `sign_blend` the blend's)."""
     if signal == "sign_blend":
         return BLEND_LOOKBACKS
     return (int(signal.split("_", 1)[1]),)

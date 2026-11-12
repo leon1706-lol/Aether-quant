@@ -1,6 +1,11 @@
 import type { ReactNode } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { NavLink } from 'react-router-dom'
 import type { RuntimeState } from '../../types/state'
+import { useAccounts, useHealth, useWhoAmI } from '../../api/hooks'
+import { HttpError } from '../../api/client'
+import { getToken, setToken } from '../../api/session'
+import { AccountSelector, DemoBanner, LoginPanel, OnboardingPanel } from '../access/AccessPanels'
 
 const REFRESH_LABEL = 'refresh: 5s'
 
@@ -12,6 +17,7 @@ const NAV_ITEMS: { to: string; label: string }[] = [
   { to: '/topology', label: 'Topology' },
   { to: '/neural-network', label: 'Neural Network' },
   { to: '/evaluation', label: 'Evaluation' },
+  { to: '/readiness', label: 'Readiness' },
   { to: '/tracing', label: 'Tracing' },
 ]
 
@@ -33,11 +39,32 @@ export function AppShell({
   state,
   isError,
   children,
+  account = 'default',
+  onAccountChange,
 }: {
   state: RuntimeState | undefined
   isError: boolean
   children: ReactNode
+  account?: string
+  onAccountChange?: (account: string) => void
 }) {
+  const queryClient = useQueryClient()
+  const { data: health } = useHealth()
+  const authRequired = health?.auth === 'required'
+  const whoami = useWhoAmI(authRequired)
+  const { data: accounts } = useAccounts()
+  const signedOut = authRequired && (!getToken() || (whoami.error instanceof HttpError && whoami.error.status === 401))
+  const user = whoami.data?.user ?? null
+
+  const signIn = (token: string) => {
+    setToken(token)
+    void queryClient.invalidateQueries()
+  }
+  const signOut = () => {
+    setToken(null)
+    void queryClient.invalidateQueries()
+  }
+
   return (
     <div className="min-h-screen text-white">
       <div className="mx-auto w-[min(1480px,calc(100%-28px))] overflow-x-hidden py-6">
@@ -47,7 +74,7 @@ export function AppShell({
             <p className="mt-2 max-w-xl text-sm text-white/60">
               Unified runtime console for portfolio state, risk and the market scene.
             </p>
-            <nav className="mt-4 flex flex-wrap gap-2">
+            <nav aria-label="Pages" className="mt-4 flex flex-wrap gap-2">
               {NAV_ITEMS.map((item) => (
                 <NavLink
                   key={item.to}
@@ -64,13 +91,38 @@ export function AppShell({
               ))}
             </nav>
           </div>
-          <div className="flex flex-wrap justify-end gap-2">
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            {onAccountChange && accounts?.accounts ? <AccountSelector accounts={accounts.accounts} value={account} onChange={onAccountChange} /> : null}
             <StatusChip strong>mode: {isError ? 'feed unavailable' : state?.mode ?? 'loading'}</StatusChip>
             <StatusChip>updated: {state?.updated_at ?? 'waiting'}</StatusChip>
             <StatusChip>{REFRESH_LABEL}</StatusChip>
+            {user ? (
+              <>
+                <StatusChip>
+                  {user} ({whoami.data?.role})
+                </StatusChip>
+                <button type="button" onClick={signOut} className="rounded-full border border-white/15 px-3 py-1.5 text-sm text-white/60 hover:text-white">
+                  Sign out
+                </button>
+              </>
+            ) : null}
           </div>
         </header>
-        <main className="mt-6">{children}</main>
+        {health?.demo ? <DemoBanner /> : null}
+        <main className="mt-6">
+          {signedOut ? (
+            <LoginPanel onSubmit={signIn} failed={Boolean(getToken())} />
+          ) : (
+            <>
+              {isError && !health?.demo ? (
+                <div className="mb-4">
+                  <OnboardingPanel />
+                </div>
+              ) : null}
+              {children}
+            </>
+          )}
+        </main>
       </div>
     </div>
   )

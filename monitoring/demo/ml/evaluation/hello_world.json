@@ -1,0 +1,72 @@
+{
+ "btc_buy_hold": {
+  "average_gross": 1.010231,
+  "cagr": 0.103923,
+  "calmar": 0.153753,
+  "cost_bps": 18.611898,
+  "max_drawdown": 0.675913,
+  "name": "BTC buy & hold",
+  "sharpe": 0.504365,
+  "sortino": 0.716271,
+  "turnover": 0.206799,
+  "volatility": 0.510882
+ },
+ "coins": [
+  "ADAUSD",
+  "BCHUSD",
+  "BTCUSD",
+  "DOGEUSD",
+  "ETCUSD",
+  "ETHUSD",
+  "LINKUSD",
+  "LTCUSD",
+  "XLMUSD",
+  "XRPUSD",
+  "ZECUSD"
+ ],
+ "data_source": "bundled sample (demo)",
+ "dsr_grid": 0.74307,
+ "end": "2026-10-31",
+ "equal_weight": {
+  "average_gross": 1.001218,
+  "cagr": 0.059441,
+  "calmar": 0.088262,
+  "cost_bps": 139.98128,
+  "max_drawdown": 0.673459,
+  "name": "Equal weight",
+  "sharpe": 0.487712,
+  "sortino": 0.696045,
+  "turnover": 1.555348,
+  "volatility": 0.670784
+ },
+ "grid_sharpes": [
+  0.354114,
+  0.498147,
+  0.431474,
+  0.573285,
+  0.521908,
+  0.601363,
+  0.386216,
+  0.540138
+ ],
+ "haircut_sharpe": 0.0,
+ "min_track_record_years": 14.776366,
+ "note": "No verified edge: this is the project's shipped book, labelled improved, not verified. Past results say nothing certain about the future.",
+ "pbo": 0.842857,
+ "psr": 0.826522,
+ "research_trials": 217,
+ "rule": "t3_crypto_trend_blend_x_eos",
+ "start": "2022-01-01",
+ "strategy": {
+  "average_gross": 0.108938,
+  "cagr": 0.02846,
+  "calmar": 0.263216,
+  "cost_bps": 243.118214,
+  "max_drawdown": 0.108125,
+  "name": "Shipped rule",
+  "sharpe": 0.431474,
+  "sortino": 0.657448,
+  "turnover": 2.701313,
+  "volatility": 0.07216
+ }
+}

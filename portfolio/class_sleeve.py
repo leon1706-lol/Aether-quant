@@ -19,6 +19,7 @@ from portfolio.book_construction import BookAllocation
 
 @dataclass(frozen=True)
 class ClassSleeveConfig:
+    """Settings of one asset-class sleeve: whether it runs, names per side and its weights."""
     asset_class: str
     enabled: bool = False
     per_side: int = 2

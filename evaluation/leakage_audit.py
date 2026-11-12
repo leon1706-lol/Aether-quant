@@ -15,6 +15,11 @@ import numpy as np
 import pandas as pd
 
 from evaluation.gate_audit import daily_rank_ic
+from typing import TYPE_CHECKING, Any
+
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 
 def _mean_ic(frame: pd.DataFrame, score: str, target: str, date_column: str, min_names: int) -> float | None:
@@ -22,8 +27,9 @@ def _mean_ic(frame: pd.DataFrame, score: str, target: str, date_column: str, min
     return float(np.mean(list(ic.values()))) if ic else None
 
 
-def tail_nan_check(frame: pd.DataFrame, feature_columns, *, ticker_column: str = "ticker", date_column: str = "date",
-                   horizon: int = 20, threshold: float = 0.05) -> dict:
+def tail_nan_check(frame: pd.DataFrame, feature_columns: Sequence[str], *, ticker_column: str = "ticker", date_column: str = "date",
+                   horizon: int = 20, threshold: float = 0.05) -> dict[str, Any]:
+    """Whether each feature goes missing in the last `horizon` rows of every ticker more often than the threshold, a sign it was built from future data."""
     ordered = frame.sort_values([ticker_column, date_column])
     position_from_end = ordered.groupby(ticker_column).cumcount(ascending=False)
     tail = position_from_end < horizon
@@ -35,8 +41,8 @@ def tail_nan_check(frame: pd.DataFrame, feature_columns, *, ticker_column: str =
     return result
 
 
-def label_shuffle_check(frame: pd.DataFrame, feature_columns, target_column: str, *, date_column: str = "date",
-                        min_names: int = 20, seed: int = 7, max_abs_t: float = 3.0) -> dict:
+def label_shuffle_check(frame: pd.DataFrame, feature_columns: Sequence[str], target_column: str, *, date_column: str = "date",
+                        min_names: int = 20, seed: int = 7, max_abs_t: float = 3.0) -> dict[str, Any]:
     """A shuffled target's IC is sampling noise around 0; |t| above `max_abs_t` is not."""
     rng = np.random.default_rng(seed)
     shuffled = frame[[date_column, target_column, *feature_columns]].copy()
@@ -51,8 +57,9 @@ def label_shuffle_check(frame: pd.DataFrame, feature_columns, target_column: str
     return result
 
 
-def single_feature_ic(frame: pd.DataFrame, feature_columns, target_column: str, *, date_column: str = "date",
-                      min_names: int = 20, threshold: float = 0.15) -> dict:
+def single_feature_ic(frame: pd.DataFrame, feature_columns: Sequence[str], target_column: str, *, date_column: str = "date",
+                      min_names: int = 20, threshold: float = 0.15) -> dict[str, Any]:
+    """Each feature's mean IC against the target, flagged when its size suggests it reads the future."""
     result = {}
     for column in feature_columns:
         value = _mean_ic(frame, column, target_column, date_column, min_names)
@@ -67,8 +74,8 @@ def centre_by_group(frame: pd.DataFrame, target_column: str, group_column: str, 
 
 
 def identity_check(train: pd.DataFrame, evaluation: pd.DataFrame, target_column: str, *, ticker_column: str = "ticker",
-                   date_column: str = "date", class_columns=(), model_score_column: str | None = None, min_names: int = 20,
-                   group_column: str | None = None) -> dict:
+                   date_column: str = "date", class_columns: Sequence[str]=(), model_score_column: str | None = None, min_names: int = 20,
+                   group_column: str | None = None) -> dict[str, Any]:
     """IC of an asset-identity prior (each ticker's mean train target) and an asset-class prior against the model's.
     With `group_column` (V6.4.4) the same figures are also computed on the group-centred target ("group_centred"): the
     raw priors mostly read the group-size artifact of percentile ranks, which a book ranking within groups cannot trade."""
@@ -86,7 +93,7 @@ def identity_check(train: pd.DataFrame, evaluation: pd.DataFrame, target_column:
 
 
 def _identity_figures(train: pd.DataFrame, evaluation: pd.DataFrame, target_column: str, *, ticker_column: str, date_column: str,
-                      class_columns, model_score_column: str | None, min_names: int) -> dict:
+                      class_columns, model_score_column: str | None, min_names: int) -> dict[str, Any]:
     prior = train.groupby(ticker_column)[target_column].mean()
     scored = evaluation.assign(_identity_prior=evaluation[ticker_column].map(prior))
     out = {"identity_prior_ic": _mean_ic(scored, "_identity_prior", target_column, date_column, min_names)}
@@ -104,9 +111,9 @@ def _identity_figures(train: pd.DataFrame, evaluation: pd.DataFrame, target_colu
     return out
 
 
-def audit_leakage(frame: pd.DataFrame, *, feature_columns, target_column: str = "target_rank_20d", ticker_column: str = "ticker",
-                  date_column: str = "date", split_column: str = "split", horizon: int = 20, class_columns=(),
-                  model_score_column: str | None = None, min_names: int = 20, seed: int = 7, group_column: str | None = None) -> dict:
+def audit_leakage(frame: pd.DataFrame, *, feature_columns: Sequence[str], target_column: str = "target_rank_20d", ticker_column: str = "ticker",
+                  date_column: str = "date", split_column: str = "split", horizon: int = 20, class_columns: Sequence[str]=(),
+                  model_score_column: str | None = None, min_names: int = 20, seed: int = 7, group_column: str | None = None) -> dict[str, Any]:
     """All four checks; (b) and (c) on the validation split, (d) fit on train and read on validation."""
     validation = frame[frame[split_column] == "validation"] if split_column in frame else frame
     train = frame[frame[split_column] == "train"] if split_column in frame else frame

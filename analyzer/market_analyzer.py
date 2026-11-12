@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import asdict, dataclass, field
+from typing import Any
 
 
 ACTIONS = ("observe", "simulate", "trade", "reduce_risk", "retrain_candidate")
@@ -13,6 +14,7 @@ ACTIONS = ("observe", "simulate", "trade", "reduce_risk", "retrain_candidate")
 
 @dataclass(frozen=True)
 class MarketAnalysisDecision:
+    """The market analyzer's verdict for one symbol and bar: the action, the signal and the target weight, with the reasons behind them."""
     action: str
     signal: str
     target_weight: float
@@ -33,7 +35,7 @@ class MarketAnalysisDecision:
     # construction and to_dict() consumer is unaffected.
     net_edge: dict | None = None
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
 
@@ -50,8 +52,8 @@ def _clamp01(value: float) -> float:
 def compute_signal_quality_score(
     confidence: float,
     regime_confidence: float,
-    topology: dict,
-    liquidity: dict,
+    topology: dict[str, Any],
+    liquidity: dict[str, Any],
 ) -> tuple[float, dict]:
     """Bounded [0,1] composite of raw model confidence, regime confidence,
     topology peer-support and liquidity friction. Always computed and
@@ -90,8 +92,8 @@ def compute_signal_quality_score(
 def compute_trade_metric(
     confidence: float,
     regime_confidence: float,
-    topology: dict,
-    liquidity: dict,
+    topology: dict[str, Any],
+    liquidity: dict[str, Any],
     use_composite_signal_score: bool,
 ) -> float:
     """V5.2.6 (development/Problems.md) - extracted verbatim from
@@ -111,13 +113,13 @@ def build_market_analysis_decision(
     confidence: float,
     probability_up: float,
     target_weight: float,
-    regime: dict,
-    gating: dict,
+    regime: dict[str, Any],
+    gating: dict[str, Any],
     trading_eligible: bool,
     trade_lock_active: bool,
     trade_lock_reason: str | None = None,
-    topology: dict | None = None,
-    liquidity: dict | None = None,
+    topology: dict[str, Any] | None = None,
+    liquidity: dict[str, Any] | None = None,
     min_confidence_to_trade: float = 0.12,
     retrain_min_regime_confidence: float = 0.20,
     low_regime_confidence_threshold: float = 0.35,
@@ -125,7 +127,7 @@ def build_market_analysis_decision(
     predicted_return_magnitude: float | None = None,
     predicted_volatility: float | None = None,
     is_currently_invested: bool = False,
-    net_edge: dict | None = None,
+    net_edge: dict[str, Any] | None = None,
     # V5.2.6 (development/Problems.md) - is_book_selected/
     # min_confidence_to_trade_book_selected let a book-selected symbol
     # (already ranked into the top/bottom-N by a DIFFERENT metric,
@@ -155,6 +157,7 @@ def build_market_analysis_decision(
     # deterministic trade-lock/risk-off/topology/liquidity categorization
     # as any other directional signal, never bypassing it. See
     # analyzer/README.md for why this categorization stays deterministic.
+    """Combine a symbol's signal, confidence, regime, topology and liquidity into one `MarketAnalysisDecision` (trade, hold or veto, and the weight)."""
     reasons: list[str] = []
 
     # Priority 0 (evaluated before even trade-lock): closing an EXISTING

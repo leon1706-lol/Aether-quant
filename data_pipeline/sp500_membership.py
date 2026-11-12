@@ -40,6 +40,7 @@ def yahoo_symbol_for_member(ticker: str) -> str:
 
 
 def canonical_issuer(ticker: str) -> str:
+    """The issuer a ticker belongs to, through renames and share-class twins, so one company counts once."""
     ticker = RENAMES.get(str(ticker), str(ticker))
     return ISSUER_TWINS.get(ticker, ticker)
 
@@ -86,6 +87,7 @@ def fetch_membership(out_dir: Path, get: Callable[[str], str] | None = None) -> 
 
 
 def load_membership(path: Path) -> dict[str, list[tuple[str, str]]]:
+    """Read the S&P 500 membership file into {ticker: [(start, end), ...]}."""
     return parse_membership(Path(path).read_text(encoding="utf-8"))
 
 

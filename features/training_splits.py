@@ -5,6 +5,10 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from numpy.typing import ArrayLike
 
 _SPLIT_ORDER = {"train": 0, "validation": 1, "backtest": 2}
 TARGET = "target_sector_neutral_rank_20d"
@@ -12,7 +16,7 @@ PURGE_DAYS = 20
 FIRST_TEST_YEAR = 2019
 
 
-def purge_label_overlap(splits: list, horizon_rows: int) -> list:
+def purge_label_overlap(splits: list[Any], horizon_rows: int) -> list[Any]:
     """V5.7.0: relabel "purged" every row whose forward label window reaches into a LATER split. A row labelled
     `horizon_rows` bars ahead (the 20-day return / rank targets) carries information from the next split's prices, so the
     last `horizon_rows` rows of train (and of validation) leak the validation (and backtest) period into the data the model
@@ -35,7 +39,7 @@ def purge_label_overlap(splits: list, horizon_rows: int) -> list:
     return result
 
 
-def purge_label_overlap_calendar(splits: list, dates: list, calendar_days: int) -> list:
+def purge_label_overlap_calendar(splits: list[Any], dates: list[Any], calendar_days: int) -> list[Any]:
     """`purge_label_overlap` in calendar days. A pooled rank mixes classes: 20 crypto bars are 20 days but 20 equity sessions are
     about 28, so a crypto row kept by a 20-row purge can have a rank built from equity returns past the boundary.
     `calendar_days <= 0` returns the labels unchanged."""
@@ -56,7 +60,8 @@ def purge_label_overlap_calendar(splits: list, dates: list, calendar_days: int) 
     return result
 
 
-def assign_split(date_value: pd.Timestamp, windows: dict) -> str | None:
+def assign_split(date_value: pd.Timestamp, windows: dict[str, Any]) -> str | None:
+    """Which window a date falls in (training, validation or backtest), or None outside them."""
     date_stamp = pd.Timestamp(date_value)
     training = windows["training"]
     validation = windows["validation"]
@@ -71,7 +76,7 @@ def assign_split(date_value: pd.Timestamp, windows: dict) -> str | None:
     return None
 
 
-def assign_split_series(dates: pd.Series, windows: dict) -> pd.Series:
+def assign_split_series(dates: pd.Series, windows: dict[str, Any]) -> pd.Series:
     """assign_split() for a whole column at once (V5.8.0: the per-row apply ran once per dataset row); same inclusive
     bounds and precedence, None outside every window."""
     stamps = pd.to_datetime(dates)
@@ -84,7 +89,7 @@ def assign_split_series(dates: pd.Series, windows: dict) -> pd.Series:
 
 
 def purged_embargoed_folds(
-    dates,
+    dates: ArrayLike,
     n_folds: int,
     horizon_days: int,
     embargo_days: int = 0,
@@ -198,5 +203,6 @@ def rank_inputs(frame: pd.DataFrame, features: list[str]) -> pd.DataFrame:
 
 
 def centred_label(frame: pd.DataFrame, target: str = TARGET) -> pd.Series:
+    """The target minus its mean over the same date and class, so class size does not shift the label."""
     return (frame[target] - frame.groupby(["date", "_class"], sort=False)[target].transform("mean")).astype("float32")
 

@@ -23,11 +23,12 @@ import math
 from collections.abc import Iterable, Sequence
 from datetime import date, datetime, timezone
 from pathlib import Path
+from typing import Any
 
 DEFAULT_RISK_FREE_RATE = 0.01  # InterestRateProvider.DefaultRiskFreeRate, used before the file's first row
 
 
-def load_backtest_series(result_path: str | Path) -> dict:
+def load_backtest_series(result_path: str | Path) -> dict[str, Any]:
     """The daily performance list (fractions, Lean's own preprocessing) and the equity dates of one Lean result JSON."""
     result = json.loads(Path(result_path).read_text(encoding="utf-8"))
     series = result["charts"]["Strategy Equity"]["series"]
@@ -126,7 +127,7 @@ def _normal_cdf(value: float) -> float:
 def lean_statistics(
     performance: Sequence[float], equity_dates: Iterable[date], *, trading_days_per_year: int,
     rate_changes: Sequence[tuple[date, float]],
-) -> dict:
+) -> dict[str, Any]:
     """Sharpe, Sortino, PSR and their inputs exactly as Lean computes them; non-finite inputs give 0 like Lean's guards."""
     values = [float(value) for value in performance if value is not None and math.isfinite(float(value))]
     days = int(trading_days_per_year)
@@ -159,7 +160,7 @@ def with_extra_daily_returns(
     return [value + float(extra_by_date.get(day, 0.0)) for value, day in zip(performance, performance_dates)]
 
 
-def statistics_table(result_path: str | Path, rate_files: dict[str, str | Path], day_counts: Sequence[int] = (252, 365)) -> dict:
+def statistics_table(result_path: str | Path, rate_files: dict[str, str | Path], day_counts: Sequence[int] = (252, 365)) -> dict[str, Any]:
     """Lean's printed statistics next to the replica on every (rate file, day count): `aq evaluate --lean-stats`."""
     series = load_backtest_series(result_path)
     rows = {}

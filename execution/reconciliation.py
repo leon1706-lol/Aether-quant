@@ -14,10 +14,12 @@ from __future__ import annotations
 
 import math
 from dataclasses import asdict, dataclass, field
+from typing import Any
 
 
 @dataclass(frozen=True)
 class ReconciliationReport:
+    """Expected against actual holdings: matched names, drifts, orphan and missing positions, the largest drift and whether it breaches."""
     matched: list[str] = field(default_factory=list)
     drifted: list[dict] = field(default_factory=list)
     orphan_broker: list[dict] = field(default_factory=list)
@@ -25,7 +27,7 @@ class ReconciliationReport:
     max_abs_weight_drift: float = 0.0
     breach: bool = False
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
 

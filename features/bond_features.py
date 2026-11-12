@@ -48,6 +48,10 @@ place these values are actually visible (dashboard/state), same as before.
 """
 
 from __future__ import annotations
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    import numpy as np
 
 YIELD_CURVE_LEVEL_NEUTRAL = 0.0
 YIELD_CURVE_SLOPE_NEUTRAL = 0.0
@@ -140,7 +144,7 @@ def _vector_duration_beta(etf_daily_returns, delta_10yr_yield_daily, min_observa
 _USE_SCALAR = object()
 
 
-def duration_beta_from_arrays(ys, xs, min_observations: int):
+def duration_beta_from_arrays(ys: np.ndarray, xs: np.ndarray, min_observations: int) -> float | None:
     """The OLS slope of `ys` on `xs` for float64 arrays in which NaN stands for a missing value (V6.0.0, latency path of the
     per-tick sensitivity betas, where the series are built as arrays and never carry a genuine NaN). Positional pairing,
     the minimum-observation floor and the `variance < 1e-12 -> None` guard are `empirical_duration_beta`'s; the value
@@ -217,7 +221,7 @@ def _scalar_duration_beta(etf_daily_returns, delta_10yr_yield_daily, min_observa
 BOND_DURATION_BETA_LOOKBACK = 252
 
 
-def resolve_bond_duration_beta_mode(features_config: dict | None) -> tuple[str, int]:
+def resolve_bond_duration_beta_mode(features_config: dict[str, Any] | None) -> tuple[str, int]:
     """(`mode`, `lookback`) from `phase1.features.bond_duration_beta`. Absent = ("full_history", 252): train.py's single
     whole-history slope and main.py's lock-in-once cache, the pre-V5.8.0 behaviour. "rolling" = a point-in-time trailing
     slope on both sides (V5.8.0: the whole-history slope leaked validation/backtest data into every training row and was
@@ -395,7 +399,7 @@ def bond_dv01(price: float | None, modified_duration: float | None, notional: fl
     return float(price) * float(modified_duration) * 0.0001 * float(notional)
 
 
-def nearest_yield_curve_point(years_to_maturity: float | None, curve_points: dict) -> float | None:
+def nearest_yield_curve_point(years_to_maturity: float | None, curve_points: dict[str, Any]) -> float | None:
     """Picks the yield-curve observation whose maturity (in years, the
     dict's keys) is CLOSEST to years_to_maturity - the at-par-pricing
     proxy coupon/yield fallback analytic_modified_duration()/

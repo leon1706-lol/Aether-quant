@@ -32,6 +32,7 @@ import json
 import logging
 from dataclasses import asdict, dataclass
 from pathlib import Path
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +41,7 @@ DEFAULT_PAIR_SPECS_PATH = Path(__file__).resolve().parents[1] / "data" / "refere
 
 @dataclass(frozen=True)
 class ForexSizingDecision:
+    """One forex order's size: lots, notional, margin and the caps that bound it."""
     lot_count: int
     notional_value: float
     margin_required: float
@@ -50,11 +52,11 @@ class ForexSizingDecision:
     max_leverage_utilization: float
     sizing_reason: str
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
 
-def load_forex_pair_specs(path: Path = DEFAULT_PAIR_SPECS_PATH) -> dict:
+def load_forex_pair_specs(path: Path = DEFAULT_PAIR_SPECS_PATH) -> dict[str, Any]:
     """Defensive load - returns {} (not a raised exception) on a missing or
     unparseable specs file, same convention as
     risk/futures_risk.py::load_futures_contract_specs(). A missing spec
@@ -73,7 +75,7 @@ def build_forex_position_sizing(
     base_target_weight: float,
     confidence: float,
     price: float,
-    pair_spec: dict | None,
+    pair_spec: dict[str, Any] | None,
     portfolio_value: float,
     target_leverage_utilization: float = 0.20,
     max_leverage_utilization: float = 0.40,

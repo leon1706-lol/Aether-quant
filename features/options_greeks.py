@@ -24,6 +24,7 @@ remains pure European BSM, unchanged.
 from __future__ import annotations
 
 import math
+from typing import Any
 
 _SQRT_2PI = math.sqrt(2.0 * math.pi)
 
@@ -121,7 +122,7 @@ def compute_greeks(
     volatility: float,
     dividend_yield: float,
     right: str,
-) -> dict:
+) -> dict[str, Any]:
     """Single call site wrapping the 5 functions above, for
     portfolio/options_strategy.py/main.py call-site brevity."""
     return {

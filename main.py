@@ -335,6 +335,11 @@ from data_pipeline.bar_synthesis import (
     pad_sequence_history,
 )
 from data_pipeline.dividend_backfill import load_cached_dividend_schedule
+from execution.accounts import AccountTaggedQueue, account_output_paths, apply_risk_overrides, override_path, resolve_account
+from execution.accounts_io import load_accounts, requested_account_id
+from execution.field_test import field_test_allowed, field_test_log_line, field_test_target, inject_metrics, inject_reconciliation_drift, resolve_field_test_plan
+from execution.live_readiness import live_mode_allowed
+from json_safety import load_json_lenient
 
 # volume_change_1d clamp bounds - must match train.py::VOLUME_CHANGE_FLOOR/
 # VOLUME_CHANGE_CEILING exactly for train/runtime feature parity. Duplicated
@@ -812,6 +817,19 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self.phase6 = self.config.get("phase6", {})
         self.phase9 = self.config.get("phase9", {})
         self.phase_v2 = self.config.get("phase_v2", {})
+        # V6.6.5 (#349): the account this deployment trades, from AQ_ACCOUNT or the Lean parameter `aq-account`. The default
+        # account changes nothing (same config, same paths, no account_id in audit payloads); a named one may only tighten
+        # the config (execution/accounts.py) and writes its state under state/accounts/<id>/.
+        self._account = resolve_account(load_accounts(self.root_path, self.phase_v2), requested_account_id(self._lean_parameter("aq-account")))
+        if not self._account.is_default:
+            self.phase_v2 = apply_risk_overrides(self.phase_v2, self._account)
+            self.config["phase_v2"] = self.phase_v2
+            for _name, _path in account_output_paths(self.root_path, self._account).items():
+                setattr(self, _name, _path)
+        self._override_config_path = override_path(self.root_path, self._account)
+        # V6.6.5 (#351): off unless the run's config, AQ_FIELD_TEST=1 and a non-live mode all agree (checked below).
+        self._field_test_plan = resolve_field_test_plan(self.phase_v2.get("diagnostics", {}).get("field_test"))
+        self._field_test_active = False
         self.model_export = self._load_json(self.model_path)
         convert_state_dict_arrays(self.model_export)
         self.expert_training_metrics = self._load_json(self.expert_metrics_path) if self.expert_metrics_path.exists() else {}
@@ -830,7 +848,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
         phase6_risk = self.phase6.get("risk", {})
         self.phase_v2_paper_trading = self.phase_v2.get("paper_trading", {})
         self.phase_v2_live = self.phase_v2.get("live", {})
-        self._live_credentials = load_live_credentials()
+        self._live_credentials = load_live_credentials(self._account.id)
         phase9_portfolio = self.phase9.get("portfolio", {})
         phase_v2_risk = self.phase_v2.get("dynamic_risk", {})
         phase_v2_regime = self.phase_v2.get("regime_detection", {})
@@ -1878,6 +1896,18 @@ class AetherQuantAlgorithm(QCAlgorithm):
         if self.runtime_mode != raw_runtime_mode:
             self.Debug(f"Unknown phase_v2.runtime.mode={raw_runtime_mode!r}; falling back to '{self.runtime_mode}'")
         self.allow_live_orders = bool(phase_v2_runtime.get("allow_live_orders", False))
+        self._field_test_active = field_test_allowed(
+            self._field_test_plan, runtime_mode=self.runtime_mode, paper_brokerage=str(self.phase_v2.get("paper_trading", {}).get("brokerage", "")),
+            env_flag=os.environ.get("AQ_FIELD_TEST"),
+        )
+        # V6.6.5 (#352): with phase_v2.live_readiness.enforce_before_live (default off), live mode needs the last written
+        # paper-to-live scorecard to be ready; otherwise the run is held in observation.
+        _readiness = self.phase_v2.get("live_readiness", {})
+        if self.runtime_mode == "live" and not live_mode_allowed(
+            load_json_lenient(self.root_path / "visualization" / "grafana" / "live_readiness.json"), enforce=bool(_readiness.get("enforce_before_live", False)),
+        ):
+            self.Debug("live_readiness: the last scorecard is not ready, so live mode is held in observation")
+            self.runtime_mode = "observation"
         self._recompute_broker_config()
         self._experience_mode = self.runtime_mode
         self._experience_queue = ExperienceQueue(
@@ -1907,6 +1937,8 @@ class AetherQuantAlgorithm(QCAlgorithm):
             stream_name=str(phase_v2_audit_log.get("redis_stream", "aether:audit")),
             maxlen=int(phase_v2_audit_log.get("maxlen", 500_000)),
         )
+        if not self._account.is_default:
+            self._audit_queue = AccountTaggedQueue(self._audit_queue, self._account)
         # V5.2.2 (development/Problems.md) - book-history diagnostic log,
         # off by default. Reused by `aq evaluate --reconcile-book-history`
         # to compare a real Lean backtest's actual book selections against
@@ -4215,6 +4247,12 @@ class AetherQuantAlgorithm(QCAlgorithm):
         orders_allowed, _ = self._order_permission()
         if not orders_allowed:
             return
+        if getattr(self, "_field_test_active", False):
+            # V6.6.5 (#351): the field test's one decision, through the same _apply_target_row a session's row takes
+            _row = field_test_target(self._field_test_plan, self.bar_index)
+            if _row is not None:
+                self.Debug(field_test_log_line("order_row", self.bar_index, names=len(_row)))
+                self._apply_target_row(_row)
         if self.is_equity_session_bar:
             self._accrue_target_financing()
             self._apply_target_decision(slice)
@@ -8056,7 +8094,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
             # in self.config, so a long-running paper/live process picks up
             # a CLI-issued change without a restart. None leaves the sticky
             # total-drawdown behavior above completely unchanged.
-            override = read_manual_trade_lock_override(self.root_path / "config.json")
+            override = read_manual_trade_lock_override(self._override_config_path)
             if override is True:
                 self.trade_lock_active = True
                 self.trade_lock_reason = "manual_override_locked"
@@ -8091,7 +8129,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
             # arm/disarm override, same read-fresh-once-per-session-rollover
             # convention as the manual trade-lock override above (see
             # risk/manual_override.py's kill_switch_manual_override).
-            self._kill_switch_manual_override = read_kill_switch_manual_override(self.root_path / "config.json")
+            self._kill_switch_manual_override = read_kill_switch_manual_override(self._override_config_path)
 
             # V5.1 Phase 6 (production safety) - session-rollover read of the
             # Postgres-backed retraining worker's locally-cached status file
@@ -8170,6 +8208,19 @@ class AetherQuantAlgorithm(QCAlgorithm):
         # this must never become a second, parallel lock.
         reconciliation_report = self._evaluate_reconciliation()
         self._last_reconciliation_report = reconciliation_report
+        # V6.6.5 (#351): a breach is an audit fact on its own, whether or not it trips the kill switch (once per breach run).
+        breached = bool(reconciliation_report.get("breach"))
+        if breached and not getattr(self, "_reconciliation_previously_breached", False):
+            if getattr(self, "_field_test_active", False):
+                self.Debug(field_test_log_line("reconciliation_breach", self.bar_index))
+            self._audit_queue.push(
+                build_audit_event(
+                    LIVE_MODE_TRANSITION,
+                    {"event": "reconciliation_breach", "max_abs_weight_drift": reconciliation_report.get("max_abs_weight_drift"),
+                     "drifted": [item.get("symbol") for item in reconciliation_report.get("drifted", []) if isinstance(item, dict)]},
+                )
+            )
+        self._reconciliation_previously_breached = breached
 
         effective_kill_switch_config = dict(self._kill_switch_config)
         if self._kill_switch_manual_override is not None:
@@ -8194,7 +8245,11 @@ class AetherQuantAlgorithm(QCAlgorithm):
             "rolling_sharpe_tripped_last_bar": self._kill_switch_rolling_sharpe_tripped,
             "rolling_sharpe_below_run_last_bar": self._kill_switch_rolling_sharpe_below_run,
         }
+        if getattr(self, "_field_test_active", False):
+            runtime_metrics = inject_metrics(runtime_metrics, self._field_test_plan, self.bar_index)
         kill_switch_decision = evaluate_kill_switch(runtime_metrics, effective_kill_switch_config)
+        if getattr(self, "_field_test_active", False):
+            self._field_test_log_bar(runtime_metrics, kill_switch_decision, reconciliation_report)
         self._kill_switch_rolling_sharpe_tripped = kill_switch_decision.rolling_sharpe_tripped
         self._kill_switch_rolling_sharpe_below_run = kill_switch_decision.rolling_sharpe_below_run
         self._last_kill_switch_decision = kill_switch_decision.to_dict()
@@ -8212,6 +8267,38 @@ class AetherQuantAlgorithm(QCAlgorithm):
             self._kill_switch_previously_tripped = True
         else:
             self._kill_switch_previously_tripped = False
+
+    def _field_test_log_bar(self, runtime_metrics: dict, kill_switch_decision, reconciliation_report: dict) -> None:
+        """V6.6.5 (#351): the engine-log evidence of a field test (only ever called while one is active)."""
+        if runtime_metrics.get("field_test_injected") and not getattr(self, "_field_test_shock_logged", False):
+            self._field_test_shock_logged = True
+            self.Debug(field_test_log_line("shock", self.bar_index))
+        if kill_switch_decision.tripped and not self._kill_switch_previously_tripped:
+            self.Debug(field_test_log_line("kill_switch_tripped", self.bar_index, triggers=",".join(kill_switch_decision.triggers) or "-"))
+        if reconciliation_report.get("status") != "not_applicable" and not getattr(self, "_field_test_first_reconciliation", False):
+            self._field_test_first_reconciliation = True
+            self.Debug(field_test_log_line("first_reconciliation", self.bar_index, breach=bool(reconciliation_report.get("breach"))))
+        try:
+            value = float(self.Portfolio.TotalPortfolioValue)
+            gross = float(self.Portfolio.TotalHoldingsValue) / value if value > 0 else 0.0
+            # "flat" means what the lock's liquidation means: every position but the T-bill sweep (cash, not risk)
+            sweep = getattr(self, "_cash_sweep_symbol", None)
+            risk_value = sum(abs(float(h.HoldingsValue)) for h in self.Portfolio.Values if h.Invested and h.Symbol != sweep)
+            risk = risk_value / value if value > 0 else 0.0
+        except Exception:
+            gross, risk = -1.0, -1.0
+        self.Debug(field_test_log_line("gross", self.bar_index, value=round(gross, 6), risk=round(risk, 6), locked=bool(self.trade_lock_active)))
+
+    def _lean_parameter(self, name: str) -> str:
+        """A Lean algorithm parameter (`--parameter name value`), or "" when the engine has none (or in the test stubs)."""
+        getter = getattr(self, "get_parameter", None) or getattr(self, "GetParameter", None)
+        if getter is None:
+            return ""
+        try:
+            value = getter(name)
+        except Exception:
+            return ""
+        return value.strip() if isinstance(value, str) else ""
 
     def _model_age_days(self) -> float | None:
         """V5.1 Phase 6 (production safety) - age of whichever model
@@ -8322,6 +8409,8 @@ class AetherQuantAlgorithm(QCAlgorithm):
             return {"status": "not_applicable", "reason": "reconciliation_disabled"}
 
         actual_by_symbol = self._build_reconciliation_actual_weights()
+        if getattr(self, "_field_test_active", False):
+            actual_by_symbol = inject_reconciliation_drift(actual_by_symbol, self._field_test_plan, self.bar_index)
         portfolio_value = float(self._snapshot_portfolio_summary()["total_portfolio_value"])
         report = reconcile_positions(
             self._realized_target_weights_by_symbol,
@@ -8713,6 +8802,12 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 self.pending_limit_orders.pop(str(target_symbol), None)
 
     def on_order_event(self, order_event) -> None:
+        if getattr(self, "_field_test_active", False):
+            # V6.6.5 (#351): every order event of a field test, for its report
+            self.Debug(field_test_log_line("order_event", getattr(self, "bar_index", 0), status=str(order_event.Status), symbol=str(order_event.Symbol)))
+        self._on_order_event(order_event)
+
+    def _on_order_event(self, order_event) -> None:
         """Real limit-order support (execution/risk realism pass, part 2):
         Lean's real order-fill/cancel/invalidate callback. Snake_case
         override name, matching this file's proven initialize()/on_data()

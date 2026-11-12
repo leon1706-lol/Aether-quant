@@ -26,6 +26,7 @@ MIN_COMPOSITE_PARTS = {"w05": 1, "w06": 2, "w15": 3}
 
 
 def cross_sectional_rank(table: pd.DataFrame) -> pd.DataFrame:
+    """Each row's percentile ranks across the columns."""
     return table.rank(axis=1, pct=True)
 
 

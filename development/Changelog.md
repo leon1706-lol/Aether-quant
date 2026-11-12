@@ -1,6 +1,6 @@
 # Changelog
 
-What each phase built and why, oldest first (the newest phase is <!--fact:changelog.latest-->V6.6.4<!--/fact-->, and `README.md` has the current status). The evidence lives in [`Problems.md`](Problems.md); entries describe what was true at the time. Full text of older phases: [`backups/`](backups/README.md).
+What each phase built and why, oldest first (the newest phase is <!--fact:changelog.latest-->V6.6.5<!--/fact-->, and `README.md` has the current status). The evidence lives in [`Problems.md`](Problems.md); entries describe what was true at the time. Full text of older phases: [`backups/`](backups/README.md).
 
 ## V1 — Finished
 
@@ -900,3 +900,42 @@ What each phase built and why, oldest first (the newest phase is <!--fact:change
 - **Retraining code and loose ends.** `cycle_retrain` writes its vintages, pulls scores and refuses when it lacks the SEC contact; six "deferred" comments became stated limits, and the venue study notes that Coinbase supersedes Kraken.
 - **Live-mode plumbing without a broker.** `scripts/lean_smoke/live_plumbing.sh` runs `main.py` in Lean's `live-paper` on a fake feed with real Redis and Postgres: it starts, stays up while each service is stopped under it, restarts, and the audit chain verifies. No order, kill-switch trip or reconciliation is claimed (#228, #319, #323 stay open for a key and 120 days).
 - **Hosts.** Training Codespace `aq-Training-Ground-Fixed`: on 15:37Z-15:53Z (verification, 0.3 h) and 20:32Z-22:55Z (round 4E and 4F, the verification runs, the proofs and the mutation checks, 2.4 h). DinD Codespace: created 17:16Z, stopped by the owner at about 19:30Z at the latest (Lean re-pin, option scenarios, services field test; about 2 h), restarted 22:55Z-23:17Z for the live-plumbing rerun (its `/tmp` and the Lean image are wiped by a stop, so the image was rebuilt, 0.4 h), then deleted. About 5 h of the 18 h cap. The real k06 retrain on a Codespace could not start on 2026-11-08: GitHub returned HTTP 402 (usage limit), and no paid top-up was made.
+
+## Phase V6.6.5 — Open the door: a five-minute start, a first-class library, a hardened live path
+
+- **The plan moved.** The drafted V6.6.5 (forward record, a crypto round on new data, the engineering backlog) is now V6.6.6 in `todo.md`, unchanged. This phase spends no alpha trial.
+- **A light install that works (#342).** `pip install aether-quant` pulls numpy and pandas only, with extras for research, notebooks, the dashboard, live, training, docs and the full system. httpx moved inside the function that uses it, so every facade imports on a light install; `tests/test_lite_install.py` and CI's `lite-install` job prove it.
+- **`aq hello` (#343).** One command downloads the 11 coins from Coinbase's keyless public candles, runs the shipped rule through a cost-aware backtest, and prints benchmarks and overfitting checks. A 185 KB sample in the wheel is the offline fallback. It found and fixed a pandas 2 and 3 difference in how an empty decision row is read.
+- **Notebooks and docs (#343, #346).** Four Colab-ready tutorials are built and run from percent-format sources. A MkDocs site covers getting started, a guide whose examples run in tests, live trading, and an API reference generated per facade; it builds `--strict` with no warnings and publishes to GitHub Pages with the coverage reports.
+- **The dashboard in one command (#344).** A light `dashboard` image ships the wheel, the UI and deterministic demo data from `aq hello` (`docker run -p 8080:8000 ghcr.io/leon1706-lol/aether-quant-dashboard`). The engine image gets CPU torch, and the web UI gains a demo banner, onboarding, sign-in, accounts, a Readiness page, a Trade Lock panel and jsx-a11y lint.
+- **Library growth (#345).** New pure modules: Kelly, volatility targeting, beta and factor neutrality, composable cost models with live-path presets, a general `backtest()` (matches the target-weights simulator to 5e-9), the minimum track record, the haircut Sharpe, and signal tools. Eight job-grouped facades bring it to 32 facades; with the accounts, secrets, field-test, readiness and auth rules it exports 928 names.
+- **Typed and documented (#346).** All 887 exported callables are fully annotated (63% of 844 before) and documented, with `scripts/type_completeness.py` as a floor that only rises.
+- **License split (#347, owner decision).** The library and everything the wheel and dashboard ship are now Apache-2.0, with `NOTICE`. The trading system stays PolyForm Noncommercial. `LICENSE` and `REUSE.toml` map every path; releases up to 6.6.4 keep their license.
+- **Secret management (#348).** Each credential resolves from a `*_FILE` file, a Docker secret, the environment or the OS keyring, and never shows itself. Coinbase keys and per-account prefixes render; `aq secrets` and `docker-compose.secrets.yml` are new.
+- **Accounts (#349).** A registry of deployments whose overrides can only tighten the config (proved in Lean 4). Per-account state, overrides, secrets and audit tags, with `aq accounts`, `aq live up --account` and `--account` on the lock, render and evaluate commands. The default account is unchanged, shown by a stub test on the real config and a parity test.
+- **Users (#350).** Viewer, operator and admin tokens (hashed) with account scope, an authorization rule proved in Lean 4, an audited trade-lock route and `aq users`. The engine binds to localhost; with no users file, nothing changes.
+- **Field test (#351).** Gated injectors drive the real order, kill-switch, reconciliation and restart paths of `main.py` in Lean's paper brokerage, and `scripts/lean_smoke/field_test.py` grades nine checks over three runs. On the PC's Docker all nine pass: orders fill, the drift breaches, the shock trips and flattens, both outages pass, the restart is clean, and two accounts run apart with a valid audit chain. Running it found two flaws in its own design, both fixed. The first gate forbade the flag paper orders need, and the first flatness measure counted the T-bill sweep.
+- **Paper to live (#352).** `aq live-readiness` scores 21 metrics, unknown counting as fail, and publishes the table in the docs. On the real repo it reads NOT READY at the phase end: 7 pass, 6 fail, 8 unknown (no forward record, paper period or broker yet). `enforce_before_live` is off by default.
+- **CI (#353).**
+    - Blocking now: gitleaks on the working tree and `npm audit`, after `npm audit fix` cleared the high react-router advisory.
+    - New jobs: lite install, type completeness, docs, notebooks and bandit.
+    - Docker checks: the dashboard image is smoke-tested and scanned with trivy.
+    - New workflows: CodeQL, OpenSSF Scorecard, and Pages with a coverage badge.
+    - Release: SBOMs and provenance for the wheel and both images.
+- **Mistake caught and undone.** A stray `ruff --fix --select I001` re-sorted imports in about 200 files. In `main.py` it moved `from builtins import Exception` above the Lean star import. A HEAD-aware restorer put every import block back, keeping only intentional changes, and 86 files were restored byte for byte.
+- **Lean confirms the default path (owner request, 2026-11-12).** The owner asked for this one `aq backtest` to be run by the agent, for this run only. Run `2026-11-12_11-22-15` used today's code and `config.json` with the pin's weights file and window (`ml/evaluation/run_configs/2026-11-12_11-22-15.json`). It reproduces pin `2026-11-07_17-54-01` order for order: all 1974 order events and 987 fills are identical, and so are all 27 Lean statistics (Sharpe 0.651, net 34.379%, drawdown 7.8%, end equity $134,378.76). So the accounts, field-test and readiness changes to `main.py` leave the default book untouched, and the README stays pinned to the original run. The engine log shows #104's Python-shutdown timeout after the results were written, as on every PC Docker run.
+- **Hosts.** PC only: no Codespace and no branch pushed. Docker Desktop on the PC: 2026-11-10 19:24 to 20:45, then 2026-11-11 18:10 to 20:28 (the dashboard image and the field test), and 2026-11-12 11:14 to about 11:55 (the Lean reproduction run). On 2026-11-10 WSL's service wedged in StopPending after a `wsl --shutdown` from this session, and the owner cleared it as admin. The proofs built module by module after the first run was reaped at 378 MB free.
+- **Verification (PC only, `ml/evaluation/v665/verification.json`).**
+    - **Suite:** `aq test` passes 5349 of 5349. Each subsystem bucket passes on its own. `--lean` is owner-only because it runs a real Lean backtest.
+    - **Quick checks and docs:** `aq verify --quick` and `mkdocs build --strict` are clean.
+    - **End to end:** the field test passes 9 of 9 and the dashboard image passes its smoke test.
+    - **Mutation check** on the five new safety modules, run on a throwaway copy:
+        - 0.741 before new tests and 0.994 after on seed 665; 0.970 and then 0.982 on an independent seed.
+        - The 3 survivors are equivalent mutants.
+        - The tests it prompted pin the PBKDF2 cost, exact boundaries, frozen records, the default account's place and the live-mode rule.
+    - **A test that read the agent's environment:** `test_check_for_update_prints_notice_when_outdated` failed under `AQ_SKIP_UPDATE_CHECK=1`. It now clears the variable itself.
+- **Freeze.**
+    - `config.json` gains `phase_v2.live_readiness` (report-only) and `phase_v2.diagnostics.field_test` (off); defaults are unchanged.
+    - `main.py` gains account resolution and the gated field-test hooks; its default path is unchanged.
+    - The book, the weights file and the Lean pin `2026-11-07_17-54-01` are unchanged.
+    - Nothing is committed.

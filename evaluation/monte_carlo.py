@@ -23,6 +23,10 @@ from __future__ import annotations
 from typing import Any
 
 import numpy as np
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from numpy.typing import ArrayLike
 
 TRADING_DAYS_PER_YEAR = 252
 
@@ -58,7 +62,7 @@ def _percentiles(values: np.ndarray) -> dict[str, float]:
 
 
 def run_monte_carlo(
-    per_date_net_returns,
+    per_date_net_returns: ArrayLike,
     *,
     n_runs: int = 1000,
     block_size: int = 20,

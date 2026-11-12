@@ -301,12 +301,16 @@
   "evaluation.audit_runners": "dataset-loading runners behind `aq evaluate`",
   "evaluation.research_runners": "dataset-loading runners behind `aq research`",
   "evaluation.verification_matrix": "this project's own table of verification surfaces, driven by `aq verify`; not a modelling tool",
+  "execution.accounts_io": "reads accounts.json and the account's state files; driven by `aq accounts` and main.py (the pure rules are in aether_quant.execution)",
   "execution.lean_config_render": "renders Lean credentials; run by `aq render-lean-config`",
+  "execution.live_readiness_io": "gathers this project's own evidence files for `aq live-readiness` (the pure scorecard is in aether_quant.execution)",
+  "execution.secrets_io": "reads the environment, secret files and the OS keyring; driven by `aq secrets` (the pure resolver is in aether_quant.execution)",
   "experience.postgres_worker": "Postgres worker: needs a database",
   "experience.redis_queue": "the Redis queue: needs Redis",
   "generate_backtest_report": "report generator that `aq` drives",
   "generate_evaluation_report": "report generator that `aq` drives",
   "monitoring.api_server": "the FastAPI service",
+  "monitoring.auth_io": "reads and writes the API's users file; driven by `aq users` (the pure access rule is in aether_quant.monitoring)",
   "notifications.postgres_telegram": "Postgres reader and Telegram sender: needs a database and a bot",
   "performance.postgres_triggers": "Postgres reader: needs a database",
   "performance_probe": "opt-in timing probes that run inside Lean",
@@ -319,6 +323,8 @@
  },
  "note": "Public names in shipped packages that aether_quant does not export. `modules`: whole modules that are not library material, each with its reason. `unexported`: single names left out on purpose, each with a reason. `legacy_names`: the backlog from before the library gate (V6.6.4); it can only shrink, and scripts/library_gate.py's LEGACY_CEILING is lowered with it.",
  "unexported": {
-  "evaluation.research_round:tradable_mask": "an internal helper of the pre-registered round runner (which assets a trial table may hold); not useful outside it"
+  "evaluation.research_round:tradable_mask": "an internal helper of the pre-registered round runner (which assets a trial table may hold); not useful outside it",
+  "execution.live_credentials_io:load_coinbase_credentials": "reads this deployment's Coinbase keys through the secret store; not library material",
+  "execution.paper_readiness_report:live_broker_view": "a section of this project's `aq paper-readiness` report (the pure check, evaluate_live_broker_config, is exported)"
  }
 }

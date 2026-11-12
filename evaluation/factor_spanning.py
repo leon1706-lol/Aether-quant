@@ -10,6 +10,10 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 FACTOR_COLUMNS = ("f_mom_12_1", "f_mom_20", "f_rev_5", "f_lowvol", "f_high52")
 
@@ -32,7 +36,7 @@ def build_factor_scores(frame: pd.DataFrame, *, ticker_column: str = "ticker", d
     return out
 
 
-def build_factor_returns(frame: pd.DataFrame, factor_columns, *, date_column: str = "date",
+def build_factor_returns(frame: pd.DataFrame, factor_columns: Sequence[str], *, date_column: str = "date",
                          forward_return_column: str = "target_return_1d", quantile: float = 0.2, min_names: int = 20) -> pd.DataFrame:
     """Daily equal-weight top-quantile minus bottom-quantile return of each score column; NaN on dates with fewer than
     `min_names` scored names. `forward_return_column` at t is the t -> t+1 return (the simulator's convention)."""
@@ -62,7 +66,7 @@ def _newey_west_cov(x: np.ndarray, residuals: np.ndarray, lags: int) -> np.ndarr
     return bread @ meat @ bread / n
 
 
-def factor_alpha(series: pd.Series, factors: pd.DataFrame, *, hac_lags: int = 5, periods_per_year: int = 252) -> dict:
+def factor_alpha(series: pd.Series, factors: pd.DataFrame, *, hac_lags: int = 5, periods_per_year: int = 252) -> dict[str, Any]:
     """What a sleeve earns beyond published factors (French's five and momentum, AQR's QMJ and BAB). A return all explained here may be real and
     still only a premium anyone can buy, so this labels a result; it never blocks one. `RF` isn't a factor. Rows a factor hasn't reached are dropped, and
     `num_dates` shows how many remain."""
@@ -70,7 +74,7 @@ def factor_alpha(series: pd.Series, factors: pd.DataFrame, *, hac_lags: int = 5,
     return factor_spanning(series, factors[columns], hac_lags=hac_lags, periods_per_year=periods_per_year)
 
 
-def factor_spanning(signal_returns: pd.Series, factor_returns: pd.DataFrame, *, hac_lags: int = 19, periods_per_year: int = 252) -> dict:
+def factor_spanning(signal_returns: pd.Series, factor_returns: pd.DataFrame, *, hac_lags: int = 19, periods_per_year: int = 252) -> dict[str, Any]:
     """OLS of the signal's daily return on the factors' (dates present in both, rows with a NaN dropped)."""
     joined = pd.concat([signal_returns.rename("_signal"), factor_returns], axis=1, join="inner")
     joined = joined.dropna(axis=1, how="all").dropna()  # a factor with no history at all (e.g. 12-1 momentum) is left out

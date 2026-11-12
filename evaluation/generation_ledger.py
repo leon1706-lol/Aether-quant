@@ -34,6 +34,10 @@ from portfolio.generation_blend import (
     update_generation_shares,
 )
 from portfolio.premia_signals import ResearchPanel, SleeveSpec, WeightSettings, signal_to_weights, sleeve_signal
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
 
 SESSION_EVENT = "generation_session"
 ALLOCATION_EVENT = "generation_allocation"
@@ -45,7 +49,7 @@ MIN_COVERAGE = 0.98
 GUARD_MAX_DRAWDOWN = 0.15
 
 
-def decide_generation(definition: Mapping, panel: ResearchPanel, date: str) -> dict[str, float]:
+def decide_generation(definition: Mapping[str, Any], panel: ResearchPanel, date: str) -> dict[str, float]:
     """The frozen rule's weights at `date`. Unlike `forward_ledger.decide`, it passes a score table and `top_k` through, so a cross-sectional rule can't silently become a different one."""
     spec = SleeveSpec(
         str(definition["id"]), "forward", str(definition["kind"]), str(definition["family"]), tuple(definition["universe"]),
@@ -66,7 +70,7 @@ def decide_generation(definition: Mapping, panel: ResearchPanel, date: str) -> d
 def session_return_covered(
     held: Mapping[str, float], marks: pd.DataFrame, previous: str, date: str, *, classes: Mapping[str, str], traded: Mapping[str, float],
     cost_by_class: Mapping[str, float] = COST_BPS_BY_CLASS, min_coverage: float = MIN_COVERAGE,
-) -> dict:
+) -> dict[str, Any]:
     """What the held weights earned between two marks, less the cost of what traded. One delisted holding doesn't blank every row until the next decision: the rest counts while
     at least `min_coverage` of the gross has a mark. Below that the session is `no_data`, never a guess."""
     gross = covered = earned = 0.0
@@ -87,6 +91,7 @@ def session_return_covered(
 
 
 def rows_for(rows: Sequence[Mapping], generation: str) -> list[dict]:
+    """The payloads of one generation's ledger rows, oldest first."""
     return [row["payload"] for row in rows if row["payload"].get("candidate") == generation]
 
 
@@ -112,7 +117,7 @@ def held_by_lag(mine: Sequence[Mapping], classes: Mapping[str, str], initial: Ma
 def row_for_generation(
     generation: Generation, rows: Sequence[Mapping], session: str, sessions: Sequence[str], marks: pd.DataFrame, benchmarks: Mapping[str, float], *,
     decision: Mapping[str, float] | None = None, definition_sha: str = "",
-) -> dict:
+) -> dict[str, Any]:
     """One session's payload. A rule with no `needs` decides here, on the runner; one with `needs` reads the `decision` a host dated earlier."""
     definition = generation.definition
     mine = rows_for(rows, generation.id)
@@ -139,7 +144,7 @@ def row_for_generation(
     }
 
 
-def no_data_row(generation: Generation, rows: Sequence[Mapping], *, reason: str, benchmarks: Mapping[str, float], definition_sha: str = "") -> dict:
+def no_data_row(generation: Generation, rows: Sequence[Mapping], *, reason: str, benchmarks: Mapping[str, float], definition_sha: str = "") -> dict[str, Any]:
     """A failed fetch is a row with its reason, never a gap. The held weights don't change."""
     mine = rows_for(rows, generation.id)
     decided = (mine[-1].get("decided") if mine else generation.definition.get("initial_weights")) or {}
@@ -149,7 +154,7 @@ def no_data_row(generation: Generation, rows: Sequence[Mapping], *, reason: str,
     }
 
 
-def append_event(path: Path, *, event: str, session: str, candidate: str, payload: Mapping, created_at: str) -> dict:
+def append_event(path: Path, *, event: str, session: str, candidate: str, payload: Mapping[str, Any], created_at: str) -> dict[str, Any]:
     """Links a row to the chain. The session is in the hashed payload, so rewriting a date breaks it."""
     rows = read_ledger(path)
     previous = rows[-1]["hash"] if rows else GENESIS_HASH
@@ -171,7 +176,7 @@ def _max_drawdown(values: Sequence[float]) -> float:
     return float(1.0 - (curve / peak).min())
 
 
-def generation_state(generation: Generation, mine: Sequence[Mapping], *, config: DecayConfig | None = None, guard_max_drawdown: float = GUARD_MAX_DRAWDOWN) -> dict:
+def generation_state(generation: Generation, mine: Sequence[Mapping], *, config: DecayConfig | None = None, guard_max_drawdown: float = GUARD_MAX_DRAWDOWN) -> dict[str, Any]:
     """The decay report, with the guard first: a drawdown past the owner's ceiling is `tripped`, whatever the statistic says, and it latches."""
     returns = [float(row["session_return"]) for row in mine if row.get("status") == "ok" and row.get("session_return") is not None]
     previous = next((row["state"] for row in reversed(mine) if row.get("state")), "healthy")
@@ -181,7 +186,7 @@ def generation_state(generation: Generation, mine: Sequence[Mapping], *, config:
     return {"state": "tripped" if tripped else report.state, "statistic": report.statistic, "ew_sharpe": report.ew_sharpe, "sessions": report.sessions, "max_drawdown": drawdown, "reason": report.reason}
 
 
-def judge_generations(rows: Sequence[Mapping]) -> dict:
+def judge_generations(rows: Sequence[Mapping]) -> dict[str, Any]:
     """Chain first: a broken chain makes every figure meaningless."""
     valid, broken_at = verify_chain(list(rows))
     report: dict = {"chain_valid": valid, "first_broken_row": broken_at, "rows": len(rows)}
@@ -194,7 +199,7 @@ def judge_generations(rows: Sequence[Mapping]) -> dict:
     return report
 
 
-def evidence_for(generation: Generation, judged: Mapping, *, incumbent_returns: Mapping[str, float] | None, own_returns: Mapping[str, float], holdouts_spent: bool, state: Mapping) -> AdmissionEvidence:
+def evidence_for(generation: Generation, judged: Mapping[str, Any], *, incumbent_returns: Mapping[str, float] | None, own_returns: Mapping[str, float], holdouts_spent: bool, state: Mapping[str, Any]) -> AdmissionEvidence:
     """The admission rule's inputs from the record, with the flags a round's verdict set. The mean difference is on sessions both have."""
     admission = generation.admission or {}
     difference = None
@@ -214,7 +219,7 @@ def evidence_for(generation: Generation, judged: Mapping, *, incumbent_returns: 
     )
 
 
-def record_of(returns, *, prior: float) -> dict:
+def record_of(returns: Iterable[float], *, prior: float) -> dict[str, Any]:
     """What the allocator reads about one generation: its exponentially weighted Sharpe, its sessions of record, and what it claimed at admission."""
     state = (0.0, 0.0, 0.0, 0)
     for value in returns:
@@ -225,7 +230,7 @@ def record_of(returns, *, prior: float) -> dict:
 def allocation_row(
     generations: Mapping[str, Generation], shares_before: Mapping[str, float], states: Mapping[str, Mapping], caps: Mapping[str, float], rows_by_generation: Mapping[str, Mapping[str, float]],
     policy: GlidePolicy, *, decided_today: bool, sessions_since_blend: int, records: Mapping[str, Mapping] | None = None,
-) -> dict:
+) -> dict[str, Any]:
     """Today's shares, by the policy's mode, and a blended row when one is due. A row retargets every name, so it isn't written daily."""
     stages = {name: generation.stage for name, generation in generations.items()}
     labels = {name: str(state.get("state") or "healthy") for name, state in states.items()}
@@ -244,7 +249,7 @@ def allocation_row(
 
 def replay_handover(
     rows_by_generation: Mapping[str, Mapping[str, Mapping[str, float]]], sessions: Sequence[str], *, incumbent: str, successor: str, start: str, policy: GlidePolicy,
-) -> dict:
+) -> dict[str, Any]:
     """The blended weight file a handover would have written: `incumbent` holds the book until `start`, then the ladder moves it to `successor`. Uses the running functions, so a
     backtest of this file tests what would trade. {"rows": {date: weights}, "shares": {date: shares}}."""
     shares = {incumbent: 1.0, successor: 0.0}
@@ -274,7 +279,7 @@ def replay_handover(
 def replay_dynamic(
     rows_by_generation: Mapping[str, Mapping[str, Mapping[str, float]]], returns_by_generation: Mapping[str, Mapping[str, float]], sessions: Sequence[str], *,
     born: Mapping[str, str], priors: Mapping[str, float], policy: GlidePolicy, initial: Mapping[str, float] | None = None,
-) -> dict:
+) -> dict[str, Any]:
     """The blended file the `dynamic` mode would have written, reading only returns known by each session. Used by the running functions, so a backtest of it tests what would trade.
     {"rows", "shares", "scores"}, with `shares` and `scores` on each session a row is written."""
     names = list(rows_by_generation)
@@ -310,4 +315,5 @@ def replay_dynamic(
 
 
 def caps_for(generations: Mapping[str, Generation], evidence: Mapping[str, AdmissionEvidence], policy: GlidePolicy) -> dict[str, float]:
+    """Each generation's share cap under the admission rule, from its tier, evidence and the policy's paper cap."""
     return {name: share_cap(generation, evidence[name], policy.tier2_paper_cap) for name, generation in generations.items()}

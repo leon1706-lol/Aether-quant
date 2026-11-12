@@ -49,15 +49,23 @@ jobs:
       - name: Run full test suite with coverage gate
         run: >
           pytest -m "not lean_backtest" -ra
-          --cov --cov-report=term-missing --cov-report=xml
+          --cov --cov-report=term-missing --cov-report=xml --cov-report=json --cov-report=html
           --cov-fail-under=80
+
+      # V6.6.5 (#353): the figure in the run summary, and the reports pages.yml publishes with the badge
+      - name: Coverage summary
+        if: matrix.os == 'ubuntu-24.04'
+        run: python scripts/coverage_badge.py coverage.json --label "python coverage" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload coverage artifact
         if: matrix.os == 'ubuntu-24.04'
         uses: actions/upload-artifact@v7
         with:
           name: coverage-xml
-          path: coverage.xml
+          path: |
+            coverage.xml
+            coverage.json
+            htmlcov/
 
   python-lint:
     runs-on: ubuntu-24.04
@@ -128,12 +136,16 @@ jobs:
       - run: npx tsc -b
       - run: npx oxlint
       # V5.3.9 - the full frontend suite finally runs in CI too.
-      - run: npx vitest run --pool=threads
+      # V6.6.5 (#353): with coverage, uploaded beside the Python report
+      - run: npx vitest run --pool=threads --coverage
       - run: npm run build
-      # V5.5.0 - advisory: a new upstream advisory must be visible without
-      # turning an unrelated PR red (the lockfile is the owner's to bump).
-      - name: npm audit (advisory, runtime deps, high+)
-        continue-on-error: true
+      - name: Upload web UI coverage
+        uses: actions/upload-artifact@v7
+        with:
+          name: webui-coverage
+          path: webui/coverage/
+      # V6.6.5 (#353): blocking. Runtime dependencies only, high and critical; `npm audit fix` cleared the last ones.
+      - name: npm audit (runtime deps, high+)
         run: npm audit --omit=dev --audit-level=high
 
   cli-smoke:
@@ -334,9 +346,43 @@ jobs:
         run: |
           docker compose -f docker-compose.yml config -q
           docker compose -f docker-compose.yml --profile lean config -q
+          docker compose -f docker-compose.yml --profile dashboard config -q
+          mkdir -p secrets && printf 'x' > secrets/postgres_password && printf 'x' > secrets/postgres_dsn
+          docker compose -f docker-compose.yml -f docker-compose.secrets.yml config -q
 
       - name: Build the webui stage of the engine image
         run: docker build --target webui-builder -t aq-webui-check .
+
+      # V6.6.5 (#344): the one-command dashboard, built and answering with its demo data
+      - name: Build and smoke-test the dashboard image
+        run: |
+          docker build --target dashboard -t aq-dashboard-check .
+          docker image ls aq-dashboard-check --format '{{.Size}}' >> "$GITHUB_STEP_SUMMARY"
+          docker run -d --name aq-dashboard -p 8080:8000 aq-dashboard-check
+          for attempt in $(seq 1 30); do curl -fsS http://127.0.0.1:8080/api/health && break; sleep 2; done
+          curl -fsS http://127.0.0.1:8080/api/health | grep -q '"demo":true'
+          curl -fsS http://127.0.0.1:8080/api/state | grep -q '"mode":"demo"'
+          curl -fsS http://127.0.0.1:8080/ | grep -q 'id="root"'
+          docker rm -f aq-dashboard
+
+      # V6.6.5 (#353): blocking on critical findings that have a fix, in the source tree and in the published image
+      - name: Trivy scan of the source tree
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          severity: CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+          skip-dirs: backtests,backtests_invalid,webui/node_modules
+
+      - name: Trivy scan of the dashboard image
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: aq-dashboard-check
+          severity: CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
 
   # V5.5.0 - the new parity tooling, run in isolation so a regression in
   # the offline/live-parity measurements is named by the job that failed.
@@ -375,14 +421,15 @@ jobs:
       - name: Offline parity audit of feature replicas (synthetic, no data files needed)
         run: python scripts/feature_parity_audit.py --synthetic-only
 
-  # V5.5.0 - ADVISORY until it has run once against the real history: a
-  # first scan may flag historic dev defaults that need an allowlist entry.
+  # V6.6.5 (#353): the working-tree scan is BLOCKING (it has passed on every run since V5.5.0). The history scan stays
+  # advisory until its first report is reviewed: a historic dev default may need an allowlist entry, never a rewrite.
   secret-scan:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
 
       - name: Scan the working tree for secrets (gitleaks v8.18.4)
         run: |
@@ -390,6 +437,134 @@ jobs:
             https://github.com/gitleaks/gitleaks/releases/download/v8.18.4/gitleaks_8.18.4_linux_x64.tar.gz
           tar -xzf gitleaks.tar.gz gitleaks
           ./gitleaks detect --source . --no-git --no-banner --redact --exit-code 1 --config .gitleaks.toml
+
+      - name: Scan the whole git history (advisory until reviewed)
+        continue-on-error: true
+        run: ./gitleaks detect --source . --no-banner --redact --exit-code 1 --config .gitleaks.toml
+
+  # V6.6.5 (#342): `pip install aether-quant` with no extras is the research install: nothing heavy, and `aq hello` works
+  lite-install:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+
+      - name: Build the wheel
+        run: |
+          pip install build
+          python -m build --wheel
+
+      - name: Install the wheel with no extras into a clean venv
+        run: |
+          python -m venv "$RUNNER_TEMP/aq-lite"
+          "$RUNNER_TEMP/aq-lite/bin/pip" install dist/*.whl
+
+      - name: Nothing heavy came with it
+        run: |
+          "$RUNNER_TEMP/aq-lite/bin/pip" list
+          for heavy in torch lean ibapi redis psycopg fastapi uvicorn scipy scikit-learn httpx; do
+            if "$RUNNER_TEMP/aq-lite/bin/pip" show "$heavy" > /dev/null 2>&1; then echo "::error::$heavy came with the light install"; exit 1; fi
+          done
+
+      - name: aq hello --offline and every facade, outside the checkout
+        working-directory: ${{ runner.temp }}
+        env:
+          AQ_SKIP_UPDATE_CHECK: "1"
+        run: |
+          start=$(date +%s)
+          "$RUNNER_TEMP/aq-lite/bin/aq" hello --offline --json hello.json
+          "$RUNNER_TEMP/aq-lite/bin/python" -c "import importlib, pkgutil, aether_quant; [importlib.import_module('aether_quant.' + m.name) for m in pkgutil.iter_modules(aether_quant.__path__) if not m.name.startswith('_')]"
+          echo "aq hello --offline and the facades: $(( $(date +%s) - start )) s" >> "$GITHUB_STEP_SUMMARY"
+
+  # V6.6.5 (#346): every exported callable fully annotated (the floor only rises); pyright's view of the installed wheel
+  typecheck:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+
+      - name: Type completeness of the public API
+        run: |
+          pip install numpy pandas
+          python scripts/type_completeness.py
+
+      - name: pyright --verifytypes on the installed wheel (advisory)
+        continue-on-error: true
+        run: |
+          pip install build "pyright==1.1.409"
+          python -m build --wheel
+          python -m venv "$RUNNER_TEMP/aq-types"
+          "$RUNNER_TEMP/aq-types/bin/pip" install dist/*.whl
+          cd "$RUNNER_TEMP"
+          VIRTUAL_ENV="$RUNNER_TEMP/aq-types" PATH="$RUNNER_TEMP/aq-types/bin:$PATH" pyright --verifytypes aether_quant --ignoreexternal
+
+  # V6.6.5 (#346): the API docs, built strictly (a broken reference or a stale page fails)
+  docs:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+
+      - name: Build the site
+        run: |
+          pip install -r requirements/requirements-docs.txt numpy pandas
+          python scripts/build_docs.py --check
+          python scripts/build_docs.py
+          mkdocs build --strict
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: docs-site
+          path: site/
+
+  # V6.6.5 (#343): the four tutorials run clean from their sources
+  notebooks:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+
+      - name: Run every notebook
+        run: |
+          pip install numpy pandas scipy matplotlib nbclient nbformat ipykernel
+          python -m ipykernel install --user --name python3
+          python scripts/build_notebooks.py --check --execute
+
+  # V6.6.5 (#353): blocking on high-severity findings in what the wheel ships (0 today)
+  bandit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+
+      - name: bandit (high severity fails)
+        run: |
+          pip install "bandit==1.9.4"
+          bandit -q -r aether_quant analyzer audit data_pipeline evaluation execution experience experts features inference liquidity moe monitoring notifications performance portfolio regime retraining risk topology aq_cli.py docs_facts.py json_safety.py performance_probe.py risk_controls.py generate_backtest_report.py generate_evaluation_report.py -lll
 
   # V5.5.0 - WARN-ONLY: the README badge is rewritten by a local `aq test`,
   # so it lags whenever a test is added in a commit that skipped it. This

@@ -15,7 +15,6 @@ import json
 
 from json_safety import atomic_write_json
 import logging
-import os
 from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -30,6 +29,7 @@ from retraining.postgres_registry import (
     fetch_latest_retraining_event,
     fetch_rollback_candidates,
 )
+from execution.secrets_io import secret_env
 
 logger = logging.getLogger(__name__)
 
@@ -162,7 +162,7 @@ def main() -> None:
 
     import psycopg
 
-    dsn = os.environ.get("AETHER_POSTGRES_DSN", "")
+    dsn = secret_env("POSTGRES_DSN", "")
     conn = psycopg.connect(dsn, autocommit=False)
     try:
         ensure_schema(conn)

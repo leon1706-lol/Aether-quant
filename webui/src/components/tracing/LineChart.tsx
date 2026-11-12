@@ -93,6 +93,7 @@ export function LineChart({
         viewBox={`0 0 ${WIDTH} ${height}`}
         className="w-full"
         style={{ height }}
+        // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- an inline SVG chart is role="img" with a label (WAI-ARIA); there is no <img> to use
         role="img"
         aria-label={series.map((s) => s.label).join(', ')}
       >

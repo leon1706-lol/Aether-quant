@@ -15,7 +15,6 @@ import json
 
 from json_safety import atomic_write_json
 import logging
-import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -23,12 +22,35 @@ from pathlib import Path
 from execution.paper_readiness import evaluate_observation_readiness, evaluate_paper_broker_config, evaluate_velocity_decision
 from execution.paper_readiness_io import fetch_observation_mode_events
 from experience.observation_metrics import compute_observation_summary
+from execution.secrets_io import secret_env
 
 logger = logging.getLogger(__name__)
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
 DEFAULT_CONFIG_PATH = ROOT_DIR / "config.json"
 DEFAULT_REPORT_PATH = ROOT_DIR / "visualization" / "grafana" / "paper_readiness_report.json"
+
+
+def live_broker_view(config: dict) -> tuple[bool, str]:
+    """`evaluate_live_broker_config` with the inputs main.py passes it: the paper flags, whether live credentials are present,
+    the phase6 risk posture, phase_v2.live and the runtime Postgres DSN."""
+    from execution.live_credentials import credentials_present
+    from execution.live_credentials_io import load_live_credentials, load_postgres_dsn
+    from execution.paper_readiness import evaluate_live_broker_config
+
+    phase_v2 = config.get("phase_v2", {})
+    risk = config.get("phase6", {}).get("risk", {})
+    return evaluate_live_broker_config(
+        phase_v2.get("paper_trading", {}),
+        credentials_present(load_live_credentials()),
+        risk_config={
+            "max_daily_drawdown_pct": float(risk.get("max_daily_drawdown_pct", 0.03)),
+            "max_total_drawdown_pct": float(risk.get("max_total_drawdown_pct", 0.12)),
+            "liquidate_on_risk_breach": bool(risk.get("liquidate_on_risk_breach", True)),
+        },
+        live_config=phase_v2.get("live", {}),
+        postgres_dsn=load_postgres_dsn(),
+    )
 
 
 def build_paper_readiness_view(conn, config: dict) -> dict:
@@ -52,9 +74,15 @@ def build_paper_readiness_view(conn, config: dict) -> dict:
     if not velocity_decided:
         blocking_reasons.append(velocity_reason)
 
+    live_present, live_reason = live_broker_view(config)
+
     return {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "ready": observation_readiness["ready"] and broker_config_present and velocity_decided,
+        # V6.6.5 (#352): main.py's live gate, computed offline too (it was only ever seen at runtime). Reported, not
+        # part of `ready`, which is the paper gate; `aq live-readiness` is the scorecard for live capital.
+        "live_broker_config_present": live_present,
+        "live_broker_config_reason": live_reason,
         "velocity_decision": velocity_reason,
         "checks": observation_readiness["checks"],
         "blocking_reasons": blocking_reasons,
@@ -89,7 +117,7 @@ def main() -> int:
 
     import psycopg
 
-    dsn = os.environ.get("AETHER_POSTGRES_DSN", "")
+    dsn = secret_env("POSTGRES_DSN", "")
     conn = psycopg.connect(dsn, autocommit=False)
     try:
         view = build_paper_readiness_view(conn, config)

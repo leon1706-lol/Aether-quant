@@ -13,6 +13,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 
 import numpy as np
+from typing import Any
 
 STATES = ("healthy", "watch", "decaying", "dead")
 TRADING_DAYS = 252.0
@@ -20,6 +21,7 @@ TRADING_DAYS = 252.0
 
 @dataclass(frozen=True)
 class DecayConfig:
+    """Settings of the CUSUM decay monitor: the alarm threshold, the watch fraction and the minimum sessions before a verdict."""
     threshold: float = 26.0  # about one false alarm in five years at this slack; `average_run_lengths` reports the simulated figure
     watch_fraction: float = 0.5
     min_sessions: int = 60
@@ -30,6 +32,7 @@ class DecayConfig:
 
 @dataclass(frozen=True)
 class DecayReport:
+    """The decay monitor's state for one generation (healthy, watch, decaying), with its statistic and the sessions it saw."""
     state: str
     statistic: float
     sessions: int
@@ -100,7 +103,7 @@ def decay_state(returns: Sequence[float], *, expected_sharpe: float, previous: s
     return DecayReport(state, statistic, len(values), _ew_sharpe(values), f"CUSUM {statistic:.2f} against {config.threshold:.2f}")
 
 
-def average_run_lengths(*, expected_sharpe: float, config: DecayConfig | None = None, paths: int = 2000, seed: int = 1, horizon: int = 2520, decayed_sharpe: float | None = None) -> dict:
+def average_run_lengths(*, expected_sharpe: float, config: DecayConfig | None = None, paths: int = 2000, seed: int = 1, horizon: int = 2520, decayed_sharpe: float | None = None) -> dict[str, Any]:
     """Simulated sessions to the first `decaying` alarm: with the alpha intact (a false alarm) and after it falls to `decayed_sharpe`, default zero. Paths that never alarm count at `horizon`."""
     config = config or DecayConfig()
     decayed = 0.0 if decayed_sharpe is None else float(decayed_sharpe)

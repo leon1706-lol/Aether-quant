@@ -1,0 +1,76 @@
+name: Pages
+
+# V6.6.5 (#346, #353): the documentation site, the HTML coverage reports and the coverage badge, published to GitHub
+# Pages after CI passes on main (https://leon1706-lol.github.io/Aether-quant/). Reads CI's coverage artifacts; never
+# deploys from a pull request or a branch other than main.
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+
+      - name: Download CI's coverage reports
+        if: github.event_name == 'workflow_run'
+        uses: actions/download-artifact@v4
+        with:
+          pattern: "*coverage*"
+          path: coverage-artifacts
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build the site, the coverage pages and the badge
+        run: |
+          pip install -r requirements/requirements-docs.txt numpy pandas
+          python scripts/build_docs.py
+          mkdocs build --strict
+          if [ -f coverage-artifacts/coverage-xml/coverage.json ]; then
+            mkdir -p site/coverage
+            cp -r coverage-artifacts/coverage-xml/htmlcov/. site/coverage/
+            python scripts/coverage_badge.py coverage-artifacts/coverage-xml/coverage.json --badge site/badges/coverage.json
+          fi
+          if [ -d coverage-artifacts/webui-coverage/lcov-report ]; then
+            mkdir -p site/coverage-webui && cp -r coverage-artifacts/webui-coverage/lcov-report/. site/coverage-webui/
+          fi
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site/
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

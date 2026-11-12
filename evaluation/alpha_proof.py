@@ -20,6 +20,12 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable, Sequence
+
+    from numpy.typing import ArrayLike
 
 PERIODS = {
     "backtest": ("2023-07-01", "2025-06-30"),
@@ -32,7 +38,7 @@ FORWARD_MIN_SESSIONS = 60
 BENCHMARKS = ("SPY", "AGG", "BTCUSD")
 
 
-def strategy_daily_returns(run: dict, config: dict, root: Path, *, data_dir: str = "data") -> pd.Series:
+def strategy_daily_returns(run: dict[str, Any], config: dict[str, Any], root: Path, *, data_dir: str = "data") -> pd.Series:
     """Daily strategy return (NAV change minus the T-bill sweep's net P&L, over the previous NAV), indexed by the date
     the return ends on - the same series `backtest_statistics.compute_backtest_statistics` calls the strategy."""
     from evaluation.backtest_audit import CASH_SWEEP_CLASS, class_by_ticker_from_config, daily_equity_from_chart
@@ -60,7 +66,7 @@ def strategy_daily_returns(run: dict, config: dict, root: Path, *, data_dir: str
 
 
 def benchmark_daily_returns(
-    root: Path, config: dict, tickers=BENCHMARKS, *, start: str, end: str, data_dir: str = "data", required: bool = False, lag_equity: bool = False,
+    root: Path, config: dict[str, Any], tickers: Sequence[str]=BENCHMARKS, *, start: str, end: str, data_dir: str = "data", required: bool = False, lag_equity: bool = False,
 ) -> pd.DataFrame:
     """Session-calendar daily returns of the benchmark tickers from their config zips: the calendar is the first
     ticker's (SPY, US equity sessions); a ticker that also trades on other days (BTC) is priced at its last close on or
@@ -95,7 +101,7 @@ def benchmark_daily_returns(
     return returns[(returns.index >= start) & (returns.index <= end)]
 
 
-def to_sessions(daily: pd.Series, sessions) -> pd.Series:
+def to_sessions(daily: pd.Series, sessions: Sequence[str] | pd.Index) -> pd.Series:
     """Compounds a calendar-daily return series onto `sessions`: each session gets every return dated after the previous
     session and up to itself (weekend crypto moves land on Monday, as they do in a session-based benchmark)."""
     sessions = sorted(str(day) for day in sessions)
@@ -108,7 +114,7 @@ def to_sessions(daily: pd.Series, sessions) -> pd.Series:
     return grouped.sort_index()
 
 
-def alpha_regression(y: pd.Series, x: pd.DataFrame, *, hac_lags: int = 5, annualization: float = 252.0) -> dict:
+def alpha_regression(y: pd.Series, x: pd.DataFrame, *, hac_lags: int = 5, annualization: float = 252.0) -> dict[str, Any]:
     """OLS alpha of `y` on `x` (inner-joined dates, NaN rows dropped) with a Newey-West t; `annualization` is the
     number of `y` periods a year (session data: 252)."""
     from evaluation.factor_spanning import factor_spanning
@@ -125,6 +131,7 @@ def alpha_regression(y: pd.Series, x: pd.DataFrame, *, hac_lags: int = 5, annual
 
 
 def sharpe(values: np.ndarray, annualization: float) -> float | None:
+    """The annualised Sharpe of the finite values; None with fewer than two or no variance."""
     values = values[np.isfinite(values)]
     if len(values) < 2 or values.std(ddof=1) <= 0.0:
         return None
@@ -156,7 +163,7 @@ def sharpe_bootstrap_ci(y: pd.Series, *, annualization: float, block: int = 10, 
     return float(np.percentile(stats, 2.5)), float(np.percentile(stats, 97.5))
 
 
-def period_report(y: pd.Series, benchmarks: pd.DataFrame, *, annualization: float, trial_sharpes: list[float], deflation: dict | None = None) -> dict:
+def period_report(y: pd.Series, benchmarks: pd.DataFrame, *, annualization: float, trial_sharpes: list[float], deflation: dict[str, Any] | None = None) -> dict[str, Any]:
     """`deflation` (`evaluation.trial_ledger.deflation_inputs`) replaces the spread of `trial_sharpes`, which mixes windows and
     annualisations, when the caller has one."""
     from evaluation.backtest_statistics import deflated_sharpe_ratio, probabilistic_sharpe_ratio
@@ -183,7 +190,7 @@ def period_report(y: pd.Series, benchmarks: pd.DataFrame, *, annualization: floa
     }
 
 
-def deflated_sharpe_from_inputs(returns, *, num_trials: int, trial_variance: float | None, annualization: float) -> dict:
+def deflated_sharpe_from_inputs(returns: ArrayLike, *, num_trials: int, trial_variance: float | None, annualization: float) -> dict[str, Any]:
     """The deflated Sharpe with N and the trial variance given (`evaluation.trial_ledger.deflation_inputs`), not derived from
     a list of trial Sharpes: the variance must come from trials on the window being judged."""
     from evaluation.backtest_statistics import expected_max_sharpe, probabilistic_sharpe_ratio
@@ -197,7 +204,7 @@ def deflated_sharpe_from_inputs(returns, *, num_trials: int, trial_variance: flo
     return {"value": value, "expected_max_sharpe_annual": sr0, "num_trials": num_trials}
 
 
-def window_report(y: pd.Series, benchmarks: pd.DataFrame, *, start: str, end: str, annualization: float, deflation: dict | None = None) -> dict:
+def window_report(y: pd.Series, benchmarks: pd.DataFrame, *, start: str, end: str, annualization: float, deflation: dict[str, Any] | None = None) -> dict[str, Any]:
     """Sharpe, alpha, max drawdown and (with `deflation`) the deflated Sharpe of a strategy series on one window."""
     part = y[(y.index >= start) & (y.index <= end)]
     if part.empty:
@@ -216,7 +223,7 @@ def window_report(y: pd.Series, benchmarks: pd.DataFrame, *, start: str, end: st
     return report
 
 
-def r_alpha1(report: dict) -> dict:
+def r_alpha1(report: dict[str, Any]) -> dict[str, Any]:
     """The descriptive verdict over the per-period figures."""
     periods = report["periods"]
     failed = []
@@ -237,7 +244,7 @@ def r_alpha1(report: dict) -> dict:
             "fresh_judged": bool(fresh.get("judgeable"))}
 
 
-def measured_annualization(index, *, fallback: float) -> float:
+def measured_annualization(index: Sequence[str] | pd.Index, *, fallback: float) -> float:
     """Rows a year of this very series: a run with no crypto has no weekend rows, and a fixed 365 would inflate its Sharpe
     by about 1.2 times. A weekend-free series is 252; one with weekend rows keeps the config's own figure."""
     dates = pd.to_datetime(pd.Index([str(day) for day in index]))
@@ -246,12 +253,12 @@ def measured_annualization(index, *, fallback: float) -> float:
     return fallback if bool((dates.dayofweek >= 5).any()) else 252.0
 
 
-def fresh_sessions(y: pd.Series, sessions, *, start: str = FRESH_START) -> int:
+def fresh_sessions(y: pd.Series, sessions: Iterable[str], *, start: str = FRESH_START) -> int:
     """Equity sessions after the data freeze, whatever else the series holds."""
     return int(sum(1 for day in sessions if str(day) >= start and str(day) <= str(y.index.max()))) if len(y) else 0
 
 
-def alpha_proof_report(run_dir: Path, config: dict, root: Path, *, trial_sharpes: list[float], deflation: dict | None = None, data_dir: str = "data") -> dict:
+def alpha_proof_report(run_dir: Path, config: dict[str, Any], root: Path, *, trial_sharpes: list[float], deflation: dict[str, Any] | None = None, data_dir: str = "data") -> dict[str, Any]:
     """Every period's figures and the R-ALPHA1 verdict for one Lean run folder (its frozen config when present). `data_dir`
     is the run's data root; a closes or benchmark read from any other root would silently come back empty or wrong."""
     from evaluation.backtest_audit import load_backtest_run

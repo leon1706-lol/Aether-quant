@@ -15,6 +15,10 @@ from __future__ import annotations
 
 import math
 from collections.abc import Mapping, Sequence
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    import pandas as pd
 
 FX_SIGNALS = ("model_rank", "carry", "ts_momentum", "carry_momentum")
 DEFAULT_MOMENTUM_LOOKBACKS = (60, 120)
@@ -87,7 +91,7 @@ def fx_sleeve_scores(
     return {pair: 0.5 * (carry_z[pair] + momentum_z[pair]) for pair in common}
 
 
-def ts_momentum_series(closes, lookbacks: Sequence[int] = DEFAULT_MOMENTUM_LOOKBACKS, vol_window: int = 60):
+def ts_momentum_series(closes: pd.Series, lookbacks: Sequence[int] = DEFAULT_MOMENTUM_LOOKBACKS, vol_window: int = 60) -> pd.Series:
     """ts_momentum_score() evaluated at every position of a close series (a pandas Series), vectorised for research
     over thousands of rows: position i equals ts_momentum_score(closes[:i + 1]). NaN where the scalar returns None.
     pandas is imported here so the live path never pays for it."""

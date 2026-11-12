@@ -158,6 +158,7 @@ The offline tools and `main.py` must make the same decisions from the same input
 | Partial adjustment toward the target on a rebalance | `partial_adjust_weights` (`portfolio/book_construction.py`) | `simulate_rank_book(partial_adjust_fraction=)` |
 | Book-history log by run mode | `book_history_mode_allowed` (`portfolio/book_construction.py`): backtests log the full record, paper (`diagnostics.book_history.paper_enabled`) the bounded one, live never | n/a (a diagnostic |
 | Book-call probabilities in the book history | `build_book_history_record(member_probabilities=)` | `evaluation/classification_parity.py` scores the offline head on the same calls (R-L11 tolerance) |
+| An account's tightened risk values | `apply_risk_overrides` (`execution/accounts.py`), proved never to loosen | `aq evaluate --account` loads the config through the same function (`tests/test_accounts_parity.py`) |
 
 **Live-only, by design**
 
@@ -165,6 +166,9 @@ The offline tools and `main.py` must make the same decisions from the same input
 - **Forward observers (g0002-g0005, zero capital):** `scripts/cycle_daily.py` builds a crypto observer's table with `portfolio/crypto_signals.forward_table`, the same builder functions the research round scored, on Coinbase candles; k09 is built by `scripts/k09_decide.py` from the same `extended_info_features` as its research cell. None of them reaches `main.py`, so there is no second implementation to drift.
 - **`resolve_risk_exit_permission`, `_target_premarket_tick`:** a backtest always may trade, and its file doesn't change.
 - **The buying-power reserve before a rebalance:** Lean checks at submission; the simulator has no buying-power model and applies the same reserve.
+- **Account routing and state paths:** live-only. `AQ_ACCOUNT` picks the account, `state/accounts/<id>/` holds its files, and its secrets and audit tag are its own. Risk values go through `apply_risk_overrides` in both paths.
+- **The field-test injectors (`execution/field_test.py`):** live-only by construction. They act only on a paper or observation run with the plan on and `AQ_FIELD_TEST=1`, and they test the safety plumbing, not a decision.
+- **The `enforce_before_live` readiness gate:** live-only (default off). A backtest never reaches live mode.
 - **`runtime.trading_days_per_year`:** measurement only. Lean's reported statistics use it, and the simulator annualises its trading-date series at 252.
 
 **Offline only, until a rule adopts it:** the tranche book (`evaluation/tranche_book.py`), the direction overlay, ranked model inputs, the trend sleeve. A live path must be built and pass parity first.
@@ -201,7 +205,17 @@ The offline tools and `main.py` must make the same decisions from the same input
 
 ## Webui and API
 
-The server is read-only and torch-free. Every section degrades to a not-evaluated view rather than an error. Dashboard state is polled; `/api/grafana/*` is a historical name, since Grafana itself was removed.
+The server is torch-free and reads, with one audited write route (the trade lock). Every section degrades to a not-evaluated view rather than an error. Dashboard state is polled; `/api/grafana/*` is a historical name, since Grafana itself was removed.
+
+- **Auth (#350):** `monitoring/auth.py` (pure) decides, and `authorize` is proved in `formal/AetherFormal/Authorize.lean`. The middleware enforces it only when a users file exists, so a checkout without one behaves as before. A write appends to the hash-chained `state/api_actions.jsonl` and, with Redis up, to the audit stream.
+- **Data root:** `AQ_DASHBOARD_ROOT` moves every read to another tree (the demo, a deploy host's state). The engine port binds to `127.0.0.1` unless `AETHER_QUANT_BIND` says otherwise.
+
+## Accounts and secrets
+
+- **One account is one Lean deployment** (#349), with its own Lean environment, keys, state directory, override file and audit tag.
+- **The default account** is today's single-account system. No `accounts.json` means exactly that.
+- **Overrides only tighten:** lower drawdown limits and caps, higher thresholds, flags only switched on, and a mode only lowered (`AccountOverrides.lean`).
+- **Secrets (#348)** resolve, first match wins, from a file, a Docker secret, the environment and then the keyring (`execution/secrets.py`). Every reader goes through `secret_env`, so an `AETHER_*` variable alone still works.
 
 ## Diagnostics
 

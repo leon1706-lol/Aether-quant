@@ -37,6 +37,7 @@ from evaluation.forward_ledger import (  # noqa: E402
     session_return,
     turnover,
 )
+from data_pipeline.public_candles import coinbase_product  # noqa: E402
 
 COINBASE_URL = "https://api.exchange.coinbase.com/products/{product}/candles?granularity=86400"
 YAHOO_URL = "https://query1.finance.yahoo.com/v8/finance/chart/{symbol}?range=2y&interval=1d"
@@ -86,7 +87,7 @@ def yahoo_closes(symbol: str, get_json: Callable[[str], object]) -> dict[str, fl
 
 
 def crypto_product(ticker: str) -> str:
-    return f"{ticker[:-3]}-USD"
+    return coinbase_product(ticker)
 
 
 def known_crypto(closes_by_ticker: dict[str, dict[str, float]], sessions: list[str]) -> pd.DataFrame:

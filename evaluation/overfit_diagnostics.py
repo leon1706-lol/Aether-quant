@@ -8,11 +8,15 @@ from collections.abc import Callable
 from pathlib import Path
 
 import pandas as pd
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 RANK_HEADS = ("rank_5d", "rank_20d", "sector_neutral_rank_20d", "residual_rank_5d", "residual_rank_20d")
 
 
-def head_ic(metrics: dict, split: str, head: str) -> float | None:
+def head_ic(metrics: dict[str, Any], split: str, head: str) -> float | None:
     """`<split>.<head>_ic_non_overlapping.mean_ic` of a training-metrics file (the daily `<head>_ic` as a fallback)."""
     node = metrics.get(split) or {}
     for key in (f"{head}_ic_non_overlapping", f"{head}_ic"):
@@ -22,7 +26,7 @@ def head_ic(metrics: dict, split: str, head: str) -> float | None:
     return None
 
 
-def training_gap_report(metrics_paths: dict[str, Path], heads=RANK_HEADS, splits=("train", "validation", "backtest")) -> dict:
+def training_gap_report(metrics_paths: dict[str, Path], heads: Sequence[str]=RANK_HEADS, splits: Sequence[str]=("train", "validation", "backtest")) -> dict[str, Any]:
     """{model: {head: {split: ic, "train_minus_validation": gap, "retained": validation / train}}} from
     ml/<model>_training_metrics.json files."""
     report: dict = {}
@@ -46,7 +50,7 @@ def training_gap_report(metrics_paths: dict[str, Path], heads=RANK_HEADS, splits
     return report
 
 
-def learning_curve(fit_and_score: Callable[[pd.DataFrame, pd.DataFrame], float], frame: pd.DataFrame, *, train_years=(1, 2, 4, 7),
+def learning_curve(fit_and_score: Callable[[pd.DataFrame, pd.DataFrame], float], frame: pd.DataFrame, *, train_years: Sequence[int]=(1, 2, 4, 7),
                    train_end: str = "2021-12-31", eval_split: str = "validation", date_column: str = "date",
                    split_column: str = "split") -> list[dict]:
     """Out-of-sample score for training windows of `train_years` years ending at `train_end`; `fit_and_score(train,

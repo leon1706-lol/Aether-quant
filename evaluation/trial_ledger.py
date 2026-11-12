@@ -20,6 +20,7 @@ from __future__ import annotations
 import json
 import math
 from pathlib import Path
+from typing import Any
 
 ROLES = ("candidate", "verification", "placebo", "plumbing")
 VARIANCE_FLOOR = 0.04
@@ -38,8 +39,9 @@ def append_trial(
     config_sha: str = "",
     weights_sha: str = "",
     engine: str = "",
-    detail: dict | None = None,
-) -> dict:
+    detail: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Append one trial's record to the append-only trial ledger."""
     if role not in ROLES:
         raise ValueError(f"unknown role {role!r}; expected one of {ROLES}")
     value = None if annualised_sharpe is None or not math.isfinite(float(annualised_sharpe)) else float(annualised_sharpe)
@@ -56,6 +58,7 @@ def append_trial(
 
 
 def read_ledger(path: Path | str) -> list[dict]:
+    """The trial ledger's rows, or [] when the file does not exist."""
     path = Path(path)
     if not path.exists():
         return []
@@ -63,16 +66,17 @@ def read_ledger(path: Path | str) -> list[dict]:
 
 
 def candidate_ids(entries: list[dict]) -> set[str]:
+    """The ids of the ledger's candidate trials."""
     return {entry["trial_id"] for entry in entries if entry["role"] == "candidate"}
 
 
-def legacy_trials(registry: dict, exclude_phases: tuple[str, ...] = LEDGER_PHASES) -> list[dict]:
+def legacy_trials(registry: dict[str, Any], exclude_phases: tuple[str, ...] = LEDGER_PHASES) -> list[dict]:
     """The registry's trials not already in a ledger: the registry also holds V6.5.0's ledger, which `candidate_ids` counts
     again, so N read 178 for what is 128."""
     return [trial for trial in registry.get("trials", []) if trial.get("phase") not in exclude_phases]
 
 
-def deflation_inputs(entries: list[dict], legacy_registry: dict, window: str) -> dict:
+def deflation_inputs(entries: list[dict], legacy_registry: dict[str, Any], window: str) -> dict[str, Any]:
     """{"N", "var", "legacy_var", "same_window_trials", "floored"} for a deflated Sharpe judged on `window`. A candidate
     scored several times on a window counts once, by its last score. `entries` must hold every ledger phase's rows."""
     legacy = [float(trial["median_sharpe"]) for trial in legacy_trials(legacy_registry)]

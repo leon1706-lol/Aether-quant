@@ -19,6 +19,10 @@ from datetime import date as _date
 from collections.abc import Mapping, Sequence
 from functools import lru_cache
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from datetime import datetime
 
 WINDOW_BARS = 25  # main.py: deque(maxlen=bar_history_size); up to 24 returns
 MOMENTUM_LOOKBACK_BARS = 20
@@ -28,7 +32,7 @@ _EQUITY_CLOSE_FRACTION = 0.5
 _MIDNIGHT_FRACTION = 1.0
 
 
-def day_ordinal(stamp) -> int:
+def day_ordinal(stamp: _date | datetime | str) -> int:
     """Proleptic ordinal of a pandas Timestamp / datetime / date / ISO date string."""
     if hasattr(stamp, "toordinal"):
         return stamp.toordinal()
@@ -52,7 +56,7 @@ def lean_market_holidays(market_hours_path: str, entry: str = "Forex-oanda-[*]")
     return frozenset(out)
 
 
-def resolve_forex_lean_holidays(config: dict, root: Path | None = None) -> frozenset[int]:
+def resolve_forex_lean_holidays(config: dict[str, Any], root: Path | None = None) -> frozenset[int]:
     """Lean's forex market holidays when `phase1.features.forex_lean_holidays` is on (V6.1.0), else an empty set (the
     V6.0.0 calendar: every Sunday-Friday gap filled, every zip bar kept)."""
     if not bool(((config or {}).get("phase1", {}).get("features", {}) or {}).get("forex_lean_holidays", False)):
@@ -103,7 +107,7 @@ class LateBarCrossAssetCache:
     def __init__(self) -> None:
         self._entries: dict[str, tuple[dict, Mapping[str, float]]] = {}
 
-    def record(self, symbol_key: str, topology_node: dict | None, momentum_by_symbol: Mapping[str, float]) -> None:
+    def record(self, symbol_key: str, topology_node: dict[str, Any] | None, momentum_by_symbol: Mapping[str, float]) -> None:
         if topology_node is not None:
             self._entries[symbol_key] = (topology_node, momentum_by_symbol)
 
@@ -112,6 +116,7 @@ class LateBarCrossAssetCache:
 
 
 def bar_available_at(ordinal: int, security_type: str) -> float:
+    """When a bar dated `ordinal` becomes known: the following midnight for crypto and forex, the equity close otherwise."""
     return ordinal + (_MIDNIGHT_FRACTION if security_type in _MIDNIGHT_SECURITY_TYPES else _EQUITY_CLOSE_FRACTION)
 
 
@@ -127,6 +132,7 @@ def momentum_from_closes(closes: Sequence[float]) -> float | None:
 
 
 def returns_from_closes(closes: Sequence[float]) -> list[float]:
+    """Simple returns of a close series, skipping a step from a zero close."""
     returns = []
     for index in range(1, len(closes)):
         previous = closes[index - 1]
@@ -160,7 +166,7 @@ class CrossAssetTimeline:
         closes_by_ticker: Mapping[str, Sequence[float]],
         day_ordinals_by_ticker: Mapping[str, Sequence[int]],
         security_types: Mapping[str, str] | None = None,
-    ):
+    ) -> None:
         security_types = security_types or {}
         self._closes = {ticker: list(closes) for ticker, closes in closes_by_ticker.items()}
         self._security_types = {ticker: security_types.get(ticker, "equity") for ticker in self._closes}
@@ -171,7 +177,7 @@ class CrossAssetTimeline:
 
     @classmethod
     def from_frames(
-        cls, frames: Mapping, security_types: Mapping[str, str] | None = None, forex_holidays: frozenset[int] = frozenset()
+        cls, frames: Mapping[str, Any], security_types: Mapping[str, str] | None = None, forex_holidays: frozenset[int] = frozenset()
     ) -> CrossAssetTimeline:
         """`frames`: ticker -> DataFrame with `date` (Timestamp) and `close`, sorted by date. Forex history gets
         Lean's fill-forward bars (see fill_forward_open_forex_days), so its windows are what live holds."""
@@ -187,7 +193,7 @@ class CrossAssetTimeline:
             closes_by_ticker[ticker] = closes
         return cls(closes_by_ticker, ordinals_by_ticker, security_types)
 
-    def row_availability(self, ticker: str, date) -> float:
+    def row_availability(self, ticker: str, date: _date | datetime | str) -> float:
         return bar_available_at(day_ordinal(date), self._security_types.get(ticker, "equity"))
 
     def closes_before(self, availability: float) -> dict[str, list[float]]:

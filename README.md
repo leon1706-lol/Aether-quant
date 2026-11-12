@@ -10,10 +10,21 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/python-3.11-FF8C00?style=flat-square&labelColor=1A1A1A&logo=python&logoColor=white" alt="Python 3.11">
-  <img src="https://img.shields.io/badge/%F0%9F%93%84%20license-PolyForm%20Noncommercial%201.0.0-8B5CF6?style=flat-square&labelColor=1A1A1A" alt="License: PolyForm Noncommercial 1.0.0">
-  <!-- AQ:TEST_BADGE_START --><img src="https://img.shields.io/badge/tests-5103%2F5103%20passing-brightgreen?style=flat-square&labelColor=1A1A1A" alt="5103 of 5103 tests passing"><!-- AQ:TEST_BADGE_END -->
+  <a href="LICENSE"><img src="https://img.shields.io/badge/library-Apache--2.0-2EA44F?style=flat-square&labelColor=1A1A1A" alt="Library license: Apache-2.0"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/trading%20system-PolyForm%20Noncommercial-8B5CF6?style=flat-square&labelColor=1A1A1A" alt="Trading system license: PolyForm Noncommercial 1.0.0"></a>
+  <!-- AQ:TEST_BADGE_START --><img src="https://img.shields.io/badge/tests-5349%2F5349%20passing-brightgreen?style=flat-square&labelColor=1A1A1A" alt="5349 of 5349 tests passing"><!-- AQ:TEST_BADGE_END -->
   <img src="https://img.shields.io/pypi/v/aether-quant?style=flat-square&labelColor=1A1A1A&color=FF8C00&logo=pypi&logoColor=white" alt="PyPI version">
   <img src="https://img.shields.io/badge/docker-ghcr.io%2Faether--quant-2496ED?style=flat-square&labelColor=1A1A1A&logo=docker&logoColor=white" alt="Docker image on GHCR">
+</p>
+
+<p align="center">
+  <a href="https://github.com/leon1706-lol/Aether-quant/actions/workflows/ci.yml"><img src="https://github.com/leon1706-lol/Aether-quant/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI"></a>
+  <a href="https://github.com/leon1706-lol/Aether-quant/actions/workflows/codeql.yml"><img src="https://github.com/leon1706-lol/Aether-quant/actions/workflows/codeql.yml/badge.svg?branch=main" alt="CodeQL"></a>
+  <a href="https://leon1706-lol.github.io/Aether-quant/coverage/"><img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fleon1706-lol.github.io%2FAether-quant%2Fbadges%2Fcoverage.json&style=flat-square&labelColor=1A1A1A" alt="Python coverage"></a>
+  <a href="https://scorecard.dev/viewer/?uri=github.com/leon1706-lol/Aether-quant"><img src="https://api.scorecard.dev/projects/github.com/leon1706-lol/Aether-quant/badge?style=flat-square&labelColor=1A1A1A" alt="OpenSSF Scorecard"></a>
+  <a href="https://leon1706-lol.github.io/Aether-quant/"><img src="https://img.shields.io/badge/docs-mkdocs-526CFE?style=flat-square&labelColor=1A1A1A&logo=materialformkdocs&logoColor=white" alt="Documentation"></a>
+  <img src="https://img.shields.io/pypi/pyversions/aether-quant?style=flat-square&labelColor=1A1A1A" alt="Python versions on PyPI">
+  <img src="https://img.shields.io/badge/dashboard-ghcr.io%2Faether--quant--dashboard-2496ED?style=flat-square&labelColor=1A1A1A&logo=docker&logoColor=white" alt="Dashboard image on GHCR">
 </p>
 
 <p align="center">
@@ -41,6 +52,15 @@ The book trading today is simpler than the stack around it: a long-only crypto t
 _Lean run `2026-11-07_17-54-01`, 2023-07-01 to 2026-11-02, computed 2026-11-07 18:27 UTC. Details: [Backtest Statistics](#backtest-statistics)._
 <!-- AQ:STATUS_END -->
 
+## Quickstart
+
+```bash
+pip install aether-quant        # numpy and pandas only: no torch, no Lean, no Docker
+aq hello                        # downloads 11 coins (keyless), runs the shipped rule with costs, prints the report
+```
+
+`aq hello --offline` uses the sample shipped in the wheel. The [tutorials](notebooks/README.md) cover signal evaluation, book construction and overfitting tests, and each opens in Colab. The [docs](https://leon1706-lol.github.io/Aether-quant/) hold the guide and the API reference. The dashboard runs with demo data in one command: `docker run --rm -p 8080:8000 ghcr.io/leon1706-lol/aether-quant-dashboard:latest`.
+
 ## Known Limitations
 
 - **No demonstrated edge.** The sleeve is mostly crypto exposure, and almost all of its result came before mid-2025. See [Alpha by Period](#alpha-by-period).
@@ -48,11 +68,12 @@ _Lean run `2026-11-07_17-54-01`, 2023-07-01 to 2026-11-02, computed 2026-11-07 1
 - **Hindsight in the universe.** The 11 coins are today's survivors. The same rule scored Sharpe -0.06 on coins no rule had read (#301). EOS, which Coinbase delisted, left the book on 2026-11-07 (#311).
 - **Paper only, and no broker yet.** Interactive Brokers cannot fill this sleeve, and the crypto venue (Coinbase assumed) needs an API key (#192). See RUNBOOK "When the keys arrive".
 - **IB is unverified end to end.** Connection, live futures margin and all <!--fact:options.structures-->43<!--/fact--> option structures have only met Lean's samples, never a real Gateway. Futures and options stay data-empty until a key is connected (`aq ib status`).
-- **Safety is only partly field-tested.** `main.py` has run in Lean's paper mode on a fake feed, survived Redis and then Postgres being stopped under it, restarted, and its audit chain verified on a real Postgres (#228). The kill switch, reconciliation and auto-rollback have still never run against a live broker over paper hours.
-- **Packages lag the repo.** PyPI and the Docker image are at the last release tag (5.4.x), before the library existed. Install from source for now.
+- **Not ready for live capital, measured.** `aq live-readiness` scores 21 conditions and reads NOT READY: no 60-session forward record, no paper period, no broker. See [`docs/live/paper-to-live.md`](docs/live/paper-to-live.md).
+- **Safety is field-tested without a broker only.** In Lean's paper brokerage on a fake feed, `main.py` passes the field test (#351, `scripts/lean_smoke/field_test.py`). Its orders fill, injected drift breaches reconciliation, and an injected shock trips the kill switch and flattens the book. It survives Redis and then Postgres being stopped, restarts cleanly, runs two accounts apart, and its audit chain verifies on a real Postgres. The kill switch, reconciliation and auto-rollback have still never run against a real broker over paper hours (#228, #338, #192).
 
 ## Table of Contents
 
+- [Quickstart](#quickstart)
 - [Known Limitations](#known-limitations)
 - [The `aether_quant` Library](#the-aether_quant-library)
 - [Download](#download)
@@ -80,6 +101,7 @@ _Lean run `2026-11-07_17-54-01`, 2023-07-01 to 2026-11-02, computed 2026-11-07 1
   - Retired model book: [Classification Scores](development/research_results.md#direction-heads), [Walk-Forward](development/research_results.md#walk-forward), [Lean vs Offline Books](development/research_results.md#lean-vs-offline), [Offline Evaluation](development/research_results.md#offline-evaluation), [As-Live Book](development/research_results.md#as-live-book), [Benchmarks](development/research_results.md#benchmarks), [Cross-Checks](development/research_results.md#cross-checks), [Research and Audit](development/research_results.md#rule-chains)
 - [Test Suite](#test-suite)
 - [CLI Reference](#cli-reference)
+  - [`aq hello`](#aq-hello)
   - [`aq train`](#aq-train)
   - [`aq test`](#aq-test)
   - [`aq backtest`](#aq-backtest)
@@ -106,6 +128,11 @@ _Lean run `2026-11-07_17-54-01`, 2023-07-01 to 2026-11-02, computed 2026-11-07 1
   - [`aq ib`](#aq-ib)
   - [`aq assets`](#aq-assets)
   - [`aq render-lean-config`](#aq-render-lean-config)
+  - [`aq secrets`](#aq-secrets)
+  - [`aq accounts`](#aq-accounts)
+  - [`aq live`](#aq-live)
+  - [`aq users`](#aq-users)
+  - [`aq live-readiness`](#aq-live-readiness)
   - [`aq secrets-check`](#aq-secrets-check)
   - [`aq audit-log`](#aq-audit-log)
   - [`aq status`](#aq-status)
@@ -116,10 +143,10 @@ _Lean run `2026-11-07_17-54-01`, 2023-07-01 to 2026-11-02, computed 2026-11-07 1
 
 ## The `aether_quant` Library
 
-One importable package over the same pure functions the live algorithm and the research chain call: <!--fact:library.names-->803<!--/fact--> public names across <!--fact:library.modules-->24<!--/fact--> modules.
+One importable package over the same pure functions the live algorithm and the research chain call: <!--fact:library.names-->928<!--/fact--> public names across <!--fact:library.modules-->32<!--/fact--> modules.
 
 ```powershell
-pip install "aether-quant[research] @ git+https://github.com/leon1706-lol/Aether-quant"
+pip install "aether-quant[research]"    # the library is Apache-2.0; scipy, scikit-learn and friends come with [research]
 # from a clone: pip install -e .[research]
 ```
 
@@ -170,25 +197,28 @@ How it works:
 - **A facade, not a copy.** Every name is re-exported from the module `main.py` and the offline tools already use, so a library result and a live decision come from the same code.
 - **Light to import.** No torch, Lean, Redis, Postgres or web stack. Optional extras load only when called.
 - **Modules map to jobs:**
+  - `signals`, `sizing`, `neutrality`, `costs`, `backtest`, `overfitting`: the research toolkit by task, with Kelly, volatility targeting, beta and factor neutrality, composable cost models, `backtest()`, the minimum track record and the haircut Sharpe.
+  - `samples`, `hello`: the bundled sample and `aq hello` as a call.
   - `risk`, `portfolio`, `execution`: sizing, kill switch, book construction, HRP, order gates, cost model, reconciliation.
   - `features`, `training`, `data`: indicators, cross-sectional ranks, purged folds, data parsers.
   - `evaluation`, `research`: simulators, Monte Carlo, Lean-exact statistics, deflated Sharpe, PBO, factor spanning, leakage audits.
   - `cycle`: pre-registered rounds, generation shares, decay detection, retraining preflight.
   - `audit`, `formal`, `io`: the hash chain, Lean 4 proof cases, finite-safe JSON.
-- **Stable surface.** The public names are pinned in `tests/data/aether_quant_api.json`, so a change is always deliberate.
+- **Stable surface.** The public names are pinned in `tests/data/aether_quant_api.json`, so a change is always deliberate. Every export is fully annotated and documented: the [API reference](https://leon1706-lol.github.io/Aether-quant/reference/).
 
 Runnable tours: [`examples/aether_quant_quickstart.py`](examples/aether_quant_quickstart.py), [`examples/aether_quant_cycle.py`](examples/aether_quant_cycle.py). Full module list: [`aether_quant/README.md`](aether_quant/README.md).
 
 ## Download
 
-The published release, behind the repo for now (see [Known Limitations](#known-limitations)):
+| | Command | What |
+|---|---|---|
+| Library + `aq` | `pip install aether-quant` | numpy and pandas only (about 145 MB in a fresh venv) |
+| Research | `pip install "aether-quant[research]"` | adds scipy, scikit-learn, statsmodels, pyarrow, httpx |
+| Notebooks | `pip install "aether-quant[notebooks]"` | adds matplotlib and the Jupyter kernel |
+| Dashboard | `docker run --rm -p 8080:8000 ghcr.io/leon1706-lol/aether-quant-dashboard:latest` | the web UI with demo data, no database |
+| Whole system | `pip install "aether-quant[full]"`, `docker pull ghcr.io/leon1706-lol/aether-quant:latest` | Lean CLI, torch, Redis, Postgres clients, the engine image |
 
-```powershell
-pip install aether-quant
-docker pull ghcr.io/leon1706-lol/aether-quant:latest
-```
-
-For the library, install from git as shown [above](#the-aether_quant-library).
+The light install and the dashboard image arrive with release 6.6.5; before it, install from a clone. The 40 GB Lean engine image is only for real Lean backtests and deployments, never for research.
 
 ## Getting Started
 
@@ -204,7 +234,8 @@ aq evaluate --lean-report       # refresh the statistics from a finished run
 aq cycle status                 # what is due today
 ```
 
-- **Dashboard:** run `aq api` (port 8001), then `npm install` in `webui/` and `aq webui` (port 3002).
+- **Dashboard:** `aq webui --docker` (the demo image, port 8080), or for development `aq api` (port 8001), then `npm install` in `webui/` and `aq webui` (port 3002).
+- **Live operations:** secrets (`aq secrets`), accounts (`aq accounts`, `aq live`), users (`aq users`) and the scorecard (`aq live-readiness`). See [`RUNBOOK.md`](RUNBOOK.md) and [`docs/live/`](docs/live/paper-to-live.md).
 - **Training:** `aq train`, `aq cycle retrain`. See [`RUNBOOK.md`](RUNBOOK.md).
 
 ## Requirements
@@ -321,7 +352,7 @@ Single-responsibility Python packages, each with its own README, a few top-level
 
 | File | Purpose |
 |---|---|
-| [`LICENSE`](LICENSE) | PolyForm Noncommercial 1.0.0 |
+| [`LICENSE`](LICENSE) | The license map: the library (what the wheel and dashboard ship, the UI, notebooks, docs, proofs) is Apache-2.0 with [`NOTICE`](NOTICE); the trading system is PolyForm Noncommercial 1.0.0. [`REUSE.toml`](REUSE.toml) maps every path |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | Setup and conventions for people |
 | [`AGENTS.md`](AGENTS.md) | Setup and conventions for AI agents |
 | [`RUNBOOK.md`](RUNBOOK.md) | Everyday commands, incidents, the research cycle, what to do when keys arrive |
@@ -581,11 +612,22 @@ Each search used rules written before any score. Details are in [`development/Pr
 
 ## Test Suite
 
-<!-- AQ:TEST_COUNT_START -->5103<!-- AQ:TEST_COUNT_END --> tests, one file per source module. `aq test` runs them and refreshes the badge above. Conventions: [`tests/README.md`](tests/README.md).
+<!-- AQ:TEST_COUNT_START -->5349<!-- AQ:TEST_COUNT_END --> tests, one file per source module. `aq test` runs them and refreshes the badge above. Conventions: [`tests/README.md`](tests/README.md).
 
 ## CLI Reference
 
-`aq --help` lists <!--fact:aq.commands-->29<!--/fact--> commands, and `aq <command> --help` gives every flag. Dry run is the default wherever a command writes data or config.
+`aq --help` lists <!--fact:aq.commands-->35<!--/fact--> commands, and `aq <command> --help` gives every flag. Dry run is the default wherever a command writes data or config.
+
+#### `aq hello`
+```text
+aq hello [--offline] [--start YYYY-MM-DD] [--end YYYY-MM-DD] [--json FILE] [--html FILE] [--no-cache]
+```
+Start here: one command, no key, no Docker. It downloads daily bars for the shipped book's 11 coins from Coinbase's public candles, runs the shipped rule through a cost-aware backtest, and prints a report with BTC and equal-weight benchmarks and the overfitting checks (PSR, PBO, deflated and haircut Sharpe, minimum track record).
+
+- **`--offline`:** the sample bundled in the wheel (2021-06 to 2026-10). Any failed download falls back to it too, with a notice.
+- **`--json`, `--html`:** also write the report, or a self-contained page with the equity curve.
+- **`--no-cache`:** download again instead of reading `~/.cache/aether-quant/candles`.
+- **From Python:** `aether_quant.hello.run(offline=True)`.
 
 #### `aq train`
 ```text
@@ -660,8 +702,13 @@ Starts the FastAPI monitoring server on port 8001.
 #### `aq webui`
 ```text
 aq webui
+aq webui --docker [--build] [--image IMAGE] [--port 8080] [--data DIR]
 ```
-Starts the dashboard dev server.
+Starts the dashboard dev server (port 3002, with `aq api` on 8001).
+
+- **`--docker`:** runs the dashboard image instead: FastAPI, the built web UI and demo data from `aq hello`, no database and no engine. It is the published `aether-quant-dashboard` image, the one-line Docker command in [Getting Started](#getting-started).
+- **`--build`:** builds the image from this checkout first (the Dockerfile's `dashboard` stage).
+- **`--data`:** serves a real tree (its `visualization/` and `ml/`) read-only instead of the demo.
 
 #### `aq docker`
 ```text
@@ -714,13 +761,13 @@ The check to run before switching to paper: broker config and observation-mode h
 
 #### `aq trade-lock`
 ```text
-aq trade-lock --on|--off|--auto|--status
+aq trade-lock --on|--off|--auto|--status [--account ID]
 ```
-Overrides the sticky drawdown lock. `--off` deliberately clears it.
+Overrides the sticky drawdown lock. `--off` deliberately clears it. `--account` writes a named account's override (`state/accounts/<id>/overrides.json`) instead of `config.json`.
 
 #### `aq kill-switch`
 ```text
-aq kill-switch --arm|--disarm|--auto|--status
+aq kill-switch --arm|--disarm|--auto|--status [--account ID]
 aq kill-switch --history [--limit N]
 ```
 Overrides the kill switch through the same file as the trade lock, so the two can't disagree. `--history` reads past trips from the audit log (needs `AETHER_POSTGRES_DSN`).
@@ -733,9 +780,9 @@ Lists what can be removed from `ml/`. Active models are never listed, and nothin
 
 #### `aq evaluate`
 ```text
-aq evaluate <flag> [--backtest-dir backtests/<run>] [--json]
+aq evaluate <flag> [--backtest-dir backtests/<run>] [--json] [--account ID]
 ```
-Offline evaluation and audits. Every Lean-reading flag uses `--backtest-dir`, else the README pin, else the newest finished run. Each writes `ml/evaluation/<name>.json`.
+Offline evaluation and audits. Every Lean-reading flag uses `--backtest-dir`, else the README pin, else the newest finished run. Each writes `ml/evaluation/<name>.json`. `--account` evaluates on one account's tightened limits, through the same `apply_risk_overrides` `main.py` runs.
 
 **A finished Lean run**
 
@@ -840,9 +887,44 @@ Multi-asset readiness at a glance: IB, futures and options flags, margin specs, 
 
 #### `aq render-lean-config`
 ```text
-aq render-lean-config [--base lean.json] [--out lean.live.json] [--env-file .env.live]
+aq render-lean-config [--base lean.json] [--out lean.live.json] [--env-file .env.live] [--account ID]
 ```
-Renders the gitignored `lean.live.json` from `AETHER_*` variables, for Lean's `--lean-config`. Prints field names only, never secrets.
+Renders the gitignored `lean.live.json` for Lean's `--lean-config`. Values come from a `*_FILE` file, a Docker secret, the `AETHER_*` variables or the keyring. Coinbase's key pair renders too. Prints field names only, never secrets. `--account` reads `AETHER_<ID>_*` and writes `lean.live.<id>.json`.
+
+#### `aq secrets`
+```text
+aq secrets status [--json FILE] [--account ID]
+aq secrets set NAME [--account ID]
+aq secrets delete NAME [--account ID]
+```
+Where each credential comes from: a `*_FILE` file, a Docker secret, an environment variable or the OS keyring. `status` shows names and sources, never a value. `set` stores one in the keyring, prompted and never echoed. See [`docs/live/secrets.md`](docs/live/secrets.md).
+
+#### `aq accounts`
+```text
+aq accounts list|validate
+aq accounts status [--json FILE]
+```
+The account registry (`accounts.json`; template `accounts.example.json`). Each account is one Lean deployment whose overrides may only tighten the config. `status` shows each account's secrets (resolved or not) and last state.
+
+#### `aq live`
+```text
+aq live up|down [--account ID] [--dry-run]
+```
+Starts or stops one account's Lean live deployment from the compose `lean-live` service: its own container, `AQ_ACCOUNT`, its Lean environment and its rendered config. `--dry-run` prints the commands.
+
+#### `aq users`
+```text
+aq users add NAME [--role viewer|operator|admin] [--accounts a,b]
+aq users list
+aq users remove NAME
+```
+Dashboard and API users. A token is printed once and stored as a salted hash. With any user, every `/api` route but `/api/health` needs a bearer token. An operator may lock an account and an admin may unlock it.
+
+#### `aq live-readiness`
+```text
+aq live-readiness [--account ID] [--paper-check FILE] [--markdown] [--json FILE] [--no-write] [--docs]
+```
+The paper-to-live scorecard: every condition for live capital, measured, with unknown counting as fail. It writes `visualization/grafana/live_readiness.json` for the dashboard and exits 1 unless ready. `--docs` refreshes the table in [`docs/live/paper-to-live.md`](docs/live/paper-to-live.md).
 
 #### `aq secrets-check`
 ```text

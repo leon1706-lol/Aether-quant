@@ -17,9 +17,10 @@ these dicts off disk and for "no missing scaler/schema/artifacts" checks.
 from __future__ import annotations
 
 import math
+from typing import Any
 
 
-def compute_overfitting_gap(metrics: dict) -> float:
+def compute_overfitting_gap(metrics: dict[str, Any]) -> float:
     """train.balanced_accuracy - backtest.balanced_accuracy.
 
     No such field is pre-computed for the baseline model anywhere today
@@ -32,8 +33,8 @@ def compute_overfitting_gap(metrics: dict) -> float:
 
 
 def evaluate_ranking_promotion_gate(
-    ranking_metrics_by_model: dict, config: dict, walk_forward_summary: dict | None = None
-) -> dict:
+    ranking_metrics_by_model: dict[str, Any], config: dict[str, Any], walk_forward_summary: dict[str, Any] | None = None
+) -> dict[str, Any]:
     """Ranking promotion gate on one head, or on whichever of `heads` clears it.
 
     `heads` (optional list, V5.6.0): the candidate passes when ANY listed head clears the gate, and the
@@ -56,8 +57,8 @@ def evaluate_ranking_promotion_gate(
 
 
 def _evaluate_single_head_ranking_gate(
-    ranking_metrics_by_model: dict, config: dict, walk_forward_summary: dict | None = None
-) -> dict:
+    ranking_metrics_by_model: dict[str, Any], config: dict[str, Any], walk_forward_summary: dict[str, Any] | None = None
+) -> dict[str, Any]:
     """V5.1 Phase 4 (item 7 - "the dead end"): assess_ranking_quality()'s
     verdict has always been written to a candidate's own
     {sequence,multitask}_training_metrics.json, but nothing in retraining/
@@ -169,14 +170,14 @@ def _evaluate_single_head_ranking_gate(
 
 
 def evaluate_validation_gate(
-    candidate_metrics: dict,
-    candidate_report: dict,
-    active_metrics: dict,
-    active_report: dict,
-    config: dict,
+    candidate_metrics: dict[str, Any],
+    candidate_report: dict[str, Any],
+    active_metrics: dict[str, Any],
+    active_report: dict[str, Any],
+    config: dict[str, Any],
     *,
-    candidate_ranking_metrics: dict | None = None,
-) -> dict:
+    candidate_ranking_metrics: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """Returns {passed, failures: [...], near_misses: [...], thresholds: {...}, observed: {...}}.
 
     Checks, in order:
@@ -191,7 +192,7 @@ def evaluate_validation_gate(
       candidate backtest mcc >= min_mcc (skill floor - see below)
     - V5.1 Phase 4 (item 7): when candidate_ranking_metrics is provided
       (keyword-only, default None -> zero change for every existing
-      caller/test) AND config["ranking"]["enabled"] is true,
+      caller/test) AND `config["ranking"]["enabled"]` is true,
       evaluate_ranking_promotion_gate() also runs against it, and its
       failures/near_misses are merged into this function's own lists
       before the final passed = not failures - one candidate, one combined

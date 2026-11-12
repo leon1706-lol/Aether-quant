@@ -1,0 +1,80 @@
+# aether_quant.research
+
+Research and audit tools (V6.4.3): one report for any signal, the probability of backtest overfitting, factor baselines and spanning, overfitting and leakage audits, the simulator / Lean gap, research probes, the trial registry.
+
+::: aether_quant.research
+    options:
+      members:
+        - FACTOR_COLUMNS
+        - ResearchContext
+        - WideCell
+        - alpha_proof_report
+        - alpha_regression
+        - annual_sharpe
+        - append_trial
+        - audit_leakage
+        - benchmark_daily_returns
+        - block_bootstrap_mean_ci
+        - build_context
+        - build_factor_returns
+        - build_factor_scores
+        - build_registry
+        - calendar_rows
+        - candidate_ids
+        - collect_trials
+        - crypto_cell
+        - crypto_ic
+        - daily_gap_breakdown
+        - daily_returns_for
+        - dedupe
+        - deflated_sharpe_from_inputs
+        - deflation_inputs
+        - equity_cell
+        - evaluate_signal
+        - factor_spanning
+        - fit_hgb_rank
+        - fit_ridge_rank
+        - fresh_sessions
+        - gap_report
+        - head_ic
+        - ic_summary
+        - identity_check
+        - label_shuffle_check
+        - lag_onto
+        - learning_curve
+        - legacy_trials
+        - liquid_mask_for_cell
+        - load_ohlcv
+        - load_raw_closes
+        - load_research_frame
+        - max_drawdown
+        - measured_annualization
+        - nulls_for
+        - passes_sharpe_clauses
+        - path_config
+        - period_report
+        - phase_offsets
+        - placebo_p_value
+        - placebo_sharpes
+        - predict_scores
+        - probability_of_backtest_overfitting
+        - project_tickers
+        - r_alpha1
+        - read_info
+        - read_ledger
+        - rung_attribution
+        - score_sleeve
+        - selection_gate
+        - sharpe
+        - sharpe_at_sessions
+        - sharpe_bootstrap_ci
+        - signal_ic_t
+        - single_feature_ic
+        - slice_market
+        - strategy_daily_returns
+        - tail_nan_check
+        - to_sessions
+        - training_gap_report
+        - weights_for
+        - wide_config_for
+        - window_report

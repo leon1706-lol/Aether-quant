@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import asdict, dataclass, field
+from typing import Any
 
 # Deliberately extreme "this condition can never fire" sentinels - not 0.0
 # or None, which would either behave surprisingly (0.0 is a real threshold
@@ -41,6 +42,7 @@ _NEVER_ABOVE = 1e12
 
 @dataclass(frozen=True)
 class KillSwitchDecision:
+    """The kill switch's verdict on one bar: tripped or not, severity, triggers, the reason and what it observed against which thresholds."""
     tripped: bool
     severity: str
     triggers: list[str] = field(default_factory=list)
@@ -49,7 +51,7 @@ class KillSwitchDecision:
     observed: dict = field(default_factory=dict)
     thresholds: dict = field(default_factory=dict)
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
     @property
@@ -119,7 +121,7 @@ def _rolling_sharpe(
     return sharpe if math.isfinite(sharpe) else None
 
 
-def evaluate_kill_switch(runtime_metrics: dict, config: dict) -> KillSwitchDecision:
+def evaluate_kill_switch(runtime_metrics: dict[str, Any], config: dict[str, Any]) -> KillSwitchDecision:
     """Evaluated once per bar by main.py, fed a `runtime_metrics` dict it
     assembles from state it already tracks:
       - "recent_bar_returns": list[float] - a rolling per-bar portfolio

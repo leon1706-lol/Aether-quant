@@ -56,6 +56,7 @@ from risk.manual_override import (
     write_kill_switch_manual_override,
     write_manual_trade_lock_override,
 )
+from execution.secrets_io import secret_env
 
 IB_ASSET_CLASSES = ("futures", "options")
 
@@ -685,6 +686,12 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         "test_order_events_audit.py",
         # V5.4.7 - json_safety.py + the CLI help-surface/README-sync guards.
         "test_json_safety.py", "test_cli_help_surface.py",
+        # V6.6.5
+        "test_hello_world.py", "test_lite_install.py",
+        # V6.6.5
+        "test_notebooks.py",
+        # V6.6.5
+        "test_aq_accounts_cli.py",
     ],
     "audit": [
         "test_hash_chain.py", "test_audit_queue.py", "test_postgres_audit.py",
@@ -700,6 +707,8 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         # "execution" bucket, alongside every other production-safety
         # risk mechanism in this list).
         "test_kill_switch.py", "test_v664_mutation_safety.py", "test_reconciliation.py",
+        # V6.6.5
+        "test_kelly.py", "test_vol_target.py",
     ],
     "portfolio": [
         "test_portfolio_book_construction.py", "test_options_strategy.py", "test_cash_sweep.py",
@@ -721,6 +730,8 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         "test_trend_sleeve.py",
         # V6.6.1 - portfolio/signal_construction.py, portfolio/generation_blend.py.
         "test_signal_construction.py", "test_generation_blend.py",
+        # V6.6.5
+        "test_neutrality.py",
     ],
     "features": [
         "test_bond_features.py", "test_derivatives_macro_features.py", "test_macro_features.py",
@@ -748,11 +759,17 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         "test_data_audit.py",
         # V6.0.0 - scripts/refresh_universe_availability.py.
         "test_refresh_universe_availability.py",
+        # V6.6.5
+        "test_public_candles.py",
     ],
     "webui": [
         "test_neural_network_state.py", "test_assets_status.py", "test_status_export.py",
         "test_rank_ic_monitor.py", "test_observation_metrics.py", "test_strategy_catalog.py",
         "test_api_server.py",
+        # V6.6.5
+        "test_dashboard_demo.py",
+        # V6.6.5
+        "test_auth.py", "test_auth_io.py", "test_api_auth.py",
     ],
     "ml": [
         "test_train_cross_sectional.py",
@@ -802,6 +819,16 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         # V5.5.0 - main.py's order-path methods against a minimal Lean stub (the first unit coverage
         # main.py has ever had - tests/test_main_wiring.py's own docstring says what it does NOT prove).
         "test_main_wiring.py", "test_main_on_data_target_weights.py", "test_main_ensure_ready_smoke.py",
+        # V6.6.5
+        "test_cost_models.py",
+        # V6.6.5
+        "test_secrets.py", "test_secrets_io.py", "test_secrets_property.py",
+        # V6.6.5
+        "test_accounts.py", "test_accounts_io.py", "test_field_test.py", "test_main_accounts.py",
+        # V6.6.5
+        "test_accounts_parity.py",
+        # V6.6.5
+        "test_live_readiness.py", "test_live_readiness_io.py", "test_backup_postgres.py",
     ],
     "evaluation": [
         # V6.6.1 - the third round's tools, and generations that hand over.
@@ -894,6 +921,8 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         "test_ml_cleanup.py",
         "test_class_sleeve_research.py",
         "test_v580_live_parity.py",
+        # V6.6.5
+        "test_backtest_api.py", "test_overfitting.py", "test_signal_tools.py",
     ],
     # V5.5.0 - repo-level guards about the repo itself (CI workflow shape, the
     # `aq test --ruff` flag, packaging lists, docs links, CI helper scripts),
@@ -908,12 +937,20 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         "test_formal_differential_reconciliation.py", "test_formal_differential_sleeve_guard.py",
         "test_formal_differential_json_safety.py", "test_v643_formal_findings.py", "test_formal_differential_generation_blend.py", "test_formal_differential_generation_glide.py",
         "test_formal_differential_admission.py", "test_formal_differential_session_resolve.py", "test_formal_differential_holdout_once.py", "test_check_axioms.py", "test_formal_no_sorry.py", "test_verification_matrix.py",
+        # V6.6.5
+        "test_formal_differential_account_overrides.py", "test_formal_differential_authorize.py",
     ],
     "meta": [
         "test_ci_workflows.py", "test_aq_test_ruff_flag.py", "test_packaging_modules.py", "test_docs_links.py", "test_docs_facts.py",
         # V6.4.3 - the aether_quant library's public surface and quickstart.
         "test_aether_quant_api.py", "test_aether_quant_quickstart.py", "test_aether_quant_coverage.py", "test_install_hooks.py", "test_module_has_test.py", "test_mutation_check.py",
         "test_ci_scripts.py", "test_codespace_lean_scripts.py", "test_lean_smoke_scripts.py", "test_v644_fixes.py", "test_readme_freshness.py",
+        # V6.6.5
+        "test_public_docstrings.py",
+        # V6.6.5
+        "test_docs_site.py",
+        # V6.6.5
+        "test_licensing.py",
     ],
 }
 
@@ -1260,8 +1297,7 @@ def _cycle_status(args: argparse.Namespace, *, write: bool = True) -> dict:
     judged = judge_generations(rows)
     entries = {name: asdict(entry) for name, entry in registry.items()}
     session = rows[-1]["payload"].get("session") if rows else None
-    lean = read_json_or(ROOT_DIR / "lean.json", {})
-    keys = bool(str(lean.get("ib-account") or "").strip()) and bool(str(lean.get("coinbase-api-key") or "").strip())
+    keys = _broker_keys_present()
     sessions = sorted({row["payload"].get("session") for row in rows if row["payload"].get("session")})
     behind = 0
     if session:
@@ -1426,7 +1462,7 @@ def cmd_prove(args: argparse.Namespace) -> int:
     for path in sorted(FORMAL_CASES_DIR.glob("*.json")):
         data = json.loads(path.read_text(encoding="utf-8"))
         data["spec_sha256"] = spec_sha256(FORMAL_DIR, data["spec_files"])
-        path.write_text(json.dumps(data, indent=1) + "\n", encoding="utf-8")
+        path.write_text(json.dumps(data, indent=1) + "\n", encoding="utf-8", newline="\n")  # LF on Windows too: package data ships byte-identical
     print(f"regenerated {len(list(FORMAL_CASES_DIR.glob('*.json')))} case files in {FORMAL_CASES_DIR.relative_to(ROOT_DIR)}")
     return 0
 
@@ -1435,7 +1471,27 @@ def cmd_api(_args: argparse.Namespace) -> int:
     return _run([sys.executable, "-m", "uvicorn", "monitoring.api_server:app", "--port", "8001", "--reload"])
 
 
-def cmd_webui(_args: argparse.Namespace) -> int:
+DASHBOARD_IMAGE = "ghcr.io/leon1706-lol/aether-quant-dashboard:latest"
+
+
+def dashboard_docker_command(*, image: str, port: int, data: str | None) -> list[str]:
+    """`docker run` for the dashboard image: demo data by default, or a mounted tree (a real run's visualization/ and ml/)."""
+    command = ["docker", "run", "--rm", "-p", f"127.0.0.1:{int(port)}:8000"]
+    if data:
+        command += ["-v", f"{Path(data).resolve()}:/app/data:ro", "-e", "AQ_DASHBOARD_ROOT=/app/data", "-e", "AQ_DASHBOARD_DEMO=0"]
+    return command + [image]
+
+
+def cmd_webui(args: argparse.Namespace) -> int:
+    if getattr(args, "docker", False):
+        image = args.image
+        if args.build:
+            image = "aether-quant-dashboard:latest"
+            code = _run(["docker", "build", "--target", "dashboard", "-t", image, "."])
+            if code:
+                return code
+        print(f"dashboard on http://localhost:{args.port} ({'demo data' if not args.data else args.data}); Ctrl+C stops it")
+        return _run(dashboard_docker_command(image=image, port=args.port, data=args.data))
     npm = "npm.cmd" if sys.platform == "win32" else "npm"
     return _run([npm, "run", "dev"], cwd=WEBUI_DIR)
 
@@ -1471,12 +1527,17 @@ def cmd_render_lean_config(args: argparse.Namespace) -> int:
     file via `--lean-config`. See execution/lean_config_render.py."""
     from execution.lean_config_render import build_render_environment, write_rendered_config
 
+    account = getattr(args, "account", None) or None
     base = Path(args.base) if args.base else LEAN_JSON_PATH
-    out = Path(args.out) if args.out else ROOT_DIR / "lean.live.json"
+    default_out = "lean.live.json" if not account or account == "default" else f"lean.live.{account}.json"
+    out = Path(args.out) if args.out else ROOT_DIR / default_out
     env_file = Path(args.env_file) if args.env_file else ROOT_DIR / ".env.live"
 
     try:
-        filled = write_rendered_config(base, out, build_render_environment(env_file=env_file))
+        filled = write_rendered_config(base, out, build_render_environment(env_file=env_file, account_id=account), account_id=account)
+    except ValueError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
     except FileNotFoundError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 1
@@ -1514,6 +1575,210 @@ def cmd_render_lean_config(args: argparse.Namespace) -> int:
     for warning in validate_live_crypto_route(route_config, filled):
         print(f"WARNING: {warning}", file=sys.stderr)
     print(f"Deploy against it with Lean's  --lean-config {out}")
+    return 0
+
+
+def _accounts_or_error():
+    from execution.accounts_io import load_accounts
+
+    config = json.loads(CONFIG_PATH.read_text(encoding="utf-8")) if CONFIG_PATH.exists() else {}
+    return load_accounts(ROOT_DIR, config.get("phase_v2", {}))
+
+
+def cmd_users(args: argparse.Namespace) -> int:
+    """`aq users add|list|remove` (V6.6.5, #350): dashboard and API users. A token is printed once and stored only as a hash."""
+    from monitoring.auth import Role, make_user, new_token
+    from monitoring.auth_io import load_users, save_users, users_file
+
+    try:
+        users = list(load_users())
+    except ValueError as exc:
+        print(f"error: {users_file()} is invalid: {exc}", file=sys.stderr)
+        return 1
+    if args.users_command == "list":
+        if not users:
+            print(f"no users ({users_file()}): the API reads are open and nothing can write")
+        for user in users:
+            print(f"{user.name:<24} {user.role.name.lower():<9} accounts {','.join(user.accounts)}")
+        return 0
+    if args.users_command == "remove":
+        kept = [user for user in users if user.name != args.name]
+        if len(kept) == len(users):
+            print(f"no user {args.name}", file=sys.stderr)
+            return 1
+        save_users(tuple(kept))
+        print(f"removed {args.name}; their token no longer works")
+        return 0
+    if any(user.name == args.name for user in users):
+        print(f"user {args.name} exists; remove it first to issue a new token", file=sys.stderr)
+        return 1
+    try:
+        role = Role.parse(args.role)
+        token = new_token()
+        accounts = [item.strip() for item in (args.accounts or "*").split(",") if item.strip()]
+        users.append(make_user(args.name, role, token, accounts=accounts))
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    path = save_users(tuple(users))
+    print(f"added {args.name} ({role.name.lower()}, accounts {','.join(accounts)}) to {path}")
+    print(f"token (shown once, store it now): {token}")
+    print("the API now requires a bearer token on every /api route but /api/health")
+    return 0
+
+
+def cmd_live_readiness(args: argparse.Namespace) -> int:
+    """`aq live-readiness` (V6.6.5, #352): the paper-to-live scorecard, measured. Exit 1 unless every check passes."""
+    from execution.live_readiness import render_markdown
+    from execution.live_readiness_io import readiness_scorecard, write_scorecard
+
+    paper_check = None
+    if args.paper_check:
+        try:
+            paper_check = json.loads(Path(args.paper_check).read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            print(f"error: cannot read {args.paper_check}: {exc}", file=sys.stderr)
+            return 2
+    scorecard = readiness_scorecard(ROOT_DIR, args.account or None, paper_check=paper_check)
+    if args.markdown:
+        print(render_markdown(scorecard))
+    else:
+        doc = scorecard.to_dict()
+        print(f"{'READY' if scorecard.ready else 'NOT READY'} for live capital (account {scorecard.account}): "
+              f"{doc['counts']['pass']} pass, {doc['counts']['fail']} fail, {doc['counts']['unknown']} unknown (unknown counts as fail)")
+        for metric in scorecard.metrics:
+            print(f"  [{metric.status:^7}] {metric.group:<10} {metric.label}: {metric.value if metric.value is not None else '-'} (needs {metric.threshold})")
+    if not args.no_write:
+        path = write_scorecard(ROOT_DIR, scorecard)
+        print(f"wrote {path.relative_to(ROOT_DIR).as_posix()}")
+    if args.docs:
+        from execution.live_readiness_io import write_docs_block
+
+        target = ROOT_DIR / "docs" / "live" / "paper-to-live.md"
+        print(f"{'updated' if write_docs_block(target, render_markdown(scorecard)) else 'no AQ:READINESS markers in'} {target.relative_to(ROOT_DIR).as_posix()}")
+    if args.json:
+        from json_safety import atomic_write_json
+
+        atomic_write_json(Path(args.json), scorecard.to_dict(), indent=2)
+    return 0 if scorecard.ready else 1
+
+
+def cmd_accounts(args: argparse.Namespace) -> int:
+    """`aq accounts list|validate|status` (V6.6.5, #349)."""
+    try:
+        accounts = _accounts_or_error()
+    except ValueError as exc:
+        print(f"accounts.json is invalid: {exc}", file=sys.stderr)
+        return 1
+    if args.accounts_command == "validate":
+        print(f"accounts.json valid: {len(accounts)} account(s) ({', '.join(account.id for account in accounts)}); every override tightens the config")
+        return 0
+    if args.accounts_command == "list":
+        for account in accounts:
+            print(f"{account.id:<16} {account.broker:<20} {account.lean_environment:<24} mode {account.mode or '(config)':<12} {account.description}")
+        return 0
+    from execution.accounts_io import account_status_rows
+
+    rows = account_status_rows(ROOT_DIR, accounts)
+    for row in rows:
+        missing = f" missing {', '.join(row['secrets_missing'])}" if row["secrets_missing"] else ""
+        print(f"{row['id']:<16} {row['broker']:<20} secrets {row['secrets']}{missing}; state {row['state']}; reconciliation breach {row['reconciliation_breach']}")
+    if args.json:
+        from json_safety import atomic_write_json
+
+        atomic_write_json(Path(args.json), {"accounts": rows}, indent=2)
+    return 0
+
+
+def live_container_name(account) -> str:
+    return "aether-quant-lean-live" if account.is_default else f"aether-quant-lean-live-{account.id}"
+
+
+def live_compose_commands(account, *, lean_config: str) -> tuple[list[list[str]], dict[str, str]]:
+    """The commands `aq live up` runs and the environment it runs them with (pure, for the tests)."""
+    name = live_container_name(account)
+    env = {"LEAN_LIVE_ENVIRONMENT": account.lean_environment, "LEAN_LIVE_CONFIG": lean_config, "AQ_ACCOUNT": "" if account.is_default else account.id}
+    commands = [
+        ["docker", "compose", "--profile", "lean-live", "run", "-d", "--name", name, "-e", f"AQ_ACCOUNT={env['AQ_ACCOUNT']}", "lean-live"],
+        ["docker", "update", "--restart", "unless-stopped", name],
+    ]
+    return commands, env
+
+
+def cmd_live(args: argparse.Namespace) -> int:
+    """`aq live up|down --account <id>` (V6.6.5, #349): one Lean live deployment per account, never with a looser config."""
+    from execution.accounts import resolve_account
+
+    try:
+        account = resolve_account(_accounts_or_error(), args.account)
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    name = live_container_name(account)
+    if args.live_command == "down":
+        if args.dry_run:
+            print(f"  docker rm -f {name}")
+            return 0
+        return _run(["docker", "rm", "-f", name])
+    rendered = "lean.live.json" if account.is_default else f"lean.live.{account.id}.json"
+    lean_config = rendered if (ROOT_DIR / rendered).exists() else "lean.json"
+    if account.broker != "paper" and lean_config == "lean.json":
+        suffix = "" if account.is_default else f" --account {account.id}"
+        print(f"error: {rendered} is missing; run `aq render-lean-config{suffix}` first", file=sys.stderr)
+        return 1
+    commands, env = live_compose_commands(account, lean_config=lean_config)
+    print(f"account {account.id}: {account.broker} via {account.lean_environment}, config {lean_config}, container {name}")
+    if args.dry_run:
+        for command in commands:
+            print("  " + " ".join(command))
+        return 0
+    child_env = {**os.environ, **env}
+    for command in commands:
+        code = subprocess.run(command, cwd=ROOT_DIR, env=child_env, check=False).returncode
+        if code:
+            return code
+    return 0
+
+
+def cmd_secrets(args: argparse.Namespace) -> int:
+    """`aq secrets status|set|delete` (V6.6.5, #348): where each credential comes from, never its value."""
+    from execution.secrets import SECRET_NAMES
+    from execution.secrets_io import all_secret_status, keyring_delete, keyring_set
+
+    account = args.account or None
+    if args.secrets_command == "status":
+        rows = all_secret_status(account)
+        width = max(len(row["name"]) for row in rows)
+        print(f"secrets for account {account or 'default'} (values are never shown)")
+        for row in rows:
+            where = row["where"] or "-"
+            flag = "stored safely" if row["stored_safely"] else ("plain environment variable" if row["resolved"] else "not set")
+            print(f"  {str(row['name']).ljust(width)}  {'yes' if row['resolved'] else 'no '}  {flag:<26} {where}")
+        if args.json:
+            from json_safety import atomic_write_json
+
+            atomic_write_json(Path(args.json), {"account": account or "default", "secrets": rows}, indent=2)
+        return 0
+    name = str(args.name).upper()
+    if name not in SECRET_NAMES:
+        print(f"unknown secret {name}; known: {', '.join(SECRET_NAMES)}", file=sys.stderr)
+        return 2
+    if args.secrets_command == "set":
+        import getpass
+
+        value = getpass.getpass(f"{name} for account {account or 'default'} (input hidden): ")
+        if not value:
+            print("nothing entered; nothing stored", file=sys.stderr)
+            return 1
+        try:
+            keyring_set(name, value, account)
+        except RuntimeError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
+        print(f"stored {name} in the OS keyring (service aether-quant)")
+        return 0
+    removed = keyring_delete(name, account)
+    print(f"{'removed' if removed else 'nothing stored for'} {name}")
     return 0
 
 
@@ -1573,7 +1838,7 @@ def cmd_audit_log(args: argparse.Namespace) -> int:
 
     from audit import fetch_all_events_ordered, fetch_recent_events, verify_chain
 
-    dsn = os.environ.get("AETHER_POSTGRES_DSN", "")
+    dsn = secret_env("POSTGRES_DSN", "")
     if not dsn:
         print("error: AETHER_POSTGRES_DSN is not set.", file=sys.stderr)
         return 1
@@ -1677,18 +1942,33 @@ def cmd_clean(args: argparse.Namespace) -> int:
     return 0
 
 
+def _override_target(args: argparse.Namespace) -> Path:
+    """config.json for the default account; state/accounts/<id>/overrides.json for a named one (V6.6.5, #349)."""
+    account_id = getattr(args, "account", None)
+    if not account_id or account_id == "default":
+        return CONFIG_PATH
+    from execution.accounts import override_path, resolve_account
+
+    target = override_path(ROOT_DIR, resolve_account(_accounts_or_error(), account_id))
+    target.parent.mkdir(parents=True, exist_ok=True)
+    if not target.exists():
+        target.write_text("{}", encoding="utf-8")
+    return target
+
+
 def cmd_trade_lock(args: argparse.Namespace) -> int:
+    target = _override_target(args)
     if args.on:
-        write_manual_trade_lock_override(True, CONFIG_PATH)
+        write_manual_trade_lock_override(True, target)
         print("Trade lock override: ON (trading forced paused).")
     elif args.off:
-        write_manual_trade_lock_override(False, CONFIG_PATH)
+        write_manual_trade_lock_override(False, target)
         print("Trade lock override: OFF (trading forced resumed, even past a sticky total-drawdown lock).")
     elif args.auto:
-        write_manual_trade_lock_override(None, CONFIG_PATH)
+        write_manual_trade_lock_override(None, target)
         print("Trade lock override: AUTO (back to today's default automatic behavior).")
     else:  # status
-        override = read_manual_trade_lock_override(CONFIG_PATH)
+        override = read_manual_trade_lock_override(target)
         label = {True: "ON (forced paused)", False: "OFF (forced resumed)", None: "AUTO (automatic behavior)"}[override]
         print(f"Trade lock override: {label}")
     return 0
@@ -1705,7 +1985,7 @@ def _cmd_kill_switch_history(args: argparse.Namespace) -> int:
 
     from audit import LIVE_MODE_TRANSITION, fetch_recent_events
 
-    dsn = os.environ.get("AETHER_POSTGRES_DSN", "")
+    dsn = secret_env("POSTGRES_DSN", "")
     if not dsn:
         print("error: AETHER_POSTGRES_DSN is not set.", file=sys.stderr)
         return 1
@@ -1730,19 +2010,20 @@ def _cmd_kill_switch_history(args: argparse.Namespace) -> int:
 
 
 def cmd_kill_switch(args: argparse.Namespace) -> int:
+    target = _override_target(args)
     if args.arm:
-        write_kill_switch_manual_override(True, CONFIG_PATH)
+        write_kill_switch_manual_override(True, target)
         print("Kill switch override: ARMED (forced evaluation active, even if phase_v2.risk.kill_switch.enabled is false).")
     elif args.disarm:
-        write_kill_switch_manual_override(False, CONFIG_PATH)
+        write_kill_switch_manual_override(False, target)
         print("Kill switch override: DISARMED (forced off, even if phase_v2.risk.kill_switch.enabled is true).")
     elif args.auto:
-        write_kill_switch_manual_override(None, CONFIG_PATH)
+        write_kill_switch_manual_override(None, target)
         print("Kill switch override: AUTO (defers to phase_v2.risk.kill_switch.enabled).")
     elif args.history:
         return _cmd_kill_switch_history(args)
     else:  # status
-        override = read_kill_switch_manual_override(CONFIG_PATH)
+        override = read_kill_switch_manual_override(target)
         label = {True: "ARMED (forced on)", False: "DISARMED (forced off)", None: "AUTO (defers to config)"}[override]
         print(f"Kill switch override: {label}")
     return 0
@@ -2001,9 +2282,27 @@ def cmd_fetch(args: argparse.Namespace) -> int:
     return 1 if report["action"] == "no_data_returned" else 0
 
 
+def _broker_keys_present() -> bool:
+    """Both venues' keys are on hand: in the rendered `lean.live.json` or a stored secret (file, Docker secret, env, keyring).
+    The tracked lean.json stays empty by design (`aq secrets-check`), so it is never the only place looked (V6.6.5, #348)."""
+    from evaluation.research_cycle import read_json_or
+    from execution.secrets_io import load_secret
+
+    rendered = read_json_or(ROOT_DIR / "lean.live.json", {})
+    ib = str(rendered.get("ib-account") or "").strip() or load_secret("IB_ACCOUNT").value is not None
+    coinbase = str(rendered.get("coinbase-api-key") or "").strip() or load_secret("COINBASE_API_KEY").value is not None
+    return bool(ib) and bool(coinbase)
+
+
 def cmd_ib(_args: argparse.Namespace) -> int:
     config = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
     lean_config = json.loads(LEAN_JSON_PATH.read_text(encoding="utf-8"))
+    rendered = ROOT_DIR / "lean.live.json"
+    if rendered.exists():  # the secret-bearing render (`aq render-lean-config`) overlays the empty template
+        try:
+            lean_config = {**lean_config, **json.loads(rendered.read_text(encoding="utf-8"))}
+        except (OSError, ValueError):
+            pass
     status = ib_readiness_status(config, lean_config)
 
     if status == "disabled":
@@ -2012,8 +2311,9 @@ def cmd_ib(_args: argparse.Namespace) -> int:
         return 0
 
     if status == "enabled_but_lean_credentials_missing":
-        print("IB: enabled in config.json, but lean.json's IB credentials are not filled in")
-        print("    Set them with: aq lean set ib-account <ACCOUNT>  and  aq lean set ib-user-name <USERNAME>")
+        print("IB: enabled in config.json, but no IB credentials are rendered (lean.live.json)")
+        print("    Store them with: aq secrets set IB_ACCOUNT  (and IB_USER_NAME, IB_PASSWORD), then aq render-lean-config")
+        print("    The tracked lean.json stays empty: aq secrets-check fails a commit that fills it.")
         return 1
 
     reachable, detail = attempt_connection(config, lean_config)
@@ -2411,6 +2711,11 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
     from features import load_sector_mapping
 
     config = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+    if getattr(args, "account", None):
+        from execution.accounts_io import load_account_config
+
+        # V6.6.5 (#349): the account's tightened limits, through the same apply_risk_overrides main.py runs
+        config = load_account_config(config, args.account, ROOT_DIR)
 
     if getattr(args, "preset", None):
         presets = config.get("phase_v2", {}).get("presets", {})
@@ -4453,6 +4758,33 @@ def cmd_docs_sync(args: argparse.Namespace) -> int:
     return 1 if report["unknown"] or (args.check and report["changed"]) else 0
 
 
+def cmd_hello(args: argparse.Namespace) -> int:
+    """`aq hello`: real daily bars, the shipped rule, a cost-aware backtest and a clean report, in one command (V6.6.5, #343)."""
+    from data_pipeline.public_candles import DEFAULT_CACHE_DIR
+    from evaluation.hello_world import load_closes, render_html, render_text, run_hello
+    from json_safety import atomic_write_json, atomic_write_text
+
+    start = args.start
+    print("[1/4] Data: ", end="", flush=True)
+    closes, source, notice = load_closes(offline=args.offline, start=start, end=args.end, cache_dir=None if args.no_cache else DEFAULT_CACHE_DIR)
+    if notice:
+        print(f"{notice} ", end="")
+    print(f"{closes.shape[1]} coins, {closes.index.min()} to {closes.index.max()}, {source}")
+    print("[2/4] Rule: t3_crypto_trend_blend_x_eos, the shipped book (trend votes over 20/60/120 sessions)")
+    print("[3/4] Backtest: Coinbase taker fees and slippage, plus an 8-variant grid for the overfitting checks ...", flush=True)
+    report = run_hello(closes, start=start, end=args.end or None, data_source=source)
+    print("[4/4] Report")
+    print()
+    print(render_text(report))
+    if args.json:
+        atomic_write_json(Path(args.json), report.to_dict(), indent=2)
+        print(f"wrote {args.json}")
+    if args.html:
+        atomic_write_text(Path(args.html), render_html(report))
+        print(f"wrote {args.html}")
+    return 0
+
+
 def cmd_status(_args: argparse.Namespace) -> int:
     return _run(["git", "status"])
 
@@ -4460,6 +4792,15 @@ def cmd_status(_args: argparse.Namespace) -> int:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="aq", description="Aether Quant convenience CLI")
     subparsers = parser.add_subparsers(dest="command", required=True)
+
+    hello_parser = subparsers.add_parser("hello", help="Start here: download data, run the shipped rule, print a clean report (no key, no Docker)")
+    hello_parser.add_argument("--offline", action="store_true", help="Use the bundled sample instead of downloading")
+    hello_parser.add_argument("--start", default="2022-01-01", help="First decision date (YYYY-MM-DD)")
+    hello_parser.add_argument("--end", default=None, help="Last date (default: the last closed bar)")
+    hello_parser.add_argument("--json", default=None, metavar="FILE", help="Also write the report as JSON")
+    hello_parser.add_argument("--html", default=None, metavar="FILE", help="Also write a self-contained HTML page with the equity curve")
+    hello_parser.add_argument("--no-cache", action="store_true", help="Download again instead of reading ~/.cache/aether-quant")
+    hello_parser.set_defaults(func=cmd_hello)
 
     train_parser = subparsers.add_parser("train", help="Run the training pipeline (wraps python train.py)")
     train_group = train_parser.add_mutually_exclusive_group()
@@ -4717,7 +5058,12 @@ def build_parser() -> argparse.ArgumentParser:
     api_parser = subparsers.add_parser("api", help="Start the FastAPI monitoring server on :8001")
     api_parser.set_defaults(func=cmd_api)
 
-    webui_parser = subparsers.add_parser("webui", help="Start the webui dev server (npm run dev)")
+    webui_parser = subparsers.add_parser("webui", help="Start the webui dev server (npm run dev), or the dashboard image with --docker")
+    webui_parser.add_argument("--docker", action="store_true", help="Run the dashboard image (demo data unless --data) instead of the dev server")
+    webui_parser.add_argument("--build", action="store_true", help="With --docker: build the image from this checkout first")
+    webui_parser.add_argument("--image", default=DASHBOARD_IMAGE, help="With --docker: the image to run")
+    webui_parser.add_argument("--port", type=int, default=8080, help="With --docker: the host port (default 8080)")
+    webui_parser.add_argument("--data", default=None, metavar="DIR", help="With --docker: serve this tree (visualization/, ml/) instead of the demo")
     webui_parser.set_defaults(func=cmd_webui)
 
     docker_parser = subparsers.add_parser("docker", help="Docker Compose shortcuts")
@@ -4849,6 +5195,7 @@ def build_parser() -> argparse.ArgumentParser:
     trade_lock_group.add_argument("--off", action="store_true", help="Force trading resumed")
     trade_lock_group.add_argument("--auto", action="store_true", help="Return to fully automatic behavior")
     trade_lock_group.add_argument("--status", dest="status", action="store_true", help="Print the current override state")
+    trade_lock_parser.add_argument("--account", default=None, help="A named account's override (state/accounts/<id>/overrides.json) instead of config.json")
     trade_lock_parser.set_defaults(func=cmd_trade_lock)
 
     # V5.1 Phase 6 (production safety) - deliberately the same
@@ -4867,6 +5214,7 @@ def build_parser() -> argparse.ArgumentParser:
     kill_switch_group.add_argument("--status", dest="status", action="store_true", help="Print the current override state")
     kill_switch_group.add_argument("--history", action="store_true", help="List recorded kill-switch trips from the audit log")
     kill_switch_parser.add_argument("--limit", type=int, default=50, help="Max --history rows (default 50)")
+    kill_switch_parser.add_argument("--account", default=None, help="A named account's override (state/accounts/<id>/overrides.json) instead of config.json")
     kill_switch_parser.set_defaults(func=cmd_kill_switch)
 
     fetch_parser = subparsers.add_parser(
@@ -4920,6 +5268,7 @@ def build_parser() -> argparse.ArgumentParser:
         "capacity/cost-stress from the active model + dataset, without a Lean backtest",
     )
     evaluate_parser.add_argument("--rank-book", action="store_true", help="Simulate the rank book net of costs")
+    evaluate_parser.add_argument("--account", default=None, help="Evaluate with one account's tightened limits (accounts.json), as its deployment runs")
     evaluate_parser.add_argument("--capacity", action="store_true", help="Breadth (top_n sweep) + capacity estimate")
     evaluate_parser.add_argument("--stress", action="store_true", help="Re-run at 1x/2x/3x the configured cost")
     evaluate_parser.add_argument(
@@ -5314,7 +5663,55 @@ def build_parser() -> argparse.ArgumentParser:
     render_lean_parser.add_argument("--base", default=None, help="Empty tracked template (default: lean.json)")
     render_lean_parser.add_argument("--out", default=None, help="Rendered secret-bearing output (default: lean.live.json)")
     render_lean_parser.add_argument("--env-file", dest="env_file", default=None, help="Secrets file (default: .env.live)")
+    render_lean_parser.add_argument("--account", default=None, help="Render one account's secrets (AETHER_<ACCOUNT>_*) into lean.live.<account>.json")
     render_lean_parser.set_defaults(func=cmd_render_lean_config)
+
+    users_parser = subparsers.add_parser("users", help="Dashboard and API users: viewer, operator (may lock an account), admin (may unlock)")
+    users_subparsers = users_parser.add_subparsers(dest="users_command", required=True)
+    users_add_parser = users_subparsers.add_parser("add", help="Add a user and print their token once")
+    users_add_parser.add_argument("name")
+    users_add_parser.add_argument("--role", default="viewer", help="viewer, operator or admin")
+    users_add_parser.add_argument("--accounts", default="*", help="Comma-separated account ids this user may act on (default: all)")
+    users_subparsers.add_parser("list", help="Every user, role and account scope (no tokens)")
+    users_remove_parser = users_subparsers.add_parser("remove", help="Remove a user (revokes their token)")
+    users_remove_parser.add_argument("name")
+    users_parser.set_defaults(func=cmd_users)
+
+    live_readiness_parser = subparsers.add_parser("live-readiness", help="The paper-to-live scorecard: every condition for live capital, measured (exit 1 unless ready)")
+    live_readiness_parser.add_argument("--account", default=None, help="Score one account (accounts.json); default: the default account")
+    live_readiness_parser.add_argument("--paper-check", default=None, metavar="FILE", help="`aq evaluate --paper-check`'s JSON report, for the paper metrics")
+    live_readiness_parser.add_argument("--markdown", action="store_true", help="Print the scorecard as a Markdown table")
+    live_readiness_parser.add_argument("--json", default=None, metavar="FILE", help="Also write the scorecard here")
+    live_readiness_parser.add_argument("--no-write", action="store_true", help="Do not write visualization/grafana/live_readiness.json")
+    live_readiness_parser.add_argument("--docs", action="store_true", help="Also write the scorecard into docs/live/paper-to-live.md's generated block")
+    live_readiness_parser.set_defaults(func=cmd_live_readiness)
+
+    accounts_parser = subparsers.add_parser("accounts", help="The account registry (accounts.json): list, validate, status of each deployment")
+    accounts_subparsers = accounts_parser.add_subparsers(dest="accounts_command", required=True)
+    accounts_subparsers.add_parser("list", help="Every account and its broker, environment and mode")
+    accounts_subparsers.add_parser("validate", help="Parse accounts.json against config.json: ids, brokers, overrides that only tighten")
+    accounts_status_parser = accounts_subparsers.add_parser("status", help="Each account's secrets (resolved or not) and last state")
+    accounts_status_parser.add_argument("--json", default=None, metavar="FILE", help="Also write the rows")
+    accounts_parser.set_defaults(func=cmd_accounts)
+
+    live_parser = subparsers.add_parser("live", help="Start or stop one account's Lean live deployment (docker compose lean-live)")
+    live_subparsers = live_parser.add_subparsers(dest="live_command", required=True)
+    for _live_name, _live_help in (("up", "Start the account's live/paper deployment"), ("down", "Stop and remove it")):
+        _live_sub = live_subparsers.add_parser(_live_name, help=_live_help)
+        _live_sub.add_argument("--account", default="", help="The account id (default: the default account)")
+        _live_sub.add_argument("--dry-run", action="store_true", help="Print the commands instead of running them")
+    live_parser.set_defaults(func=cmd_live)
+
+    secrets_parser = subparsers.add_parser("secrets", help="Where each credential comes from (file, Docker secret, env, keyring), and keyring storage; never prints a value")
+    secrets_parser.add_argument("--account", default=None, help="One account's secrets (AETHER_<ACCOUNT>_*); default: the default account")
+    secrets_subparsers = secrets_parser.add_subparsers(dest="secrets_command", required=True)
+    secrets_status_parser = secrets_subparsers.add_parser("status", help="Each known secret: resolved or not, and from where")
+    secrets_status_parser.add_argument("--json", default=None, metavar="FILE", help="Also write the status (names and sources only)")
+    secrets_set_parser = secrets_subparsers.add_parser("set", help="Store a secret in the OS keyring (prompted, never echoed)")
+    secrets_set_parser.add_argument("name", help="e.g. IB_PASSWORD, COINBASE_API_SECRET")
+    secrets_delete_parser = secrets_subparsers.add_parser("delete", help="Remove a secret from the OS keyring")
+    secrets_delete_parser.add_argument("name")
+    secrets_parser.set_defaults(func=cmd_secrets)
 
     secrets_check_parser = subparsers.add_parser(
         "secrets-check",
@@ -5353,9 +5750,9 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> None:
     parser = build_parser()
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     exit_code = args.func(args)
     check_for_update()
     sys.exit(exit_code)

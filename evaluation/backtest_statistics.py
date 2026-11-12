@@ -25,6 +25,12 @@ from statistics import NormalDist
 import numpy as np
 
 from json_safety import sanitize_json_finite
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable, Mapping, Sequence
+
+    from numpy.typing import ArrayLike
 
 DAYS_PER_YEAR = 365
 EULER_GAMMA = 0.5772156649015329
@@ -42,7 +48,7 @@ def _finite(value) -> float | None:
     return value if math.isfinite(value) else None
 
 
-def hhi_concentration(values) -> float | None:
+def hhi_concentration(values: ArrayLike) -> float | None:
     """AFML 14.6 `getHHI`: concentration of `values` (all one sign) normalised to [0, 1]; 0 = evenly spread, 1 = all in
     one observation. None for two or fewer observations."""
     weights = np.abs(np.asarray([value for value in values if value is not None], dtype=float))
@@ -74,7 +80,7 @@ def drawdown_episodes(dates: list[str], equity: list[float]) -> list[dict]:
     return episodes
 
 
-def _episode(hwm: float, start: str, trough: float, end: str, *, open_episode: bool) -> dict:
+def _episode(hwm: float, start: str, trough: float, end: str, *, open_episode: bool) -> dict[str, Any]:
     return {
         "start": start,
         "end": end,
@@ -84,16 +90,18 @@ def _episode(hwm: float, start: str, trough: float, end: str, *, open_episode: b
     }
 
 
-def percentile(values, q: float) -> float | None:
+def percentile(values: ArrayLike, q: float) -> float | None:
+    """The q-th percentile of the finite values; None when there are none."""
     values = [value for value in values if value is not None and math.isfinite(value)]
     return _finite(np.percentile(values, q)) if values else None
 
 
 def daily_returns(equity: list[float]) -> list[float]:
+    """Period returns of an equity curve, skipping steps from a non-positive value."""
     return [after / before - 1.0 for before, after in zip(equity, equity[1:]) if before > 0.0]
 
 
-def sharpe_ratio(returns, periods_per_year: int = DAYS_PER_YEAR) -> float | None:
+def sharpe_ratio(returns: ArrayLike, periods_per_year: int = DAYS_PER_YEAR) -> float | None:
     """Annualised mean / sample std of per-period returns, no risk-free rate."""
     values = np.asarray(returns, dtype=float)
     if len(values) < 2 or values.std(ddof=1) <= 0.0:
@@ -101,7 +109,7 @@ def sharpe_ratio(returns, periods_per_year: int = DAYS_PER_YEAR) -> float | None
     return _finite(values.mean() / values.std(ddof=1) * math.sqrt(periods_per_year))
 
 
-def information_ratio(returns, benchmark_returns, periods_per_year: int = DAYS_PER_YEAR) -> float | None:
+def information_ratio(returns: ArrayLike, benchmark_returns: ArrayLike, periods_per_year: int = DAYS_PER_YEAR) -> float | None:
     """Annualised mean / std of the active return (strategy minus benchmark, same periods)."""
     active = np.asarray(returns, dtype=float) - np.asarray(benchmark_returns, dtype=float)
     if len(active) < 2 or active.std(ddof=1) <= 0.0:
@@ -118,7 +126,7 @@ def _skew_kurtosis(values: np.ndarray) -> tuple[float, float]:
     return float((centred**3).mean() / std**3), float((centred**4).mean() / std**4)
 
 
-def probabilistic_sharpe_ratio(returns, benchmark_sharpe_per_period: float = 0.0) -> float | None:
+def probabilistic_sharpe_ratio(returns: ArrayLike, benchmark_sharpe_per_period: float = 0.0) -> float | None:
     """PSR (Bailey & López de Prado 2012): P(true Sharpe > benchmark) given the sample's length, skew and kurtosis. Both
     Sharpe ratios are per period (not annualised)."""
     values = np.asarray(returns, dtype=float)
@@ -143,7 +151,7 @@ def expected_max_sharpe(num_trials: int, trial_sharpe_variance: float) -> float 
     return _finite(math.sqrt(trial_sharpe_variance) * ((1.0 - EULER_GAMMA) * quantile_a + EULER_GAMMA * quantile_b))
 
 
-def deflated_sharpe_ratio(returns, trial_annual_sharpes: list[float], periods_per_year: int = DAYS_PER_YEAR) -> dict:
+def deflated_sharpe_ratio(returns: ArrayLike, trial_annual_sharpes: list[float], periods_per_year: int = DAYS_PER_YEAR) -> dict[str, Any]:
     """DSR (Bailey & López de Prado 2014): PSR against SR0, the best Sharpe expected from the number of configurations
     tried. Trial Sharpes are annual; they are moved to this series' period (÷ sqrt(periods_per_year)) first."""
     trials = [value for value in (_finite(item) for item in trial_annual_sharpes) if value is not None]
@@ -160,7 +168,7 @@ def deflated_sharpe_ratio(returns, trial_annual_sharpes: list[float], periods_pe
     }
 
 
-def classification_scores(y_true, y_pred, probabilities=None) -> dict:
+def classification_scores(y_true: ArrayLike, y_pred: ArrayLike, probabilities: ArrayLike | None=None) -> dict[str, Any]:
     """Accuracy, precision, recall, F1 of binary calls (1 = up / long), and the negative log-loss when probabilities of
     class 1 exist (higher is better; 0 is a perfect forecaster, -0.693 a coin flip)."""
     truth = np.asarray(y_true, dtype=int)
@@ -235,7 +243,7 @@ def _duration_days(text: str | None) -> float | None:
 # ---------------------------------------------------------------- assembly
 
 
-def _row(metric: str, portfolio=None, strategy=None, fmt: str = "num", reason: str | None = None) -> dict:
+def _row(metric: str, portfolio=None, strategy=None, fmt: str = "num", reason: str | None = None) -> dict[str, Any]:
     return {"metric": metric, "portfolio": portfolio, "strategy": strategy, "format": fmt, "reason": reason}
 
 
@@ -244,7 +252,7 @@ def _asof(series: dict[str, float], sorted_dates: list[str], day: str) -> float 
     return series[sorted_dates[position]] if position >= 0 else None
 
 
-def _daily_chart_series(result: dict, chart: str, series: str) -> dict[str, float]:
+def _daily_chart_series(result: dict[str, Any], chart: str, series: str) -> dict[str, float]:
     """Last point per UTC day of one chart series (the same rule as `backtest_audit.daily_equity_from_chart`)."""
     from evaluation.backtest_audit import _parse_time
 
@@ -268,7 +276,7 @@ def _interval_sums(daily: dict[str, float], equity_dates: list[str]) -> list[flo
     return sums[1:]
 
 
-def _numbers(stats: dict, key: str) -> float | None:
+def _numbers(stats: dict[str, Any], key: str) -> float | None:
     """A Lean statistics string ('16.848%', '$1210.90', '0.082') as a float in its own unit."""
     raw = stats.get(key)
     if raw is None:
@@ -278,17 +286,17 @@ def _numbers(stats: dict, key: str) -> float | None:
 
 
 def compute_backtest_statistics(
-    run: dict,
-    config: dict,
+    run: dict[str, Any],
+    config: dict[str, Any],
     root: Path,
     *,
     run_name: str,
     book_history: list[dict] | None = None,
     trial_annual_sharpes: list[float] | None = None,
     offline_classification: dict[str, dict] | None = None,
-    lean_basis: dict | None = None,
-    attribution: dict | None = None,
-) -> dict:
+    lean_basis: dict[str, Any] | None = None,
+    attribution: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """Every section of the README's "Backtest Statistics" for one loaded run (`backtest_audit.load_backtest_run`).
     `lean_basis` is `lean_statistics.statistics_table` output, `attribution` `lean_attribution.attribute_run` output; both
     optional. Pure apart from reading the Lean data zips under `root` for closes and opens."""
@@ -558,7 +566,7 @@ def _forward_return(series: dict[str, float], sorted_dates: list[str], day: str,
 LEAN_PROBABILITY_SOURCE = "direction_prob_multitask"
 
 
-def lean_book_calls(book_history, closes, sorted_closes, horizon: int = 20, source: str = LEAN_PROBABILITY_SOURCE) -> dict:
+def lean_book_calls(book_history: Iterable[Mapping[str, Any]] | None, closes: Mapping[str, Mapping[str, float]], sorted_closes: Mapping[str, Sequence[str]], horizon: int = 20, source: str = LEAN_PROBABILITY_SOURCE) -> dict[str, Any]:
     """The Lean run's book calls as aligned lists: side (1 = long) vs the sign of the ticker's own `horizon`-bar forward
     move, plus the logged probability of "up" (`source` in the record's `member_probabilities`, V6.4.0) where there is one.
     `dates` / `tickers` identify each call so an offline score can be matched to it."""
@@ -609,7 +617,7 @@ def _classification_section(book_history, closes, sorted_closes, offline: dict[s
     return rows
 
 
-def _attribution_section(ticker_pnl, dates, nav, class_by_ticker, years, average_aum, days_per_year, attribution) -> dict:
+def _attribution_section(ticker_pnl, dates, nav, class_by_ticker, years, average_aum, days_per_year, attribution) -> dict[str, Any]:
     """Risk and return per asset class (the sweep is its own class), plus Lean-attribution components when given."""
     daily_by_class: dict[str, dict[str, float]] = defaultdict(lambda: defaultdict(float))
     fees_by_class: dict[str, float] = defaultdict(float)
@@ -663,7 +671,7 @@ def load_trial_sharpes(registry_path: Path) -> list[float]:
     return [trial["median_sharpe"] for trial in payload.get("trials", []) if _finite(trial.get("median_sharpe")) is not None]
 
 
-def _benchmark_section(run: dict, config: dict, root: Path) -> list[dict]:
+def _benchmark_section(run: dict[str, Any], config: dict[str, Any], root: Path) -> list[dict]:
     """The run's portfolio and strategy against SPY, 60/40, Bitcoin and its own coins, on one calendar (`evaluation/lean_benchmarks.py`)."""
     import pandas as pd
 
@@ -687,7 +695,7 @@ def _benchmark_section(run: dict, config: dict, root: Path) -> list[dict]:
     return sanitize_json_finite(benchmark_rows(portfolio, strategy, benchmarks, crypto))
 
 
-def compute_for_run_dir(run_dir: Path, config: dict, root: Path) -> dict:
+def compute_for_run_dir(run_dir: Path, config: dict[str, Any], root: Path) -> dict[str, Any]:
     """`aq evaluate --backtest-stats`: load the run folder and its companions, then compute every section."""
     from evaluation.backtest_audit import load_backtest_run
     from evaluation.lean_attribution import attribute_run, find_book_history_for_run, run_config_path

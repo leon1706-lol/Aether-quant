@@ -21,6 +21,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from portfolio.cash_sweep import strategy_reserve
+from typing import Any
 
 DEFAULT_SLIPPAGE_BPS = {"equity": 3.0, "bond": 3.0, "forex": 1.0, "crypto": 10.0}
 NEXT_BAR_CLASSES = frozenset({"crypto", "forex"})
@@ -29,6 +30,7 @@ DEFAULT_NO_BAR_HAIRCUT = {"equity": 0.05, "bond": 0.05, "forex": 0.0, "crypto": 
 
 @dataclass(frozen=True)
 class TargetWeightsConfig:
+    """Settings of the target-weights path: the weights file and its pin, deadbands, minimum trades, fees, slippage and financing."""
     enabled: bool = False
     weights_path: str = ""
     weights_sha256: str = ""
@@ -58,7 +60,8 @@ def _finite(value, default: float) -> float:
     return number if math.isfinite(number) else default
 
 
-def resolve_target_weights_config(raw: Mapping | None) -> TargetWeightsConfig:
+def resolve_target_weights_config(raw: Mapping[str, Any] | None) -> TargetWeightsConfig:
+    """A `TargetWeightsConfig` from `phase_v2.target_weights`, every number finite and non-negative, defaults where missing."""
     raw = raw or {}
     defaults = TargetWeightsConfig()
     numbers = {
@@ -248,10 +251,11 @@ def equity_fee_usd(notional: float, bps: float, min_usd: float) -> float:
 
 
 def slippage_bps_for(asset_class: str, config: TargetWeightsConfig) -> float:
+    """The slippage the simulator charges one asset class, in bps."""
     return float(config.slippage_bps_by_class.get(str(asset_class), 0.0))
 
 
-def sweep_reserve(config: TargetWeightsConfig) -> dict:
+def sweep_reserve(config: TargetWeightsConfig) -> dict[str, Any]:
     """What the T-bill sweep leaves free for the next session's orders on this path: a fixed share of gross, since the
     next row of the file must not be read before its date."""
     return strategy_reserve(

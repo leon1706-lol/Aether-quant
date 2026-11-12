@@ -1,0 +1,37 @@
+name: Scorecard
+
+# V6.6.5 (#353): the OpenSSF Scorecard of the repository's supply-chain practices (branch protection, pinned actions,
+# token permissions, signed releases, ...). Results go to the Security tab and to the public Scorecard API behind the
+# README badge; no secret and no account is needed.
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "41 5 * * 2"
+  workflow_dispatch:
+
+permissions: read-all
+
+jobs:
+  analysis:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      security-events: write
+      id-token: write
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: ossf/scorecard-action@v2.4.0
+        with:
+          results_file: scorecard.sarif
+          results_format: sarif
+          publish_results: true
+
+      - uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: scorecard.sarif

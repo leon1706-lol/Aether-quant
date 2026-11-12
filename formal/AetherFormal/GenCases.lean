@@ -14,6 +14,8 @@ import AetherFormal.GenerationGlide
 import AetherFormal.Admission
 import AetherFormal.SessionResolve
 import AetherFormal.HoldoutOnce
+import AetherFormal.AccountOverrides
+import AetherFormal.Authorize
 import Mathlib.Algebra.Order.Field.Rat
 import Lean.Data.Json
 
@@ -608,12 +610,73 @@ def holdoutOnce : Gen Json := do
       ("expected", Json.mkObj [("refused", out.isNone), ("ledger", toJson (out.getD ledger))])]]
   return file "holdout_once" ["AetherFormal/HoldoutOnce.lean"] cases
 
+/-! ### account_overrides -/
+
+open AccountOverrides in
+def accountOverrides : Gen Json := do
+  let mut cases : List Json := []
+  for _ in [0:320] do
+    let kind ← nextNat 4
+    if kind < 2 then
+      let d := if kind == 0 then Direction.lower else Direction.higher
+      let b ← randQ (-5) 5
+      let v ← randQ (-5) 5
+      let unset ← nextNat 4
+      let base : Option ℚ := if unset == 0 then none else some b
+      let out := applyOverride d base v
+      cases := cases ++ [Json.mkObj [
+        ("input", Json.mkObj [("kind", toJson (if kind == 0 then "lower" else "higher")), ("base", oqj base), ("value", qj v)]),
+        ("expected", Json.mkObj [("refused", toJson out.isNone), ("value", oqj out)])]]
+    else if kind == 2 then
+      let v ← randBool
+      let out := applyFlag v
+      cases := cases ++ [Json.mkObj [
+        ("input", Json.mkObj [("kind", toJson "flag"), ("value", toJson v)]),
+        ("expected", Json.mkObj [("refused", toJson out.isNone)])]]
+    else
+      let c := (← nextNat 3) + 1
+      let a := (← nextNat 3) + 1
+      let out := applyMode c a
+      cases := cases ++ [Json.mkObj [
+        ("input", Json.mkObj [("kind", toJson "mode"), ("current", toJson c), ("account", toJson a)]),
+        ("expected", Json.mkObj [("refused", toJson out.isNone), ("mode", match out with | some m => toJson m | none => Json.null)])]]
+  return file "account_overrides" ["AetherFormal/AccountOverrides.lean"] cases
+
+/-! ### authorize -/
+
+open Authorize in
+def authorizeCases : Gen Json := do
+  let names : List String := ["a", "b", "c"]
+  let mut cases : List Json := []
+  for _ in [0:400] do
+    let anonymous := (← nextNat 5) == 0
+    let role := (← nextNat 3) + 1
+    let everyAccount ← randBool
+    let size ← nextNat 3
+    let mut accounts : List String := []
+    for _ in [0:size] do
+      let name ← pick names
+      if !(accounts.contains name) then accounts := accounts ++ [name]
+    let required := (← nextNat 3) + 1
+    let named := (← nextNat 4) != 0
+    let target ← pick names
+    let account : Option String := if named then some target else none
+    let authRequired ← randBool
+    let user : Option User := if anonymous then none else some { role := role, all := everyAccount, accounts := accounts }
+    let out := authorize user required account authRequired
+    cases := cases ++ [Json.mkObj [
+      ("input", Json.mkObj [("anonymous", toJson anonymous), ("role", toJson role), ("all", toJson everyAccount), ("accounts", toJson accounts),
+        ("required", toJson required), ("account", match account with | some s => toJson s | none => Json.null), ("auth_required", toJson authRequired)]),
+      ("expected", Json.mkObj [("granted", toJson out)])]]
+  return file "authorize" ["AetherFormal/Authorize.lean"] cases
+
 def all : List (String × Gen Json) :=
   [("order_gate", orderGate), ("hash_chain", hashChain), ("book_neutrality", bookNeutrality),
    ("book_construction", bookConstruction), ("risk_controls", riskControls), ("kill_switch", killSwitch),
    ("position_sizing", positionSizing), ("cost_model", costModel), ("reconciliation", reconciliation),
    ("sleeve_guard", sleeveGuard), ("json_safety", jsonSafety), ("generation_blend", generationBlend), ("generation_glide", generationGlide),
-   ("admission", admission), ("session_resolve", sessionResolve), ("holdout_once", holdoutOnce)]
+   ("admission", admission), ("session_resolve", sessionResolve), ("holdout_once", holdoutOnce),
+   ("account_overrides", accountOverrides), ("authorize", authorizeCases)]
 
 end AetherFormal.GenCases
 

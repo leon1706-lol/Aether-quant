@@ -12,11 +12,15 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 KEY_COLUMNS = ("date", "ticker", "split")
 
 
-def load_research_frame(dataset_path, *, columns, splits=None, chunksize: int = 40_000) -> pd.DataFrame:
+def load_research_frame(dataset_path: str | Path, *, columns: Sequence[str], splits: Sequence[str] | None=None, chunksize: int = 40_000) -> pd.DataFrame:
     """The dataset's KEY_COLUMNS plus `columns` (numeric ones as float32), optionally only some splits."""
     wanted = list(dict.fromkeys([*KEY_COLUMNS, *columns]))
     header = pd.read_csv(Path(dataset_path), nrows=0).columns
@@ -33,7 +37,7 @@ def load_research_frame(dataset_path, *, columns, splits=None, chunksize: int = 
     return frame
 
 
-def fit_ridge_rank(x_train: np.ndarray, y_train: np.ndarray, *, alpha: float = 10.0, features=None) -> dict:
+def fit_ridge_rank(x_train: np.ndarray, y_train: np.ndarray, *, alpha: float = 10.0, features: Sequence[str] | None=None) -> dict[str, Any]:
     """Ridge on centred targets: coef = (X'X + alpha I)^-1 X'(y - mean y). Rows with any NaN are dropped."""
     x = np.asarray(x_train, dtype=np.float64)
     y = np.asarray(y_train, dtype=np.float64)
@@ -46,7 +50,8 @@ def fit_ridge_rank(x_train: np.ndarray, y_train: np.ndarray, *, alpha: float = 1
             "rows": int(len(y))}
 
 
-def fit_hgb_rank(x_train: np.ndarray, y_train: np.ndarray, **params):
+def fit_hgb_rank(x_train: np.ndarray, y_train: np.ndarray, **params: Any) -> Any:
+    """Fit a histogram gradient-boosted regressor to the finite targets (sklearn, imported on call)."""
     from sklearn.ensemble import HistGradientBoostingRegressor
 
     y = np.asarray(y_train, dtype=np.float64)
@@ -56,7 +61,7 @@ def fit_hgb_rank(x_train: np.ndarray, y_train: np.ndarray, **params):
     return model
 
 
-def predict_scores(model, x: np.ndarray) -> np.ndarray:
+def predict_scores(model: Any, x: np.ndarray) -> np.ndarray:
     """Scores for every row; a ridge row with a NaN feature scores NaN (the model has no view on it)."""
     x = np.asarray(x, dtype=np.float64)
     if isinstance(model, dict) and model.get("kind") == "ridge":

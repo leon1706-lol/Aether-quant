@@ -11,6 +11,10 @@ import hashlib
 import math
 import re
 from collections.abc import Mapping, Sequence
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 BUCKETS = 1 << 18
 _TAG = re.compile(r"<[^>]*>")
@@ -46,7 +50,7 @@ def cosine(left: Mapping[int, int], right: Mapping[int, int]) -> float | None:
     return dot / norm if norm > 0.0 else None
 
 
-def _rows_of(submissions: Mapping) -> list[dict]:
+def _rows_of(submissions: Mapping[str, Any]) -> list[dict]:
     recent = ((submissions or {}).get("filings") or {}).get("recent") or {}
     columns = {key: list(recent.get(key) or []) for key in ("accessionNumber", "filingDate", "acceptanceDateTime", "form", "primaryDocument", "items", "reportDate")}
     length = len(columns["accessionNumber"])
@@ -93,7 +97,7 @@ def prior_year_pairs(filings: Sequence[Mapping]) -> list[tuple[Mapping, Mapping]
     return pairs
 
 
-def similarity_rows(filings: Sequence[Mapping], counts_of) -> list[dict]:
+def similarity_rows(filings: Sequence[Mapping], counts_of: Callable[[Mapping[str, Any]], Mapping[str, int] | None]) -> list[dict]:
     """One row per filing that has a year-earlier twin: ticker-free `{form, period_end, filed, similarity}`. `counts_of(row)` returns that filing's hashed counts (or None when it can't be read)."""
     rows = []
     for current, earlier in prior_year_pairs(filings):

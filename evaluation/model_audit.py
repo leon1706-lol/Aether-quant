@@ -13,6 +13,12 @@ import pandas as pd
 from evaluation.research_cells import CELLS, FREE_CELLS
 from features.wide_panel import wide_label
 from portfolio.wide_signals import rank_mean
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from evaluation.wide_context import WideCell
 
 # name: sign, higher is better after the sign. `resrev_5` already holds minus the return.
 FEATURE_GROUPS: dict[str, dict[str, float]] = {
@@ -38,7 +44,7 @@ def group_table(features: Mapping[str, pd.DataFrame], group: str, member: pd.Dat
     return table.where(member.reindex(index=table.index, columns=table.columns, fill_value=False))
 
 
-def fundamental_coverage(features: Mapping[str, pd.DataFrame], member: pd.DataFrame) -> dict:
+def fundamental_coverage(features: Mapping[str, pd.DataFrame], member: pd.DataFrame) -> dict[str, Any]:
     """{field: {year: share of member rows with a value}}, on member rows only. The early years of training windows read this."""
     report: dict[str, dict[str, float]] = {}
     for name in COVERAGE_FIELDS:
@@ -54,7 +60,7 @@ def fundamental_coverage(features: Mapping[str, pd.DataFrame], member: pd.DataFr
     return report
 
 
-def feature_group_ic(cell, *, horizons: tuple[int, ...] = HORIZONS, ic_fn=None) -> dict:
+def feature_group_ic(cell: WideCell, *, horizons: tuple[int, ...] = HORIZONS, ic_fn: Callable[..., Any] | None=None) -> dict[str, Any]:
     """{group: {horizon: mean IC, non-overlapping t, IC by year}} on the cell's own dates. Refuses a cell outside the free ones: this is a report,
     and no freeze stands behind it."""
     if cell.cell.name not in FREE_CELLS or CELLS[cell.cell.name] != cell.cell:

@@ -30,6 +30,7 @@ from portfolio.sleeve_guard import evaluate_sleeve_guard, resolve_sleeve_guard_c
 from risk.asset_class_router import asset_listed_on_venue
 from risk.kill_switch import evaluate_kill_switch
 from risk_controls import evaluate_non_model_exit, should_scale_position
+from typing import Any
 
 DEFAULT_SECTOR_MAX_NET_WEIGHT = 0.05
 # main.py's `_kill_switch_return_history` deque length.
@@ -40,6 +41,7 @@ DEFAULT_ASSUMED_PORTFOLIO_VALUE_USD = 100_000.0
 
 @dataclass(frozen=True)
 class RankBookSimulationResult:
+    """One rank-book simulation: gross and net Sharpe and return, drawdown, turnover, cost drag and the daily series."""
     gross_sharpe: float
     net_sharpe: float
     gross_total_return: float
@@ -72,7 +74,7 @@ class RankBookSimulationResult:
     # V6.1.0: per-component net returns ({"main_book": {date: r}, "legacy": {date: r}}) when the legacy signal is modelled.
     per_date_component_returns: dict = field(default_factory=dict)
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
 
@@ -123,17 +125,17 @@ def _cap_new_entries(
     return kept
 
 
-def _new_legacy_state() -> dict:
+def _new_legacy_state() -> dict[str, Any]:
     return {"weights": {}, "history": [], "entry_index": {}, "peak": {}, "last_trade": {}, "band": {}, "previous": {}}
 
 
-def _legacy_mark(state: dict, returns_today: dict[str, float]) -> float:
+def _legacy_mark(state: dict[str, Any], returns_today: dict[str, float]) -> float:
     """Return of the held legacy positions on a date that is not traded (a skipped weekend date)."""
     weights = state["history"][-1] if state["history"] else {}
     return sum(weight * float(returns_today.get(symbol, 0.0)) for symbol, weight in weights.items())
 
 
-def _legacy_lagged_return(state: dict, date_returns: dict, entry_lag_bars: int, *, record: bool = False) -> float:
+def _legacy_lagged_return(state: dict[str, Any], date_returns: dict[str, Any], entry_lag_bars: int, *, record: bool = False) -> float:
     """The legacy positions' return for this date: with an entry lag the weights held `entry_lag_bars` dates ago earn
     it (the order filled at the next open), exactly as the book. `record` appends today's weights to the history."""
     history = state["history"]
@@ -149,7 +151,7 @@ def _legacy_lagged_return(state: dict, date_returns: dict, entry_lag_bars: int, 
     return value
 
 
-def _legacy_intraday(state: dict, eligible: pd.DataFrame, ticker_column: str, column: str) -> float:
+def _legacy_intraday(state: dict[str, Any], eligible: pd.DataFrame, ticker_column: str, column: str) -> float:
     """The next session's open-to-close move earned by the legacy weights that changed today (next-open fill)."""
     current, previous = state["weights"], state["previous"]
     intraday = dict(zip(eligible[ticker_column].astype(str), eligible[column]))
@@ -162,10 +164,10 @@ def _legacy_intraday(state: dict, eligible: pd.DataFrame, ticker_column: str, co
     return total
 
 
-def _legacy_step(state: dict, component: dict, *, eligible: pd.DataFrame, date: str, date_index: int, is_session: bool,
+def _legacy_step(state: dict[str, Any], component: dict[str, Any], *, eligible: pd.DataFrame, date: str, date_index: int, is_session: bool,
                  ticker_column: str, close_column: str, book_members: set[str], book_held: dict[str, float],
-                 book_active: bool, kill_switch_locked: bool, candidate_metadata_by_ticker: dict,
-                 cost_bps: float, commission_override, min_commission_usd_by_ticker: dict | None, pv_for_costs: float,
+                 book_active: bool, kill_switch_locked: bool, candidate_metadata_by_ticker: dict[str, Any],
+                 cost_bps: float, commission_override, min_commission_usd_by_ticker: dict[str, Any] | None, pv_for_costs: float,
                  max_active_positions: int | None, cooldown_dates: int, resize_threshold_weight: float) -> tuple[float, float]:
     """One date of the legacy probability signal on non-members (main.py Pass 1c `_derive_signal` + Pass 2's non-member
     branch). Shared pure pieces: `data_pipeline.bar_synthesis.derive_signal` / `adaptive_sell_threshold` (the signal and
@@ -295,7 +297,7 @@ def _simulate_rank_book_core(
     entry_lag_bars: int = 0,
     min_commission_usd: float = 0.0,
     assumed_portfolio_value_usd: float = 0.0,
-    impact_model_config: dict | None = None,
+    impact_model_config: dict[str, Any] | None = None,
     candidate_metadata_by_ticker: dict[str, dict] | None = None,
     normalize_to_percentile: bool = False,
     min_rank_confidence_spread: float = 0.0,
@@ -308,7 +310,7 @@ def _simulate_rank_book_core(
     commission_bps_by_ticker: dict[str, float] | None = None,
     entry_veto_column: str | None = None,
     hysteresis_anchor_on_formed_book: bool | None = None,
-    kill_switch_config: dict | None = None,
+    kill_switch_config: dict[str, Any] | None = None,
     kill_switch_sticky: bool = False,
     member_weight_fn=None,
     raw_weights_fn=None,
@@ -319,7 +321,7 @@ def _simulate_rank_book_core(
     partial_adjust_fraction: float = 1.0,
     rank_overlay_fn=None,
     sector_relative_min_size: int = 3,
-    sleeve_guard_config: dict | None = None,
+    sleeve_guard_config: dict[str, Any] | None = None,
     venue_listing_dates: dict[str, dict] | None = None,
     class_weight_caps: dict[str, dict] | None = None,
     per_asset_class_slots: dict[str, tuple[int, int]] | None = None,
@@ -336,9 +338,9 @@ def _simulate_rank_book_core(
     member_pass_resizes: bool = True,
     accrue_skipped_dates: bool = False,
     kill_switch_extra_returns: dict[str, float] | None = None,
-    legacy_component: dict | None = None,
+    legacy_component: dict[str, Any] | None = None,
     max_active_positions: int | None = None,
-    cash_sweep: dict | None = None,
+    cash_sweep: dict[str, Any] | None = None,
 ) -> tuple[RankBookSimulationResult, dict[str, int]]:
     """The real implementation, shared by simulate_rank_book() (public,
     returns just the result) and capacity_curve() (needs held_days_by_ticker
@@ -1138,7 +1140,7 @@ def _simulate_rank_book_core(
 
 
 def _cash_sweep_step(
-    sweep: dict, weight: float, *, date: str, is_session: bool, book_weights: dict[str, float],
+    sweep: dict[str, Any], weight: float, *, date: str, is_session: bool, book_weights: dict[str, float],
     legacy_weights: dict[str, float], rebalance_next: bool, formed_weights: dict[str, float], pv_for_costs: float,
 ) -> tuple[float, float]:
     """One date of the T-bill sweep: yesterday's sweep weight earns today's ETF return (it filled at today's open), then
@@ -1185,7 +1187,7 @@ def _cash_sweep_step(
     return earned - cost, target
 
 
-def simulate_rank_book(frame: pd.DataFrame, **kwargs) -> RankBookSimulationResult:
+def simulate_rank_book(frame: pd.DataFrame, **kwargs: Any) -> RankBookSimulationResult:
     """Public entry point - see _simulate_rank_book_core()'s docstring for
     the full algorithm. Discards held_days_by_ticker (only capacity_curve()
     needs it)."""
@@ -1198,9 +1200,9 @@ def capacity_curve(
     *,
     dollar_volume_column: str = "liquidity_log_dollar_volume",
     participation_cap: float,
-    base_kwargs: dict,
+    base_kwargs: dict[str, Any],
     top_n_sweep: list[int],
-) -> dict:
+) -> dict[str, Any]:
     """Breadth + capacity check (V5.1 Phase 0, an addition beyond the
     original roadmap table - see the V5.1 plan's own §1 "one thing missing
     from the list"): sweeps top_n==bottom_n across top_n_sweep, holding
@@ -1269,7 +1271,7 @@ def capacity_curve(
     return {"capacity_usd": capacity_usd, "binding_ticker": binding_ticker, "per_top_n": per_top_n}
 
 
-def stress_test_costs(frame: pd.DataFrame, *, base_kwargs: dict, cost_multipliers: tuple = (1.0, 2.0, 3.0)) -> list[dict]:
+def stress_test_costs(frame: pd.DataFrame, *, base_kwargs: dict[str, Any], cost_multipliers: tuple[Any, ...] = (1.0, 2.0, 3.0)) -> list[dict]:
     """One simulate_rank_book() run per cost multiplier, scaling BOTH
     cost_bps_per_side and commission_bps - answers "does the edge survive
     if real-world costs turn out to be 2x/3x the calibrated estimate",
@@ -1290,7 +1292,7 @@ def stress_test_costs(frame: pd.DataFrame, *, base_kwargs: dict, cost_multiplier
 
 def _bootstrap_mean_confidence_interval(
     values: list[float], n_resamples: int = 2000, confidence: float = 0.95, seed: int = 42
-) -> dict:
+) -> dict[str, Any]:
     """Torch-free duplicate of train.py::bootstrap_ic_confidence_interval()'s
     resample-with-replacement bootstrap over a plain float series - same
     algorithm and defaults, deliberately reimplemented here (not imported)
@@ -1311,7 +1313,7 @@ def _bootstrap_mean_confidence_interval(
     }
 
 
-def summarize_metric_stability(per_window_values: list[float], *, min_windows: int, max_sign_flip_fraction: float) -> dict:
+def summarize_metric_stability(per_window_values: list[float], *, min_windows: int, max_sign_flip_fraction: float) -> dict[str, Any]:
     """Cross-window stability summary (used by Phase 4's walk-forward
     evaluation and Phase 5's ablation) - mirrors
     train.py::assess_ranking_quality()'s era-sign-instability check, one

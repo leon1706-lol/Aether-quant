@@ -2,16 +2,43 @@ import type { AssetsStatus, GenerationsState, NeuralNetworkState, RuntimeState, 
 import type { CsvRow, RuntimeMetricsSnapshot } from '../types/tracing'
 import type { AuditLogStatus } from '../types/audit'
 import type { EvaluationState } from '../types/evaluation'
+import type { AccountsResponse, Health, ReadinessScorecard, TradeLockResult, WhoAmI } from '../types/access'
+import { authHeaders } from './session'
+
+// V6.6.5: the status travels with the error so the shell can tell "sign in" (401) from "not written yet" (404).
+export class HttpError extends Error {
+  readonly status: number
+
+  constructor(path: string, status: number) {
+    super(`${path} -> HTTP ${status}`)
+    this.status = status
+  }
+}
 
 async function getJson<T>(path: string): Promise<T> {
-  const response = await fetch(path, { cache: 'no-store' })
+  const response = await fetch(path, { cache: 'no-store', headers: authHeaders() })
   if (!response.ok) {
-    throw new Error(`${path} -> HTTP ${response.status}`)
+    throw new HttpError(path, response.status)
   }
   return (await response.json()) as T
 }
 
-export const fetchState = () => getJson<RuntimeState>('/api/state')
+async function postJson<T>(path: string, body: unknown): Promise<T> {
+  const response = await fetch(path, {
+    method: 'POST',
+    cache: 'no-store',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify(body),
+  })
+  if (!response.ok) {
+    throw new HttpError(path, response.status)
+  }
+  return (await response.json()) as T
+}
+
+const withAccount = (path: string, account: string) => (account && account !== 'default' ? `${path}?account=${encodeURIComponent(account)}` : path)
+
+export const fetchState = (account = 'default') => getJson<RuntimeState>(withAccount('/api/state', account))
 export const fetchScene = () => getJson<Scene>('/api/scene')
 export const fetchTopology = () => getJson<Topology>('/api/topology')
 export const fetchNeuralNetwork = () => getJson<NeuralNetworkState>('/api/neural-network')
@@ -33,3 +60,11 @@ export const fetchObservationEquityCurve = () => getJson<CsvRow[]>('/api/grafana
 // Tamper-evident audit trail (development/Problems.md #42) - order
 // placement, credential loads, live-mode transitions.
 export const fetchAuditLog = () => getJson<AuditLogStatus>('/api/audit-log')
+
+// V6.6.5: demo/auth flags, the signed-in user, the accounts, the paper-to-live scorecard, and the one write.
+export const fetchHealth = () => getJson<Health>('/api/health')
+export const fetchWhoAmI = () => getJson<WhoAmI>('/api/auth/whoami')
+export const fetchAccounts = () => getJson<AccountsResponse>('/api/accounts')
+export const fetchReadiness = () => getJson<ReadinessScorecard>('/api/readiness')
+export const postTradeLock = (account: string, locked: boolean | null) =>
+  postJson<TradeLockResult>(`/api/accounts/${encodeURIComponent(account)}/trade-lock`, { locked })
