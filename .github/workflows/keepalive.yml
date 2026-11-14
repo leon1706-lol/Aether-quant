@@ -8,12 +8,13 @@ on:
     - cron: "17 4 1 * *"
   workflow_dispatch:
 
-permissions:
-  actions: write
+permissions: {}
 
 jobs:
   enable:
     runs-on: ubuntu-latest
+    permissions:
+      actions: write
     timeout-minutes: 5
     env:
       GH_TOKEN: ${{ github.token }}

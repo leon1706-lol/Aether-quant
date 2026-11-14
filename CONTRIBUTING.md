@@ -29,7 +29,7 @@ aq test          # the suite, and it refreshes the README badge
 - **Real Lean backtests** are run by the maintainer. Don't block a PR on one.
 - **Docs and notebooks:** `python scripts/build_docs.py` then `mkdocs build --strict` (`pip install -r requirements/requirements-docs.txt`); notebooks are edited in `notebooks/src/*.py` and rebuilt with `python scripts/build_notebooks.py --execute`.
 
-CI runs the suite on Ubuntu and Windows with an 80% coverage gate, plus ruff, the frontend tests, a CLI smoke battery, actionlint and guard jobs. A red job means don't merge, even if your local run was green.
+CI runs the suite on Ubuntu and Windows with a 100% coverage gate over every tracked module (`aq test --coverage` checks it locally), plus ruff, the frontend tests, a CLI smoke battery, actionlint and guard jobs. A red job means don't merge, even if your local run was green.
 
 ## Code conventions
 

@@ -313,3 +313,46 @@ def test_the_codespace_run_brings_the_scores_back_with_the_state(tmp_path, monke
     assert result["ran"] is True
     assert (tmp_path / "k06.csv").read_text(encoding="utf-8").startswith("date,ticker,score"), "the scores came home"
     assert any(command[:2] == ["gh", "codespace"] and "stop" in command for command in seen), "and the Codespace still stopped"
+
+
+# --- V6.6.6 (#359): the remaining paths ---------------------------------------------------------------------------------------------------------------------
+
+
+def test_the_panel_is_built_once_and_scores_outside_the_repo_are_named_as_they_are(tmp_path, monkeypatch):
+    import cycle_retrain
+
+    seen = []
+    runner = lambda command, **_: seen.append(command) or SimpleNamespace(returncode=0, stdout="ok", stderr="")  # noqa: E731
+    monkeypatch.setattr(cycle_retrain, "ROOT", tmp_path / "repo")
+    actions = local_actions("k06", PROCEDURES["k06"], run_dir=tmp_path / "run", python="py", runner=runner)
+    actions["build_panel"]()
+    assert any("v660_build_panel.py" in " ".join(command) for command in seen)
+    (tmp_path / "repo" / "data_wide" / "reference").mkdir(parents=True)
+    (tmp_path / "repo" / "data_wide" / "reference" / "panel_TA.parquet").write_text("x", encoding="utf-8")
+    assert actions["build_panel"]() == "panel present"
+    (tmp_path / "run").mkdir()
+    (tmp_path / "run" / "k06.csv").write_text("date,ticker,score\n", encoding="utf-8")
+    assert actions["score"]()["scores"] == str(tmp_path / "run" / "k06.csv") and actions["report"]() == str(tmp_path / "run")
+
+
+def test_a_smoke_run_without_usable_scores_fails(tmp_path):
+    import cycle_retrain
+
+    actions = cycle_retrain.smoke_actions(run_dir=tmp_path, python="py")
+    (tmp_path / "smoke.csv").write_text("date,ticker,score\n2024-01-02,A,\n", encoding="utf-8")
+    with pytest.raises(RuntimeError, match="no usable scores"):
+        actions["score"]()
+
+
+def test_a_failed_codespace_listing_is_loud():
+    with pytest.raises(RuntimeError, match="gh codespace list exit 4: auth"):
+        resolve_codespace("x", runner=lambda command, **_: SimpleNamespace(returncode=4, stdout="", stderr="auth"))
+
+
+def test_the_codespace_host_drives_the_codespace(monkeypatch, tmp_path):
+    import cycle_retrain
+
+    calls = []
+    monkeypatch.setattr(cycle_retrain, "STATE_ROOT", tmp_path)
+    monkeypatch.setattr(cycle_retrain, "drive_codespace", lambda name, procedure, run_id, smoke: calls.append((name, run_id, smoke)))
+    assert main(["--host", "codespace", "--smoke", "--run-id", "cs1"]) == 0 and calls == [("smoke", "cs1", True)]

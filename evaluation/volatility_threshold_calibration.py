@@ -76,9 +76,7 @@ def calibrate_elevated_volatility_thresholds(
     suggested: dict[str, float] = {}
     for asset_class, group in working.groupby("_asset_class"):
         values = group["_volatility"].to_numpy(dtype=float)
-        values = values[np.isfinite(values)]
-        if values.size == 0:
-            continue
+        # dropna above removed NaN, and a rolling std over a window holding an infinite return is NaN, so every value is finite and a group is non-empty
         level = float(np.quantile(values, percentile))
         share_above_default = float((values >= current_default).mean())
         by_class[str(asset_class)] = {

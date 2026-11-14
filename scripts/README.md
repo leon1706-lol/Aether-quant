@@ -9,7 +9,7 @@ Tools run by hand, outside the runtime and the `aq` CLI. Most Lean-reading work 
 | `clean_checkout_test.ps1`, `codespace_clean_checkout_test.sh` | CI's pytest with no gitignored files |
 | `codespace_verify.ps1`, `codespace_verify.sh` | Every CI job on a Codespace |
 | `wheel_smoke.py` | Imports every shipped module from an installed wheel, and runs each `aq <command> --help` |
-| `check_test_count_drift.py` | The README's test count against `pytest --collect-only` |
+| `test_badge.py`, `coverage_badge.py` | The README's test and coverage badges, from CI's JUnit and coverage reports (pages.yml publishes them) |
 | `readme_freshness.py` | Every Backtest Statistics block with its date and run; fails on a stale one |
 | `feature_parity_audit.py` | Every offline feature has a runtime twin (`--synthetic-only` needs no data) |
 | `library_gate.py`, `install_hooks.py` | Every public name is in `aether_quant` or explained (the pre-commit hook and CI's fast-guards run it); the hook installer |

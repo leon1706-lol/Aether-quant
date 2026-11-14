@@ -58,6 +58,15 @@ def test_collect_teardown_diagnostics_reports_gc_counts():
     assert diagnostics["gc_frozen_objects"] >= 0
 
 
+def test_collect_teardown_diagnostics_records_a_gc_failure(monkeypatch):
+    def broken():
+        raise RuntimeError("gc unavailable")
+
+    monkeypatch.setattr(gc, "get_objects", broken)
+    diagnostics = collect_teardown_diagnostics()
+    assert diagnostics["gc_error"] == "RuntimeError('gc unavailable')" and "gc_tracked_objects" not in diagnostics
+
+
 def test_release_symbol_containers_clears_unfreezes_and_never_raises():
     symbol_windows = {"AAPL": deque([1, 2, 3])}
     history = [1, 2, 3]
@@ -136,3 +145,101 @@ def test_cpu_time_is_recorded_next_to_wall_time_so_a_busy_host_is_visible(monkey
     stats = probe.summary()["sections"]["section"]
     assert stats["total_ms"] == 1500.0 and abs(stats["cpu_total_ms"] - 300.0) < 1e-6  # waited, not computed
     assert "cpu_ms:300.0" in probe.format_line()
+
+
+def test_release_symbol_containers_skips_what_cannot_be_cleared_and_survives_a_gc_failure(monkeypatch):
+    class Stubborn:
+        def clear(self):
+            raise RuntimeError("frozen")
+
+    def broken():
+        raise RuntimeError("no gc")
+
+    monkeypatch.setattr(gc, "collect", broken)
+    result = release_symbol_containers([Stubborn(), [1, 2]])
+    assert result["cleared"] == 1 and result["collected"] == -1
+
+
+def test_sigterm_witness_is_absent_where_the_facility_is(monkeypatch):
+    import signal
+
+    from performance_probe import install_sigterm_witness
+
+    monkeypatch.delattr(signal, "sigwaitinfo", raising=False)
+    assert install_sigterm_witness(None) is False
+
+
+def _witness(monkeypatch, tmp_path, *, proc_files, handlers):
+    """Runs the witness's waiting thread inline against fake /proc files; returns (log, exit code)."""
+    import builtins
+    import os
+    import signal
+    import threading
+    from types import SimpleNamespace
+
+    from performance_probe import install_sigterm_witness
+
+    calls = {"mask": None, "exit": None}
+    monkeypatch.setattr(signal, "SIGTERM", getattr(signal, "SIGTERM", 15), raising=False)
+    monkeypatch.setattr(signal, "SIG_BLOCK", getattr(signal, "SIG_BLOCK", 0), raising=False)
+    monkeypatch.setattr(signal, "pthread_sigmask", lambda how, mask: calls.__setitem__("mask", (how, mask)), raising=False)
+    monkeypatch.setattr(signal, "sigwaitinfo", lambda signals: SimpleNamespace(si_pid=4242), raising=False)
+    monkeypatch.setattr(os, "_exit", lambda code: calls.__setitem__("exit", code))
+
+    real_open = builtins.open
+
+    def fake_open(path, *args, **kwargs):
+        if str(path).startswith("/proc/"):
+            if str(path) not in proc_files:
+                raise OSError("no such file")
+            target = tmp_path / str(path).strip("/").replace("/", "_")
+            content = proc_files[str(path)]
+            if isinstance(content, bytes):
+                target.write_bytes(content)
+            else:
+                target.write_text(content, encoding="ascii")
+            return real_open(target, *args, **kwargs)
+        return real_open(path, *args, **kwargs)
+
+    class InlineThread:
+        def __init__(self, target, name, daemon):
+            self.target = target
+
+        def start(self):
+            self.target()
+
+    monkeypatch.setattr(builtins, "open", fake_open)
+    monkeypatch.setattr(threading, "Thread", InlineThread)
+    messages = []
+    log = SimpleNamespace(error=lambda fmt, *args: messages.append(fmt % args), handlers=handlers)
+    assert install_sigterm_witness(log) is True
+    return messages, calls
+
+
+def test_sigterm_witness_logs_the_sender_its_parent_and_memory_then_exits_143(monkeypatch, tmp_path):
+    class Handler:
+        flushed = 0
+
+        def flush(self):
+            Handler.flushed += 1
+
+    class BrokenHandler:
+        def flush(self):
+            raise OSError("closed")
+
+    proc = {
+        "/proc/meminfo": "MemTotal: 4000000 kB\nMemFree: 204800 kB\nMemAvailable: 1048576 kB\n",
+        "/proc/4242/cmdline": b"python\0train.py\0",
+        "/proc/4242/stat": "4242 (python) S 77 4242\n",
+        "/proc/77/cmdline": b"bash\0",
+    }
+    messages, calls = _witness(monkeypatch, tmp_path, proc_files=proc, handlers=[Handler(), BrokenHandler()])
+    assert messages == ["SIGTERM received from pid 4242 (python train.py ), parent of sender bash ; MemAvailable=1024 MB MemFree=200 MB"]
+    assert calls["exit"] == 143 and Handler.flushed == 1 and calls["mask"] is not None
+
+
+def test_sigterm_witness_degrades_when_proc_is_unreadable(monkeypatch, tmp_path):
+    proc = {"/proc/meminfo": "MemFree: 1 kB\n", "/proc/4242/stat": "garbage"}
+    messages, calls = _witness(monkeypatch, tmp_path, proc_files=proc, handlers=None)
+    assert messages == ["SIGTERM received from pid 4242 (?), parent of sender ?; meminfo unavailable"]
+    assert calls["exit"] == 143

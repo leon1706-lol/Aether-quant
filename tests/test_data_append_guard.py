@@ -95,3 +95,22 @@ def test_merge_csv_does_not_add_a_late_published_date_before_the_cutoff():
     old = "2026-09-01,2.30\n2026-09-30,2.36\n"
     new = "2026-09-01,2.30\n2026-09-15,2.33\n2026-09-30,2.36\n2026-10-01,2.37\n"
     assert guard.merge_csv_append_only(old, new, "2026-09-30") == "2026-09-01,2.30\n2026-09-30,2.36\n2026-10-01,2.37\n"
+
+
+def test_the_cli_snapshots_then_verifies(tmp_path, capsys, monkeypatch):
+    import json
+    import sys
+
+    def run(*argv):
+        monkeypatch.setattr(sys, "argv", ["data_append_guard.py", *argv])
+        return guard.main()
+
+    data = _tree(tmp_path / "data", ["20260929 00:00,1,1,1,1,1", "20260930 00:00,2,2,2,2,2"])
+    snapshot = tmp_path / "snap" / "before.json"
+    assert run("snapshot", "--data-dir", str(data), "--cutoff", "2026-09-30", "--out", str(snapshot)) == 0
+    assert "snapshot of" in capsys.readouterr().out
+    report = tmp_path / "out" / "verify.json"
+    assert run("verify", "--data-dir", str(data), "--before", str(snapshot), "--out", str(report)) == 0
+    assert json.loads(report.read_text(encoding="utf-8"))["violations"] == []
+    _write_zip(data / "equity" / "usa" / "daily" / "aaa.zip", ["20260929 00:00,9,9,9,9,9", "20260930 00:00,2,2,2,2,2"])
+    assert run("verify", "--data-dir", str(data), "--before", str(snapshot)) == 1 and "with changed rows" in capsys.readouterr().out

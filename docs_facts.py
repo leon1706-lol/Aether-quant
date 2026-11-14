@@ -5,10 +5,12 @@ from `compute_facts`, `aq docs sync --check` reports drift (`tests/test_docs_fac
 and a full `aq test` syncs too. Facts read tracked files only, so a clean checkout computes the same values.
 
 A generated block is the multi-line twin: `<!-- AQ:NAME_START -->...<!-- AQ:NAME_END -->` is rewritten whole from `compute_blocks`
-(V6.6.5: `DOCS_SITE`, the README's map of the documentation site, read from `mkdocs.yml`'s nav)."""
+(`DOCS_SITE`, the README's map of the documentation site, read from `mkdocs.yml`'s nav; `CHANGELOG_LATEST`, the site's list
+of the latest phases, read from `development/Changelog.md`)."""
 
 from __future__ import annotations
 
+import gzip
 import json
 import re
 import subprocess
@@ -62,6 +64,35 @@ def changelog_facts(text: str) -> dict[str, str]:
     return {"changelog.latest": phases[-1]} if phases else {}
 
 
+def research_facts(problems: str) -> dict[str, str]:
+    """The deflated-Sharpe N: the last "The deflated-Sharpe N is now X." in Problems.md (`RESEARCH_TRIALS` is pinned to it)."""
+    counts = re.findall(r"The deflated-Sharpe N is now (\d+)\.", problems)
+    return {"research.trials": counts[-1]} if counts else {}
+
+
+def sample_facts(path: Path) -> dict[str, str]:
+    """The bundled sample's window, from its own rows (`date` first, ISO dates)."""
+    with gzip.open(path, "rt", encoding="utf-8") as handle:
+        dates = [line.split(",", 1)[0] for line in handle.read().splitlines()[1:] if line]
+    if not dates:
+        return {}
+    first, last = min(dates), max(dates)
+    return {"sample.first": first, "sample.last": last, "sample.months": f"{first[:7]} to {last[:7]}"}
+
+
+def hello_facts(path: Path) -> dict[str, str]:
+    """`aq hello --offline`'s headline figures, from the summary tests/test_hello_world.py checks against a real run."""
+    if not path.exists():
+        return {}
+    return {f"hello.{key}": str(value) for key, value in json.loads(path.read_text(encoding="utf-8")).items()}
+
+
+def lean_pin_facts(readme: str) -> dict[str, str]:
+    """The pinned Lean run, from the line the README's generated Backtest Statistics write ("_Lean run `<id>`, ...")."""
+    run = re.search(r"^_Lean run `([0-9_-]+)`", readme, re.MULTILINE)
+    return {"lean.pin_run": run.group(1)} if run else {}
+
+
 def python_facts(pyproject: str, ci_workflow: str) -> dict[str, str]:
     facts = {}
     requires = re.search(r'^requires-python\s*=\s*"([^"]+)"', pyproject, re.MULTILINE)
@@ -91,7 +122,12 @@ def compute_facts(root: Path = ROOT) -> dict[str, str]:
     root = Path(root)
     config = json.loads((root / "config.json").read_text(encoding="utf-8"))
     facts = {**universe_facts(config), **window_facts(config)}
-    facts.update(problem_facts((root / "development" / "Problems.md").read_text(encoding="utf-8")))
+    problems = (root / "development" / "Problems.md").read_text(encoding="utf-8")
+    facts.update(problem_facts(problems))
+    facts.update(research_facts(problems))
+    facts.update(sample_facts(root / "aether_quant" / "_sample" / "coinbase_daily.csv.gz"))
+    facts.update(hello_facts(root / "tests" / "data" / "hello_offline_summary.json"))
+    facts.update(lean_pin_facts((root / "README.md").read_text(encoding="utf-8")))
     facts.update(changelog_facts((root / "development" / "Changelog.md").read_text(encoding="utf-8")))
     facts.update(python_facts((root / "pyproject.toml").read_text(encoding="utf-8"), (root / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")))
     api = json.loads((root / "tests" / "data" / "aether_quant_api.json").read_text(encoding="utf-8"))
@@ -99,7 +135,7 @@ def compute_facts(root: Path = ROOT) -> dict[str, str]:
     facts["library.names"] = str(sum(len(names) for names in api.values()))
     engine = re.search(r"^ARG LEAN_BASE_IMAGE=(\S+)", (root / "Dockerfile.lean").read_text(encoding="utf-8"), re.MULTILINE)
     if engine:
-        facts["lean.engine"] = engine.group(1)
+        facts["lean.engine"] = engine.group(1).split("@", 1)[0]  # the tag; the digest pin is Dockerfile.lean's
     jobs = re.search(r"^jobs:\n(.*)", (root / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8"), re.MULTILINE | re.DOTALL)
     if jobs:
         facts["ci.jobs"] = str(len(re.findall(r"^  [a-z0-9-]+:$", jobs.group(1), re.MULTILINE)))
@@ -167,9 +203,22 @@ def docs_site_block(root: Path = ROOT) -> str:
     return "\n".join(rows)
 
 
+def changelog_latest_block(root: Path = ROOT, count: int = 3) -> str:
+    """The last `count` phases of `development/Changelog.md`, newest first, each linked to its heading on GitHub."""
+    text = (Path(root) / "development" / "Changelog.md").read_text(encoding="utf-8")
+    headings = re.findall(r"^## (Phase .+?)\s*$", text, flags=re.MULTILINE)[-count:]
+    base = "https://github.com/leon1706-lol/Aether-quant/blob/main/development/Changelog.md"
+    return "\n".join(f"- [{heading}]({base}#{_anchor(heading)})" for heading in reversed(headings))
+
+
+def _anchor(heading: str) -> str:
+    """GitHub's heading anchor: lowercase, punctuation dropped, spaces to hyphens."""
+    return re.sub(r"[^\w\- ]", "", heading.lower()).replace(" ", "-")
+
+
 def compute_blocks(root: Path = ROOT) -> dict[str, str]:
     """Every generated block a living doc may hold, by name."""
-    return {"DOCS_SITE": docs_site_block(root)}
+    return {"DOCS_SITE": docs_site_block(root), "CHANGELOG_LATEST": changelog_latest_block(root)}
 
 
 def apply_blocks(text: str, blocks: dict[str, str]) -> tuple[str, list[str]]:

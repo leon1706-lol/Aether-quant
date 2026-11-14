@@ -81,3 +81,23 @@ def test_models_written_is_the_newest_model_artifact(tmp_path):
         (tmp_path / name).write_text("{}", encoding="utf-8")
         os.utime(tmp_path / name, (stamp, stamp))
     assert freshness.models_written(tmp_path) == "2025-10-12"
+
+
+def test_main_lists_every_block_and_fails_on_a_stale_one(tmp_path, monkeypatch, capsys):
+    import json
+    import sys
+
+    module = _load()
+    evaluation = tmp_path / "evaluation"
+    evaluation.mkdir()
+    monkeypatch.setattr(module, "EVALUATION", evaluation)
+    monkeypatch.setattr(module, "block_dates", lambda text: {"AQ:A": {"date": "2026-01-01", "source": "lean", "runs": ["r1"]}, "AQ:B": {"date": None, "source": "offline", "runs": []}})
+    monkeypatch.setattr(module, "models_written", lambda: None)
+    problems = iter([["AQ:A is older than 2026-06-01"], []])
+    monkeypatch.setattr(module, "stale_blocks", lambda dates, since, allow, pinned, models: next(problems))
+    readme = tmp_path / "README.md"
+    readme.write_text("x", encoding="utf-8")
+    monkeypatch.setattr(sys, "argv", ["x", "--since", "2026-06-01", "--readme", str(readme)])
+    assert module.main() == 1 and "STALE: AQ:A" in capsys.readouterr().out
+    (evaluation / "readme_lean_run.json").write_text(json.dumps({"run": "r1"}), encoding="utf-8")
+    assert module.main() == 0 and "pinned run r1" in capsys.readouterr().out

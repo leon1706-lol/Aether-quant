@@ -255,14 +255,10 @@ def baw_american_price(
     if big_k <= 0.0:
         return european_price
 
-    discriminant = (big_n - 1.0) ** 2 + 4.0 * big_m / big_k
-    if discriminant < 0.0:
-        return european_price
+    discriminant = (big_n - 1.0) ** 2 + 4.0 * big_m / big_k  # >= (n - 1)^2: M and K are both positive here
 
     if right_normalized == "call":
-        q_root = (-(big_n - 1.0) + math.sqrt(discriminant)) / 2.0
-        if q_root <= 0.0:
-            return european_price
+        q_root = (-(big_n - 1.0) + math.sqrt(discriminant)) / 2.0  # > 0 whenever M / K > 0
 
         def matching_residual(critical_price: float) -> float:
             d1, _ = _d1_d2(critical_price, strike, time_to_expiry_years, risk_free_rate, volatility, dividend_yield)
@@ -274,9 +270,7 @@ def baw_american_price(
 
         low, high = strike, max(strike, spot) * 50.0
     else:
-        q_root = (-(big_n - 1.0) - math.sqrt(discriminant)) / 2.0
-        if q_root >= 0.0:
-            return european_price
+        q_root = (-(big_n - 1.0) - math.sqrt(discriminant)) / 2.0  # < 0 whenever M / K > 0
 
         def matching_residual(critical_price: float) -> float:
             d1, _ = _d1_d2(critical_price, strike, time_to_expiry_years, risk_free_rate, volatility, dividend_yield)

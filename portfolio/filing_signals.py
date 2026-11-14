@@ -133,9 +133,7 @@ def opportunistic_buying(trades: pd.DataFrame, index: pd.Index, columns: pd.Inde
         all((ticker, owner, year - gap, month) in seen for gap in range(1, routine_years + 1))
         for ticker, owner, year, month in zip(frame["ticker"], frame["owner"], frame["year"], frame["month"])
     ])
-    kept = frame[~routine]
-    if kept.empty:
-        return table
+    kept = frame[~routine]  # never empty: the first purchase of an owner in a month has no earlier year to repeat
     daily = pd.DataFrame(0.0, index=index, columns=columns)
     rows = _positions(index, kept["filed"], side="right")
     values = daily.to_numpy(dtype=float, copy=True)

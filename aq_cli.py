@@ -101,10 +101,6 @@ PINNED_LEAN_ENGINE_IMAGE = "quantconnect/lean:17900"
 LOCAL_LEAN_ENGINE_IMAGE = f"aether-quant-lean:{PINNED_LEAN_ENGINE_IMAGE.rsplit(':', 1)[-1]}"
 
 _ANSI_ESCAPE_PATTERN = re.compile(r"\x1b\[[0-9;]*m")
-_TEST_BADGE_MARKER_START = "<!-- AQ:TEST_BADGE_START -->"
-_TEST_BADGE_MARKER_END = "<!-- AQ:TEST_BADGE_END -->"
-_TEST_COUNT_MARKER_START = "<!-- AQ:TEST_COUNT_START -->"
-_TEST_COUNT_MARKER_END = "<!-- AQ:TEST_COUNT_END -->"
 
 
 def _run(cmd: list[str], cwd: Path = ROOT_DIR) -> int:
@@ -593,47 +589,6 @@ def _sync_doc_facts_best_effort() -> None:
         print(f"warning: docs facts not refreshed ({error})", file=sys.stderr)
 
 
-def _update_readme_test_badge(passed: int, failed: int) -> None:
-    """Atomically rewrites the shields.io test-count badge AND every
-    AQ:TEST_COUNT-marked "N tests" prose mention (Test Suite section,
-    Module Documentation table's tests/ row) in README.md, so neither ever
-    drifts from the real collected-test total. Mirrors the equivalent
-    mechanism in the sibling Aether-Vault project's `av test`. Never
-    raises - a badge-update bug must never fail `aq test` itself."""
-    total = passed + failed
-    if total == 0:
-        return  # nothing collected - leave the badge/count alone rather than zero them out
-    if not README_PATH.is_file():
-        return
-    text = README_PATH.read_text(encoding="utf-8")
-
-    if _TEST_BADGE_MARKER_START in text and _TEST_BADGE_MARKER_END in text:
-        color = "brightgreen" if failed == 0 else "red"
-        badge = (
-            f'<img src="https://img.shields.io/badge/tests-{passed}%2F{total}%20passing-{color}'
-            f'?style=flat-square&labelColor=1A1A1A" alt="{passed} of {total} tests passing">'
-        )
-        badge_pattern = re.compile(
-            re.escape(_TEST_BADGE_MARKER_START) + r".*?" + re.escape(_TEST_BADGE_MARKER_END), re.DOTALL
-        )
-        text = badge_pattern.sub(f"{_TEST_BADGE_MARKER_START}{badge}{_TEST_BADGE_MARKER_END}", text, count=1)
-
-    if _TEST_COUNT_MARKER_START in text and _TEST_COUNT_MARKER_END in text:
-        count_pattern = re.compile(
-            re.escape(_TEST_COUNT_MARKER_START) + r".*?" + re.escape(_TEST_COUNT_MARKER_END), re.DOTALL
-        )
-        text = count_pattern.sub(f"{_TEST_COUNT_MARKER_START}{total}{_TEST_COUNT_MARKER_END}", text)
-
-    original_text = README_PATH.read_text(encoding="utf-8")
-    if text == original_text:
-        return
-
-    tmp_path = README_PATH.with_suffix(README_PATH.suffix + ".tmp")
-    tmp_path.write_text(text, encoding="utf-8")
-    tmp_path.replace(README_PATH)
-    print(f"Updated README.md test badge/count: {passed}/{total} passing")
-
-
 def _run_captured(cmd: list[str], cwd: Path = ROOT_DIR) -> tuple[int, str]:
     """Like _run(), but also captures combined stdout+stderr while still
     streaming it live to the terminal - used only by cmd_test, which needs
@@ -951,15 +906,136 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         "test_docs_site.py",
         # V6.6.5
         "test_licensing.py",
+        # V6.6.6
+        "test_test_badge.py", "test_coverage_scope.py", "test_notebook_sources.py", "test_cpp_inference_ext_setup.py",
+    ],
+    # V6.6.6 (#359): one test file per script under scripts/, so `aq test --coverage` reaches every tracked line
+    "scripts": [
+        "test_render_lean_credentials.py", "test_exception_scope.py", "test_main_option_order.py",
+        "test_coinbase_listing_dates.py", "test_fetch_cash_sweep_data.py", "test_gate_sweep_score_stage.py", "test_gate_value_compare.py",
+        "test_promotion_gate_null_gate_scheme.py", "test_script_entry_points.py", "test_v643_rcal4.py", "test_v643_sector_cap_frequency.py",
+        "test_v650_install.py", "test_v650_write_rules.py", "test_v660_build_panel.py", "test_v660_crypto_splices.py", "test_v660_rescore_v650.py",
+        "test_v660_sanity.py", "test_v660_verdict.py", "test_v660_write_rules.py", "test_v661_glide.py", "test_v661_model_audit.py",
+        "test_v661_replay_check.py", "test_v661_sanity.py", "test_v661_write_round3.py", "test_v664_drop_eos.py", "test_v664_table_smoke.py",
+        "test_active_baseline.py", "test_build_crypto_wide_root.py", "test_build_docs.py", "test_build_hello_sample.py", "test_build_wide_root.py",
+        "test_coverage_badge.py", "test_cycle_decide.py", "test_extend_frozen_weights.py", "test_field_test_services.py",
+        "test_forex_sleeve_research.py", "test_gate_research.py", "test_library_gate.py",
+        "test_make_live_plumbing_config.py", "test_make_option_main_config.py", "test_predict_sweep_bt1.py", "test_profile_main_tick.py",
+        "test_promotion_gate_null_calibration.py", "test_run_lean_cli_windows.py", "test_sleeve_alpha_check.py", "test_v643_microbench.py",
+        "test_v644_make_configs.py", "test_v644_rcal5.py", "test_v650_ml_scores.py", "test_v660_venue_coverage.py", "test_v660_venue_study.py",
+        "test_type_completeness.py", "test_v666_coverage_risk.py",
+        "test_v666_coverage_experience.py", "test_v666_coverage_library.py", "test_v666_coverage_monitoring.py",
+        "test_v666_coverage_notifications.py", "test_v666_coverage_performance.py", "test_v666_coverage_topology.py",
+        "test_v666_coverage_workers.py",
+        "test_aq_cli_evaluate_audits.py", "test_aq_cli_evaluate_book.py", "test_aq_cli_evaluate_calibrations.py", "test_aq_cli_evaluate_lean.py",
+        "test_aq_cli_evaluate_reconcile_book.py", "test_aq_cli_evaluate_reconcile_features.py", "test_aq_cli_evaluate_runs.py",
+        "test_v666_coverage_features.py",
+        "test_aq_cli_commands.py", "test_aq_cli_cycle.py",
+        "test_aq_cli_verify.py",
+        "test_aq_cli_last_branches.py",
+        "test_research_round_stages.py", "test_retraining_orchestrator_stages.py",
+        "test_retraining_remaining.py",
+        "test_module_entry_points.py", "test_yfinance_backfill_more.py",
+        "test_dividend_factor_backfill_more.py", "test_edgar_facts_more.py", "test_fred_backfill_more.py",
+        "test_data_pipeline_small_more.py",
+        "test_options_margin_sizing_more.py", "test_options_strategy_selectors.py",
+        "test_portfolio_gaps_more.py",
+        "test_portfolio_guards_more.py",
+        "test_lean_attribution_more.py", "test_paper_readiness_more.py",
+        "test_backtest_statistics_more.py",
+        "test_alpha_proof_more.py",
+        "test_audit_runners_more.py",
+        "test_evaluation_small_more.py",
+        "test_run_flows_more.py",
+        "test_readme_research_more.py",
+        "test_evaluation_tail_more.py", "test_features_tail_more.py",
+        "test_exported_model_fallbacks.py",
+        "test_parallel_inference_more.py",
+        "test_execution_tail_more.py",
+        "test_train_cross_sectional_more.py", "test_train_topology_more.py",
+        "test_v640_research_runtime.py",
+        "test_v643_research_runtime.py", "test_v644_research_runtime.py",
+        "test_v610_research_runtime.py", "test_v620_research_runtime.py", "test_v630_research_runtime.py",
+        "test_v660_research_runtime.py",
+        "test_v650_research_runtime.py",
+        "test_v660_round2_runtime.py",
+        "test_v650_lean_runtime.py",
+        "test_v650_amendment2_runtime.py",
+        "test_v650_instrument_runtime.py",
+        "test_v660_lean_runtime.py",
+        "test_cycle_lean_runtime.py",
+        "test_lean_calibration_runtime.py",
+        "test_profile_inference_runtime.py",
+        "test_lean_smoke_runtime.py",
+        "test_field_test_runtime.py",
+        "test_main_option_scenarios_runtime.py",
+        "test_feature_parity_audit_runtime.py",
+        "test_build_filing_signals_runtime.py",
+        "test_gate_sweep_runtime.py",
+        "test_build_wide_info_runtime.py",
+        "test_wheel_smoke_runtime.py",
+        "test_v664_eos_repin_runtime.py",
+        "test_data_append_refresh_runtime.py",
+        "test_book_variant_research_runtime.py",
+        "test_as_live_levers_runtime.py",
+        "test_class_sleeve_research_runtime.py",
+        "test_crypto_fee_research_runtime.py",
+        "test_prepare_v610_candidates_runtime.py",
+        "test_model_candidate_research_runtime.py",
+        "test_crypto_graduation_research_runtime.py",
+        "test_build_notebooks_runtime.py",
+        "test_build_legacy_probability_runtime.py",
+        "test_topology_sizing_research_runtime.py",
+        "test_build_holdout_data_runtime.py", "test_build_holdout_dataset_runtime.py",
+        "test_holdout_report_runtime.py", "test_k09_decide_runtime.py",
+        "test_forex_keep_or_drop_runtime.py",
+        "test_rl_sizing_research_runtime.py", "test_select_feature_subset_runtime.py",
+        "test_compare_training_variants_runtime.py",
+        "test_v664_register_observers_runtime.py",
+        "test_main_world_book.py", "test_main_world_config.py", "test_main_world_more.py", "test_main_world_options.py", "test_main_world_risk.py",
+        "test_main_world_setup.py", "test_main_world_signals.py", "test_main_world_target_weights.py",
+        "test_main_world_bars.py", "test_main_world_options_more.py",
+        "test_main_world_tail.py",
+        "test_main_world_last.py",
+        "test_main_world_final.py",
+        "test_main_world_residue.py",
+        "test_main_world_closing.py",
+        "test_train_mains_runtime.py", "test_train_rl_sizing_runtime.py",
+        "test_train_pipeline_runtime.py", "test_train_runtime_gaps_a.py",
+        "test_train_runtime_gaps_b.py",
+        "test_coverage_tails_a.py", "test_coverage_tails_b.py",
+        "test_rank_book_legacy_step.py",
+        "test_target_weights_engine_tails.py",
+        "test_live_parity_tails.py",
+        "test_premia_research_context.py",
+        "test_wide_context_cells.py",
+        "test_coverage_tails_c.py",
     ],
 }
 
 
+def _run_coverage(args: argparse.Namespace) -> int:
+    """`aq test --coverage`: one pytest process per registered group, each appending to `.coverage` (a group's own total is
+    partial, so its gate is off), then `coverage report` and `coverage json` over the combined data."""
+    data = Path(os.environ.get("COVERAGE_FILE") or ROOT_DIR / ".coverage")
+    data.unlink(missing_ok=True)
+    chosen = [name for name in _SUBSYSTEM_TEST_FILES if getattr(args, name.replace("-", "_"), False)]
+    worst = 0
+    for name in chosen or list(_SUBSYSTEM_TEST_FILES):
+        print(f"== coverage: {name}", flush=True)
+        files = [f"tests/{file}" for file in dict.fromkeys(_SUBSYSTEM_TEST_FILES[name])]
+        cmd = [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", "-m", "not lean_backtest",
+               "--cov", "--cov-append", "--cov-report=", "--cov-fail-under=0", *files]
+        worst = max(worst, _run(cmd))
+    report = _run([sys.executable, "-m", "coverage", "report", "--show-missing", "--skip-covered"])
+    _run([sys.executable, "-m", "coverage", "json", "-q", "-o", str(data.with_name("coverage.json"))])
+    return worst or report
+
+
 def cmd_test(args: argparse.Namespace) -> int:
     """Runs pytest with live-streamed output (same UX as a plain
-    subprocess.run), while also capturing it so the real pass/fail count can
-    be parsed afterward and used to refresh README.md's test badge - mirrors
-    the sibling Aether-Vault project's `av test` exactly.
+    subprocess.run), while also capturing it so a full run that passed can
+    sync the docs' facts afterward (the test badge is CI's, V6.6.6).
 
     Default (no flags): excludes tests/test_lean_backtest_ml_coverage.py's
     lean_backtest-marked tests - a real `lean backtest .` run there takes
@@ -981,6 +1057,9 @@ def cmd_test(args: argparse.Namespace) -> int:
         if ruff_exit != 0:
             print(f"ruff check failed (exit {ruff_exit}) - fix lint findings before running the suite.")
             return ruff_exit
+
+    if getattr(args, "coverage", False):
+        return _run_coverage(args)
 
     cmd = [sys.executable, "-m", "pytest", "--color=yes", "--durations=15"]
 
@@ -1007,17 +1086,8 @@ def cmd_test(args: argparse.Namespace) -> int:
     exit_code, output = _run_captured(cmd)
 
     captured = _ANSI_ESCAPE_PATTERN.sub("", output)
-    passed_match = re.search(r"(\d+) passed", captured)
-    failed_match = re.search(r"(\d+) failed", captured)
-    error_match = re.search(r"(\d+) error", captured)
-    # Only the full, unfiltered default run's pass/fail count reflects the
-    # whole suite - updating the badge from a --cli-only or --lean-only
-    # partial run would make it silently report a subset as if it were
-    # everything.
-    if passed_match and not is_filtered_run:
-        passed = int(passed_match.group(1))
-        failed = (int(failed_match.group(1)) if failed_match else 0) + (int(error_match.group(1)) if error_match else 0)
-        _update_readme_test_badge(passed, failed)
+    # only a full, unfiltered run syncs the docs: the test badge itself is CI's (scripts/test_badge.py, pages.yml)
+    if re.search(r"\d+ passed", captured) and not is_filtered_run:
         _sync_doc_facts_best_effort()
 
     return exit_code
@@ -3263,9 +3333,6 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
         # Same cumulative-log discipline as --reconcile-book-history
         # (#91/#97/#99): segment FIRST, default to the most recent run only.
         run_segments = segment_logged_records_by_run(logged_records)
-        if not run_segments:
-            print(f"error: {book_history_path} contains no dated records.", file=sys.stderr)
-            return 1
         reconcile_all_runs = bool(getattr(args, "reconcile_all_runs", False))
         reconcile_run_index_arg = getattr(args, "reconcile_run_index", None)
         requested_indices = (
@@ -3507,9 +3574,6 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
         # continuous backtest. Segment FIRST; default to the MOST RECENT
         # run only, never a silent cross-run merge.
         run_segments = segment_logged_records_by_run(logged_records)
-        if not run_segments:
-            print(f"error: {book_history_path} contains no dated records.", file=sys.stderr)
-            return 1
 
         reconcile_all_runs = bool(getattr(args, "reconcile_all_runs", False))
         reconcile_run_index_arg = getattr(args, "reconcile_run_index", None)
@@ -3637,8 +3701,6 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
             # and an ineligible asset take no slot), so the replay must rank that pool and not all 104 tickers.
             _, pool_eligible_by_ticker = _universe_asset_metadata(config)
             for recon_date, group in recorded_subset.groupby("date", sort=True):
-                if recon_date not in logged_records_by_date:
-                    continue
                 scores_lookup = {
                     str(ticker): float(score)
                     for ticker, score in zip(group["ticker"], group["raw_blended_score"])
@@ -4926,6 +4988,11 @@ def build_parser() -> argparse.ArgumentParser:
     test_parser.add_argument(
         "--parallel", action="store_true",
         help="Run via pytest-xdist (-n auto) - off by default, multiple workers importing torch risk OOM on memory-constrained machines",
+    )
+    test_parser.add_argument(
+        "--coverage", action="store_true",
+        help="V6.6.6: every registered group (or the --<subsystem> groups given) in turn under coverage, appending, then the combined "
+        "report of every tracked module; fails under pyproject's fail_under (100). One process at a time, for a small PC.",
     )
     test_parser.add_argument(
         "--ruff", action="store_true",

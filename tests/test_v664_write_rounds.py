@@ -1,6 +1,7 @@
 """scripts/v664_write_rounds.py: both rule files are valid, loadable, hashed once and never overwritten (V6.6.4).
 
-Needs round 3's stored rule file (`ml/evaluation/` is gitignored), so it skips in a checkout that lacks it.
+It reads round 3's stored rule file at import; `ml/evaluation/` is gitignored, so a clean checkout gets the tracked copy
+in tests/data/stored_rules (V6.6.6).
 """
 
 from __future__ import annotations
@@ -13,7 +14,14 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-pytestmark = pytest.mark.skipif(not (ROOT / "ml" / "evaluation" / "v661" / "round3.json").exists(), reason="round 3's stored rules are not in this checkout")
+from script_loader import serve_stored_rules  # noqa: E402
+
+STORED = {"ml/evaluation/v661/round3.json": "v661_round3.json", "ml/evaluation/v660/rules.json": "v660_rules.json"}
+
+
+@pytest.fixture(autouse=True)
+def _stored_rules(monkeypatch):
+    serve_stored_rules(monkeypatch, STORED)
 
 
 def _written(tmp_path, monkeypatch):
@@ -84,3 +92,14 @@ def test_round4f_re_registers_the_two_voided_trials_unchanged_and_counts_them_se
     assert "q07" in spec.prior_columns and "e4" not in spec.prior_columns and spec.bar == equity.bar and "voided" in spec.rule
     with pytest.raises(FileExistsError):
         module.main(["--only", "round4f"])
+
+
+def test_run_as_a_script_it_writes_three_rule_files(monkeypatch, capsys):
+    import evaluation.research_round as research_round
+    from script_loader import block_path_writes, run_script
+
+    written = []
+    monkeypatch.setattr(research_round, "write_rules", lambda payload, path: written.append(path.name) or "digest")
+    block_path_writes(monkeypatch)
+    assert run_script("v664_write_rounds", [], monkeypatch) == 0
+    assert written == ["round4c.json", "round4e.json", "observers.json"] and '"observers": "digest"' in capsys.readouterr().out

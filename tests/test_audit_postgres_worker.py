@@ -371,3 +371,11 @@ def test_a_long_outage_never_dead_letters_anything():
         with pytest.raises(RuntimeError):
             worker.run_once()
     assert client.xlen(_DEADLETTER) == 0 and client.xpending(_STREAM, _GROUP)["pending"] == 2
+
+
+def test_a_failing_dashboard_export_never_loses_the_committed_rows(_patch_status_export):
+    _patch_status_export.side_effect = OSError("disk full")
+    worker, client, conn_mock, cur_mock = _fake_worker(events=[_sample_event()])
+    assert worker.run_once() == 1
+    conn_mock.commit.assert_called()
+    assert client.xpending(_STREAM, _GROUP)["pending"] == 0

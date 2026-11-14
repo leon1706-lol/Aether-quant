@@ -1,6 +1,6 @@
 # Changelog
 
-What each phase built and why, oldest first (the newest phase is <!--fact:changelog.latest-->V6.6.5<!--/fact-->, and `README.md` has the current status). The evidence lives in [`Problems.md`](Problems.md); entries describe what was true at the time. Full text of older phases: [`backups/`](backups/README.md).
+What each phase built and why, oldest first (the newest phase is <!--fact:changelog.latest-->V6.6.6<!--/fact-->, and `README.md` has the current status). The evidence lives in [`Problems.md`](Problems.md); entries describe what was true at the time. Full text of older phases: [`backups/`](backups/README.md).
 
 ## V1 — Finished
 
@@ -950,3 +950,13 @@ What each phase built and why, oldest first (the newest phase is <!--fact:change
     - `main.py` gains account resolution and the gated field-test hooks; its default path is unchanged.
     - The book, the weights file and the Lean pin `2026-11-07_17-54-01` are unchanged.
     - Nothing is committed.
+
+## Phase V6.6.6 — Cleanup: the Scorecard sees releases, the public pages stop quoting by hand, coverage measures everything
+
+- **The Scorecard could not see a release (#356).** Releases were notes-only, and the Scorecard skips a release with no files. Each tag now attaches the wheel, sdist, SBOM, a Sigstore signature per file and SLSA provenance, then reruns the Scorecard; a `backfill_tag` dispatch attaches PyPI's own files to an older release.
+- **Scorecard hygiene (#357).** Actions are pinned by commit and base images by digest (Dependabot gains Docker), write tokens moved onto the jobs that need them, Pages no longer checks out the triggering commit, and the dependency floors rose to the first fixed versions.
+- **Public pages generate what they quote (#358).** The trial count, sample window, hello-world figures and the Lean pin's run ID are doc facts; the site lists the latest phases from the Changelog; the test badge comes from CI's JUnit report and the old local badge writer and drift job are gone. What cannot be generated is listed in AGENTS.md "After every phase".
+- **Coverage over the whole repo (#359).** Measured scope is every tracked file, the gate is 100% with no pragmas, and `aq test --coverage` measures it on a small PC. The suite gains tests for about 75 scripts, `main.py` (against a fake Lean), `train.py` and every trainer (on generated data), the report generators, the workers and many fail-safe branches. The whole repo went from 67.6% to **100%** (47,438 statements) with all groups green. `main.py` is covered against a fake Lean, not the engine: a real Lean run stays the owner's.
+- **Two offline-simulator bugs the new tests found (#360).** The legacy sleeve's age exit looked for a reason string the exit function never returns, and its trailing stop was off unless an age limit was set (a missing stop fired on any peak). Live was right; no shipped book sets either exit.
+- **Hosts.** PC only: no Codespace, no branch pushed, no Lean run, no `aq backtest`. The full coverage run needs the PC otherwise idle (4 GB): a first attempt was killed for memory.
+

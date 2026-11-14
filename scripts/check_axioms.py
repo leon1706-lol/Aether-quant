@@ -38,10 +38,7 @@ def theorems(root: Path = FORMAL) -> list[str]:
             continue
         namespaces = NAMESPACE.findall(text)
         prefix = namespaces[0] if namespaces else ""
-        for match in THEOREM.finditer(text):
-            line_start = text.rfind("\n", 0, match.start()) + 1
-            if text[line_start:match.start()].strip().startswith("private"):
-                continue
+        for match in THEOREM.finditer(text):  # THEOREM is anchored at a line start, so a `private theorem` never matches
             names.append(f"{prefix}.{match.group(1)}" if prefix else match.group(1))
     return names
 

@@ -329,8 +329,6 @@ def run_parallel_baseline_workload(
     durations: list[float] = []
     for start_index in range(0, len(pregenerated_inputs), symbols_per_bar):
         chunk = pregenerated_inputs[start_index : start_index + symbols_per_bar]
-        if not chunk:
-            continue
         start = time.perf_counter()
         for flat_inputs, sequence_inputs in chunk:
             run_symbol_inference(flat_inputs, sequence_inputs, sequence_window_size)
@@ -373,8 +371,6 @@ def run_parallel_workload(
     try:
         for start_index in range(0, len(pregenerated_inputs), symbols_per_bar):
             chunk = pregenerated_inputs[start_index : start_index + symbols_per_bar]
-            if not chunk:
-                continue
             start = time.perf_counter()
             try:
                 futures = [

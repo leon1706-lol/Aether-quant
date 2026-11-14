@@ -36,8 +36,10 @@ def test_research_cycle_runs_daily_shares_the_ledgers_lock_and_writes_only_its_o
     on = workflow["on"] if "on" in workflow else workflow[True]
     assert on["schedule"][0]["cron"] == "45 22 * * 1-5" and "workflow_dispatch" in on
     assert workflow["concurrency"]["group"] == forward["concurrency"]["group"], "two writers of one branch must not race"
-    assert workflow["permissions"] == {"contents": "write"}
+    assert workflow["permissions"] == {"contents": "read"}, "write is the pushing job's, not the workflow's (#357)"
     job = workflow["jobs"]["cycle"]
+    assert job["permissions"] == {"contents": "write"}
+    assert forward["permissions"] == {"contents": "read"} and forward["jobs"]["append"]["permissions"] == {"contents": "write"}
     assert job["timeout-minutes"] == 15
     text = "\n".join(str(step.get("run", "")) for step in job["steps"])
     assert "scripts/cycle_daily.py" in text and "git add forward/generations.jsonl" in text
@@ -71,7 +73,8 @@ def test_keepalive_re_enables_the_ledger_workflows_with_one_permission_and_no_se
     workflow = _load(path)
     on = workflow["on"] if "on" in workflow else workflow[True]
     assert on["schedule"][0]["cron"] == "17 4 1 * *" and "workflow_dispatch" in on
-    assert workflow["permissions"] == {"actions": "write"}, "it may enable workflows and nothing else"
+    assert workflow["permissions"] == {}, "no top-level token permission (#357)"
+    assert workflow["jobs"]["enable"]["permissions"] == {"actions": "write"}, "it may enable workflows and nothing else"
     text = "\n".join(str(step.get("run", "")) for step in workflow["jobs"]["enable"]["steps"])
     for name in ("forward-ledger.yml", "research-cycle.yml", "keepalive.yml"):
         assert name in text
@@ -94,7 +97,7 @@ def test_ci_python_tests_matrix_includes_windows_and_coverage_gate():
     run_step = next(s for s in job["steps"] if s.get("name", "").startswith("Run full test suite"))
     script = run_step["run"]
     assert 'not lean_backtest' in script
-    assert "--cov-fail-under=80" in script, "coverage fail-under gate must stay at >= 80"
+    assert "--cov-fail-under=100" in script, "V6.6.6: every tracked module at 100% (#359)"
 
 
 def test_ci_python_lint_job_runs_ruff_and_py_compile():
@@ -195,7 +198,7 @@ import re  # noqa: E402
 
 V550_JOBS = (
     "fast-guards", "subsystem-matrix", "wheel-smoke", "python-compat", "docker-checks",
-    "parity-smoke", "secret-scan", "test-count-drift",
+    "parity-smoke", "secret-scan",
 )
 V665_JOBS = ("lite-install", "typecheck", "docs", "notebooks", "bandit")
 CODEQL = ROOT / ".github" / "workflows" / "codeql.yml"
@@ -266,7 +269,6 @@ def test_docker_checks_lint_validate_and_never_build_the_lean_image():
 
 def test_advisory_jobs_are_advisory_and_blocking_jobs_are_not():
     jobs = _load(CI)["jobs"]
-    assert jobs["test-count-drift"].get("continue-on-error") is True, "the badge drift is warn-only"
     for blocking in ("fast-guards", "subsystem-matrix", "wheel-smoke", "python-compat", "docker-checks", "parity-smoke", "secret-scan", *V665_JOBS):
         assert not jobs[blocking].get("continue-on-error"), f"{blocking} must be able to fail the build"
     assert "gitleaks/releases/download/v8.18.4/" in _scripts(jobs["secret-scan"]), "gitleaks must be version-pinned"
@@ -278,14 +280,13 @@ def test_advisory_jobs_are_advisory_and_blocking_jobs_are_not():
     history = next(s for s in steps if "gitleaks detect" in s.get("run", "") and "--no-git" not in s.get("run", ""))
     assert not tree.get("continue-on-error") and history.get("continue-on-error") is True
     assert steps[0]["with"]["fetch-depth"] == 0, "a history scan needs the history"
-    assert "check_test_count_drift.py" in _scripts(jobs["test-count-drift"])
     audit_step = next(s for s in jobs["webui-tests"]["steps"] if "npm audit" in s.get("run", ""))
     assert not audit_step.get("continue-on-error"), "V6.6.5: npm audit of runtime dependencies blocks"
 
 
 def test_every_job_that_installs_the_requirements_on_linux_installs_cpu_torch_first():
     jobs = _load(CI)["jobs"]
-    for name in ("python-tests", "fast-guards", "subsystem-matrix", "parity-smoke", "cli-smoke", "test-count-drift"):
+    for name in ("python-tests", "fast-guards", "subsystem-matrix", "parity-smoke", "cli-smoke"):
         runs = [step.get("run", "") for step in jobs[name]["steps"]]
         cpu = next((i for i, run in enumerate(runs) if "download.pytorch.org/whl/cpu" in run), None)
         install = next((i for i, run in enumerate(runs) if "-r requirements/requirements.txt" in run), None)
@@ -312,11 +313,13 @@ def test_fast_guards_and_parity_smoke_run_the_expected_test_files():
     assert "feature_parity_audit.py --synthetic-only" in parity
 
 
-def test_dependabot_covers_pip_npm_and_github_actions():
+def test_dependabot_covers_pip_npm_github_actions_and_docker():
     config = yaml.safe_load((ROOT / ".github" / "dependabot.yml").read_text(encoding="utf-8"))
     assert config["version"] == 2
     ecosystems = {update["package-ecosystem"]: update["directory"] for update in config["updates"]}
-    assert ecosystems == {"pip": "/requirements", "npm": "/webui", "github-actions": "/"}
+    assert ecosystems == {"pip": "/requirements", "npm": "/webui", "github-actions": "/", "docker": "/"}
+    docker = next(update for update in config["updates"] if update["package-ecosystem"] == "docker")
+    assert docker["ignore"][0]["update-types"] == ["version-update:semver-major", "version-update:semver-minor"], "digest refreshes only"
     assert all(update["schedule"]["interval"] == "weekly" for update in config["updates"])
 
 
@@ -376,7 +379,10 @@ def test_codeql_scorecard_and_pages_have_least_privilege():
     assert "head_branch == 'main'" in pages["jobs"]["build"]["if"] and "conclusion == 'success'" in pages["jobs"]["build"]["if"]
     assert pages["permissions"] == {"contents": "read"}
     assert pages["jobs"]["deploy"]["permissions"] == {"pages": "write", "id-token": "write"}
-    assert "coverage_badge.py" in _scripts(pages["jobs"]["build"])
+    assert "coverage_badge.py" in _scripts(pages["jobs"]["build"]) and "scripts/test_badge.py" in _scripts(pages["jobs"]["build"])
+    assert "test-count-drift" not in _load(CI)["jobs"], "the test badge is built from CI's JUnit report (V6.6.6)"
+    tests_step = next(step for step in _load(CI)["jobs"]["python-tests"]["steps"] if "--cov-fail-under" in step.get("run", ""))
+    assert "--junitxml=junit.xml" in tests_step["run"]
 
 
 def test_release_publishes_both_images_with_sbom_and_provenance():
@@ -409,3 +415,88 @@ def test_the_release_can_run_again_on_a_moved_tag():
     assert sbom and all(step["with"].get("upload-release-assets") is False for step in sbom)
     assert 'gh release view "$TAG"' in _scripts(release["jobs"]["github-release"])
 
+
+WORKFLOWS = sorted((ROOT / ".github" / "workflows").glob("*.yml"))
+
+
+def _uses(workflow: dict) -> list[str]:
+    found = []
+    for job in workflow["jobs"].values():
+        if "uses" in job:
+            found.append(job["uses"])
+        found.extend(step["uses"] for step in job.get("steps", []) if "uses" in step)
+    return found
+
+
+def test_every_action_is_pinned_to_a_commit_with_its_version_beside_it():
+    """V6.6.6 (#357): Scorecard Pinned-Dependencies. The SLSA generator is the one exception: it refuses a SHA ref."""
+    for path in WORKFLOWS:
+        text = path.read_text(encoding="utf-8")
+        for ref in _uses(_load(path)):
+            if ref.startswith("slsa-framework/slsa-github-generator/"):
+                assert re.fullmatch(r".+@v\d+\.\d+\.\d+", ref), ref
+                continue
+            assert re.fullmatch(r"[\w.-]+/[\w./-]+@[0-9a-f]{40}", ref), f"{path.name}: {ref} is not pinned by commit"
+            assert re.search(re.escape(ref) + r" # v\d+\.\d+\.\d+", text), f"{path.name}: {ref} has no version comment"
+
+
+def test_dockerfile_base_images_are_pinned_by_digest():
+    for name in ("Dockerfile", "Dockerfile.lean"):
+        text = (ROOT / name).read_text(encoding="utf-8")
+        images = re.findall(r"^FROM (\S+)", text, re.M) + re.findall(r"^ARG LEAN_BASE_IMAGE=(\S+)", text, re.M)
+        for image in images:
+            if image.startswith("${"):
+                continue
+            assert re.search(r":[\w.-]+@sha256:[0-9a-f]{64}$", image), f"{name}: {image}"
+
+
+def test_no_workflow_grants_a_write_permission_at_the_top_level():
+    for path in WORKFLOWS:
+        top = _load(path).get("permissions", {})
+        if top == "read-all":
+            continue
+        assert not [scope for scope, level in top.items() if level == "write"], path.name
+
+
+def test_pages_checks_out_main_and_uses_coverage_only_from_the_same_commit():
+    """Scorecard Dangerous-Workflow: a workflow_run must not check out the triggering run's commit."""
+    pages = _load(PAGES)
+    checkout = next(step for step in pages["jobs"]["build"]["steps"] if "actions/checkout@" in step.get("uses", ""))
+    assert "ref" not in checkout.get("with", {})
+    download = next(step for step in pages["jobs"]["build"]["steps"] if "download-artifact@" in step.get("uses", ""))
+    assert "workflow_run.head_sha == github.sha" in download["if"]
+
+
+def test_every_release_carries_signed_assets_provenance_and_refreshes_the_scorecard():
+    """V6.6.6 (#356): a release with no assets is invisible to Scorecard's Signed-Releases."""
+    release = _load(RELEASE)
+    jobs = release["jobs"]
+    pypi = _scripts(jobs["publish-pypi"])
+    assert "sigstore==" in pypi and "python -m sigstore sign" in pypi and "release-assets/" in pypi
+    sign_line = pypi.split("python -m sigstore sign", 1)[1].splitlines()[0]
+    assert "dist/" not in sign_line, "never sign inside dist/: PyPI uploads all of it"
+    assert jobs["publish-pypi"]["outputs"]["hashes"] == "${{ steps.hash.outputs.hashes }}"
+    assert any(step.get("with", {}).get("name") == "release-assets" for step in jobs["publish-pypi"]["steps"])
+    gh = jobs["github-release"]
+    assert gh["needs"] == "publish-pypi"
+    assert any(step.get("with", {}).get("name") == "release-assets" for step in gh["steps"] if "download-artifact@" in step.get("uses", ""))
+    script = _scripts(gh)
+    assert 'gh release create "$TAG" release-assets/*' in script and 'gh release upload "$TAG" release-assets/* --clobber' in script
+    provenance = jobs["provenance"]
+    assert provenance["uses"].startswith("slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@")
+    assert provenance["with"]["upload-assets"] is True and provenance["with"]["provenance-name"].endswith(".intoto.jsonl")
+    assert set(provenance["needs"]) == {"publish-pypi", "github-release"}
+    assert "gh workflow run scorecard.yml --ref main" in _scripts(jobs["scorecard-refresh"])
+
+
+def test_a_dispatch_backfills_assets_and_publishes_nothing():
+    release = _load(RELEASE)
+    on = release.get(True) or release.get("on")
+    assert on["workflow_dispatch"]["inputs"]["backfill_tag"]["required"] is True
+    for name, job in release["jobs"].items():
+        expected = "github.event_name == 'workflow_dispatch'" if name == "backfill-assets" else "github.event_name == 'push'"
+        assert job["if"] == expected, name
+    backfill = _scripts(release["jobs"]["backfill-assets"])
+    assert "digests" in backfill and "sha256" in backfill, "PyPI's own bytes, checked against PyPI's digests"
+    assert "python -m sigstore sign release-assets/*" in backfill and "--clobber" in backfill
+    assert "python -m build" not in backfill, "a backfill attaches the published files, never a rebuild"

@@ -34,40 +34,18 @@ if TYPE_CHECKING:
     from datetime import date, datetime
     from pathlib import Path
 
-try:
-    from portfolio.options_strategy import (
-        MULTI_LEG_STRATEGY_REGISTRY,
-        OptionsPositionDecision,
-        OptionsSpreadPositionDecision,
-        build_multi_leg_position_sizing,
-        build_options_position_sizing,
-        build_vertical_spread_position_sizing,
-        group_chain_by_expiry,
-        order_enabled_strategies,
-        rerank_enabled_strategies_by_score,
-        strategies_for_volatility_view,
-    )
-except ImportError:  # pragma: no cover - portfolio package always present in this repo; defensive only
-    MULTI_LEG_STRATEGY_REGISTRY = {}
-    OptionsPositionDecision = None
-    OptionsSpreadPositionDecision = None
-    build_options_position_sizing = None
-    build_vertical_spread_position_sizing = None
-    build_multi_leg_position_sizing = None
-    group_chain_by_expiry = None
-    order_enabled_strategies = None
-    rerank_enabled_strategies_by_score = None
-    strategies_for_volatility_view = None
-
-try:
-    from portfolio.options_margin_sizing import build_margin_position_sizing
-except ImportError:  # pragma: no cover - portfolio package always present in this repo; defensive only
-    build_margin_position_sizing = None
-
-try:
-    from portfolio.options_arbitrage_detector import build_arbitrage_position_sizing
-except ImportError:  # pragma: no cover - portfolio package always present in this repo; defensive only
-    build_arbitrage_position_sizing = None
+from portfolio.options_strategy import (
+    MULTI_LEG_STRATEGY_REGISTRY,
+    build_multi_leg_position_sizing,
+    build_options_position_sizing,
+    build_vertical_spread_position_sizing,
+    group_chain_by_expiry,
+    order_enabled_strategies,
+    rerank_enabled_strategies_by_score,
+    strategies_for_volatility_view,
+)
+from portfolio.options_arbitrage_detector import build_arbitrage_position_sizing
+from portfolio.options_margin_sizing import build_margin_position_sizing
 
 FUTURES_OPTIONS_SENTINEL_VOLATILITY_REGIME = "not_applicable_non_volatility_sizing"
 
@@ -311,10 +289,7 @@ def route_multi_leg_option_sizing(
     Returns None when nothing in the (possibly empty) enabled list sizes
     - callers must treat that as "no option position this bar", same
     degrade-to-absent contract as every other branch in this module."""
-    if order_enabled_strategies is None or strategies_for_volatility_view is None:
-        return None
-
-    if strategy_selector_scores and rerank_enabled_strategies_by_score is not None:
+    if strategy_selector_scores:
         ordered_names = rerank_enabled_strategies_by_score(enabled_strategy_names, strategy_selector_scores)
     else:
         ordered_names = order_enabled_strategies(enabled_strategy_names, risk_tier_preference)
@@ -331,7 +306,7 @@ def route_multi_leg_option_sizing(
     # this grouping, but it's permanently unreachable via this router's own
     # "unreachable_arbitrage" branch below - never worth precomputing for.
     precomputed_grouped_chain_by_expiry = None
-    if group_chain_by_expiry is not None and available_chain:
+    if available_chain:
         has_calendar_candidate = False
         for name in ordered_names:
             candidate_spec = MULTI_LEG_STRATEGY_REGISTRY.get(name)
@@ -343,8 +318,6 @@ def route_multi_leg_option_sizing(
 
     for strategy_name in ordered_names:
         if strategy_name == "single_leg":
-            if build_options_position_sizing is None:
-                continue
             decision = build_options_position_sizing(
                 signal_direction=signal_name,
                 confidence=confidence,
@@ -371,7 +344,7 @@ def route_multi_leg_option_sizing(
             # for THIS bar's chain when select_arbitrage_signal() confirms
             # a real, threshold-exceeding mispricing - never unconditionally
             # just because the strategy_name is enabled.
-            if not arbitrage_detector_enabled or build_arbitrage_position_sizing is None:
+            if not arbitrage_detector_enabled:
                 continue
             decision = build_arbitrage_position_sizing(
                 strategy_name, available_chain or [], current_date, risk_free_rate, min_mispricing_bps,
@@ -387,8 +360,6 @@ def route_multi_leg_option_sizing(
             continue
 
         if spec.risk_tier == "vega_budget":
-            if build_multi_leg_position_sizing is None:
-                continue
             selector_kwargs = {"short_leg_delta_offset": short_leg_delta_offset} if spec.shape_family == "vertical" else {}
             decision = build_multi_leg_position_sizing(
                 strategy_name, signal_name, confidence, available_chain or [], portfolio_value,
@@ -403,7 +374,7 @@ def route_multi_leg_option_sizing(
             continue
 
         # margin tiers (margin_naked / margin_uncovered_leg / margin_bounded_backspread)
-        if not margin_family_enabled or build_margin_position_sizing is None:
+        if not margin_family_enabled:
             continue
         decision = build_margin_position_sizing(
             strategy_name, signal_name, confidence, available_chain or [], underlying_price, portfolio_value,
@@ -549,14 +520,10 @@ def route_position_sizing(
         return _forex_decision_to_position_sizing(decision), {"lot_count": decision.lot_count, "pair_spec": pair_spec}
 
     if asset_class == "option":
-        if build_options_position_sizing is None:
-            return _zero_position_sizing("options_strategy_module_unavailable"), {}
         spread_strategy = (options_kwargs or {}).get("spread_strategy", "single_leg")
         max_vega_budget = (options_kwargs or {}).get("max_vega_budget_pct_of_equity", 0.02)
 
         if spread_strategy == "vertical":
-            if build_vertical_spread_position_sizing is None:
-                return _zero_position_sizing("options_strategy_module_unavailable"), {}
             # short_leg_delta_offset is legitimately accepted here but NOT
             # by build_options_position_sizing() below - only
             # spread_strategy itself is stripped, everything else passes

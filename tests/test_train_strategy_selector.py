@@ -219,3 +219,27 @@ def test_a_strategy_whose_outcomes_never_vary_is_not_scored(monkeypatch, tmp_pat
     code, paths = _run_main(monkeypatch, tmp_path, events)
     model = json.loads(paths["strategy_selector_model"].read_text(encoding="utf-8"))
     assert code == 0 and "naked_put" not in model["scorers"] and "iron_condor" in model["scorers"]
+
+
+def test_events_without_a_strategy_or_a_pnl_or_a_vector_are_skipped_and_a_failure_is_an_exit_code(monkeypatch, tmp_path):
+    import runpy
+    import sys
+
+    import pytest
+
+    import train_strategy_selector as trainer
+
+    noise = [_event(strategy_name=None, realized_pnl=1.0), _event(strategy_name="straddle", realized_pnl=None), {"event_type": "option_strategy_outcome", "strategy_name": "straddle", "realized_pnl": 1.0}]
+    code, paths = _run_main(monkeypatch, tmp_path, noise * 120 + _outcomes())
+    assert code == 0 and paths["strategy_selector_model"].exists()
+    monkeypatch.setattr(sys, "argv", ["train_strategy_selector", "--version-id", "v-bad", "--config-path", str(tmp_path / "missing.json")])
+    assert trainer.main() == 1
+    with pytest.raises(SystemExit) as stop:
+        runpy.run_path(str(trainer.__file__), run_name="__main__")
+    assert stop.value.code == 1
+
+
+def test_nothing_is_written_when_no_strategy_has_enough_events_of_both_outcomes(monkeypatch, tmp_path):
+    events = [_event(strategy_name=f"strategy_{index % 60}", realized_pnl=1.0 if index % 2 else -1.0) for index in range(400)]
+    code, paths = _run_main(monkeypatch, tmp_path, events)
+    assert code == 0 and not paths["strategy_selector_model"].exists()

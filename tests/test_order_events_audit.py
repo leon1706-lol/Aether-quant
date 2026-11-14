@@ -133,3 +133,22 @@ def test_summarize_order_events_sanity_against_real_backtest_file():
     assert summary["status_histogram"]["canceled"] == 23
     assert summary["status_histogram"]["submitted"] == 644
     assert summary["status_histogram"]["filled"] == 620
+
+
+def test_the_cli_audits_every_run_or_says_there_is_none(tmp_path, monkeypatch, capsys):
+    import json
+    import sys
+
+    backtests = tmp_path / "backtests"
+    (backtests / "run_a").mkdir(parents=True)
+    (backtests / "run_a" / "1-order-events.json").write_text(json.dumps([_event(1, "submitted", 1000), _event(1, "filled", 4600, fill_quantity=5.0)]), encoding="utf-8")
+    (backtests / "run_b").mkdir()
+    (backtests / "run_b" / "2-order-events.json").write_text("[]", encoding="utf-8")
+    out = tmp_path / "report" / "audit.txt"
+    monkeypatch.setattr(sys, "argv", ["x", "--backtests-dir", str(backtests), "--output", str(out)])
+    from scripts import order_events_audit as audit
+
+    assert audit.main() == 0
+    assert "=== Aggregate across 1 files ===" in out.read_text(encoding="utf-8") and "Full audit written" in capsys.readouterr().out
+    monkeypatch.setattr(sys, "argv", ["x", "--backtests-dir", str(tmp_path / "none"), "--output", str(out)])
+    assert audit.main() == 1 and "No order-events.json" in capsys.readouterr().err

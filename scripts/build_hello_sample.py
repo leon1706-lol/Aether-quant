@@ -46,7 +46,7 @@ def readme_text(digest: str, rows: int) -> str:
         "# Sample data for `aq hello` and the notebooks\n\n"
         f"- **File:** `coinbase_daily.csv.gz`, {rows} rows, columns `date,ticker,open,close` (8 significant figures).\n"
         f"- **Coins:** {', '.join(TICKERS)}: the shipped book's universe.\n"
-        f"- **Window:** {START.isoformat()} to {END.isoformat()}, daily bars in UTC. XRP-USD trades on Coinbase only from 2023-07-13.\n"
+        f"- **Window:** <!--fact:sample.first-->{START.isoformat()}<!--/fact--> to <!--fact:sample.last-->{END.isoformat()}<!--/fact-->, daily bars in UTC. XRP-USD trades on Coinbase only from 2023-07-13.\n"
         "- **Source:** Coinbase Exchange public candles (`api.exchange.coinbase.com/products/<id>/candles`), no key. Prices are factual market data, "
         "kept here only so the demo runs offline.\n"
         "- **Rebuild:** `python scripts/build_hello_sample.py` (byte-identical for the same data); `--check` verifies the digest.\n"

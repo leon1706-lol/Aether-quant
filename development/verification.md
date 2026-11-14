@@ -16,7 +16,7 @@ Every way this project is verified, and when each one is required. The table is 
 |---|---|---|---|---|---|---|
 | `ruff` | `ruff check .` | style and the obvious errors | PC, CI | 10 s | stdout | every change |
 | `vermin` | `vermin -t=3.10- --no-tips --violations -q <first-party>` | no source needs more than Python 3.10 (#326) | PC, CI | 5 s | stdout; CI python-compat | every commit |
-| `suite` | `aq test` | the whole offline suite, coverage >= 80%, refreshes the badge | Codespace, CI | 4-6 min (PC: out of memory) | stdout, coverage.xml | every commit |
+| `suite` | `aq test` | the whole offline suite, then the doc facts | Codespace, CI | 4-6 min (PC: out of memory) | stdout, coverage.xml | every commit |
 | `buckets` | `aq test --<bucket>` | each of 15 subsystems is self-contained | PC, CI | 1-2 min each | stdout | every commit |
 | `guards` | `pytest tests/test_ci_workflows.py tests/test_docs_facts.py tests/test_aether_quant_coverage.py ...` | workflows, docs facts, the library gate, packaging, help surface | PC, CI | 30 s | stdout; CI fast-guards | every change |
 | `clean_checkout` | `scripts/clean_checkout_test.ps1 or scripts/codespace_verify.ps1 -Start` | no test depends on a gitignored file; every CI job once, before the push | Codespace | 40-60 min | /tmp/aq_verify/status, <stage>.log | a phase |
@@ -61,7 +61,8 @@ Every way this project is verified, and when each one is required. The table is 
 | `notebooks` | `python scripts/build_notebooks.py --check --execute` | the four tutorials match their sources and run clean | PC, CI | 5 min | notebooks/*.ipynb | every change to notebooks/ or the library |
 | `dashboard_image` | `docker build --target dashboard -t aether-quant-dashboard . && docker run -p 8080:8000` | the light dashboard image builds, serves the UI and answers /api/health in demo mode | PC, CI | 5 min | ml/evaluation/v665/dashboard.json | every change to Dockerfile, webui/ or monitoring/ |
 | `bandit` | `bandit -r <shipped packages> -lll -c pyproject.toml` | no high-severity static finding in shipped code | PC, CI | 1 min | stdout | every commit |
-| `ci:python-tests` | `CI: ubuntu and windows, coverage gate 80%` | the suite on both platforms | CI | 6 min | GitHub Actions | every push |
+| `coverage` | `aq test --coverage` | every tracked module at 100%, one group at a time | PC, Codespace | 1-2 h on the PC | coverage.json | every commit |
+| `ci:python-tests` | `CI: ubuntu and windows, coverage gate 100% of every tracked module` | the suite on both platforms, and the JUnit report behind the test badge | CI | 6 min | GitHub Actions | every push |
 | `ci:python-lint` | `CI: ruff and py_compile main.py` | lint and syntax | CI | 1 min | GitHub Actions | every push |
 | `ci:dependency-audit` | `CI: pip-audit` | no known-vulnerable pinned dependency | CI | 3 min | GitHub Actions | every push |
 | `ci:webui-tests` | `CI: tsc, oxlint (jsx-a11y), vitest with coverage, build, npm audit` | the dashboard builds, its tests pass and no runtime dependency has a high advisory | CI | 2 min | GitHub Actions | every push |
@@ -79,7 +80,6 @@ Every way this project is verified, and when each one is required. The table is 
 | `ci:bandit` | `CI: bandit -lll` | no high-severity static finding | CI | 1 min | GitHub Actions | every push |
 | `ci:parity-smoke` | `CI: parity tests and feature_parity_audit --synthetic-only` | live and offline compute the same features | CI | 1 min | GitHub Actions | every push |
 | `ci:secret-scan` | `CI: gitleaks (blocking on the tree, advisory on history)` | no secret in a tracked file | CI | 10 s | GitHub Actions | every push |
-| `ci:test-count-drift` | `CI: README badge against the collected count` | the badge is current (advisory) | CI | 1 min | GitHub Actions | every push |
 | `wf:formal` | `.github/workflows/formal.yml` | the proofs, the sorry scan, regenerated cases and axioms on spec changes and monthly | GitHub | 10 min | GitHub Actions | every change to formal/ |
 | `wf:forward-ledger` | `.github/workflows/forward-ledger.yml` | one hash-chained forward row a session for the frozen rule | GitHub | 30 s | branch forward-ledger | every session |
 | `wf:research-cycle` | `.github/workflows/research-cycle.yml` | one row per tracked generation and the allocation a session | GitHub | 30 s | branch forward-ledger | every session |

@@ -10,5 +10,5 @@ Four tutorials for the `aether_quant` library. Each one opens in Colab, installs
 | [`03_overfitting_tests`](03_overfitting_tests.ipynb) | PBO by CSCV, the deflated Sharpe as N grows, minimum track record, haircut Sharpe, a placebo test, a holdout read once, generations | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/leon1706-lol/Aether-quant/blob/main/notebooks/03_overfitting_tests.ipynb) |
 
 - **Locally:** `pip install "aether-quant[notebooks]"` and open them in Jupyter. From a clone, the first cell puts the checkout on `sys.path` instead.
-- **Colab:** the install cell needs `aether-quant` 6.6.5 or later on PyPI.
+- **Colab:** the install cell installs the latest `aether-quant` from PyPI.
 - **Editing:** Each notebook's source is the percent-format `.py` file of the same name in [`src/`](src/). Rebuild and re-run with `python scripts/build_notebooks.py --execute` (about 4 minutes on a small PC). `tests/test_notebooks.py` fails if a notebook drifts from its source, lacks its Colab cell, or holds an error, and CI's `notebooks` job runs them all again.

@@ -148,3 +148,20 @@ def test_field_test_summary_reads_orders_trip_and_flat_book_from_the_log():
     assert summary["orders_submitted"] == 1 and summary["orders_filled"] == 1
     assert summary["shock_bar"] == 14 and summary["kill_switch_trip_bar"] == 14 and summary["gross_after_trip"] == 0.0
     assert summary["reconciliation_breach"] and summary["first_reconciliation_breach"] is False and summary["bars_seen"] == 21
+
+
+def test_live_plumbing_report_cli_reads_the_run_folder(tmp_path, monkeypatch, capsys):
+    import json
+
+    from script_loader import run_script
+
+    good = "\n".join(["LEAN ALGORITHMIC TRADING ENGINE v2.5.0.0", "main successfully imported", "creating brokerage 'PaperBrokerage'", "FakeDataQueue", "TICKS PER SECOND:: 2000.0", "Algorithm finished warming up"])
+    for name in ("engine1.log", "engine2.log"):
+        (tmp_path / name).write_text(good, encoding="utf-8")
+    (tmp_path / "facts.json").write_text(json.dumps({"alive_after_outages": True, "state_file_after_restart": True, "audit_verify_ok": True, "audit_verify_text": "ok"}), encoding="utf-8")
+    out = tmp_path / "report" / "live.json"
+    assert run_script("lean_smoke/live_plumbing_report", ["--dir", str(tmp_path), "--out", str(out)], monkeypatch) == 0
+    assert all(json.loads(capsys.readouterr().out).values()) and out.exists()
+    empty = tmp_path / "empty"
+    empty.mkdir()
+    assert run_script("lean_smoke/live_plumbing_report", ["--dir", str(empty), "--out", str(out)], monkeypatch) == 1

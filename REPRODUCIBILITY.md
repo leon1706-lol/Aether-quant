@@ -13,10 +13,12 @@ How to reproduce every number in the README. The tables there are generated, so 
 From a finished Lean run folder alone, with no model or dataset:
 
 ```powershell
-aq evaluate --lean-report --backtest-dir backtests/2026-11-07_17-54-01
+aq evaluate --lean-report --backtest-dir backtests/<pinned run>
 ```
 
-- **Frozen config:** `ml/evaluation/run_configs/2026-11-07_17-54-01.json`.
+The pinned run is <!--fact:lean.pin_run-->2026-11-07_17-54-01<!--/fact-->.
+
+- **Frozen config:** `ml/evaluation/run_configs/<pinned run>.json`.
 - **Weights:** `ml/target_weights.csv`, pinned by `phase_v2.target_weights.weights_sha256`.
 - **Long-window row:** `aq evaluate --alpha-proof --backtest-dir backtests/2026-11-07_17-56-48`, named as `long_run` in `ml/evaluation/readme_lean_run.json`.
 

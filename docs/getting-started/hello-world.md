@@ -2,7 +2,7 @@
 
 ```bash
 aq hello            # download fresh bars (Coinbase public candles, no key), about a minute
-aq hello --offline  # the sample in the wheel (2021-06 to 2026-10), the same numbers everywhere
+aq hello --offline  # the sample in the wheel, the same numbers everywhere
 aq hello --html report.html --json report.json
 ```
 
@@ -15,7 +15,7 @@ aq hello --html report.html --json report.json
     - the probabilistic Sharpe
     - PBO by CSCV over 8 lookback variants
     - the deflated Sharpe on that grid
-    - the Sharpe left after a BHY haircut for the project's 217 trials
+    - the Sharpe left after a BHY haircut for the project's <!--fact:research.trials-->217<!--/fact--> trials
     - the minimum track record
 
 From Python:
@@ -28,4 +28,4 @@ print(hello.render_text(report))
 report.strategy.sharpe, report.pbo
 ```
 
-The shipped book is small: about 11% gross on average, so read its Sharpe and drawdown, not its total return. Its haircut Sharpe at 217 trials is 0.00. That is the honest summary of where the project stands.
+The shipped book is small: about <!--fact:hello.gross_pct-->11<!--/fact-->% gross on average, so read its Sharpe (<!--fact:hello.sharpe-->0.43<!--/fact--> from <!--fact:hello.start-->2022-01-01<!--/fact--> on the sample) and drawdown, not its total return. Its haircut Sharpe at <!--fact:research.trials-->217<!--/fact--> trials is <!--fact:hello.haircut_sharpe-->0.00<!--/fact-->. That is the honest summary of where the project stands.

@@ -46,3 +46,37 @@ def test_lean_output_is_parsed_and_only_the_standard_axioms_pass():
 
 def test_the_allowed_exception_has_a_reason():
     assert all(reason.strip() for reason in ax.ALLOWED_EXTRA.values())
+
+
+def _formal(tmp_path):
+    spec = tmp_path / "AetherFormal"
+    spec.mkdir()
+    (spec / "Book.lean").write_text("namespace Book\ntheorem cap_holds : True := trivial\nprivate theorem helper : True := trivial\n", encoding="utf-8")
+    (spec / "Plain.lean").write_text("lemma loose : True := trivial\n", encoding="utf-8")
+    (spec / "Axioms.lean").write_text("theorem skipped : True := trivial\n", encoding="utf-8")
+    return tmp_path
+
+
+def test_list_and_a_full_check_with_lean_as_a_stand_in(tmp_path, monkeypatch, capsys):
+    from types import SimpleNamespace
+
+    formal = _formal(tmp_path)
+    monkeypatch.setattr(ax, "FORMAL", formal)
+    monkeypatch.setattr(ax, "theorems", lambda root=formal: ["Book.cap_holds", "loose"])
+    assert ax.main(["--list"]) == 0 and capsys.readouterr().out.split() == ["Book.cap_holds", "loose"]
+    output = "'Book.cap_holds' depends on axioms: [propext]\n'loose' does not depend on any axioms\n"
+    monkeypatch.setattr(ax.subprocess, "run", lambda *args, **kwargs: SimpleNamespace(stdout=output, returncode=0))
+    assert ax.main([]) == 0 and not (formal / "AxiomProbe.lean").exists() and "2 theorems, 0 problem(s)" in capsys.readouterr().out
+    monkeypatch.setattr(ax.subprocess, "run", lambda *args, **kwargs: SimpleNamespace(stdout="'loose' depends on axioms: [sorryAx]\n", returncode=1))
+    assert ax.main([]) == 1 and "axiom check:" in capsys.readouterr().err
+
+
+def test_theorems_skip_private_ones_and_the_generated_files(tmp_path):
+    names = ax.theorems(_formal(tmp_path))
+    assert names == ["Book.cap_holds", "loose"]
+
+
+def test_the_check_runs_as_a_script(monkeypatch, capsys):
+    from script_loader import run_script
+
+    assert run_script("check_axioms", ["--list"], monkeypatch) == 0 and capsys.readouterr().out.strip()

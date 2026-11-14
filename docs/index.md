@@ -22,7 +22,7 @@ aq hello
 That downloads a few years of daily bars for 11 coins from Coinbase's public candles, runs the project's shipped rule through a cost-aware backtest, and prints a report with benchmarks and overfitting checks. It needs no key, no Docker and no Lean. Start with [Hello world](getting-started/hello-world.md), then the [tutorials](tutorials/00_hello_world.ipynb).
 
 !!! warning "No verified edge"
-    The shipped book is a long-only crypto trend sleeve, on paper only. No pre-registered test has found a verified edge: 217 trials so far, no survivor, and the holdouts unread. The toolkit is the point. It is how this project judges itself, and how you can judge your own signals.
+    The shipped book is a long-only crypto trend sleeve, on paper only. No pre-registered test has found a verified edge: <!--fact:research.trials-->217<!--/fact--> trials so far, no survivor, and the holdouts unread. The toolkit is the point. It is how this project judges itself, and how you can judge your own signals.
 
 | | |
 |---|---|

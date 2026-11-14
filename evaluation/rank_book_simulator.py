@@ -198,10 +198,10 @@ def _legacy_step(state: dict[str, Any], component: dict[str, Any], *, eligible: 
         if close is None or close <= 0.0:
             continue
         reason = evaluate_non_model_exit(
-            date_index, max_holding is not None, int(max_holding or 10**9), float(stop_pct) if stop_pct else 0.0,
+            date_index, True, int(max_holding or 10**9), float(stop_pct) if stop_pct else float("inf"),
             state["entry_index"].get(symbol, date_index), state["peak"].get(symbol), "long", close,
         ) if (max_holding is not None or stop_pct) else None
-        if reason in ("max_holding_bars_reached", "trailing_stop_triggered"):
+        if reason in ("max_holding_age_exceeded", "trailing_stop_triggered"):
             new_weights.pop(symbol)
         elif state["peak"].get(symbol) is None or close > state["peak"][symbol]:
             state["peak"][symbol] = close
@@ -1255,9 +1255,6 @@ def capacity_curve(
     held_avg_dollar_volume = {
         ticker: float(np.expm1(avg_log_dollar_volume.get(ticker, 0.0))) for ticker in base_held_days
     }
-    if not held_avg_dollar_volume:
-        return {"capacity_usd": 0.0, "binding_ticker": None, "per_top_n": per_top_n}
-
     # Zero means "no real volume data for this ticker" (e.g. forex - see
     # this function's own docstring), not "zero liquidity" - exclude it
     # from the binding-ticker search so a data-quality artifact can't

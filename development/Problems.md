@@ -2,7 +2,7 @@
 
 Every bug and infrastructure issue found in this codebase, oldest first, with how it was fixed or why it stayed open. Numbers never change, because code and docs cite them; #73-76 don't exist, and #88 and #112 appear twice.
 
-**Entries:** <!--fact:problems.total-->353<!--/fact--> up to #<!--fact:problems.last-->355<!--/fact-->: <!--fact:problems.fixed-->321<!--/fact--> 🟢 `fixed` (changed and verified), <!--fact:problems.partial-->11<!--/fact--> 🟡 `partial` (shipped, verification pending), <!--fact:problems.closed-->18<!--/fact--> 🔴 `closed` (no code fix: declined, moot or superseded). Severity runs from 1 (cosmetic) to 10 (data loss or safety). Full text of older entries: [`backups/`](backups/README.md).
+**Entries:** <!--fact:problems.total-->358<!--/fact--> up to #<!--fact:problems.last-->360<!--/fact-->: <!--fact:problems.fixed-->325<!--/fact--> 🟢 `fixed` (changed and verified), <!--fact:problems.partial-->12<!--/fact--> 🟡 `partial` (shipped, verification pending), <!--fact:problems.closed-->18<!--/fact--> 🔴 `closed` (no code fix: declined, moot or superseded). Severity runs from 1 (cosmetic) to 10 (data loss or safety). Full text of older entries: [`backups/`](backups/README.md).
 
 **Open now** (each needs a broker key, a forward record or the laptop):
 
@@ -1863,3 +1863,74 @@ Lean's paper brokerage starts empty on each run, so the restart proves the state
 
 **Verification:** tests prove a failed Telegram send, a non-2xx body and an unreachable Redis URL never log the secret, and they pin the URL masking and both workflow guards. actionlint is clean. The false positives are for the owner to dismiss in the code-scanning view.
 
+
+### 356. The OpenSSF Scorecard never saw a release (V6.6.6)
+🟡 `partial` · 5/10
+
+**Problem:** the Scorecard scored the newest commit, but Signed-Releases read "no releases found". Scorecard skips a release with no assets, and `release.yml` created notes-only releases: the wheel, the SBOMs and the attestations went to PyPI, GHCR and the attestation store, never to the release.
+
+**Fix:** each tag now attaches the wheel, the sdist, the SBOM, a Sigstore `.sigstore.json` per file and an SLSA `.intoto.jsonl` (the generic SLSA 3 generator), then dispatches the Scorecard on `main`. A `backfill_tag` dispatch attaches PyPI's own files, checked against PyPI's digests and signed, to an older release (RUNBOOK "Releases").
+
+**Verification:** `tests/test_ci_workflows.py` pins the assets, the provenance job, the re-run path, the backfill and the Scorecard dispatch; actionlint is clean. It stays 🟡 until a tag shows Signed-Releases above zero.
+
+### 357. Scorecard hygiene: unpinned actions, top-level write tokens, a risky checkout, low dependency floors (V6.6.6)
+🟢 `fixed` · 4/10
+
+**Problem:** the Scorecard read 4.2. Every action used a tag and every base image a tag, three scheduled workflows held write tokens at the top level, and `pages.yml` checked out a `workflow_run`'s commit. OSV counted 38 advisories, almost all against the `>=` floors in `requirements/` rather than what CI installs.
+
+**Fix:**
+
+- Actions are pinned by commit with a version comment, and base images by digest. The SLSA reusable workflow keeps its tag, because it refuses a SHA.
+- Dependabot gains the Docker ecosystem, with digest refreshes only.
+- Writes moved onto the one job that needs them.
+- Pages checks out `main` and uses CI's coverage only when it ran on that same commit.
+- Floors rose to the first fixed versions: black, pyarrow, pytest, flask, python-dotenv, requests, scikit-learn, torch 2.9.1 (what the PC runs), and vitest 4.1.12.
+- Still open: five torch advisories with no fixed version, three fixed only in torch 2.10 to 2.13, held per `todo.md` because a torch bump can move the model files. Hash-pinned pip installs are out of scope.
+
+**Verification:** tests pin the SHA pins, the digests, the job-level writes and the checkout. Branch protection, code review, the CII badge and fuzzing stay owner and process items.
+
+### 358. Public pages quoted numbers by hand, and the test badge lagged (V6.6.6)
+🟢 `fixed` · 3/10
+
+**Problem:** the trial N appeared as 217 on the site and as "71 trials" in the README. The hello-world figures, the sample window and the Lean pin's run ID were copied in by hand.
+
+- A README sentence still said the light install "arrives with release 6.6.5".
+- The release section claimed tag tests block a release.
+- The test badge changed only when someone ran `aq test` locally.
+- The GitHub About still described a long/short multi-asset book.
+
+**Fix:**
+
+- New facts: `research.trials` (Problems.md), `sample.*` (the bundled sample), `hello.*` (a summary `tests/test_hello_world.py` checks against a real run) and `lean.pin_run` (the README's generated header).
+- A generated `CHANGELOG_LATEST` block, and the stale text fixed.
+- The test badge comes from CI's JUnit report (`scripts/test_badge.py` on Pages). The local badge writer and the `test-count-drift` job are gone.
+- What can't be generated is listed in AGENTS.md "After every phase".
+
+**Verification:** `tests/test_docs_facts.py`, `tests/test_test_badge.py`, `tests/test_hello_world.py` and `aq docs sync --check` are clean.
+
+### 359. Coverage measured about two thirds of the code, and the gate sat at 80% (V6.6.6)
+🟢 `fixed` · 4/10
+
+**Problem:** CI measured 86% over a hand-listed set of packages. Whole-repo coverage, counting `main.py`, `train*.py`, `scripts/` and the other top-level modules, was **67.6%** (47,482 statements, 15,369 missed). Eight lines were hidden with `pragma: no cover`, and some were dead code behind an `ImportError` that cannot happen. Many one-off scripts had no test, and `aq test` on the 4 GB PC could not produce a whole-repo number.
+
+**Fix:**
+
+- The measured scope is every directory with tracked code (`source_dirs`), `if TYPE_CHECKING:` is the one exclusion, and `fail_under` and CI's gate are 100. `tests/test_coverage_scope.py` pins all of it.
+- `aq test --coverage` runs the registered groups one process at a time and reports the combined figure.
+- Every pragma is gone: dead fallbacks in `risk/asset_class_router.py` and `topology/market_topology.py` were removed, and the rest got tests.
+- New tests use `tests/script_loader.py` (a loader, a runner for `__main__`, a write blocker and a stand-in for the gitignored stored rules). `tests/test_script_entry_points.py` runs the `--help` of every script that has a command line.
+- Round files `tests/test_v666_coverage_*.py` hold the small branch tests per package.
+
+- Runtime tests run whole programs on small synthetic worlds: a fake QuantConnect `QCAlgorithm` for `main.py` (`tests/lean_world.py`, `lean_fakes.py`), generated Lean zips for `train.py` and the trainers (`train_world.py`, `trainer_fakes.py`) and a wide equity and crypto root (`wide_world.py`).
+- Real defects the tests found are in #360. Branches that cannot run were removed with a comment (a fold that cannot be empty, an event that is always in its own date list, a group with no rows, a purchase that is never routine).
+
+**Verification:** `aq test --coverage` on the PC: 47,438 statements, 0 missed, **100%**, `fail_under=100` met, 8,000+ tests passing across all 16 groups, `ruff check .` clean. A real Lean engine run stays the owner's (`aq backtest`); `main.py` is covered against the fake Lean, not the engine.
+
+### 360. The offline legacy sleeve's exits never fired as configured (V6.6.6)
+🟢 `fixed` · 3/10
+
+**Problem:** writing the missing tests for `evaluation/rank_book_simulator.py` showed two defects in the legacy sleeve's backstop exits. The age exit compared the exit function's reason to `max_holding_bars_reached`, a string `risk_controls.evaluate_non_model_exit` never returns (it returns `max_holding_age_exceeded`), so a position never aged out. The call also passed `exits_enabled = max_holding is not None`, so a trailing stop alone was switched off, and a missing stop was passed as 0.0, which fires on any position that has a peak. Live was correct; only the offline simulation of the legacy sleeve was off, and the shipped book sets neither exit on it.
+
+**Fix:** the sleeve checks the real reason string, enables the exit function whenever either rule is configured, and passes an infinite stop when none is.
+
+**Verification:** `tests/test_rank_book_legacy_step.py` covers an age exit, a trailing-stop exit, and no exit when none is configured. Dead guards the same round found (a fold that cannot be empty, an event that is always in its own date list, a group that cannot have zero rows, a purchase that is never routine) were removed with a one-line comment each.

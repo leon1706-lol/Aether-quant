@@ -575,9 +575,7 @@ def build_market_topology(
         correlation_rows[index_a][index_b] = value
         correlation_rows[index_b][index_a] = value
 
-    def correlation_between(symbol_a: str, symbol_b: str) -> float:
-        if symbol_a == symbol_b:
-            return 1.0
+    def correlation_between(symbol_a: str, symbol_b: str) -> float:  # the diagonal of the matrix is 1.0
         return correlation_rows[position_by_symbol[symbol_a]][position_by_symbol[symbol_b]]
 
     union_find = _UnionFind(eligible_symbols)

@@ -57,7 +57,7 @@ The paper period is the out-of-sample test no backtest can give. Success is **no
 
 - **Freeze first:** the `config.json` sha256, the model manifest, `phase_v2.diagnostics.book_history.paper_enabled: true`, no live capital.
 - **Minimum:** 6 rebalances and 120 trading days, after `aq paper-readiness` passes.
-- **Check:** `aq evaluate --paper-check --backtest-dir <paper run> --reference-dir backtests/2026-11-07_17-54-01`. It compares veto rate, lock share, gross exposure, fills per rebalance, slippage, fee bps, P&L per day, hit ratio and turnover.
+- **Check:** `aq evaluate --paper-check --backtest-dir <paper run> --reference-dir backtests/<pinned run>`, the pinned run being <!--fact:lean.pin_run-->2026-11-07_17-54-01<!--/fact-->. It compares veto rate, lock share, gross exposure, fills per rebalance, slippage, fee bps, P&L per day, hit ratio and turnover.
 - **Bands:** the 5-95% range of every 6-rebalance window of the reference run (`ml/evaluation/v650/paper_bands.json`). A target-weights run counts fill days as rebalances and has no veto or lock metrics.
 - **Daily:** a live run also runs `python scripts/daily_target_weights.py --candidate ml/target_weights_candidate.json --out ml/target_weights.csv` before each open, with `weights_sha256` empty.
 - **Verdict:** every metric inside its band. A metric outside is a finding to explain, written up before any capital decision.
@@ -161,6 +161,12 @@ Every credential resolves, first match wins, from a file named by `AETHER_<NAME>
 - `python scripts/backup_postgres.py --docker` (or with `pg_dump` installed and the DSN stored) writes `state/backups/aether_quant_<stamp>.dump`. It keeps 14 and records `last_backup.json` for the scorecard.
 - Schedule it daily on a deploy host.
 - **Restore:** `pg_restore --clean --if-exists -d <dsn> state/backups/<file>.dump`, then `aq audit-log --verify`.
+
+## Releases
+
+- **Cut one:** `git tag vX.Y.Z` on `main`, then `git push origin vX.Y.Z`. `release.yml` publishes PyPI and both images, creates the release with the wheel, sdist and SBOM, a Sigstore `.sigstore.json` per file and an SLSA `.intoto.jsonl`, then reruns the OpenSSF Scorecard.
+- **An older release without assets:** `gh workflow run release.yml -f backfill_tag=vX.Y.Z`. It downloads PyPI's own files for that version, checks their digests against PyPI, signs and attaches them, and publishes nothing. The Scorecard counts only releases with assets.
+- **Check:** `gh release view vX.Y.Z --json assets`, and the Signed-Releases check at `api.securityscorecards.dev`.
 
 ## Field test
 

@@ -60,3 +60,24 @@ def test_main_dry_run_writes_nothing(tmp_path, capsys):
     assert "1 asset(s) to update" in capsys.readouterr().out
     refresh.main(["--config", str(config_path), "--root", str(tmp_path), "--apply"])
     assert json.loads(config_path.read_text(encoding="utf-8"))["phase1"]["universe"]["assets"][0]["available_to"] == "2026-09-30"
+
+
+def test_a_zip_without_a_csv_or_rows_has_no_range(tmp_path):
+    with zipfile.ZipFile(tmp_path / "nocsv.zip", "w") as archive:
+        archive.writestr("readme.txt", "x")
+    assert refresh.zip_date_range(tmp_path / "nocsv.zip") is None
+    _zip(tmp_path / "empty.zip", ["", "  "])
+    assert refresh.zip_date_range(tmp_path / "empty.zip") is None
+
+
+def test_updates_reach_past_nested_objects_and_refuse_an_unknown_ticker():
+    import pytest
+
+    text = json.dumps({"assets": [
+        {"ticker": "AAA", "backfill": {"source": "x", "deeper": {"a": 1}}, "available_from": "old", "available_to": "old"},
+        {"meta": {"x": 1}, "ticker": "BBB", "available_from": "old", "available_to": "old"},
+    ]}, indent=1)
+    updated = json.loads(refresh.apply_updates(text, [{"ticker": "BBB", "from": ("old", "2020-01-01"), "to": ("old", "2021-01-01")}]))
+    assert updated["assets"][1]["available_from"] == "2020-01-01" and updated["assets"][0]["available_from"] == "old"
+    with pytest.raises(ValueError, match="ZZZ not found"):
+        refresh.apply_updates(text, [{"ticker": "ZZZ", "from": ("a", "b"), "to": ("a", "b")}])

@@ -180,9 +180,7 @@ def resolve_realized_rank_ic_observations(events: list[dict], horizon_days: int 
         origin_date = str(event["created_at"])[:10]
         dated_closes = dated_closes_by_ticker[ticker]
         dates_only = [entry[0] for entry in dated_closes]
-        position = bisect.bisect_left(dates_only, origin_date)
-        if position >= len(dated_closes) or dates_only[position] != origin_date:
-            continue
+        position = bisect.bisect_left(dates_only, origin_date)  # the event's own date is in `dates_only`, so this is its first row
 
         future_position = position + horizon_days
         if future_position >= len(dated_closes):

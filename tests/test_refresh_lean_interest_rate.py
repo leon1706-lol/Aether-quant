@@ -37,3 +37,33 @@ def test_change_points_and_the_file_reader(tmp_path):
     path.write_text("DATE,PCREDIT8\n2023-07-27,5.5\n\n", encoding="utf-8")
     header, rows, raw = refresh.read_rate_file(path)
     assert header == "DATE,PCREDIT8" and rows == [(date(2023, 7, 27), 5.5)] and raw == ["2023-07-27,5.5"]
+
+
+def test_an_empty_file_is_refused():
+    with pytest.raises(ValueError, match="empty"):
+        refresh.merge_rate_changes([], [(date(2026, 1, 2), 4.0)])
+
+
+def _cli(tmp_path, monkeypatch, fred, *argv):
+    import sys
+
+    import data_pipeline.fred_backfill as fred_backfill
+
+    path = tmp_path / "interest-rate.csv"
+    if not path.exists():
+        path.write_text("DATE,INTEREST_RATE\n2026-09-01,4.33\n", encoding="utf-8")
+    monkeypatch.setattr(fred_backfill, "fetch_fred_series", lambda series, start, end: [{"date": day, "value": value} for day, value in fred])
+    monkeypatch.setattr(sys, "argv", ["x", "--file", str(path), *argv])
+    return refresh.main(), path
+
+
+def test_the_cli_reports_appends_and_writes_only_with_apply(tmp_path, monkeypatch, capsys):
+    code, path = _cli(tmp_path, monkeypatch, [])
+    assert code == 1 and "returned nothing" in capsys.readouterr().out
+    code, path = _cli(tmp_path, monkeypatch, [(date(2026, 9, 1), 4.33)])
+    assert code == 0 and "nothing to append" in capsys.readouterr().out
+    later = [(date(2026, 9, 1), 4.33), (date(2026, 9, 18), 4.08)]
+    code, path = _cli(tmp_path, monkeypatch, later)
+    assert code == 0 and "dry run" in capsys.readouterr().out and "4.08" not in path.read_text(encoding="utf-8")
+    code, path = _cli(tmp_path, monkeypatch, later, "--apply")
+    assert code == 0 and path.read_text(encoding="utf-8").splitlines()[-1] == "2026-09-18,4.08"

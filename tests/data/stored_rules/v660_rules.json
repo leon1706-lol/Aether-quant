@@ -1,0 +1,894 @@
+{
+ "written": "2026-11-05, before any V6.6.0 candidate score; text = the plan the owner started on 2026-11-05",
+ "disclosures": [
+  "The families come from published work and decayed after publication; V1 and V3 measure that.",
+  "Project names were read 2013-2026 by every earlier phase and are always side A.",
+  "Cell P's side A rows are read by ML training (cell TA).",
+  "Market-wide conditions over all windows are known to whoever wrote these rules.",
+  "Yahoo has no delisted names; R-SURV1 charges for the gap, and QC cloud tests it where available.",
+  "S&P 500 membership is built from Wikipedia's change lists, and has errors.",
+  "EDGAR's ticker list holds current tickers, so a name that no longer trades has no fundamentals or sector; such a name is never traded and counts as missing in R-SURV1.",
+  "t3_crypto_trend_blend's selection window was read in V6.5.0; it enters the combination pool as installed.",
+  "A sector comes from today's SIC code, not the code at each date; it only sets which names rank together."
+ ],
+ "cells": {
+  "TA": {
+   "name": "TA",
+   "side": "A",
+   "start": "2004-01-01",
+   "end": "2018-12-31",
+   "split": null,
+   "universe": "equity"
+  },
+  "S": {
+   "name": "S",
+   "side": "A",
+   "start": "2011-01-01",
+   "end": "2018-12-31",
+   "split": "2015-01-01",
+   "universe": "equity"
+  },
+  "SV": {
+   "name": "SV",
+   "side": "A",
+   "start": "2018-08-01",
+   "end": "2022-12-31",
+   "split": "2020-10-01",
+   "universe": "equity"
+  },
+  "CS": {
+   "name": "CS",
+   "side": "A",
+   "start": "2018-01-01",
+   "end": "2022-12-31",
+   "split": "2020-07-01",
+   "universe": "crypto"
+  },
+  "V1": {
+   "name": "V1",
+   "side": "A",
+   "start": "2019-01-01",
+   "end": "2026-11-02",
+   "split": null,
+   "universe": "equity"
+  },
+  "V2": {
+   "name": "V2",
+   "side": "B",
+   "start": "2011-01-01",
+   "end": "2018-12-31",
+   "split": null,
+   "universe": "equity"
+  },
+  "V3": {
+   "name": "V3",
+   "side": "B",
+   "start": "2019-01-01",
+   "end": "2026-11-02",
+   "split": null,
+   "universe": "equity"
+  },
+  "CV": {
+   "name": "CV",
+   "side": "AB",
+   "start": "2018-01-01",
+   "end": "2026-11-02",
+   "split": null,
+   "universe": "crypto"
+  },
+  "P": {
+   "name": "P",
+   "side": "AB",
+   "start": "2004-01-01",
+   "end": "2010-12-31",
+   "split": null,
+   "universe": "equity"
+  }
+ },
+ "free_cells": [
+  "CS",
+  "S",
+  "SV",
+  "TA"
+ ],
+ "rename_and_twin_maps": {
+  "renames": {
+   "FB": "META",
+   "ANTM": "ELV",
+   "WLP": "ELV",
+   "ABC": "COR",
+   "RE": "EG",
+   "COG": "CTRA",
+   "HFC": "DINO",
+   "PKI": "RVTY",
+   "FLT": "CPAY",
+   "WLTW": "WTW",
+   "PEAK": "DOC",
+   "HCP": "DOC",
+   "ADS": "BFH",
+   "BBT": "TFC",
+   "CBS": "PSKY",
+   "VIAB": "PSKY",
+   "VIAC": "PSKY",
+   "PARA": "PSKY",
+   "GPS": "GAP",
+   "BLL": "BALL",
+   "TMK": "GL",
+   "UTX": "RTX",
+   "HRS": "LHX",
+   "SYMC": "GEN",
+   "NLOK": "GEN",
+   "LUK": "JEF",
+   "KORS": "CPRI",
+   "FBHS": "FBIN",
+   "CDAY": "DAY",
+   "BHGE": "BKR",
+   "BHI": "BKR",
+   "WYN": "TNL",
+   "WYND": "TNL",
+   "CTL": "LUMN",
+   "DPS": "KDP",
+   "JEC": "J",
+   "FI": "FISV",
+   "MMC": "MRSH"
+  },
+  "issuer_twins": {
+   "GOOG": "GOOGL",
+   "FOX": "FOXA",
+   "NWS": "NWSA",
+   "UA": "UAA",
+   "DISCK": "WBD",
+   "DISCA": "WBD",
+   "DISCB": "WBD",
+   "BF.A": "BF.B",
+   "BRK.A": "BRK.B",
+   "LEN.B": "LEN",
+   "HEI.A": "HEI",
+   "CMCSK": "CMCSA",
+   "LBTYK": "LBTYA",
+   "LSXMK": "LSXMA",
+   "TAP.A": "TAP"
+  }
+ },
+ "trial_budget": 30,
+ "weight_settings": {
+  "target_vol": 0.07,
+  "gross_cap": 1.4,
+  "name_cap": 0.03,
+  "class_caps": {
+   "crypto": 0.15
+  },
+  "name_cap_by_class": {
+   "crypto": 0.05
+  }
+ },
+ "path_overrides": {
+  "enabled": true,
+  "min_weight_change": 0.001,
+  "no_bar_exit": true,
+  "no_bar_exit_after": 2
+ },
+ "no_bar_exit_haircut_by_class": {
+  "equity": 0.05,
+  "bond": 0.05,
+  "forex": 0.0,
+  "crypto": 0.2
+ },
+ "costs": {
+  "equity_and_bond": "max(1.5 bps, $1) per side + 3 bps slippage",
+  "crypto": "Coinbase date-effective taker fee + 10 bps slippage, long only, 5% per name, 15% class (blocking); a Binance-fee run is reported, never gating",
+  "financing": "debit at Lean's rate + 150 bps; stock borrow 25 bps",
+  "sensitivity": "NAV $25k and 2x costs reported for every survivor, not a gate"
+ },
+ "model_track": {
+  "training_rows": "side A only, always, including verification and any install",
+  "purge_calendar_days": 31,
+  "early_stop_gap_sessions": 22,
+  "first_training_year": 2004,
+  "selection_test_years": [
+   2011,
+   2018
+  ],
+  "seeds": [
+   1,
+   2,
+   3
+  ],
+  "m4_hidden_layers": [
+   128,
+   64
+  ],
+  "m4_dropout": 0.15,
+  "m3_compute_fallback": "If one window takes over 40 minutes: 1 seed, 8 epochs. If still over 90 minutes: close m3, and m5 is the rank mean of m2 and m4."
+ },
+ "trials": {
+  "sleeves": [
+   {
+    "id": "w01",
+    "track": "W",
+    "kind": "cross_sectional",
+    "family": "external_score",
+    "universe": [
+     "communication_services",
+     "consumer_discretionary",
+     "consumer_staples",
+     "energy",
+     "financials",
+     "health_care",
+     "industrials",
+     "information_technology",
+     "materials",
+     "real_estate",
+     "utilities"
+    ],
+    "rebalance_every": 20,
+    "params": {
+     "table": "w01",
+     "top_k": 5
+    },
+    "cell": "S"
+   },
+   {
+    "id": "w02",
+    "track": "W",
+    "kind": "cross_sectional",
+    "family": "external_score",
+    "universe": [
+     "communication_services",
+     "consumer_discretionary",
+     "consumer_staples",
+     "energy",
+     "financials",
+     "health_care",
+     "industrials",
+     "information_technology",
+     "materials",
+     "real_estate",
+     "utilities"
+    ],
+    "rebalance_every": 20,
+    "params": {
+     "table": "w02",
+     "top_k": 5
+    },
+    "cell": "S"
+   },
+   {
+    "id": "w03",
+    "track": "W",
+    "kind": "cross_sectional",
+    "family": "external_score",
+    "universe": [
+     "communication_services",
+     "consumer_discretionary",
+     "consumer_staples",
+     "energy",
+     "financials",
+     "health_care",
+     "industrials",
+     "information_technology",
+     "materials",
+     "real_estate",
+     "utilities"
+    ],
+    "rebalance_every": 20,
+    "params": {
+     "table": "w03",
+     "top_k": 5
+    },
+    "cell": "S"
+   },
+   {
+    "id": "w04",
+    "track": "W",
+    "kind": "cross_sectional",
+    "family": "external_score",
+    "universe": [
+     "communication_services",
+     "consumer_discretionary",
+     "consumer_staples",
+     "energy",
+     "financials",
+     "health_care",
+     "industrials",
+     "information_technology",
+     "materials",
+     "real_estate",
+     "utilities"
+    ],
+    "rebalance_every": 20,
+    "params": {
+     "table": "w04",
+     "top_k": 5
+    },
+    "cell": "S"
+   },
+   {
+    "id": "w05",
+    "track": "W",
+    "kind": "cross_sectional",
+    "family": "external_score",
+    "universe": [
+     "communication_services",
+     "consumer_discretionary",
+     "consumer_staples",
+     "energy",
+     "financials",
+     "health_care",
+     "industrials",
+     "information_technology",
+     "materials",
+     "real_estate",
+     "utilities"
+    ],
+    "rebalance_every": 20,
+    "params": {
+     "table": "w05",
+     "top_k": 5
+    },
+    "cell": "S"
+   },
+   {
+    "id": "w06",
+    "track": "W",
+    "kind": "cross_sectional",
+    "family": "external_score",
+    "universe": [
+     "communication_services",
+     "consumer_discretionary",
+     "consumer_staples",
+     "energy",
+     "financials",
+     "health_care",
+     "industrials",
+     "information_technology",
+     "materials",
+     "real_estate",
+     "utilities"
+    ],
+    "rebalance_every": 20,
+    "params": {
+     "table": "w06",
+     "top_k": 5
+    },
+    "cell": "S"
+   },
+   {
+    "id": "w07",
+    "track": "W",
+    "kind": "cross_sectional",
+    "family": "external_score",
+    "universe": [
+     "communication_services",
+     "consumer_discretionary",
+     "consumer_staples",
+     "energy",
+     "financials",
+     "health_care",
+     "industrials",
+     "information_technology",
+     "materials",
+     "real_estate",
+     "utilities"
+    ],
+    "rebalance_every": 20,
+    "params": {
+     "table": "w07",
+     "top_k": 5
+    },
+    "cell": "S"
+   },
+   {
+    "id": "w08",
+    "track": "W",
+    "kind": "cross_sectional",
+    "family": "external_score",
+    "universe": [
+     "communication_services",
+     "consumer_discretionary",
+     "consumer_staples",
+     "energy",
+     "financials",
+     "health_care",
+     "industrials",
+     "information_technology",
+     "materials",
+     "real_estate",
+     "utilities"
+    ],
+    "rebalance_every": 20,
+    "params": {
+     "table": "w08",
+     "top_k": 5
+    },
+    "cell": "S"
+   },
+   {
+    "id": "w09",
+    "track": "W",
+    "kind": "cross_sectional",
+    "family": "external_score",
+    "universe": [
+     "communication_services",
+     "consumer_discretionary",
+     "consumer_staples",
+     "energy",
+     "financials",
+     "health_care",
+     "industrials",
+     "information_technology",
+     "materials",
+     "real_estate",
+     "utilities"
+    ],
+    "rebalance_every": 20,
+    "params": {
+     "table": "w09",
+     "top_k": 5
+    },
+    "cell": "S"
+   },
+   {
+    "id": "w10",
+    "track": "W",
+    "kind": "cross_sectional",
+    "family": "external_score",
+    "universe": [
+     "communication_services",
+     "consumer_discretionary",
+     "consumer_staples",
+     "energy",
+     "financials",
+     "health_care",
+     "industrials",
+     "information_technology",
+     "materials",
+     "real_estate",
+     "utilities"
+    ],
+    "rebalance_every": 20,
+    "params": {
+     "table": "w10",
+     "top_k": 5
+    },
+    "cell": "S"
+   },
+   {
+    "id": "w11",
+    "track": "W",
+    "kind": "cross_sectional",
+    "family": "external_score",
+    "universe": [
+     "communication_services",
+     "consumer_discretionary",
+     "consumer_staples",
+     "energy",
+     "financials",
+     "health_care",
+     "industrials",
+     "information_technology",
+     "materials",
+     "real_estate",
+     "utilities"
+    ],
+    "rebalance_every": 20,
+    "params": {
+     "table": "w11",
+     "top_k": 5
+    },
+    "cell": "S"
+   },
+   {
+    "id": "w12",
+    "track": "W",
+    "kind": "cross_sectional",
+    "family": "external_score",
+    "universe": [
+     "communication_services",
+     "consumer_discretionary",
+     "consumer_staples",
+     "energy",
+     "financials",
+     "health_care",
+     "industrials",
+     "information_technology",
+     "materials",
+     "real_estate",
+     "utilities"
+    ],
+    "rebalance_every": 20,
+    "params": {
+     "table": "w12",
+     "top_k": 5
+    },
+    "cell": "S"
+   },
+   {
+    "id": "w13",
+    "track": "W",
+    "kind": "cross_sectional",
+    "family": "external_score",
+    "universe": [
+     "communication_services",
+     "consumer_discretionary",
+     "consumer_staples",
+     "energy",
+     "financials",
+     "health_care",
+     "industrials",
+     "information_technology",
+     "materials",
+     "real_estate",
+     "utilities"
+    ],
+    "rebalance_every": 20,
+    "params": {
+     "table": "w13",
+     "top_k": 5
+    },
+    "cell": "SV"
+   },
+   {
+    "id": "w14",
+    "track": "W",
+    "kind": "cross_sectional",
+    "family": "external_score",
+    "universe": [
+     "communication_services",
+     "consumer_discretionary",
+     "consumer_staples",
+     "energy",
+     "financials",
+     "health_care",
+     "industrials",
+     "information_technology",
+     "materials",
+     "real_estate",
+     "utilities"
+    ],
+    "rebalance_every": 5,
+    "params": {
+     "table": "w14",
+     "top_k": 5
+    },
+    "cell": "S"
+   },
+   {
+    "id": "w15",
+    "track": "W",
+    "kind": "cross_sectional",
+    "family": "external_score",
+    "universe": [
+     "communication_services",
+     "consumer_discretionary",
+     "consumer_staples",
+     "energy",
+     "financials",
+     "health_care",
+     "industrials",
+     "information_technology",
+     "materials",
+     "real_estate",
+     "utilities"
+    ],
+    "rebalance_every": 20,
+    "params": {
+     "table": "w15",
+     "top_k": 5
+    },
+    "cell": "S"
+   },
+   {
+    "id": "m1",
+    "track": "M",
+    "kind": "cross_sectional",
+    "family": "external_score",
+    "universe": [
+     "communication_services",
+     "consumer_discretionary",
+     "consumer_staples",
+     "energy",
+     "financials",
+     "health_care",
+     "industrials",
+     "information_technology",
+     "materials",
+     "real_estate",
+     "utilities"
+    ],
+    "rebalance_every": 20,
+    "params": {
+     "table": "m1",
+     "top_k": 5
+    },
+    "cell": "S"
+   },
+   {
+    "id": "m2",
+    "track": "M",
+    "kind": "cross_sectional",
+    "family": "external_score",
+    "universe": [
+     "communication_services",
+     "consumer_discretionary",
+     "consumer_staples",
+     "energy",
+     "financials",
+     "health_care",
+     "industrials",
+     "information_technology",
+     "materials",
+     "real_estate",
+     "utilities"
+    ],
+    "rebalance_every": 20,
+    "params": {
+     "table": "m2",
+     "top_k": 5
+    },
+    "cell": "S"
+   },
+   {
+    "id": "m3",
+    "track": "M",
+    "kind": "cross_sectional",
+    "family": "external_score",
+    "universe": [
+     "communication_services",
+     "consumer_discretionary",
+     "consumer_staples",
+     "energy",
+     "financials",
+     "health_care",
+     "industrials",
+     "information_technology",
+     "materials",
+     "real_estate",
+     "utilities"
+    ],
+    "rebalance_every": 20,
+    "params": {
+     "table": "m3",
+     "top_k": 5
+    },
+    "cell": "S"
+   },
+   {
+    "id": "m4",
+    "track": "M",
+    "kind": "cross_sectional",
+    "family": "external_score",
+    "universe": [
+     "communication_services",
+     "consumer_discretionary",
+     "consumer_staples",
+     "energy",
+     "financials",
+     "health_care",
+     "industrials",
+     "information_technology",
+     "materials",
+     "real_estate",
+     "utilities"
+    ],
+    "rebalance_every": 20,
+    "params": {
+     "table": "m4",
+     "top_k": 5
+    },
+    "cell": "S"
+   },
+   {
+    "id": "m5",
+    "track": "M",
+    "kind": "cross_sectional",
+    "family": "external_score",
+    "universe": [
+     "communication_services",
+     "consumer_discretionary",
+     "consumer_staples",
+     "energy",
+     "financials",
+     "health_care",
+     "industrials",
+     "information_technology",
+     "materials",
+     "real_estate",
+     "utilities"
+    ],
+    "rebalance_every": 20,
+    "params": {
+     "table": "m5",
+     "top_k": 5
+    },
+    "cell": "S"
+   },
+   {
+    "id": "c1",
+    "track": "C",
+    "kind": "cross_sectional",
+    "family": "external_score",
+    "universe": [
+     "crypto"
+    ],
+    "rebalance_every": 20,
+    "params": {
+     "table": "c1",
+     "top_k": 10
+    },
+    "cell": "CS"
+   },
+   {
+    "id": "c2",
+    "track": "C",
+    "kind": "cross_sectional",
+    "family": "external_score",
+    "universe": [
+     "crypto"
+    ],
+    "rebalance_every": 20,
+    "params": {
+     "table": "c2",
+     "top_k": 10
+    },
+    "cell": "CS"
+   },
+   {
+    "id": "c3",
+    "track": "C",
+    "kind": "cross_sectional",
+    "family": "external_score",
+    "universe": [
+     "crypto"
+    ],
+    "rebalance_every": 20,
+    "params": {
+     "table": "c3",
+     "top_k": 10
+    },
+    "cell": "CS"
+   },
+   {
+    "id": "c4",
+    "track": "C",
+    "kind": "cross_sectional",
+    "family": "external_score",
+    "universe": [
+     "crypto"
+    ],
+    "rebalance_every": 20,
+    "params": {
+     "table": "c4",
+     "top_k": 10
+    },
+    "cell": "CS"
+   },
+   {
+    "id": "c5",
+    "track": "C",
+    "kind": "time_series",
+    "family": "external_score",
+    "universe": [
+     "crypto"
+    ],
+    "rebalance_every": 5,
+    "params": {
+     "table": "c5"
+    },
+    "cell": "CS"
+   },
+   {
+    "id": "e1",
+    "track": "E",
+    "kind": "cross_sectional",
+    "family": "cross_sectional_return",
+    "universe": [
+     "sector_etf"
+    ],
+    "rebalance_every": 20,
+    "params": {
+     "lookback": 126
+    },
+    "cell": "S"
+   },
+   {
+    "id": "e2",
+    "track": "E",
+    "kind": "cross_sectional",
+    "family": "cross_sectional_return",
+    "universe": [
+     "bond_etf"
+    ],
+    "rebalance_every": 20,
+    "params": {
+     "lookback": 126
+    },
+    "cell": "S"
+   },
+   {
+    "id": "e3",
+    "track": "E",
+    "kind": "direct",
+    "family": "external_score",
+    "universe": [
+     "benchmark"
+    ],
+    "rebalance_every": 21,
+    "params": {
+     "table": "e3"
+    },
+    "cell": "S"
+   }
+  ],
+  "combinations": [
+   "t1",
+   "t2"
+  ],
+  "no_ic_clause": [
+   "c5",
+   "e3"
+  ],
+  "min_live_names": {
+   "W": 150,
+   "M": 150,
+   "C": 12,
+   "E": 5
+  },
+  "min_live_names_by_trial": {
+   "c5": 2,
+   "e3": 1
+  },
+  "min_ic_names": {
+   "W": 20,
+   "M": 20,
+   "C": 8,
+   "E": 5
+  },
+  "pbo_columns": [
+   "w01",
+   "w02",
+   "w03",
+   "w04",
+   "w05",
+   "w06",
+   "w07",
+   "w08",
+   "w09",
+   "w10",
+   "w11",
+   "w12",
+   "w14",
+   "w15",
+   "m1",
+   "m2",
+   "m3",
+   "m4",
+   "m5",
+   "e1",
+   "e2",
+   "e3"
+  ]
+ },
+ "rules": {
+  "R-VEL1": "On t3_crypto_trend_blend, 2014-12-01..2026-11-02, engine: a sticky drawdown-velocity lock at k x target_vol / sqrt(252), k in {5, 8}, against off. Adopt the smallest k whose lock leaves >= 95% of sessions trading and cuts the worst 5-day loss by >= 20%, verified in Lean. Otherwise velocity stays off as a decision, with the numbers.",
+  "R-INSTR2": "On BT25 and BT27: daily correlation engine vs Lean >= 0.99, annual gap <= 100 bps, fees within 2%, within <= 3 fix cycles. On failure selection stays on the engine, but every survivor must repeat its score in Lean on its selection cell.",
+  "R-SLEEVE3": "Net of costs and financing, on strategy_excess (sessions at 252 unless crypto-only), median of 5 phases, in its selection cell: clears min_live_names; Sharpe >= 0.40 in both halves and pooled >= 0.50; rank-IC non-overlapping t >= 2.0 (not for no_ic_clause); p < 0.05 against each null of nulls_for, 100 placebos each, run only for trials passing the earlier clauses. Among survivors, daily correlation > 0.7 drops the lower Sharpe; at most 5 remain. Zero survivors: verdict at once.",
+  "PBO": "evaluation/pbo.py with blocks=16 over pbo_columns on cell S. PBO >= 0.5 or None: verdict at once, no retry. Crypto trials and w13 are on other windows, and t1/t2 are built from survivors; they are outside the matrix.",
+  "R-LEAN21": "The better of t1/t2 by selection Sharpe, in Lean on the free cells (equities S, crypto CS): alpha HAC t >= 2.0 against SPY/AGG/BTC, drawdown <= 15%, complete run. Failure: verdict at once.",
+  "R-HOLD1": "After the freeze, once, offline, on the candidate's equity sleeves: V3 Sharpe >= 0.50 and alpha t >= 2.0; V1 and V2 Sharpe > 0 (V1 from 2023-01-01 if it holds w13). A crypto-only candidate reads CV: Sharpe >= 0.50 and alpha t >= 2.0. Failure: verdict at once, no Lean placebos spent.",
+  "R-CRYPTO1": "Frozen t3_crypto_trend_blend on never-read side-B liquid coins, 2018-01-01..2026-11-02, delisted included: Sharpe, alpha t and the share of return from coins later delisted. Reported always; gating only when the candidate holds crypto (E5a).",
+  "R-SURV1": "drag(y) = missing_share(y) x long_gross(y) x 0.30, per year, subtracted evenly per day. missing_share counts every excluded name and, for a fundamental family, names with no EDGAR data. E1 after drag = Lean Sharpe - drag / Annual Standard Deviation.",
+  "R-EDGE2": {
+   "E1": "Lean Sharpe >= 1.00 on 2023-07-01..2026-11-02, median of 5 phases; the median run becomes the pin; minimum phase reported.",
+   "E2": "Alpha Newey-West t >= 3.0 vs SPY/AGG/BTC on the longest window the candidate can be scored in (2011-01-01..2026-11-02 with fundamentals), on the T-bill-free series, with n asserted to span it.",
+   "E3": "Deflated Sharpe >= 0.95 on the E2 series, N = 128 + V6.6 candidates (asserted), variance from v660 selection candidates floored at 0.04. Legacy-variance DSR reported beside it.",
+   "E4": "40 asset_block + 40 time_shift Lean placebos on the E1 window: strategy Sharpe beaten by <= 1 in each set (p = 2/41). Time-series sleeves use sign_block.",
+   "E5a": "Lean, side B only, 2019-01-01..2026-11-02: strategy-excess Sharpe >= 0.50 and alpha t >= 2.0. A candidate holding crypto also passes R-CRYPTO1 with Sharpe > 0.",
+   "E5b": "Lean on cell P, price families only (fundamental weight redistributed, disclosed): Sharpe > 0, alpha > 0. Not applicable if the candidate has no price family; recorded.",
+   "E6a": "After R-SURV1's drag, E1 and E2 still pass.",
+   "E6b": "QC cloud, if available on the owner's free plan: strategy Sharpe >= 50% of the free-data figure on the same window and alpha > 0. Unavailable is recorded and doesn't fail; the label then says survivorship bounded, not tested."
+  },
+  "after_the_read": "A defect found after R-HOLD1 is read gets its fix, test and Problems entry, with no re-read and no re-freeze. If it could have changed a clause, the verdict is recorded as not verified.",
+  "install": "All of R-EDGE2 passing installs the candidate by rule, labelled verified on historical data, forward test pending. Anything else changes nothing and is written up as refuted for this search, quoting excluded_alpha_sharpe per track. No iteration on any verification data."
+ }
+}

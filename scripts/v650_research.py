@@ -145,7 +145,7 @@ def stage_placebo(args) -> int:
             out[mode] = {"p": placebo_p_value(score["sharpe"], sharpes), "draws": len(sharpes),
                          "median": float(pd.Series(sharpes).median()) if sharpes else None,
                          "q95": float(pd.Series(sharpes).quantile(0.95)) if sharpes else None}
-            print(f"{spec.id:28s} {mode:12s} p {out[mode]['p']:.3f}  placebo median {out[mode]['median']:.2f} q95 {out[mode]['q95']:.2f}", flush=True)
+            print(f"{spec.id:28s} {mode:12s} p {out[mode]['p']:.3f}  placebo median {_show(out[mode]['median'])} q95 {_show(out[mode]['q95'])}", flush=True)
             for sharpe in sharpes:
                 append_trial(ledger_path, trial_id=f"{spec.id}:{mode}", track=spec.track, window="selection", role="placebo",
                              annualised_sharpe=sharpe, n_obs=0, engine="offline")

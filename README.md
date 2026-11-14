@@ -12,7 +12,7 @@
   <img src="https://img.shields.io/badge/python-3.11-FF8C00?style=flat-square&labelColor=1A1A1A&logo=python&logoColor=white" alt="Python 3.11">
   <a href="LICENSE"><img src="https://img.shields.io/badge/library-Apache--2.0-2EA44F?style=flat-square&labelColor=1A1A1A" alt="Library license: Apache-2.0"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/trading%20system-PolyForm%20Noncommercial-8B5CF6?style=flat-square&labelColor=1A1A1A" alt="Trading system license: PolyForm Noncommercial 1.0.0"></a>
-  <!-- AQ:TEST_BADGE_START --><img src="https://img.shields.io/badge/tests-5362%2F5362%20passing-brightgreen?style=flat-square&labelColor=1A1A1A" alt="5362 of 5362 tests passing"><!-- AQ:TEST_BADGE_END -->
+  <img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fleon1706-lol.github.io%2FAether-quant%2Fbadges%2Ftests.json&style=flat-square&labelColor=1A1A1A" alt="Tests passing on CI">
   <img src="https://img.shields.io/pypi/v/aether-quant?style=flat-square&labelColor=1A1A1A&color=FF8C00&logo=pypi&logoColor=white" alt="PyPI version">
   <img src="https://img.shields.io/badge/docker-ghcr.io%2Faether--quant-2496ED?style=flat-square&labelColor=1A1A1A&logo=docker&logoColor=white" alt="Docker image on GHCR">
 </p>
@@ -64,7 +64,7 @@ aq hello                        # downloads 11 coins (keyless), runs the shipped
 ## Known Limitations
 
 - **No demonstrated edge.** The sleeve is mostly crypto exposure, and almost all of its result came before mid-2025. See [Alpha by Period](#alpha-by-period).
-- **Nothing has survived selection.** All 71 pre-registered trials of the last six rounds failed, so the holdouts stay unread. See [Research Record](#research-record).
+- **Nothing has survived selection.** None of the project's <!--fact:research.trials-->217<!--/fact--> pre-registered trials survived, so the holdouts stay unread. See [Research Record](#research-record).
 - **Hindsight in the universe.** The 11 coins are today's survivors. The same rule scored Sharpe -0.06 on coins no rule had read (#301). EOS, which Coinbase delisted, left the book on 2026-11-07 (#311).
 - **Paper only, and no broker yet.** Interactive Brokers cannot fill this sleeve, and the crypto venue (Coinbase assumed) needs an API key (#192). See RUNBOOK "When the keys arrive".
 - **IB is unverified end to end.** Connection, live futures margin and all <!--fact:options.structures-->43<!--/fact--> option structures have only met Lean's samples, never a real Gateway. Futures and options stay data-empty until a key is connected (`aq ib status`).
@@ -219,7 +219,7 @@ Runnable tours: [`examples/aether_quant_quickstart.py`](examples/aether_quant_qu
 | Dashboard | `docker run --rm -p 8080:8000 ghcr.io/leon1706-lol/aether-quant-dashboard:latest` | the web UI with demo data, no database |
 | Whole system | `pip install "aether-quant[full]"`, `docker pull ghcr.io/leon1706-lol/aether-quant:latest` | Lean CLI, torch, Redis, Postgres clients, the engine image |
 
-The light install and the dashboard image arrive with release 6.6.5; before it, install from a clone. The 40 GB Lean engine image is only for real Lean backtests and deployments, never for research.
+The 40 GB Lean engine image is only for real Lean backtests and deployments, never for research.
 
 ## Getting Started
 
@@ -639,7 +639,7 @@ Each search used rules written before any score. Details are in [`development/Pr
 
 ## Test Suite
 
-<!-- AQ:TEST_COUNT_START -->5362<!-- AQ:TEST_COUNT_END --> tests, one file per source module. `aq test` runs them and refreshes the badge above. Conventions: [`tests/README.md`](tests/README.md).
+One test file per source module; the badge above counts them on CI's last green run of `main`. `aq test` runs them, and `aq test --coverage` measures every tracked module on a small PC. Conventions: [`tests/README.md`](tests/README.md).
 
 ## CLI Reference
 
@@ -651,7 +651,7 @@ aq hello [--offline] [--start YYYY-MM-DD] [--end YYYY-MM-DD] [--json FILE] [--ht
 ```
 Start here: one command, no key, no Docker. It downloads daily bars for the shipped book's 11 coins from Coinbase's public candles, runs the shipped rule through a cost-aware backtest, and prints a report with BTC and equal-weight benchmarks and the overfitting checks (PSR, PBO, deflated and haircut Sharpe, minimum track record).
 
-- **`--offline`:** the sample bundled in the wheel (2021-06 to 2026-10). Any failed download falls back to it too, with a notice.
+- **`--offline`:** the sample bundled in the wheel (<!--fact:sample.months-->2021-06 to 2026-10<!--/fact-->). Any failed download falls back to it too, with a notice.
 - **`--json`, `--html`:** also write the report, or a self-contained page with the equity curve.
 - **`--no-cache`:** download again instead of reading `~/.cache/aether-quant/candles`.
 - **From Python:** `aether_quant.hello.run(offline=True)`.
@@ -670,12 +670,13 @@ Builds the dataset and trains the models into `ml/`.
 
 #### `aq test`
 ```text
-aq test [--ruff] [--parallel] [--lean|--full]
-aq test [--cli] [--risk] [--portfolio] [--features] [--data-pipeline] [--webui] [--ml] [--retraining] [--notifications] [--storage] [--live] [--audit] [--evaluation] [--formal] [--meta]
+aq test [--ruff] [--parallel] [--lean|--full] [--coverage]
+aq test [--cli] [--risk] [--portfolio] [--features] [--data-pipeline] [--webui] [--ml] [--retraining] [--notifications] [--storage] [--live] [--audit] [--evaluation] [--formal] [--meta] [--scripts]
 ```
-Runs pytest and refreshes the badge on a full run.
+Runs pytest, then syncs the doc facts on a full run. The test badge is CI's.
 
 - **`--ruff`:** lint first and fail fast.
+- **`--coverage`:** each group in turn under coverage, then the combined report; every tracked module must reach 100%.
 - **`--parallel`:** xdist. Don't use it on a low-memory machine, because each worker imports torch.
 - **`--lean`, `--full`:** add the real Lean integration test, over an hour.
 - **Subsystem flags:** run only those test files; they combine.
@@ -976,15 +977,18 @@ Shows `git status`.
 A release happens only on a pushed version tag:
 
 ```powershell
-git tag v6.6.2
-git push origin v6.6.2
+git tag vX.Y.Z
+git push origin vX.Y.Z
 ```
 
 The tag sets the version through `setuptools-scm`, then `.github/workflows/release.yml`:
 
-- runs the test suite, and a failure blocks the release;
+- runs the test suite beside the release, for visibility only (a failure does not block it);
 - publishes to PyPI through Trusted Publishing, with no stored token;
-- pushes the Docker image to `ghcr.io/leon1706-lol/aether-quant`.
+- pushes the engine and dashboard images to `ghcr.io/leon1706-lol/aether-quant` and `aether-quant-dashboard`, each with an SBOM and provenance;
+- creates the GitHub release with the wheel, sdist and SBOM, a Sigstore signature per file and SLSA provenance, then refreshes the OpenSSF Scorecard.
+
+A release published without those assets gets them from a dispatch of the same workflow with `backfill_tag` (RUNBOOK "Releases").
 
 ## Roadmap
 

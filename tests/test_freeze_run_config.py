@@ -49,3 +49,16 @@ def test_an_item_without_a_live_path_is_refused():
 def test_the_lean_window_is_set_when_asked():
     config = freezer.freeze(BASE, {"config": {}}, ("2023-07-01", "2026-10-16"))
     assert config["runtime"]["lean_window_override"] == {"start": "2023-07-01", "end": "2026-10-16"}
+
+
+def test_main_freezes_a_run_config_and_prints_its_hash(tmp_path, monkeypatch, capsys):
+    import json
+
+    adopted = tmp_path / "adopted.json"
+    adopted.write_text(json.dumps({"changes": {}, "needs_live_path": ["something unbuilt"]}), encoding="utf-8")
+    monkeypatch.setattr(freezer, "ROOT_DIR", tmp_path)
+    (tmp_path / "ml" / "evaluation" / "run_configs").mkdir(parents=True)
+    monkeypatch.setattr(sys, "argv", ["x", "--base", str(ROOT / "config.json"), "--adopted", str(adopted), "--name", "frozen", "--allow-unbuilt", "--lean-window", "2024-01-01", "2024-06-30"])
+    assert freezer.main() == 0
+    config = json.loads((tmp_path / "ml" / "evaluation" / "run_configs" / "frozen.json").read_text(encoding="utf-8"))
+    assert config["runtime"]["lean_window_override"]["start"] == "2024-01-01" and "sha256 " in capsys.readouterr().out

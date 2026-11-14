@@ -169,7 +169,7 @@ class Chain644(Chain):
     def exclude_tickers(self, harness, tickers):
         """The main book without `tickers` (their live score NaN while the block runs)."""
         frame = self.frame()
-        scores = pd.Series(self.installed().to_numpy(), index=frame.index)
+        scores = pd.Series(self.installed().to_numpy(dtype=float, copy=True), index=frame.index)  # a copy: a view would write the NaNs into the installed scores
         scores[frame["ticker"].isin(list(tickers)).to_numpy()] = np.nan
         with self.score_override(harness, scores):
             yield

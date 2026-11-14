@@ -4,9 +4,17 @@ name: Release
 # tag. Nothing else triggers this workflow - matches this project's existing
 # bias toward no uncontrolled automatic actions (see e.g. retraining's
 # manual promote/rollback).
+# V6.6.6 (#356): every release carries its wheel, sdist, SBOM, a Sigstore signature per file and SLSA provenance, so the
+# OpenSSF Scorecard sees it (a release with no assets is skipped). A dispatch with `backfill_tag` signs and attaches PyPI's
+# own files to a release published before that, and publishes nothing.
 on:
   push:
     tags: ["v*.*.*"]
+  workflow_dispatch:
+    inputs:
+      backfill_tag:
+        description: "A published tag (vX.Y.Z) whose release lacks signed assets"
+        required: true
 
 # Least privilege by default (the publishing jobs raise their own; CodeQL actions/missing-workflow-permissions).
 permissions:
@@ -19,11 +27,12 @@ jobs:
   # (user decision): releases proceed regardless; read this job's result to
   # see where the gaps are.
   tag-tests:
+    if: github.event_name == 'push'
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.11"
           cache: "pip"
@@ -36,7 +45,10 @@ jobs:
         run: pytest -m "not lean_backtest" -ra
 
   publish-pypi:
+    if: github.event_name == 'push'
     runs-on: ubuntu-24.04
+    outputs:
+      hashes: ${{ steps.hash.outputs.hashes }}
     environment: pypi # must match the Environment name configured in PyPI's Trusted Publisher setup
     permissions:
       # Required for PyPI Trusted Publishing (OIDC) - no PyPI token is ever
@@ -47,11 +59,11 @@ jobs:
       attestations: write
       contents: read
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0 # full history/tags - required for setuptools-scm
 
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.11"
 
@@ -61,7 +73,7 @@ jobs:
           python -m build
 
       - name: Attest build provenance of the wheel and sdist
-        uses: actions/attest-build-provenance@v1
+        uses: actions/attest-build-provenance@ef244123eb79f2f7a7e75d99086184180e6d0018 # v1.4.4
         with:
           subject-path: "dist/*"
 
@@ -71,17 +83,30 @@ jobs:
           "$RUNNER_TEMP/sbom/bin/pip" install dist/*.whl "cyclonedx-bom==4.6.1"
           "$RUNNER_TEMP/sbom/bin/cyclonedx-py" environment "$RUNNER_TEMP/sbom" --output-format JSON --outfile sbom-wheel.cdx.json
 
-      - uses: actions/upload-artifact@v7
+      - name: Subjects of the SLSA provenance
+        id: hash
+        run: echo "hashes=$(cd dist && sha256sum -- * | base64 -w0)" >> "$GITHUB_OUTPUT"
+
+      # signed in a copy: the publish step uploads everything in dist/
+      - name: Release assets, each signed with Sigstore
+        run: |
+          mkdir release-assets
+          cp dist/* sbom-wheel.cdx.json release-assets/
+          python -m pip install "sigstore==4.5.1"
+          python -m sigstore sign release-assets/*.whl release-assets/*.tar.gz
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: sbom-wheel
-          path: sbom-wheel.cdx.json
+          name: release-assets
+          path: release-assets/
 
       - name: Publish to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
+        uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # v1.14.3
 
   # V6.6.5 (#344, #353): two images from one Dockerfile: the engine (default target) and the light dashboard, each with
   # an SBOM and a provenance attestation.
   publish-docker:
+    if: github.event_name == 'push'
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
@@ -103,18 +128,18 @@ jobs:
       # would fail with "invalid reference format".
       IMAGE_NAME: ${{ matrix.image }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
 
-      - uses: docker/login-action@v3
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5.10.0
         with:
           images: ${{ env.IMAGE_NAME }}
           tags: |
@@ -122,7 +147,7 @@ jobs:
             type=raw,value=latest
 
       - id: build
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
         with:
           context: .
           target: ${{ matrix.target }}
@@ -140,14 +165,14 @@ jobs:
           cache-to: type=gha,mode=max,scope=${{ matrix.target }}
 
       - name: Attest the image's provenance
-        uses: actions/attest-build-provenance@v1
+        uses: actions/attest-build-provenance@ef244123eb79f2f7a7e75d99086184180e6d0018 # v1.4.4
         with:
           subject-name: ${{ matrix.image }}
           subject-digest: ${{ steps.build.outputs.digest }}
           push-to-registry: true
 
       - name: SBOM of the image (CycloneDX)
-        uses: anchore/sbom-action@v0
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
         with:
           image: ${{ matrix.image }}@${{ steps.build.outputs.digest }}
           format: cyclonedx-json
@@ -156,27 +181,109 @@ jobs:
           # on a tag the action would also attach the SBOM to the release, which needs contents: write (v6.6.5 failed there)
           upload-release-assets: false
 
-  # Creates the GitHub Release itself, once per tag. Notes are auto-generated
-  # (commit list since the previous tag); the body additionally points at the
-  # matching development/Changelog.md entry, which is this repo's canonical
-  # per-version record (see CONTRIBUTING.md's versioning section).
+  # Creates the GitHub Release once per tag, with the signed assets. Notes are auto-generated (commit list since the
+  # previous tag); the body points at development/Changelog.md, the canonical per-version record.
   github-release:
+    if: github.event_name == 'push'
+    needs: publish-pypi
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     permissions:
       contents: write
+      actions: write
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
-      - name: Create GitHub Release with changelog link
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: release-assets
+          path: release-assets
+
+      - name: Create the release with its assets
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG="${GITHUB_REF_NAME}"
           VERSION="${TAG#v}"
-          # a re-run of a tag (a fixed workflow, the tag moved) keeps the release that already exists
-          if gh release view "$TAG" > /dev/null 2>&1; then echo "release $TAG already exists"; exit 0; fi
+          # a re-run of a tag (a fixed workflow, the tag moved) keeps the release and replaces its assets
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            gh release upload "$TAG" release-assets/* --clobber
+            exit 0
+          fi
           BODY="See [development/Changelog.md](https://github.com/${GITHUB_REPOSITORY}/blob/main/development/Changelog.md) for the full entry for \`V${VERSION}\` and every prior release."
-          gh release create "$TAG" \
-            --title "Aether Quant ${TAG}" \
-            --notes "$BODY" \
-            --generate-notes
+          gh release create "$TAG" release-assets/*             --title "Aether Quant ${TAG}"             --notes "$BODY"             --generate-notes
+
+  # SLSA level 3 provenance of the wheel and sdist, attached to the release as an .intoto.jsonl.
+  provenance:
+    if: github.event_name == 'push'
+    needs: [publish-pypi, github-release]
+    permissions:
+      actions: read
+      id-token: write
+      contents: write
+    # a reusable workflow is referenced by tag: the generator verifies its own ref and refuses a commit SHA
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.1.0
+    with:
+      base64-subjects: ${{ needs.publish-pypi.outputs.hashes }}
+      provenance-name: aether_quant-${{ github.ref_name }}.intoto.jsonl
+      upload-assets: true
+
+  # The Scorecard reads releases when it runs; run it on main once the release and its provenance exist.
+  scorecard-refresh:
+    if: github.event_name == 'push'
+    needs: provenance
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      actions: write
+    steps:
+      - name: Dispatch the Scorecard on main
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: gh workflow run scorecard.yml --ref main
+
+  # Dispatch only: PyPI's own wheel and sdist for an older tag (digests checked against PyPI), signed and attached.
+  backfill-assets:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      id-token: write
+      actions: write
+    steps:
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.11"
+
+      - name: Download, check, sign and attach
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ inputs.backfill_tag }}
+        run: |
+          case "$TAG" in v[0-9]*.[0-9]*.[0-9]*) ;; *) echo "not a vX.Y.Z tag: $TAG"; exit 1 ;; esac
+          gh release view "$TAG" > /dev/null
+          mkdir release-assets
+          python - "${TAG#v}" <<'EOF'
+          import hashlib, json, sys, urllib.request
+          version = sys.argv[1]
+          with urllib.request.urlopen(f"https://pypi.org/pypi/aether-quant/{version}/json", timeout=60) as response:
+              files = json.load(response)["urls"]
+          if not files:
+              sys.exit(f"PyPI has no files for {version}")
+          for entry in files:
+              with urllib.request.urlopen(entry["url"], timeout=120) as response:
+                  body = response.read()
+              if hashlib.sha256(body).hexdigest() != entry["digests"]["sha256"]:
+                  sys.exit(f"digest mismatch: {entry['filename']}")
+              with open(f"release-assets/{entry['filename']}", "wb") as handle:
+                  handle.write(body)
+          EOF
+          python -m pip install "sigstore==4.5.1"
+          python -m sigstore sign release-assets/*
+          gh release upload "$TAG" release-assets/* --clobber
+          gh workflow run scorecard.yml --ref main

@@ -62,6 +62,17 @@ def test_report_numbers_are_finite_and_stable(report):
     assert report.equity.iloc[0] == 1.0
 
 
+def test_the_docs_summary_is_this_run(report):
+    """docs_facts reads `hello.*` from this file into the docs (V6.6.6): a changed sample or rule fails here, not silently on the site."""
+    summary = json.loads((ROOT / "tests" / "data" / "hello_offline_summary.json").read_text(encoding="utf-8"))
+    assert summary == {
+        "gross_pct": f"{report.strategy.average_gross * 100:.0f}",
+        "haircut_sharpe": f"{report.haircut_sharpe:.2f}",
+        "sharpe": f"{report.strategy.sharpe:.2f}",
+        "start": report.start,
+    }
+
+
 def test_text_json_and_html(report, tmp_path):
     text = render_text(report)
     for needle in ("Shipped rule", "BTC buy & hold", "PBO", "Deflated Sharpe", "No verified edge"):

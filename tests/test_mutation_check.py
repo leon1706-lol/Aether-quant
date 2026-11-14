@@ -86,3 +86,52 @@ def test_a_survivor_is_reported_with_its_line_and_a_killed_mutant_is_not(monkeyp
 def test_every_target_names_a_module_that_exists():
     for relative in mc.TARGETS:
         assert (ROOT / relative).exists(), relative
+
+
+def test_run_tests_counts_a_pass_a_failure_and_a_timeout(monkeypatch):
+    import subprocess
+    from types import SimpleNamespace
+
+    codes = iter([0, 1])
+    monkeypatch.setattr(mc.subprocess, "run", lambda command, **kwargs: SimpleNamespace(returncode=next(codes)))
+    assert mc.run_tests(("tests/test_mutation_check.py", "tests/none.py"), 1.0) is True
+    assert mc.run_tests(("tests/test_mutation_check.py",), 1.0) is False
+
+    def slow(command, **kwargs):
+        raise subprocess.TimeoutExpired(command, 1.0)
+
+    monkeypatch.setattr(mc.subprocess, "run", slow)
+    assert mc.run_tests(("tests/test_mutation_check.py",), 1.0) is False
+
+
+def test_a_red_baseline_measures_nothing_and_an_unrestored_file_stops(monkeypatch, tmp_path):
+    monkeypatch.setattr(mc, "ROOT", tmp_path)
+    (tmp_path / "m.py").write_text("def f(x):\n    return x > 1\n", encoding="utf-8")
+    monkeypatch.setattr(mc, "run_tests", lambda tests, timeout: False)
+    assert mc.check_file("m.py", ("t.py",), limit=2, seed=1, timeout=1.0)["error"].startswith("the tests do not pass")
+
+    import pathlib
+    import pytest
+
+    real_write = pathlib.Path.write_text
+    writes = {"count": 0}
+
+    def write_text(self, text, *args, **kwargs):
+        writes["count"] += 1
+        return real_write(self, text + ("# drift\n" if writes["count"] > 1 else ""), *args, **kwargs)
+
+    monkeypatch.setattr(mc, "run_tests", lambda tests, timeout: True)
+    monkeypatch.setattr(pathlib.Path, "write_text", write_text)
+    with pytest.raises(SystemExit, match="was not restored"):
+        mc.check_file("m.py", ("t.py",), limit=1, seed=1, timeout=1.0, emit=lambda line: None)
+
+
+def test_main_reports_each_target(tmp_path, monkeypatch, capsys):
+    import json
+
+    monkeypatch.setattr(mc, "TARGETS", {"a.py": ("t.py",), "b.py": ("t.py",)})
+    monkeypatch.setattr(mc, "check_file", lambda relative, tests, limit, seed, timeout: {"file": relative, "tried": 2, "killed": 2, "survived": 0, "kill_rate": 1.0})
+    out = tmp_path / "report" / "mutation.json"
+    assert mc.main(["--out", str(out), "--only", "a.py"]) == 0
+    report = json.loads(out.read_text(encoding="utf-8"))
+    assert [row["file"] for row in report["files"]] == ["a.py"] and '"kill_rate": 1.0' in capsys.readouterr().out

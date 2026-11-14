@@ -605,3 +605,105 @@ def test_generated_blocks_are_written_to_the_research_archive_beside_a_readme(tm
     assert report_module.update_readme_evaluation_sections(readme) is True
     assert "x<!-- AQ:EVAL_END" not in archive.read_text(encoding="utf-8")
     assert "x<!-- AQ:STATUS_END" not in readme.read_text(encoding="utf-8")
+
+
+# --- V6.6.6: every remaining branch (#359) --------------------------------------------------------------------------
+
+
+def test_load_json_and_fmt_degrade_instead_of_raising(tmp_path):
+    from generate_evaluation_report import _fmt, _load_json
+
+    torn = tmp_path / "torn.json"
+    torn.write_text("{", encoding="utf-8")
+    assert _load_json(torn) is None
+    assert _fmt("abc", ".2f") == "abc" and _fmt(None) == "—" and _fmt(1.234, ".1f") == "1.2" and _fmt(3) == "3"
+
+
+def test_lean_sharpe_is_none_without_a_run_or_with_an_unparsable_figure(tmp_path, monkeypatch):
+    import generate_evaluation_report as report
+
+    monkeypatch.setattr(report, "find_latest_backtest_result_json", lambda: None)
+    assert report._load_lean_sharpe() == (None, None)
+    summary = {"statistics": {"Sharpe Ratio": "n/a"}, "start_date": None, "end_date": None}
+    monkeypatch.setattr(report, "find_latest_backtest_result_json", lambda: tmp_path / "x.json")
+    monkeypatch.setattr(report, "load_backtest_summary", lambda path: summary)
+    sharpe, _window = report._load_lean_sharpe()
+    assert sharpe is None
+
+
+def test_monte_carlo_loaders_read_curves_when_present_and_degrade_when_not(tmp_path, monkeypatch):
+    import numpy as np
+
+    import generate_evaluation_report as report
+
+    monkeypatch.setattr(report, "EVALUATION_DIR", tmp_path)
+    (tmp_path / "monte_carlo.json").write_text(json.dumps({"status": "OK"}), encoding="utf-8")
+    assert report.load_monte_carlo() == ({"status": "OK"}, None)
+    np.savez(tmp_path / "monte_carlo_curves.npz", runs_curves=np.ones((2, 3)))
+    summary, runs = report.load_monte_carlo()
+    assert runs.shape == (2, 3)
+
+    assert report.load_lean_monte_carlo() == (None, None)
+    (tmp_path / "monte_carlo_lean.json").write_text(json.dumps({"status": "OK"}), encoding="utf-8")
+    assert report.load_lean_monte_carlo() == ({"status": "OK"}, None)
+    np.savez(tmp_path / "monte_carlo_lean_curves.npz", runs_curves=np.zeros((1, 4)))
+    lean_summary, lean_runs = report.load_lean_monte_carlo()
+    assert lean_summary == {"status": "OK"} and lean_runs.shape == (1, 4)
+
+
+def test_the_chart_is_skipped_without_matplotlib_or_runs(tmp_path, monkeypatch):
+    import sys
+
+    import numpy as np
+
+    import generate_evaluation_report as report
+
+    assert report._render_monte_carlo_chart(None, [1.0], {}, tmp_path / "c.png") is False
+    assert report._render_monte_carlo_chart(np.ones((2, 2)), [], {}, tmp_path / "c.png") is False
+    monkeypatch.setitem(sys.modules, "matplotlib", None)
+    assert report._render_monte_carlo_chart(np.ones((2, 2)), [1.0, 2.0], {}, tmp_path / "c.png") is False
+
+
+def test_every_generated_block_is_rewritten_where_its_markers_are(tmp_path, monkeypatch):
+    import generate_evaluation_report as report
+    from evaluation.readme_research import AS_LIVE_MARKER_END, AS_LIVE_MARKER_START, LEAN_COMPARE_MARKER_END, LEAN_COMPARE_MARKER_START, RESEARCH_MARKER_END, RESEARCH_MARKER_START
+    from evaluation.readme_statistics import ALPHA_MARKERS, STATUS_MARKERS
+    from evaluation.readme_statistics import MARKERS as BTSTATS_MARKERS
+
+    monkeypatch.setattr(report, "EVALUATION_DIR", tmp_path / "ml" / "evaluation")
+    monkeypatch.setattr(report, "VERSIONS_DIR", tmp_path / "ml" / "versions")
+    monkeypatch.setattr(report, "_load_lean_sharpe", lambda: (None, None))
+    monkeypatch.setattr(report, "_count_real_kill_switch_trips", lambda: None)
+    monkeypatch.setattr(report, "build_as_live_markdown", lambda directory: "AS LIVE")
+    monkeypatch.setattr(report, "build_research_markdown", lambda directory: "RESEARCH")
+    monkeypatch.setattr(report, "build_lean_vs_offline_markdown", lambda directory: "LEAN VS OFFLINE")
+    monkeypatch.setattr(report, "build_alpha_block", lambda directory: "ALPHA")
+    monkeypatch.setattr(report, "build_status_block", lambda directory: "STATUS")
+    monkeypatch.setattr(report, "build_backtest_statistics_blocks", lambda directory: {section: f"STATS {section}" for section in BTSTATS_MARKERS})
+    pairs = [(AS_LIVE_MARKER_START, AS_LIVE_MARKER_END), (RESEARCH_MARKER_START, RESEARCH_MARKER_END), (LEAN_COMPARE_MARKER_START, LEAN_COMPARE_MARKER_END), ALPHA_MARKERS, STATUS_MARKERS, *BTSTATS_MARKERS.values()]
+    readme = tmp_path / "README.md"
+    readme.write_text("\n".join(f"{start}\nold\n{end}" for start, end in pairs) + "\n", encoding="utf-8")
+
+    assert update_readme_evaluation_sections(readme) is True
+    text = readme.read_text(encoding="utf-8")
+    assert "old" not in text and all(marker in text for marker in ("AS LIVE", "RESEARCH", "LEAN VS OFFLINE", "ALPHA", "STATUS"))
+
+
+def test_main_and_the_script_entry(tmp_path, monkeypatch, capsys):
+    import runpy
+    import sys
+    from pathlib import Path
+
+    import generate_evaluation_report as report
+
+    results = iter([True, False])
+    monkeypatch.setattr(report, "update_readme_evaluation_sections", lambda path: next(results))
+    monkeypatch.setattr(sys, "argv", ["generate_evaluation_report.py", "--readme", str(tmp_path / "R.md")])
+    assert report.main() == 0 and report.main() == 1
+    assert "Updated" in capsys.readouterr().out
+
+    script = Path(report.__file__)
+    monkeypatch.setattr(sys, "argv", [str(script), "--readme", str(tmp_path / "missing.md")])
+    with pytest.raises(SystemExit) as exit_info:
+        runpy.run_path(str(script), run_name="__main__")
+    assert exit_info.value.code == 1

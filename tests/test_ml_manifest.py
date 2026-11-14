@@ -28,3 +28,11 @@ def test_manifest_changes_when_a_model_changes(tmp_path):
     before = manifest_lines(tmp_path)
     path.write_text('{"a": 1}', encoding="utf-8")
     assert manifest_lines(tmp_path) != before
+
+
+def test_main_prints_the_manifest(tmp_path, monkeypatch, capsys):
+    import ml_manifest
+
+    (tmp_path / "model.json").write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(sys, "argv", ["ml_manifest.py", "--ml-dir", str(tmp_path)])
+    assert ml_manifest.main() == 0 and capsys.readouterr().out.strip().endswith("  model.json")

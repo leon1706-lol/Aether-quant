@@ -1,5 +1,5 @@
-"""Tests for the CI helper scripts under scripts/ (V5.5.0): the test-count
-drift check and the synthetic-only mode of the feature-parity audit. Loaded
+"""Tests for the CI helper scripts under scripts/ (V5.5.0): the synthetic-only
+mode of the feature-parity audit. Loaded
 by file path (scripts/ is not a package). Conventions match the rest of this
 repo: no test classes, module-level helpers."""
 
@@ -21,49 +21,6 @@ def _load(name: str):
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     return module
-
-
-# ---------------------------------------------------------------- check_test_count_drift
-
-
-def test_readme_count_reads_the_badge_marker():
-    drift = _load("check_test_count_drift")
-    assert drift.readme_count("x <!-- AQ:TEST_COUNT_START -->2935<!-- AQ:TEST_COUNT_END --> y") == 2935
-    assert drift.readme_count("<!--AQ:TEST_COUNT_START-->  12  <!--AQ:TEST_COUNT_END-->") == 12
-    assert drift.readme_count("no badge here") is None
-
-
-def test_collected_count_parses_both_pytest_summary_shapes():
-    drift = _load("check_test_count_drift")
-    assert drift.collected_count("tests/a.py::t\n2935 tests collected in 3.10s") == 2935
-    assert drift.collected_count("2935/2936 tests collected (1 deselected) in 3.10s") == 2935
-    assert drift.collected_count("1 test collected in 0.01s") == 1
-    assert drift.collected_count("no summary") is None
-
-
-def test_drift_is_a_warning_by_default_and_a_failure_under_strict(monkeypatch, capsys):
-    drift = _load("check_test_count_drift")
-    monkeypatch.setattr(drift, "run_collect_only", lambda: "2940 tests collected in 1s")
-    monkeypatch.setattr(drift, "readme_count", lambda _text: 2935)
-    assert drift.main([]) == 0
-    assert "::warning::" in capsys.readouterr().out
-    assert drift.main(["--strict"]) == 1
-
-
-def test_matching_counts_pass_silently(monkeypatch, capsys):
-    drift = _load("check_test_count_drift")
-    monkeypatch.setattr(drift, "run_collect_only", lambda: "2935 tests collected in 1s")
-    monkeypatch.setattr(drift, "readme_count", lambda _text: 2935)
-    assert drift.main(["--strict"]) == 0
-    assert "::warning::" not in capsys.readouterr().out
-
-
-def test_an_unparsable_collection_is_a_warning_not_a_crash(monkeypatch, capsys):
-    drift = _load("check_test_count_drift")
-    monkeypatch.setattr(drift, "run_collect_only", lambda: "boom")
-    assert drift.main([]) == 0
-    assert "could not compare" in capsys.readouterr().out
-    assert drift.main(["--strict"]) == 1
 
 
 # ---------------------------------------------------------------- feature_parity_audit --synthetic-only

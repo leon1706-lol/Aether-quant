@@ -65,3 +65,12 @@ def test_the_60_day_variant_sets_its_target_purge_and_head():
     head = config["phase_v2"]["retraining"]["multitask_training"]["horizon_heads"]["rank_60d"]
     assert head == {"enabled": True, "loss_weight": 1.0}
     assert "extra_horizon_days" not in base["phase1"]["target"]["ranking"]
+
+
+def test_main_writes_one_config_per_variant(tmp_path, monkeypatch, capsys):
+    import sys
+
+    monkeypatch.setattr(sys, "argv", ["make_variant_configs.py", str(tmp_path / "out"), "--base", str(ROOT / "config.json")])
+    assert variants.main() == 0
+    written = sorted(path.name for path in (tmp_path / "out").glob("cfg_multitask_*.json"))
+    assert written and capsys.readouterr().out.count("wrote ") == len(written)

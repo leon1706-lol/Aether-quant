@@ -15,7 +15,7 @@ import sys
 from pathlib import Path
 
 if "google.colab" in sys.modules:  # Colab: install the library (numpy and pandas come with it)
-    get_ipython().run_line_magic("pip", 'install -q "aether-quant[notebooks]>=6.6.5"')  # noqa: F821
+    get_ipython().run_line_magic("pip", 'install -q "aether-quant[notebooks]"')  # noqa: F821
 else:  # a clone: run against the checkout's code
     for parent in (Path.cwd(), *Path.cwd().parents):
         if (parent / "aether_quant" / "__init__.py").is_file():

@@ -208,7 +208,7 @@ Never follow a repair with a local `aq train --dataset-only`: it refits the scal
 
 ## CI
 
-- **`ci.yml`:** `python-tests` (ubuntu and windows, 80% coverage; XML, JSON and HTML reports and a run summary), `python-lint`, `dependency-audit`, `webui-tests` (vitest coverage, blocking `npm audit`), `cli-smoke`, `workflows-lint`, `fast-guards`, `subsystem-matrix`, `wheel-smoke`, `python-compat` (3.10 byte-compile only), `docker-checks` (the dashboard image built, smoke-tested and scanned with trivy), `parity-smoke`, `secret-scan` (blocking on the tree, advisory on history), `lite-install`, `typecheck`, `docs`, `notebooks`, `bandit` and the advisory `test-count-drift`. <!--fact:ci.jobs-->19<!--/fact--> jobs in all, pinned by `tests/test_ci_workflows.py`.
+- **`ci.yml`:** `python-tests` (ubuntu and windows, 100% coverage of every tracked module; XML, JSON, HTML and JUnit reports and a run summary), `python-lint`, `dependency-audit`, `webui-tests` (vitest coverage, blocking `npm audit`), `cli-smoke`, `workflows-lint`, `fast-guards`, `subsystem-matrix`, `wheel-smoke`, `python-compat` (3.10 byte-compile only), `docker-checks` (the dashboard image built, smoke-tested and scanned with trivy), `parity-smoke`, `secret-scan` (blocking on the tree, advisory on history), `lite-install`, `typecheck`, `docs`, `notebooks` and `bandit`. <!--fact:ci.jobs-->18<!--/fact--> jobs in all, pinned by `tests/test_ci_workflows.py`.
 - **`release.yml`:** on `v*.*.*` tags:
   - `tag-tests` (visibility only)
   - `publish-pypi`, with attestations and a CycloneDX SBOM

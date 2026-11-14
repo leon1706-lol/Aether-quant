@@ -3833,7 +3833,7 @@ def compute_gate_friendliness_weight_by_date(frame: pd.DataFrame, risk_off_overr
     (evaluation and training) scoped to the same excluded set is
     deliberate, for consistency and honesty about what neither attempts.
 
-    A date with zero rows, or missing every needed column, degrades to
+    A frame missing every needed column degrades to
     weight 1.0 (today's exact uniform behavior for that date) rather than
     raising - this function must never be able to crash a training run."""
     required_columns = {"date", "topology_risk_elevated", "topology_risk_isolated", "regime_risk_off", "regime_signal_risk_score"}
@@ -3844,10 +3844,6 @@ def compute_gate_friendliness_weight_by_date(frame: pd.DataFrame, risk_off_overr
 
     weights: dict = {}
     for date, group in frame.groupby("date"):
-        n = len(group)
-        if n == 0:
-            weights[str(date)] = 1.0
-            continue
         topology_gated = (group["topology_risk_elevated"] == 1) | (group["topology_risk_isolated"] == 1)
         risk_off_active = group["regime_risk_off"] == 1
         severity = group["regime_signal_risk_score"].abs()

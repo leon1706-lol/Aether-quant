@@ -105,7 +105,7 @@ def collect_teardown_diagnostics() -> dict:
     try:
         diagnostics["gc_tracked_objects"] = len(gc.get_objects())
         diagnostics["gc_frozen_objects"] = gc.get_freeze_count()
-    except Exception as error:  # pragma: no cover - defensive, gc never raises today
+    except Exception as error:  # defensive: gc never raises today
         diagnostics["gc_error"] = repr(error)
     return diagnostics
 

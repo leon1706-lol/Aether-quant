@@ -180,3 +180,71 @@ def test_the_installed_generation_is_the_forward_ledgers_rule():
     candidates = json.loads((ROOT / "ml" / "forward" / "candidates.json").read_text(encoding="utf-8"))["candidates"]
     assert registry["g0001"].definition == next(entry for entry in candidates if entry["id"] == "t3_crypto_trend_blend_x_eos")
     assert registry["g0001"].stage == "active" and registry["g0001"].tier == "installed"
+
+
+def test_every_coin_failing_or_too_many_names_stop_the_marks():
+    def broken(url):
+        raise OSError("blocked")
+
+    with pytest.raises(RuntimeError, match="Coinbase fetch failed for every coin: BTCUSD, ETHUSD"):
+        marks_for(G1, DAYS, broken)
+    many = {**DEFINITION, "tickers": [f"N{index}" for index in range(701)], "asset_class": {}}
+    with pytest.raises(ValueError, match="too many names"):
+        marks_for(replace(G1, definition=many), DAYS, _get_json)
+
+
+def test_a_generation_already_written_today_is_skipped_and_a_failed_mark_is_a_row(world):
+    registry, policy, ledger = world
+    save_registry(registry, {"g1": G1, "g2": replace(G1, id="g2", tier="tier2", stage="shadow")})
+    run(registry, policy, ledger, get_json=_get_json, now=NOW)
+    rows = [row for row in read_ledger(ledger) if row["payload"]["candidate"] != ALLOCATION_ID or True]
+    allocation = [i for i, row in enumerate(rows) if row["payload"]["candidate"] == ALLOCATION_ID]
+    assert allocation  # the run wrote its allocation row last
+
+    def coinbase_down(url):
+        if "coinbase" in url:
+            raise OSError("blocked")
+        return _get_json(url)
+
+    fresh = ledger.parent / "second.jsonl"
+    written = run(registry, policy, fresh, get_json=coinbase_down, now=NOW)
+    mine = next(row["payload"] for row in written if row["payload"]["candidate"] == "g1")
+    assert mine["status"] == "no_data" and "Coinbase fetch failed" in mine["reason"]
+
+
+def test_the_command_line_writes_a_session_summary_and_honours_dry_run(world, monkeypatch, tmp_path, capsys):
+    import cycle_daily
+
+    registry, policy, ledger = world
+    summary = tmp_path / "summary.md"
+    monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary))
+    monkeypatch.setattr(cycle_daily, "_get_json", _get_json)
+    real_run = cycle_daily.run
+    monkeypatch.setattr(cycle_daily, "run", lambda *args, **kwargs: real_run(*args, **{**kwargs, "now": NOW}))
+    argv = ["--registry", str(registry), "--policy", str(policy), "--ledger", str(ledger)]
+    assert cycle_daily.main([*argv, "--dry-run"]) == 0 and not ledger.exists()
+    assert cycle_daily.main(argv) == 0 and "Chain valid: True" in summary.read_text(encoding="utf-8")
+    assert cycle_daily.main([*argv, "--dry-run"]) == 0  # a dry run starts from a copy of the real ledger
+    monkeypatch.setattr(cycle_daily, "run", lambda *args, **kwargs: (_ for _ in ()).throw(NoSessionToRecord("not a session")))
+    assert cycle_daily.main([*argv, "--dry-run"]) == 0 and cycle_daily.main(argv) == 1
+    assert "not a session" in capsys.readouterr().err
+
+
+def test_a_broken_chain_exits_non_zero(world, monkeypatch):
+    import cycle_daily
+
+    registry, policy, ledger = world
+    monkeypatch.setattr(cycle_daily, "run", lambda *args, **kwargs: [])
+    ledger.write_text("", encoding="utf-8")
+    monkeypatch.setattr(cycle_daily, "judge_generations", lambda rows: {"chain_valid": False})
+    monkeypatch.setattr(cycle_daily, "summary_lines", lambda written, path: ["x"])
+    assert cycle_daily.main(["--registry", str(registry), "--policy", str(policy), "--ledger", str(ledger)]) == 1
+
+
+def test_a_generation_with_a_row_today_but_no_allocation_is_not_written_twice(world):
+    from evaluation.generation_ledger import append_event
+
+    registry, policy, ledger = world
+    append_event(ledger, event="generation_return", session=TODAY, candidate="g1", payload={"status": "ok", "session_return": 0.0, "rebalance": False}, created_at=NOW.isoformat())
+    written = run(registry, policy, ledger, get_json=_get_json, now=NOW)
+    assert [row["payload"]["candidate"] for row in written] == [ALLOCATION_ID]

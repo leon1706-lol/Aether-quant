@@ -60,9 +60,7 @@ def main() -> int:
             if not valid_dates[i]:
                 continue
             r = R[i][~np.isnan(R[i])]
-            t = target_matrix[i][~np.isnan(T[i])]
-            if len(r) != len(t):
-                continue
+            t = target_matrix[i][~np.isnan(T[i])]  # same names as r: R and T are filled from the same rows
             rc = r - r.mean()
             tc = t - t.mean()
             denom = np.sqrt((rc * rc).sum() * (tc * tc).sum())

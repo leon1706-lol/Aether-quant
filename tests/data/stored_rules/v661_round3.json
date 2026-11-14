@@ -1,0 +1,230 @@
+{
+ "name": "round3",
+ "written": "before any k-score",
+ "rule": "Cell S, side A, hashed before any score. k01-k10 and the 18 audit looks count in N whether run or not (N = 192). S has been read by 36 trials, so a pass is weaker evidence than a round-1 pass. Bar unchanged: R-SLEEVE3 and PBO < 0.5 (evaluation/pbo.py, blocks = 16, over round 1's 22 columns, round 2's 8 and k01-k10). k06-k08 start 2013-01-01 with the split 2015-01-01 unchanged, and are zero-filled earlier in the PBO matrix. Any pass is audited (oracle, reversed, one-day shift, cost check) before it is believed. A defect voids the trial, with no re-score. One candidate is frozen: the single survivor, or the better of t1/t2 by selection Sharpe. Zero survivors: verdict at once, no freeze, no holdout read. Then R-HOLD1 once, then R-LEAN21 and R-EDGE2 unchanged.",
+ "bar": "Net of costs and financing, on strategy_excess (sessions at 252 unless crypto-only), median of 5 phases, in its selection cell: clears min_live_names; Sharpe >= 0.40 in both halves and pooled >= 0.50; rank-IC non-overlapping t >= 2.0 (not for no_ic_clause); p < 0.05 against each null of nulls_for, 100 placebos each, run only for trials passing the earlier clauses. Among survivors, daily correlation > 0.7 drops the lower Sharpe; at most 5 remain. Zero survivors: verdict at once.",
+ "pbo_rule": "evaluation/pbo.py with blocks=16 over pbo_columns on cell S. PBO >= 0.5 or None: verdict at once, no retry. Crypto trials and w13 are on other windows, and t1/t2 are built from survivors; they are outside the matrix.",
+ "cell": "S",
+ "side": "A",
+ "track": "W",
+ "out_dir": "ml/evaluation/v661",
+ "ledger": "ml/evaluation/v660/trial_ledger.jsonl",
+ "window_label": "v660_selection",
+ "min_live_names": 150,
+ "min_ic_names": 20,
+ "pbo_blocks": 16,
+ "prior_daily": [
+  "ml/evaluation/v660/selection_daily.parquet",
+  "ml/evaluation/v660/selection_daily_r2.parquet"
+ ],
+ "prior_columns": [
+  "w01",
+  "w02",
+  "w03",
+  "w04",
+  "w05",
+  "w06",
+  "w07",
+  "w08",
+  "w09",
+  "w10",
+  "w11",
+  "w12",
+  "w14",
+  "w15",
+  "m1",
+  "m2",
+  "m3",
+  "m4",
+  "m5",
+  "e1",
+  "e2",
+  "e3",
+  "r01",
+  "r02",
+  "r03",
+  "r04",
+  "r05",
+  "r06",
+  "r07",
+  "r08"
+ ],
+ "parent": {
+  "file": "rules.json",
+  "sha256": "8e6aecba53b580fc45166332599810d41ff49ffd2d8dbcf4e0ad740d7d8624e7"
+ },
+ "trials": {
+  "k01": {
+   "tests": "per-class gross by breadth",
+   "kind": "pooled",
+   "rebalance_every": 20,
+   "min_weight_change": 0.001,
+   "recipe": {
+    "op": "single",
+    "parts": [
+     "w04"
+    ]
+   },
+   "why": "w04 is the one premium that kept a positive IC in all 8 years; each sector was given gross 1 whatever its size, which is the book's real inefficiency"
+  },
+  "k02": {
+   "tests": "r03 pooled",
+   "kind": "pooled",
+   "rebalance_every": 20,
+   "min_weight_change": 0.001,
+   "recipe": {
+    "op": "rank_mean",
+    "parts": [
+     "w03",
+     "w04",
+     "w06"
+    ],
+    "minimum": 3
+   },
+   "why": "r03 was the best net score, 0.57; its second half fell to 0.21"
+  },
+  "k03": {
+   "tests": "k02 less known exposures",
+   "kind": "pooled",
+   "rebalance_every": 20,
+   "min_weight_change": 0.001,
+   "recipe": {
+    "op": "residualise",
+    "parts": [
+     "w03",
+     "w04",
+     "w06"
+    ],
+    "minimum": 3,
+    "exposures": [
+     "beta_252",
+     "market_cap",
+     "vol_60"
+    ]
+   },
+   "why": "a residual against beta, size and volatility should cost little Sharpe if the premium is not those exposures"
+  },
+  "k04": {
+   "tests": "k02 at a third of the cost",
+   "kind": "pooled",
+   "rebalance_every": 60,
+   "min_weight_change": 0.005,
+   "recipe": {
+    "op": "rank_mean",
+    "parts": [
+     "w03",
+     "w04",
+     "w06"
+    ],
+    "minimum": 3
+   },
+   "why": "these are slow signals; costs took about a third of w04's gross Sharpe"
+  },
+  "k05": {
+   "tests": "slopes held to published signs",
+   "kind": "pooled",
+   "rebalance_every": 20,
+   "min_weight_change": 0.001,
+   "builder": "fama_macbeth_ridge",
+   "signs": {
+    "gp_assets": 1.0,
+    "net_issuance": -1.0,
+    "asset_growth": -1.0,
+    "accruals": -1.0,
+    "earnings_yield": 1.0,
+    "book_to_market": 1.0,
+    "leverage": -1.0,
+    "cfo_assets": 1.0
+   },
+   "kappa": 36,
+   "ridge": 1.0,
+   "why": "the first model that reads only years holding its inputs: m2-m4 trained from 2004 on features 19 names had in 2009"
+  },
+  "k06": {
+   "tests": "a small tree held to published signs",
+   "kind": "pooled",
+   "rebalance_every": 20,
+   "min_weight_change": 0.001,
+   "score_file": "k06",
+   "start": "2013-01-01",
+   "trainer": "train_cross_sectional.py --model gbm_monotone --variant a --seeds 1,2,3 --feature-set fundamental --train-start 2011-07-01 --first-test-year 2013 --purge-days 31 --score-end 2018-12-31",
+   "why": "interactions without the freedom to learn a premium backward"
+  },
+  "k07": {
+   "tests": "the installed network family, on the fundamentals era",
+   "kind": "pooled",
+   "rebalance_every": 20,
+   "min_weight_change": 0.001,
+   "score_file": "k07",
+   "start": "2013-01-01",
+   "trainer": "train_cross_sectional.py --model mlp_multitask --variant a --seeds 1,2,3,4,5 --feature-set fundamental --train-start 2011-07-01 --first-test-year 2013 --purge-days 31 --score-end 2018-12-31",
+   "runs_if": "k05's mean rank IC is above 0; counted regardless",
+   "why": "the network the project ships, given inputs it can learn from; if the linear model finds nothing, the network has nothing to find"
+  },
+  "k08": {
+   "tests": "a fixed ensemble of the models",
+   "kind": "pooled",
+   "rebalance_every": 20,
+   "min_weight_change": 0.001,
+   "start": "2013-01-01",
+   "recipe": {
+    "op": "rank_mean",
+    "parts": [
+     "k05",
+     "k06",
+     "k07"
+    ],
+    "optional_parts": true,
+    "minimum": 2
+   },
+   "why": "averaging different errors, never fitted"
+  },
+  "k09": {
+   "tests": "accruals on quarterly filings",
+   "kind": "pooled",
+   "rebalance_every": 20,
+   "min_weight_change": 0.001,
+   "recipe": {
+    "op": "single",
+    "parts": [
+     "accruals_ttm"
+    ],
+    "signs": {
+     "accruals_ttm": -1.0
+    }
+   },
+   "why": "w04 read annual filings, up to 15 months stale; the literature's accruals are quarterly"
+  },
+  "k10": {
+   "tests": "balance-sheet bloat",
+   "kind": "pooled",
+   "rebalance_every": 20,
+   "min_weight_change": 0.001,
+   "recipe": {
+    "op": "rank_mean",
+    "parts": [
+     "k09",
+     "noa",
+     "capex_growth"
+    ],
+    "signs": {
+     "noa": -1.0,
+     "capex_growth": -1.0
+    },
+    "minimum": 2
+   },
+   "why": "net operating assets and capital spending are the investment side of accruals, and no earlier trial held them"
+  }
+ },
+ "disclosures": [
+  "Cell S has been read by 36 trials, and these ten are chosen with that knowledge.",
+  "The model audit looked at six feature groups at three horizons on S before this file was written. The trials were fixed in the phase plan before it ran, and it added none.",
+  "Filings before about 2011 are sparse (19 names in 2009, 292 in 2010, 466 in 2011), so k05 leans on its sign prior in its first year and k06-k08 only begin in 2013, leaving two years in their first half.",
+  "k09 and k10 read a quarterly and annual download made in this phase, which uses today's list of tickers, as every fundamentals trial has.",
+  "The holdouts stay closed unless the gate leaves a survivor."
+ ],
+ "audit_cited": {
+  "file": "model_audit.json",
+  "sha256": "c4afaadc162ee15ab0e6fa0aa22a4f43fa93b93da2266d6f32ac4dbd4e38b52f"
+ }
+}

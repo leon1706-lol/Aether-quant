@@ -58,3 +58,40 @@ def test_collect_backtest_sharpes_reads_engine_logs_in_chronological_order(tmp_p
         (tmp_path / name / "log.txt").write_text(text, encoding="utf-8")
 
     assert analysis.collect_backtest_sharpes(str(tmp_path / "2026-*")) == [("2026-01", -2.0), ("2026-02", 0.1)]
+
+
+def _run_tree(root, sharpes):
+    import json
+
+    for index, sharpe in enumerate(sharpes):
+        run = root / "backtests" / f"2026-01-0{index + 1}_00-00-00"
+        run.mkdir(parents=True)
+        if sharpe is not None:
+            (run / "log.txt").write_text(f"STATISTICS:: Sharpe Ratio {sharpe}\n", encoding="utf-8")
+    runs = [{"run_metadata": {"start_date": f"2024-0{index + 1}-01", "end_date": f"2024-0{index + 1}-28"}, "per_date": [{"overlap_fraction": 0.1 * (index + 1)}, {"overlap_fraction": None}]} for index in range(len(sharpes))]
+    runs.append({"run_metadata": {}, "per_date": []})
+    (root / "ml" / "evaluation").mkdir(parents=True)
+    (root / "ml" / "evaluation" / "book_history_reconciliation.json").write_text(json.dumps({"all_runs": runs}), encoding="utf-8")
+
+
+def test_the_analysis_pairs_runs_and_tests_the_rank_correlation(tmp_path, monkeypatch, capsys):
+    import json
+
+    from script_loader import load_script
+
+    module = load_script("overlap_vs_sharpe_analysis")
+    _run_tree(tmp_path, [0.1, 0.4, None, 0.2, 0.9, 0.5])
+    (tmp_path / "backtests" / "2026-01-09_00-00-00").mkdir()  # a run with no engine log
+    monkeypatch.chdir(tmp_path)
+    module.main()
+    result = json.loads((tmp_path / "ml" / "evaluation" / "overlap_vs_sharpe_analysis.json").read_text(encoding="utf-8"))
+    assert result["spearman"]["n"] == 5 and "Spearman" in capsys.readouterr().out
+
+
+def test_too_few_pairs_are_called_inconclusive(tmp_path, monkeypatch, capsys):
+    from script_loader import run_script
+
+    _run_tree(tmp_path, [0.1, 0.2])
+    monkeypatch.chdir(tmp_path)
+    assert run_script("overlap_vs_sharpe_analysis", [], monkeypatch) is None
+    assert "inconclusive" in capsys.readouterr().out

@@ -44,3 +44,11 @@ def test_the_same_score_in_two_stages_is_one_trial(tmp_path):
     built = registry.build_registry(tmp_path)
     assert built["num_trials"] == 3
     assert built["sources"] == ["v610/research.json", "v620/research.json"]
+
+
+def test_main_writes_the_registry(tmp_path, monkeypatch, capsys):
+    registry = _load()
+    out = tmp_path / "registry.json"
+    monkeypatch.setattr(sys, "argv", ["build_trial_registry.py", "--evaluation-dir", str(tmp_path), "--out", str(out)])
+    assert registry.main() == 0
+    assert json.loads(out.read_text(encoding="utf-8"))["num_trials"] == 0 and "no research files" in capsys.readouterr().out

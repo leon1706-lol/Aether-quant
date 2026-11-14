@@ -1,11 +1,13 @@
 name: CI
 
-# V5.3.9 - deep CI suite: windows+ubuntu pytest matrix with a calibrated
-# coverage fail-under gate (82% measured - 2), ruff lint, the full webui
+# V5.3.9 - deep CI suite: windows+ubuntu pytest matrix with a coverage gate
+# (V6.6.6: every tracked module at 100%, pyproject's [tool.coverage]), ruff lint, the full webui
 # vitest suite, an offline CLI smoke battery, and workflow self-validation.
 # V5.5.0 - guard jobs for the offline/live-parity round: fast-guards,
 # subsystem-matrix, wheel-smoke, python-compat, docker-checks, parity-smoke,
-# secret-scan and test-count-drift. tests/test_ci_workflows.py pins them all.
+# and secret-scan. tests/test_ci_workflows.py pins them all.
+# V6.6.6 - the README's test badge is built from this run's JUnit report by pages.yml
+# (scripts/test_badge.py), so the old warn-only test-count-drift job is gone.
 # V6.2.0 - Linux jobs pin ubuntu-24.04: ubuntu-latest moves to 26.04 from 2026-10-19
 # and setup-python's 3.11 builds for a new image can lag; the actions run on Node 24.
 on:
@@ -31,9 +33,9 @@ jobs:
       matrix:
         os: [ubuntu-24.04, windows-latest]
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.11"
           cache: "pip"
@@ -52,9 +54,9 @@ jobs:
 
       - name: Run full test suite with coverage gate
         run: >
-          pytest -m "not lean_backtest" -ra
+          pytest -m "not lean_backtest" -ra --junitxml=junit.xml
           --cov --cov-report=term-missing --cov-report=xml --cov-report=json --cov-report=html
-          --cov-fail-under=80
+          --cov-fail-under=100
 
       # V6.6.5 (#353): the figure in the run summary, and the reports pages.yml publishes with the badge
       - name: Coverage summary
@@ -63,20 +65,21 @@ jobs:
 
       - name: Upload coverage artifact
         if: matrix.os == 'ubuntu-24.04'
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: coverage-xml
           path: |
             coverage.xml
             coverage.json
             htmlcov/
+            junit.xml
 
   python-lint:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.11"
           cache: "pip"
@@ -101,9 +104,9 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.11"
           cache: "pip"
@@ -128,9 +131,9 @@ jobs:
       run:
         working-directory: webui
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "20"
           cache: "npm"
@@ -144,7 +147,7 @@ jobs:
       - run: npx vitest run --pool=threads --coverage
       - run: npm run build
       - name: Upload web UI coverage
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: webui-coverage
           path: webui/coverage/
@@ -156,9 +159,9 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.11"
           cache: "pip"
@@ -186,7 +189,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # V5.3.10 - single-step pinned install + validate: the previous two-step
       # pattern (PATH append, then bare `actionlint`) failed with
@@ -207,9 +210,9 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.11"
           cache: "pip"
@@ -248,11 +251,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        subsystem: [cli, audit, risk, portfolio, features, data-pipeline, webui, ml, retraining, notifications, storage, live, evaluation, formal, meta]
+        subsystem: [cli, audit, risk, portfolio, features, data-pipeline, webui, ml, retraining, notifications, storage, live, evaluation, formal, meta, scripts]
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.11"
           cache: "pip"
@@ -280,11 +283,11 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0 # setuptools-scm needs tags to version the wheel
 
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.11"
           cache: "pip"
@@ -313,9 +316,9 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.10"
 
@@ -337,7 +340,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Lint Dockerfiles (hadolint v2.12.0, errors only)
         run: |
@@ -371,7 +374,7 @@ jobs:
 
       # V6.6.5 (#353): blocking on critical findings that have a fix, in the source tree and in the published image
       - name: Trivy scan of the source tree
-        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1  # v0.35.0 (pinned by commit: the action's tags have been rewritten before)
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
         with:
           scan-type: fs
           scan-ref: .
@@ -381,7 +384,7 @@ jobs:
           skip-dirs: backtests,backtests_invalid,webui/node_modules
 
       - name: Trivy scan of the dashboard image
-        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1  # v0.35.0 (pinned by commit: the action's tags have been rewritten before)
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
         with:
           image-ref: aq-dashboard-check
           severity: CRITICAL
@@ -394,9 +397,9 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.11"
           cache: "pip"
@@ -431,7 +434,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
 
@@ -451,11 +454,11 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.11"
 
@@ -491,11 +494,11 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.11"
 
@@ -519,9 +522,9 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.11"
 
@@ -532,7 +535,7 @@ jobs:
           python scripts/build_docs.py
           mkdocs build --strict
 
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: docs-site
           path: site/
@@ -542,9 +545,9 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.11"
 
@@ -559,9 +562,9 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.11"
 
@@ -570,30 +573,3 @@ jobs:
           pip install "bandit==1.9.4"
           bandit -q -r aether_quant analyzer audit data_pipeline evaluation execution experience experts features inference liquidity moe monitoring notifications performance portfolio regime retraining risk topology aq_cli.py docs_facts.py json_safety.py performance_probe.py risk_controls.py generate_backtest_report.py generate_evaluation_report.py -lll
 
-  # V5.5.0 - WARN-ONLY: the README badge is rewritten by a local `aq test`,
-  # so it lags whenever a test is added in a commit that skipped it. This
-  # surfaces the drift without blocking anyone.
-  test-count-drift:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 20
-    continue-on-error: true
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: actions/setup-python@v7
-        with:
-          python-version: "3.11"
-          cache: "pip"
-          cache-dependency-path: requirements/requirements-dev.txt
-
-      # V5.5.0 - the default Linux torch wheel drags in ~2 GB of CUDA libraries a
-      # CPU-only runner never uses. Installing the CPU build FIRST lets the
-      # requirements install below see torch as already satisfied.
-      - name: Install CPU-only PyTorch
-        run: pip install torch --index-url https://download.pytorch.org/whl/cpu
-
-      - name: Install dependencies
-        run: pip install -r requirements/requirements.txt -r requirements/requirements-dev.txt
-
-      - name: Compare the collected test count with the README badge
-        run: python scripts/check_test_count_drift.py

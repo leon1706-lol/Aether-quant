@@ -156,8 +156,11 @@ ml/evaluation/
 
 # Logs and temporary files
 .coverage
+.coverage.*
+coverage.json
 coverage.xml
 htmlcov/
+junit.xml
 *.log
 *.tmp
 *.bak

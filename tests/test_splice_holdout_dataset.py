@@ -117,3 +117,24 @@ def test_whole_history_beta_labels_may_move_and_are_counted(tmp_path):
     feature_moved = _write(tmp_path / "w2.csv", [["1", "2025-07-01", "AAA", "0.4", "0.03", "backtest", "0.5"]], header=header)
     with pytest.raises(ValueError, match="overlap guard failed"):
         splice.splice(old, feature_moved, tmp_path / "out2.csv", "2025-07-01", "2025-07-01")
+
+
+def test_the_cli_builds_then_splices(tmp_path, monkeypatch, capsys):
+    import json
+
+    splice = _load()
+    calls = []
+    monkeypatch.setattr(splice, "DEFAULT_WINDOWS_CONFIG", tmp_path / "windows.json")
+    monkeypatch.setattr(splice.subprocess, "call", lambda command: calls.append(command) or 0)
+    monkeypatch.setattr(splice, "splice", lambda old, window, out, splice_from, compare_until: {"spliced": True, "out": str(out)})
+    monkeypatch.setattr(sys, "argv", ["x", "--build", "--splice", "--compare-until", "2026-08-31", "--old", str(tmp_path / "old.csv")])
+    assert splice.main() == 0
+    assert json.loads((tmp_path / "windows.json").read_text(encoding="utf-8"))["phase1"]["windows"]["holdout"]
+    assert "build_holdout_dataset.py" in calls[0][1] and '"spliced": true' in capsys.readouterr().out
+    monkeypatch.setattr(splice.subprocess, "call", lambda command: 3)
+    monkeypatch.setattr(sys, "argv", ["x", "--build", "--build-start", "2025-01-01", "--build-end", "2026-09-30"])
+    assert splice.main() == 1
+    monkeypatch.setattr(sys, "argv", ["x", "--splice"])
+    with pytest.raises(SystemExit):
+        splice.main()
+    assert "--compare-until" in capsys.readouterr().err

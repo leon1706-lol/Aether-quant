@@ -32,6 +32,13 @@ The owner's live brief for what to do next; rewritten as objectives change (hist
 - [x] **D.** Problems, Changelog, docs, vault, verification.
 
 -----
+# Cleanup: V6.6.6 coverage to 100%, Scorecard, stale references
+
+**State (2026-11-14): COMPLETE, uncommitted.** Done: the release assets and Scorecard fixes (#356, #357), the generated public references and the AGENTS.md manual-refresh section (#358), whole-repo coverage at 100% with no pragma (#359: 47,438 statements, 0 missed, all 16 groups green, `ruff check .` clean) and two offline-simulator fixes (#360). The whole repo started at 67.6%.
+
+**Owner steps:** commit and tag v6.6.6; run `gh workflow run release.yml -f backfill_tag=v6.6.5` (and v6.6.4) so the Scorecard sees a release with files; update the GitHub About text and homepage; rebuild the Docker images (base images are pinned by digest now). No `aq backtest` is needed: the live path did not change. `main.py` is covered against a fake Lean, so a real Lean run (yours) is still the engine-level check.
+
+-----
 # Next objective: V6.6.6 — let the forward record speak, and close what needs no new alpha trial
 
 **State (2026-11-08).** V6.6.4 is released: `v6.6.4` is tagged on `faac641`, CI is green, PyPI reports 6.6.4 and the image is on `ghcr.io/leon1706-lol/aether-quant` (tags `6.6.4`, `latest`). There is no verified alpha: 25 more pre-registered trials found none, the holdouts V1, V2, V3, P and CV are unread, N is 217, and `ml/generations/policy.json` is `enabled: false`. The book is the long-only crypto sleeve (11 coins, Lean pin `2026-11-07_17-54-01`), on paper only. The forward record started with session 2026-11-06 and four observers at zero capital are watching beside it (k09 and the crypto trials x10, x14, x12).

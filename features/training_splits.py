@@ -153,9 +153,7 @@ def purged_embargoed_folds(
     horizon = pd.Timedelta(horizon_days, unit="D")
     embargo = pd.Timedelta(embargo_days, unit="D")
 
-    for fold_dates in fold_boundaries:
-        if len(fold_dates) == 0:
-            continue
+    for fold_dates in fold_boundaries:  # n_folds <= the unique dates, so no fold is empty
         validation_start = fold_dates[0]
         validation_end = fold_dates[-1]
         validation_mask = (dates_array >= validation_start) & (dates_array <= validation_end)

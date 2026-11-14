@@ -92,7 +92,7 @@ def _readme_cli_sections():
     return sections
 
 
-_FLAG_RE = re.compile(r"(?<![\w-])(--[a-z][a-z0-9-]+)")
+_FLAG_RE = re.compile(r"(?<![\w!-])(--[a-z][a-z0-9-]+)")  # not the "--" that opens an HTML comment (<!--fact:...-->)
 
 
 def test_readme_documents_every_parser_flag():

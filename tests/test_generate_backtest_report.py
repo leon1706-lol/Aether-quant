@@ -452,3 +452,132 @@ def test_a_fresh_run_says_which_pin_it_dropped(tmp_path, monkeypatch, capsys):
 
     assert not pin.exists()
     assert "README unpinned from 2026-06-01_00-00-00" in capsys.readouterr().err
+
+
+# --- V6.6.6: every remaining branch (#359) --------------------------------------------------------------------------
+
+
+def test_a_pin_that_cannot_be_read_pins_nothing_and_a_re_pin_keeps_its_long_run(tmp_path, monkeypatch):
+    import generate_backtest_report as report
+
+    backtests = tmp_path / "backtests"
+    (backtests / "run_a").mkdir(parents=True)
+    pin = tmp_path / "pin.json"
+    pin.write_text("{not json", encoding="utf-8")
+    monkeypatch.setattr(report, "BACKTESTS_DIR", backtests)
+    assert report.pinned_run_dir(backtests, pin) is None
+
+    pin.write_text(json.dumps({"run": "run_a", "long_run": "run_long"}), encoding="utf-8")
+    report.set_pinned_run(backtests / "run_a", pin)
+    assert json.loads(pin.read_text(encoding="utf-8")) == {"run": "run_a", "long_run": "run_long"}
+    report.set_pinned_run(backtests / "run_b", pin)
+    assert json.loads(pin.read_text(encoding="utf-8")) == {"run": "run_b"}
+
+
+def test_an_unreadable_result_json_is_skipped(tmp_path):
+    backtests = tmp_path / "backtests"
+    _write_result_json(backtests / "2026-06-01_00-00-00" / "111.json")
+    broken = backtests / "2026-06-02_00-00-00" / "222.json"
+    broken.parent.mkdir(parents=True)
+    broken.write_text("{torn", encoding="utf-8")
+    _set_mtime(backtests / "2026-06-02_00-00-00", 10.0)
+    assert find_latest_backtest_result_json(backtests).name == "111.json"
+
+
+def test_no_daily_close_before_the_first_point_leaves_the_flat_benchmark(tmp_path):
+    from generate_backtest_report import with_daily_benchmark_fallback
+
+    summary = {"strategy_series": [(1417410000, 100000.0)], "benchmark_series": [(1417410000, 5.0), (1417496400, 5.0)]}
+    spy_zip = tmp_path / "spy.zip"
+    _write_spy_zip(spy_zip, ["20200101 00:00,2000000,2010000,1990000,2005000,1"])
+    assert with_daily_benchmark_fallback(summary, spy_zip) is summary
+
+
+def test_rebase_handles_an_empty_series_and_a_zero_base():
+    from generate_backtest_report import _rebase_to_100
+
+    assert _rebase_to_100([]) == []
+    assert _rebase_to_100([(1, 0.0), (2, 5.0)]) == [(1, 100.0), (2, 100.0)]
+
+
+def test_lean_verdicts_skip_unreadable_files_and_name_their_rule(tmp_path):
+    from generate_backtest_report import load_lean_verdicts
+
+    phase = tmp_path / "v1"
+    phase.mkdir()
+    (phase / "r_lean7_x.json").write_text(json.dumps({"candidate": "run_a", "keep": False}), encoding="utf-8")
+    (phase / "r_lean8_y.json").write_text("{torn", encoding="utf-8")
+    (phase / "r_lean9_z.json").write_text(json.dumps(["not", "a", "verdict"]), encoding="utf-8")
+    verdicts = load_lean_verdicts(tmp_path)
+    assert [(v["candidate"], v["rule"]) for v in verdicts] == [("run_a", "R-LEAN7")]
+
+
+def test_history_keeps_the_pinned_run_past_the_limit_and_judged_only_drops_plain_runs(tmp_path, monkeypatch):
+    import generate_backtest_report as report
+
+    backtests = tmp_path / "backtests"
+    names = [f"2026-06-0{day}_00-00-00" for day in range(1, 6)]
+    for offset, name in enumerate(names):
+        _write_result_json(backtests / name / "1.json")
+        _set_mtime(backtests / name, offset * 10.0)
+    broken = backtests / "2026-06-09_00-00-00" / "9.json"
+    broken.parent.mkdir(parents=True)
+    broken.write_text(json.dumps({"statistics": {"a": 1}, "charts": {"Strategy Equity": {"series": {"Equity": {"values": [["x", 2]]}}}}}), encoding="utf-8")
+    _set_mtime(broken.parent, 60.0)
+    monkeypatch.setattr(report, "pinned_run_dir", lambda directory: backtests / names[0])
+
+    text = report.build_history_markdown(backtests, limit=2, verdicts=[])
+    listed = [row.split("`")[1] for row in text.splitlines() if row.startswith("| `")]
+    assert listed[-1] == names[0] and len(listed) == 3, "the pin stays listed after the limit"
+
+    judged = report.build_history_markdown(backtests, verdicts=[{"candidate": names[2], "keep": True, "rule": "R-LEAN1"}], judged_only=True)
+    assert [row.split("`")[1] for row in judged.splitlines() if row.startswith("| `")] == [names[2], names[0]]
+
+
+def test_the_readme_update_writes_the_research_archive_and_a_chart_outside_the_tree(tmp_path):
+    import generate_backtest_report as report
+
+    readme = tmp_path / "README.md"
+    readme.write_text(
+        f"{BACKTEST_MARKER_START}\nold\n{BACKTEST_MARKER_END}\n{report.HISTORY_MARKER_START}\nold\n{report.HISTORY_MARKER_END}\n", encoding="utf-8"
+    )
+    archive = report.research_doc_beside(readme)
+    archive.parent.mkdir(parents=True, exist_ok=True)
+    archive.write_text(f"{report.HISTORY_MARKER_START}\nold\n{report.HISTORY_MARKER_END}\n", encoding="utf-8")
+    other = tmp_path.parent / f"{tmp_path.name}_chart" / "chart.png"
+    summary = load_backtest_summary(_result(tmp_path))
+    assert update_readme_backtest_section(summary, readme, other, "| history |") is True
+    assert "| history |" in archive.read_text(encoding="utf-8") and other.as_posix() in readme.read_text(encoding="utf-8")
+
+
+def _result(tmp_path):
+    path = tmp_path / "bt" / "run" / "1.json"
+    _write_result_json(path)
+    return path
+
+
+def test_main_reports_what_it_did(tmp_path, monkeypatch, capsys):
+    import sys
+
+    import generate_backtest_report as report
+
+    calls = []
+    monkeypatch.setattr(report, "update_readme_from_latest_backtest", lambda *args: calls.append(args) or len(calls) == 1)
+    monkeypatch.setattr(sys, "argv", ["generate_backtest_report.py", "--readme", str(tmp_path / "R.md")])
+    assert report.main() == 0
+    assert report.main() == 1
+    assert "Updated" in capsys.readouterr().out and calls[0][1] == tmp_path / "R.md"
+
+
+def test_runs_as_a_script(tmp_path, monkeypatch):
+    import runpy
+    import sys
+    from pathlib import Path
+
+    import pytest
+
+    script = Path(__file__).resolve().parents[1] / "generate_backtest_report.py"
+    monkeypatch.setattr(sys, "argv", [str(script), "--backtests-dir", str(tmp_path / "none"), "--readme", str(tmp_path / "R.md")])
+    with pytest.raises(SystemExit) as exit_info:
+        runpy.run_path(str(script), run_name="__main__")
+    assert exit_info.value.code == 1

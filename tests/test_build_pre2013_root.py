@@ -75,3 +75,25 @@ def test_universe_for_root_keeps_only_held_tickers(tmp_path):
     _, _, manifest = _build(tmp_path)
     tickers = [asset["ticker"] for asset in module.universe_for_root(CONFIG, manifest)["phase1"]["universe"]["assets"]]
     assert tickers == ["AAA", "EURUSD"]
+
+
+def test_an_unsupported_security_type_is_left_out_with_its_reason(tmp_path):
+    config = {"phase1": {"universe": {"assets": [*CONFIG["phase1"]["universe"]["assets"], {"ticker": "ES", "security_type": "future", "data_path": "x"}]}}}
+    manifest = module.build_root(config, tmp_path / "root", start="2002-01-01", end="2013-01-02", source=tmp_path / "none", fetch_fn=_fetch)
+    assert manifest["left_out"]["ES"] == "security type future"
+
+
+def test_main_builds_the_root_under_the_repository(tmp_path, monkeypatch, capsys):
+    import sys
+
+    (tmp_path / "config.json").write_text(json.dumps(CONFIG), encoding="utf-8")
+    (tmp_path / "data_pipeline").mkdir()
+    (tmp_path / "data_pipeline" / "price_overrides.json").write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(module, "ROOT", tmp_path)
+    seen = {}
+    monkeypatch.setattr(module, "build_root", lambda config, out, start, end, overrides: seen.update(out=out, overrides=overrides) or {
+        "tickers": {"AAA": {"first": "2004-01-02"}, "BIL": {"first": "2007-05-30"}}, "left_out": {"BTCUSD": "crypto"}})
+    monkeypatch.setattr(sys, "argv", ["x", "--out", "pre"])
+    assert module.main() == 0
+    out = capsys.readouterr().out
+    assert seen == {"out": tmp_path / "pre", "overrides": {}} and "2 tickers written, 1 left out" in out and "BTCUSD: crypto" in out

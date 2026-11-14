@@ -52,8 +52,8 @@ live = ["redis>=5.0.0", "psycopg[binary]>=3.1", "keyring", "ibapi>=9.81", "lean>
 train = ["pyarrow", "scikit-learn", "joblib>=1.3.0", "torch"]
 docs = ["mkdocs-material", "mkdocstrings[python]", "mkdocs-jupyter"]
 full = [
-    "aether-quant[research,dashboard,live,train]", "flask>=3.0.0", "aiofiles>=23.0", "python-dotenv>=1.0.0", "pyyaml>=6.0",
-    "requests>=2.31.0", "aether-vault==1.7.1",
+    "aether-quant[research,dashboard,live,train]", "flask>=3.1.3", "aiofiles>=23.0", "python-dotenv>=1.2.2", "pyyaml>=6.0",
+    "requests>=2.33.0", "aether-vault==1.7.1",
 ]
 
 [tool.setuptools]
@@ -133,48 +133,65 @@ select = ["E", "F"]
 "main.py" = ["E501", "F403", "F405"]
 "**/__init__.py" = ["F401"]
 "scripts/profile_inference.py" = ["E501"]
+# V6.6.6: the runtime tests write whole scenarios on one line, and a test module imports a sibling's fixtures by name (pytest takes them from the argument list)
+"tests/**" = ["E501", "F811"]
 
-# V5.3.9 - coverage configuration for the ci.yml fail-under gate.
+# V6.6.6 (#359): every tracked Python file outside tests/ is measured, at 100%, with no pragma. `if TYPE_CHECKING:` blocks
+# (imports for annotations only, never executed) are the one exclusion. tests/test_coverage_scope.py pins all of it.
 [tool.coverage.run]
-source = [
+# every directory holding tracked code: unlike `source`, a directory here is searched for files no test imports even
+# without an __init__.py (scripts/, examples/, notebooks/src/)
+source_dirs = [
+    ".",
     "aether_quant",
-    "aq_cli",
     "analyzer",
     "audit",
+    "cpp_inference_ext",
     "data_pipeline",
     "evaluation",
+    "examples",
     "execution",
     "experience",
     "experts",
     "features",
     "inference",
     "liquidity",
-    "monitoring",
     "moe",
+    "monitoring",
+    "notebooks/src",
     "notifications",
     "performance",
     "portfolio",
     "regime",
     "retraining",
     "risk",
-    "storage",
+    "scripts",
+    "scripts/lean_smoke",
+    "scripts/lean_teardown_smoke",
     "topology",
-    "risk_controls",
-    "train_multitask",
-    "train_sequence",
-    "train_gating",
 ]
+# a script a test runs as a subprocess is measured too (coverage >= 7.10)
+patch = ["subprocess"]
 omit = [
-    "*/tests/*",
     "tests/*",
-    "scripts/*",
+    "backtests/*",
+    "backtests_invalid/*",
+    "build/*",
+    "site/*",
     "webui/*",
-    "*/__main__.py",
+    ".venv/*",
+    "venv/*",
+    "data/*",
+    "data_backups/*",
+    "data_crypto_wide/*",
+    "data_pre2013/*",
+    "data_wide/*",
+    "formal/.lake/*",
+    "ml/*",
+    "aether_quant.egg-info/*",
+    "Aether-quant-Obsidian-Vault/*",
 ]
 
 [tool.coverage.report]
-exclude_lines = [
-    "pragma: no cover",
-    "if TYPE_CHECKING:",
-    "if __name__ == .__main__.:",
-]
+fail_under = 100
+exclude_lines = ["if TYPE_CHECKING:"]

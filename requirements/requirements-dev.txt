@@ -15,8 +15,8 @@ lean>=1.0.225
 plotly>=5.17.0
 
 # Development
-pytest>=7.4.0
-black>=23.0.0
+pytest>=9.0.3
+black>=26.10.1
 
 # Parallel test execution (`aq test --parallel`, opt-in only - off by
 # default, since multiple workers each importing torch is a real OOM risk
@@ -59,10 +59,12 @@ pybind11>=2.10
 # V6.4.4 - the research chains (scripts/v643_research.py, v644_research.py) cache scores and trial returns as parquet and
 # run on the training Codespace, whose devcontainer installs only these requirement files (pyproject's `research` extra
 # was never installed there; the V6.4.4 session stopped on the missing reader)
-pyarrow>=14.0
+pyarrow>=17.0.0
 
 # V5.3.9 - CI hardening: coverage gate (pytest --cov-fail-under in ci.yml)
-pytest-cov>=5.0.0
+pytest-cov>=7.0.0
+# V6.6.6: pyproject's [tool.coverage.run] patch = ["subprocess"] needs coverage 7.10
+coverage>=7.10.0
 
 # V5.3.9 - Python lint job in ci.yml + local parity (ruff check .)
 # V5.5.0 - pinned to the SAME version ci.yml's python-lint job installs

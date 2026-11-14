@@ -132,3 +132,17 @@ def test_options_strategy_name_mix_covers_all_14_shape_families_plus_vertical():
     covered_families = {MULTI_LEG_STRATEGY_REGISTRY[name].shape_family for name in _OPTIONS_STRATEGY_NAME_MIX}
     all_families = {spec.shape_family for spec in MULTI_LEG_STRATEGY_REGISTRY.values()}
     assert covered_families == all_families
+
+
+def test_main_profiles_the_chosen_subsystems_and_writes_the_dump(tmp_path, monkeypatch, capsys):
+    import sys
+
+    from scripts import profile_subsystems as module
+
+    runners = {"regime": (lambda n: n, lambda work: [1.0, 2.0, 3.0]), "indicators": (lambda n: n, lambda work: {"rsi": [0.5, 0.6]})}
+    monkeypatch.setattr(module, "SUBSYSTEM_RUNNERS", runners)
+    monkeypatch.setattr(module, "OUTPUT_PATH", tmp_path / "profile.txt")
+    monkeypatch.setattr(sys, "argv", ["x", "--iterations", "3"])
+    module.main()
+    text = (tmp_path / "profile.txt").read_text(encoding="utf-8")
+    assert "--- regime ---" in text and "--- indicators::rsi ---" in text and "Full pstats" in capsys.readouterr().out

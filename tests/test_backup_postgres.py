@@ -44,3 +44,60 @@ def test_without_a_dsn_it_refuses(tmp_path, monkeypatch):
     monkeypatch.setattr("execution.secrets_io.keyring_get", lambda service, user: None)
     module = _module()
     assert module.main(["--out-dir", str(tmp_path)]) == 1
+
+
+def _dump(module, monkeypatch, *, returncode=0, writes=b"PGDMP", which="/usr/bin/pg_dump", dsn="postgresql://u@h/db"):
+    from types import SimpleNamespace
+
+    seen = {}
+    monkeypatch.setattr(module, "secret_env", lambda name, default: dsn)
+    monkeypatch.setattr(module.shutil, "which", lambda name: which)
+
+    def run(command, cwd, env, check, stdout=None):
+        seen.update(command=command, env=env)
+        target = stdout if stdout is not None else None
+        if target is not None:
+            target.write(writes)
+        else:
+            Path(command[command.index("--file") + 1] if "--file" in command else command[-1]).write_bytes(writes)
+        return SimpleNamespace(returncode=returncode)
+
+    monkeypatch.setattr(module.subprocess, "run", run)
+    return seen
+
+
+def test_a_local_dump_is_kept_marked_and_pruned(tmp_path, monkeypatch, capsys):
+    import json
+
+    module = _module()
+    for stamp in ("20200101T000000Z", "20200102T000000Z"):
+        (tmp_path / f"aether_quant_{stamp}.dump").write_bytes(b"old")
+    seen = _dump(module, monkeypatch)
+    assert module.main(["--out-dir", str(tmp_path), "--keep", "2"]) == 0
+    marker = json.loads((tmp_path / "last_backup.json").read_text(encoding="utf-8"))
+    assert marker["pruned"] == ["aether_quant_20200101T000000Z.dump"] and seen["env"]["PGDATABASE"] == "postgresql://u@h/db"
+    assert "postgresql" not in " ".join(seen["command"]) and "backed up to" in capsys.readouterr().out
+
+
+def test_a_docker_dump_streams_to_the_file(tmp_path, monkeypatch):
+    module = _module()
+    seen = _dump(module, monkeypatch, which=None, dsn="")
+    assert module.main(["--docker", "--out-dir", str(tmp_path)]) == 0
+    assert seen["command"][:3] == ["docker", "compose", "exec"] and len(list(tmp_path.glob("aether_quant_*.dump"))) == 1
+
+
+def test_a_failed_or_empty_dump_leaves_nothing_behind(tmp_path, monkeypatch, capsys):
+    module = _module()
+    _dump(module, monkeypatch, returncode=1)
+    assert module.main(["--out-dir", str(tmp_path)]) == 1
+    _dump(module, monkeypatch, writes=b"")
+    assert module.main(["--out-dir", str(tmp_path)]) == 1
+    assert not list(tmp_path.glob("aether_quant_*.dump")) and "pg_dump failed" in capsys.readouterr().err
+
+
+def test_no_dsn_or_no_pg_dump_is_refused(tmp_path, monkeypatch, capsys):
+    module = _module()
+    _dump(module, monkeypatch, dsn="")
+    assert module.main(["--out-dir", str(tmp_path)]) == 1 and "no Postgres DSN" in capsys.readouterr().err
+    _dump(module, monkeypatch, which=None)
+    assert module.main(["--out-dir", str(tmp_path)]) == 1 and "pg_dump is not installed" in capsys.readouterr().err

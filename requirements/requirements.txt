@@ -12,24 +12,24 @@ ibapi>=9.81
 lean>=1.0.225
 
 # Machine Learning & Data Processing
-torch>=2.0.0
+torch>=2.9.1
 numpy>=1.24.0
 pandas>=2.0.0
-scikit-learn>=1.3.0
+scikit-learn>=1.5.0
 
 # Data & Feature Handling
 joblib>=1.3.0
 
 # Visualization / Local API Support
-flask>=3.0.0
+flask>=3.1.3
 fastapi>=0.110.0
 uvicorn>=0.29.0
 aiofiles>=23.0
 
 # Utilities
-python-dotenv>=1.0.0
+python-dotenv>=1.2.2
 pyyaml>=6.0
-requests>=2.31.0
+requests>=2.33.0
 
 # data_pipeline/fred_backfill.py - HTTP/2 client (V5.1 Phase 2, CODESPACE
 # RUN 1 diagnosis, development/Problems.md). stdlib urllib is HTTP/1.1-only

@@ -9283,9 +9283,6 @@ class AetherQuantAlgorithm(QCAlgorithm):
                     ]
                 )
             )
-        if not lines:
-            return
-
         mode = "w" if is_first_flush else "a"
         with self.observation_equity_curve_path.open(mode, encoding="utf-8") as f:
             f.write("\n".join(lines) + "\n")

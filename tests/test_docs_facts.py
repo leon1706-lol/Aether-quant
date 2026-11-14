@@ -79,11 +79,14 @@ def test_the_python_badge_names_the_version_ci_runs():
     assert f"badge/python-{facts['python.ci']}-" in (ROOT / "README.md").read_text(encoding="utf-8")
 
 
-def test_the_readme_library_example_runs(capsys):
+def test_the_readme_library_example_runs(capsys, tmp_path):
     text = (ROOT / "README.md").read_text(encoding="utf-8")
     section = text[text.index("## The `aether_quant` Library"):text.index("## Download")]
     example = re.search(r"```python\n(.*?)```", section, re.DOTALL).group(1)
-    exec(compile(example, "README example", "exec"), {"__name__": "readme_example"})  # noqa: S102 - the repo's own README
+    # a real file outside the repository, so coverage neither measures it nor reports a missing source
+    path = tmp_path / "readme_example.py"
+    path.write_text(example, encoding="utf-8")
+    exec(compile(example, str(path), "exec"), {"__name__": "readme_example"})  # noqa: S102 - the repo's own README
     assert "PBO:" in capsys.readouterr().out
 
 
@@ -192,3 +195,50 @@ def test_every_docs_page_is_in_the_site_nav_and_the_readme_shows_the_nav():
     for title, page in ((t, p) for section, rows in docs_facts.docs_site_nav(ROOT) if section != "API reference" for t, p in rows):
         target = f"notebooks/{Path(page).name}" if page.startswith("tutorials/") else f"docs/{page}"
         assert f"]({target})" in readme, f"the README does not link {target}"
+
+
+def test_research_sample_hello_and_lean_pin_facts(tmp_path):
+    """V6.6.6: the numbers the site and README quote come from their sources, and a missing source gives no fact."""
+    assert docs_facts.research_facts("The deflated-Sharpe N is now 12. Later: The deflated-Sharpe N is now 15.") == {"research.trials": "15"}
+    assert docs_facts.research_facts("no count") == {}
+    import gzip
+
+    sample = tmp_path / "s.csv.gz"
+    with gzip.open(sample, "wt", encoding="utf-8") as handle:
+        handle.write("date,ticker,open,close\n2021-06-02,B,1,1\n2021-06-01,A,1,1\n2024-02-29,A,1,1\n")
+    assert docs_facts.sample_facts(sample) == {"sample.first": "2021-06-01", "sample.last": "2024-02-29", "sample.months": "2021-06 to 2024-02"}
+    empty = tmp_path / "e.csv.gz"
+    with gzip.open(empty, "wt", encoding="utf-8") as handle:
+        handle.write("date,ticker,open,close\n")
+    assert docs_facts.sample_facts(empty) == {}
+    summary = tmp_path / "h.json"
+    summary.write_text('{"sharpe": "0.43"}', encoding="utf-8")
+    assert docs_facts.hello_facts(summary) == {"hello.sharpe": "0.43"} and docs_facts.hello_facts(tmp_path / "none.json") == {}
+    assert docs_facts.lean_pin_facts("x\n_Lean run `2026-11-07_17-54-01`, 2023") == {"lean.pin_run": "2026-11-07_17-54-01"}
+    assert docs_facts.lean_pin_facts("no run") == {}
+
+
+def test_the_engine_fact_is_the_tag_without_its_digest():
+    assert docs_facts.compute_facts()["lean.engine"] == "quantconnect/lean:17900"
+
+
+def test_literal_sample_windows_in_code_match_the_sample():
+    """Docstrings and constants can't hold a fact marker, so they are checked against the sample instead."""
+    facts = docs_facts.compute_facts()
+    window = f"{facts['sample.first']} to {facts['sample.last']}"
+    for path in ("aether_quant/samples.py", "evaluation/hello_world.py", "scripts/build_hello_sample.py"):
+        assert window in (ROOT / path).read_text(encoding="utf-8"), path
+    assert f"({facts['sample.months']})" in (ROOT / "notebooks" / "src" / "00_hello_world.py").read_text(encoding="utf-8")
+
+
+def test_the_changelog_block_lists_the_latest_phases_newest_first(tmp_path):
+    (tmp_path / "development").mkdir()
+    (tmp_path / "development" / "Changelog.md").write_text("## Phase 1 Result\n\n## Phase V2.0 — Two: a, b\n\n## Phase V3.0 — Three\n", encoding="utf-8")
+    block = docs_facts.changelog_latest_block(tmp_path, count=2).splitlines()
+    assert block[0].startswith("- [Phase V3.0 — Three](") and block[0].endswith("#phase-v30--three)")
+    assert block[1].endswith("#phase-v20--two-a-b)") and len(block) == 2
+
+
+def test_the_site_nav_skips_comment_lines(tmp_path):
+    (tmp_path / "mkdocs.yml").write_text("site_name: x\nnav:\n  # a comment\n  - Home: index.md\n  - Guide:\n      - Signals: guide/signals.md\ntheme: x\n", encoding="utf-8")
+    assert docs_facts.docs_site_nav(tmp_path) == [("Home", [("", "index.md")]), ("Guide", [("Signals", "guide/signals.md")])]

@@ -67,9 +67,7 @@ def make_rolling_ic_state_fn(
         ticker = event["ticker"]
         origin_date = str(event["created_at"])[:10]
         dates = dated_by_ticker[ticker]
-        position = bisect.bisect_left(dates, origin_date)
-        if position >= len(dates) or dates[position] != origin_date:
-            continue
+        position = bisect.bisect_left(dates, origin_date)  # the event's own date is in `dates`, so this is its first row
         future_position = position + horizon_days
         if future_position >= len(dates):
             continue

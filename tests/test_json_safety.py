@@ -93,3 +93,39 @@ def test_load_json_lenient_degrades_to_none_on_any_failure(tmp_path: Path):
     good = tmp_path / "good.json"
     good.write_text('{"ok": true}', encoding="utf-8")
     assert load_json_lenient(good) == {"ok": True}
+
+
+def test_sanitize_drops_a_non_finite_numpy_scalar_that_is_not_a_python_float():
+    np = pytest.importorskip("numpy")
+    assert sanitize_json_finite({"bad": np.float32("inf"), "ok": np.float32(0.5)}) == {"bad": None, "ok": 0.5}
+
+
+@pytest.mark.parametrize("writer", ["json", "text"])
+@pytest.mark.parametrize("unlink_fails", [False, True])
+def test_a_failed_replace_cleans_up_its_temp_file_and_raises(tmp_path: Path, monkeypatch, writer, unlink_fails):
+    import json_safety
+
+    target = tmp_path / "state.out"
+    target.write_text("old", encoding="utf-8")
+
+    def broken_replace(source, destination):
+        raise OSError("disk full")
+
+    removed = []
+    real_unlink = json_safety.os.unlink
+
+    def unlink(name):
+        removed.append(name)
+        if unlink_fails:
+            raise OSError("busy")
+        real_unlink(name)
+
+    monkeypatch.setattr(json_safety.os, "replace", broken_replace)
+    monkeypatch.setattr(json_safety.os, "unlink", unlink)
+    with pytest.raises(OSError, match="disk full"):
+        if writer == "json":
+            atomic_write_json(target, {"a": 1})
+        else:
+            atomic_write_text(target, "new")
+    assert target.read_text(encoding="utf-8") == "old" and len(removed) == 1
+    assert (list(tmp_path.glob(".*tmp")) != []) is unlink_fails

@@ -13,8 +13,9 @@
 
 ```powershell
 pip install -e .          # register `aq` from source (pyproject.toml)
-aq test                   # full suite, refreshes the badge and doc facts (aq test --risk etc. = one subsystem)
+aq test                   # full suite, then the doc facts (aq test --risk etc. = one subsystem)
 #                         # no --parallel on a low-memory machine: each xdist worker imports torch
+aq test --coverage        # every group in turn under coverage: every tracked module must reach 100%
 aq evaluate               # offline evaluation
 aq cycle status           # generations, shares, decay, what is due (RUNBOOK "Research cycle")
 aq docs sync              # refresh numbers quoted in the docs
@@ -65,6 +66,9 @@ ruff check .              # must be clean before commit
 - **One test file per source module.** Cross-module regressions go in round files (`test_v660_fixes.py`), committed with their fix.
 - **Register every new test file** in `aq_cli.py`'s `_SUBSYSTEM_TEST_FILES`, or subsystem runs silently skip it.
 - **Docs move with code:** README and sub-readmes, `development/`, `aq --help` for new flags.
+- **A doc or doc section added is named here,** in "Where things live" or "After every phase", so an agent finds it.
+- **Synthetic worlds first.** `tests/README.md` "Synthetic worlds" names the fake Lean (`main.py`), the trainer and `train.py` worlds and the script loader. A new runtime test uses one rather than a fresh stub.
+- **100% coverage of every tracked module, no pragma.** A new line ships with the test that runs it; `if TYPE_CHECKING:` is the one exclusion (`tests/test_coverage_scope.py`).
 - **Numbers in docs are facts, not text.** A count, window or version goes through `<!--fact:key-->` (`docs_facts.py`) or a generated `AQ:*` block. `tests/test_docs_facts.py` also fails on a path, `phase_v2` key, `aq` command or problem number that no longer exists in a living doc.
 - **The README's Backtest Statistics shows the shipped book only.** The retired book's blocks live in `development/research_results.md`.
 - **Problems.md and Changelog.md entries are condensed.**
@@ -84,11 +88,28 @@ Lean backtests run on a temporary DinD Codespace (`scripts/codespace_lean_run.ps
 
 `forward-ledger.yml` and `research-cycle.yml` run each session on free runners and write only to branch `forward-ledger`.
 
-`.github/workflows/ci.yml` (Python 3.11): `python-tests` (ubuntu and windows, 80% coverage gate, coverage XML/JSON/HTML), `python-lint`, `dependency-audit`, `webui-tests` (with coverage and a blocking `npm audit`), `cli-smoke`, `workflows-lint`, and the guard jobs: fast-guards, subsystem-matrix, wheel-smoke, python-compat, docker-checks (dashboard image smoke and trivy), secret-scan (blocking on the tree), parity-smoke, test-count-drift, lite-install, typecheck, docs, notebooks and bandit. `codeql.yml`, `scorecard.yml` and `pages.yml` (docs, coverage and the coverage badge on GitHub Pages) run beside it. `tests/test_ci_workflows.py` pins the shape: update it with any workflow change. No Lean backtest in CI. A Docker rebuild is required before any paper or live deploy once material code lands.
+`.github/workflows/ci.yml` (Python 3.11): `python-tests` (ubuntu and windows, 100% coverage gate over every tracked module, coverage XML/JSON/HTML and a JUnit report), `python-lint`, `dependency-audit`, `webui-tests` (with coverage and a blocking `npm audit`), `cli-smoke`, `workflows-lint`, and the guard jobs: fast-guards, subsystem-matrix, wheel-smoke, python-compat, docker-checks (dashboard image smoke and trivy), secret-scan (blocking on the tree), parity-smoke, lite-install, typecheck, docs, notebooks and bandit. `codeql.yml`, `scorecard.yml` and `pages.yml` (docs, coverage reports, and the coverage and test badges on GitHub Pages) run beside it. `release.yml` attaches the wheel, sdist, SBOM, Sigstore signatures and SLSA provenance to each GitHub release, then reruns the Scorecard; its `backfill_tag` dispatch signs and attaches PyPI's files to an older release. Actions are pinned by commit and base images by digest; Dependabot moves the pins. `tests/test_ci_workflows.py` pins the shape: update it with any workflow change. No Lean backtest in CI. A Docker rebuild is required before any paper or live deploy once material code lands.
+
+## After every phase: what doesn't update itself
+
+Automatic: the PyPI, CI, CodeQL, Scorecard, coverage and test badges; every `<!--fact:-->` and `AQ:*` block (`aq docs sync`, checked in CI); the site's reference pages; release assets and the Scorecard run that follows a tag. Refresh the rest by hand when its trigger happens:
+
+| Item | Where | Trigger and how |
+|---|---|---|
+| Changelog highlights | `docs/about/changelog.md`, the paragraph above the generated list | Every phase: three to six bullets of what a user would notice |
+| Research Record | README "Research Record" table | A research round: one row with trials, survivors, nearest result and entry |
+| Backtest Statistics | README `AQ:BACKTEST`, `BTSTATS_*`, `ALPHA` blocks | A new Lean pin: `generate_backtest_report.py`, then `python scripts/readme_freshness.py --since <date>` |
+| Long-window run | `REPRODUCIBILITY.md` "Long-window row" | A new Lean pin: the `long_run` ID |
+| Readiness block | `docs/live/paper-to-live.md` `AQ:READINESS` | A paper period: `aq live-readiness` |
+| Install sizes | README "Download", `docs/getting-started/install.md` | A dependency change: measure a fresh venv |
+| GitHub About | repository description and homepage | The book or the site moves: `gh repo edit --description ... --homepage ...` (the workflow token can't) |
+| Older releases | GitHub releases without assets | Once per such release: `gh workflow run release.yml -f backfill_tag=vX.Y.Z` |
+| Scorecard account checks | branch protection, code review, CII badge | Owner decisions, outside the code |
+| `webui/package.json` version | stays `0.0.0` | Never: a private package, versioned by the image tag |
 
 ## Wrap-up checklist
 
-After every code change, from [`development/verification.md`](development/verification.md) (`aq verify --list`): unit tests added; for a new invariant in a safety, admission or ledger path a Lean spec with its differential test (`formal/README.md`, `aq prove`) and a property test; for a new public function the `aether_quant` export (rule 14); `aq verify --quick` on the PC; `aq test` (a Codespace when the PC cannot finish it, #324) and ruff green; `aq docs sync`; vault regenerated. Before handing over a commit also run `scripts/clean_checkout_test.ps1` (CI has no gitignored files), or on the 4 GB dev PC `scripts/codespace_verify.ps1 -Start`, which runs every CI job except Windows, the webui image build and `npm audit` on a Codespace. A change to the live path adds Lean on a DinD Codespace and the parity test (rule 6). Install the pre-commit hook once: `python scripts/install_hooks.py`.
+After every code change, from [`development/verification.md`](development/verification.md) (`aq verify --list`): unit tests added; for a new invariant in a safety, admission or ledger path a Lean spec with its differential test (`formal/README.md`, `aq prove`) and a property test; for a new public function the `aether_quant` export (rule 14); `aq verify --quick` on the PC; `aq test` (a Codespace when the PC cannot finish it, #324), `aq test --coverage` at 100%, and ruff green; `aq docs sync`; vault regenerated. Before handing over a commit also run `scripts/clean_checkout_test.ps1` (CI has no gitignored files), or on the 4 GB dev PC `scripts/codespace_verify.ps1 -Start`, which runs every CI job except Windows, the webui image build and `npm audit` on a Codespace. A change to the live path adds Lean on a DinD Codespace and the parity test (rule 6). Install the pre-commit hook once: `python scripts/install_hooks.py`.
 
 ```powershell
 cd Aether-quant-Obsidian-Vault

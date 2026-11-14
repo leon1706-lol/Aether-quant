@@ -94,7 +94,6 @@ gitleaks_job() {
   "${STATE}/gitleaks" detect --source . --no-git --no-banner --redact --exit-code 1 --config .gitleaks.toml
 }
 audit() { cd "${CLEAN}" && pip-audit --requirement requirements/requirements.txt --desc && pip-audit --requirement requirements/requirements-dev.txt --desc; }
-drift() { cd "${CLEAN}" && python3 scripts/check_test_count_drift.py --strict; }
 hadolint_job() {
   cd "${CLEAN}" || return 1
   curl -sSL -o "${STATE}/hadolint" https://github.com/hadolint/hadolint/releases/download/v2.12.0/hadolint-Linux-x86_64 && chmod +x "${STATE}/hadolint" && "${STATE}/hadolint" --failure-threshold error Dockerfile Dockerfile.lean
@@ -142,7 +141,6 @@ stage compat compat
 stage parity parity
 stage gitleaks gitleaks_job
 stage pip_audit audit
-stage drift drift
 stage hadolint hadolint_job
 stage vault vault
 stage real_tree real_tree

@@ -560,12 +560,11 @@ def test_train_rl_sizing_only_propagates_trainer_failure():
 def test_test_wraps_pytest_tests_dir_excluding_lean_backtest_by_default():
     # Deliberately NOT using _parse_and_dispatch: cmd_test funnels through
     # _run_captured, not _run - see this file's module docstring. Also mocks
-    # _update_readme_test_badge - otherwise this "unit" test would write a
-    # fake pass count into the repo's real README.md as a side effect.
+    # the docs sync, which a full run triggers.
     captured_mock = MagicMock(return_value=(0, "5 passed in 0.42s"))
     parser = aq_cli.build_parser()
     args = parser.parse_args(["test"])
-    with patch("aq_cli._run_captured", captured_mock), patch("aq_cli._update_readme_test_badge"):
+    with patch("aq_cli._run_captured", captured_mock), patch("aq_cli._sync_doc_facts_best_effort"):
         args.func(args)
 
     assert captured_mock.call_args.args[0] == [
@@ -577,7 +576,7 @@ def test_test_lean_flag_includes_lean_backtest_marker_and_drops_exclusion():
     captured_mock = MagicMock(return_value=(0, "5 passed in 0.42s"))
     parser = aq_cli.build_parser()
     args = parser.parse_args(["test", "--lean"])
-    with patch("aq_cli._run_captured", captured_mock), patch("aq_cli._update_readme_test_badge"):
+    with patch("aq_cli._run_captured", captured_mock), patch("aq_cli._sync_doc_facts_best_effort"):
         args.func(args)
 
     cmd = captured_mock.call_args.args[0]
@@ -589,7 +588,7 @@ def test_test_full_is_an_alias_for_lean():
     captured_mock = MagicMock(return_value=(0, "5 passed in 0.42s"))
     parser = aq_cli.build_parser()
     args = parser.parse_args(["test", "--full"])
-    with patch("aq_cli._run_captured", captured_mock), patch("aq_cli._update_readme_test_badge"):
+    with patch("aq_cli._run_captured", captured_mock), patch("aq_cli._sync_doc_facts_best_effort"):
         args.func(args)
 
     assert "not lean_backtest" not in captured_mock.call_args.args[0]
@@ -599,7 +598,7 @@ def test_test_parallel_flag_adds_xdist_args():
     captured_mock = MagicMock(return_value=(0, "5 passed in 0.42s"))
     parser = aq_cli.build_parser()
     args = parser.parse_args(["test", "--parallel"])
-    with patch("aq_cli._run_captured", captured_mock), patch("aq_cli._update_readme_test_badge"):
+    with patch("aq_cli._run_captured", captured_mock), patch("aq_cli._sync_doc_facts_best_effort"):
         args.func(args)
 
     cmd = captured_mock.call_args.args[0]
@@ -611,7 +610,7 @@ def test_test_cli_flag_restricts_to_cli_subsystem_files():
     captured_mock = MagicMock(return_value=(0, "5 passed in 0.42s"))
     parser = aq_cli.build_parser()
     args = parser.parse_args(["test", "--cli"])
-    with patch("aq_cli._run_captured", captured_mock), patch("aq_cli._update_readme_test_badge"):
+    with patch("aq_cli._run_captured", captured_mock), patch("aq_cli._sync_doc_facts_best_effort"):
         args.func(args)
 
     cmd = captured_mock.call_args.args[0]
@@ -629,7 +628,7 @@ def test_test_audit_flag_restricts_to_audit_subsystem_files():
     captured_mock = MagicMock(return_value=(0, "5 passed in 0.42s"))
     parser = aq_cli.build_parser()
     args = parser.parse_args(["test", "--audit"])
-    with patch("aq_cli._run_captured", captured_mock), patch("aq_cli._update_readme_test_badge"):
+    with patch("aq_cli._run_captured", captured_mock), patch("aq_cli._sync_doc_facts_best_effort"):
         args.func(args)
 
     cmd = captured_mock.call_args.args[0]
@@ -671,7 +670,7 @@ def test_test_multiple_subsystem_flags_combine():
     captured_mock = MagicMock(return_value=(0, "5 passed in 0.42s"))
     parser = aq_cli.build_parser()
     args = parser.parse_args(["test", "--cli", "--risk"])
-    with patch("aq_cli._run_captured", captured_mock), patch("aq_cli._update_readme_test_badge"):
+    with patch("aq_cli._run_captured", captured_mock), patch("aq_cli._sync_doc_facts_best_effort"):
         args.func(args)
 
     cmd = captured_mock.call_args.args[0]
@@ -683,7 +682,7 @@ def test_test_subsystem_flag_plus_lean_appends_lean_backtest_file():
     captured_mock = MagicMock(return_value=(0, "5 passed in 0.42s"))
     parser = aq_cli.build_parser()
     args = parser.parse_args(["test", "--cli", "--lean"])
-    with patch("aq_cli._run_captured", captured_mock), patch("aq_cli._update_readme_test_badge"):
+    with patch("aq_cli._run_captured", captured_mock), patch("aq_cli._sync_doc_facts_best_effort"):
         args.func(args)
 
     cmd = captured_mock.call_args.args[0]
@@ -691,29 +690,38 @@ def test_test_subsystem_flag_plus_lean_appends_lean_backtest_file():
     assert "not lean_backtest" not in cmd
 
 
-def test_test_filtered_run_never_updates_readme_badge():
-    """A --cli-only (or any subsystem-filtered) run's pass count is a
-    partial subset - writing it into the badge would silently misreport a
-    subset as if it were the whole suite."""
+def test_test_filtered_run_never_syncs_the_docs():
+    """A --cli-only (or any subsystem-filtered) run is a subset of the suite."""
     captured_mock = MagicMock(return_value=(0, "5 passed in 0.42s"))
-    badge_mock = MagicMock()
+    sync_mock = MagicMock()
     parser = aq_cli.build_parser()
     args = parser.parse_args(["test", "--cli"])
-    with patch("aq_cli._run_captured", captured_mock), patch("aq_cli._update_readme_test_badge", badge_mock):
+    with patch("aq_cli._run_captured", captured_mock), patch("aq_cli._sync_doc_facts_best_effort", sync_mock):
         args.func(args)
 
-    badge_mock.assert_not_called()
+    sync_mock.assert_not_called()
 
 
-def test_test_default_unfiltered_run_still_updates_readme_badge():
-    captured_mock = MagicMock(return_value=(0, "5 passed in 0.42s"))
-    badge_mock = MagicMock()
+def test_test_default_unfiltered_run_syncs_the_docs_and_writes_no_badge(tmp_path):
+    captured_mock = MagicMock(return_value=(0, "\x1b[32m5 passed\x1b[0m in 0.42s"))
+    sync_mock = MagicMock()
     parser = aq_cli.build_parser()
     args = parser.parse_args(["test"])
-    with patch("aq_cli._run_captured", captured_mock), patch("aq_cli._update_readme_test_badge", badge_mock):
+    with patch("aq_cli._run_captured", captured_mock), patch("aq_cli._sync_doc_facts_best_effort", sync_mock):
         args.func(args)
 
-    badge_mock.assert_called_once_with(5, 0)
+    sync_mock.assert_called_once_with()
+    assert not hasattr(aq_cli, "_update_readme_test_badge"), "the test badge is CI's (V6.6.6)"
+
+
+def test_test_run_with_nothing_passed_does_not_sync_the_docs():
+    sync_mock = MagicMock()
+    parser = aq_cli.build_parser()
+    args = parser.parse_args(["test"])
+    with patch("aq_cli._run_captured", MagicMock(return_value=(1, "1 error in 0.1s"))), patch("aq_cli._sync_doc_facts_best_effort", sync_mock):
+        assert args.func(args) == 1
+
+    sync_mock.assert_not_called()
 
 
 def test_test_never_calls_run_or_a_real_subprocess():
@@ -727,7 +735,7 @@ def test_test_never_calls_run_or_a_real_subprocess():
     args = parser.parse_args(["test"])
     with patch("aq_cli._run", run_mock), patch("aq_cli.subprocess.Popen", popen_mock), patch(
         "aq_cli._run_captured", MagicMock(return_value=(0, "1 passed"))
-    ), patch("aq_cli._update_readme_test_badge"):
+    ), patch("aq_cli._sync_doc_facts_best_effort"):
         args.func(args)
 
     run_mock.assert_not_called()
@@ -1762,129 +1770,6 @@ def test_check_for_update_uses_cache_within_interval(tmp_path):
 
     fetch_mock.assert_not_called()
     assert latest == "1.5.0"
-
-
-# --- test badge -------------------------------------------------------------
-
-
-def _write_readme_with_test_badge_markers(path) -> None:
-    path.write_text(
-        f"# Aether Quant\n\n{aq_cli._TEST_BADGE_MARKER_START}old badge{aq_cli._TEST_BADGE_MARKER_END}\n\nMore.\n",
-        encoding="utf-8",
-    )
-
-
-def test_update_readme_test_badge_rewrites_between_markers(tmp_path):
-    readme_path = tmp_path / "README.md"
-    _write_readme_with_test_badge_markers(readme_path)
-
-    with patch("aq_cli.README_PATH", readme_path):
-        aq_cli._update_readme_test_badge(passed=507, failed=0)
-
-    text = readme_path.read_text(encoding="utf-8")
-    assert "old badge" not in text
-    assert "507%2F507" in text
-    assert "brightgreen" in text
-
-
-def test_update_readme_test_badge_turns_red_on_failure(tmp_path):
-    readme_path = tmp_path / "README.md"
-    _write_readme_with_test_badge_markers(readme_path)
-
-    with patch("aq_cli.README_PATH", readme_path):
-        aq_cli._update_readme_test_badge(passed=500, failed=7)
-
-    text = readme_path.read_text(encoding="utf-8")
-    assert "500%2F507" in text
-    assert "-red?" in text
-
-
-def test_update_readme_test_badge_noop_when_markers_missing(tmp_path):
-    readme_path = tmp_path / "README.md"
-    readme_path.write_text("# Aether Quant\n\nNo markers.\n", encoding="utf-8")
-
-    with patch("aq_cli.README_PATH", readme_path):
-        aq_cli._update_readme_test_badge(passed=5, failed=0)
-
-    assert readme_path.read_text(encoding="utf-8") == "# Aether Quant\n\nNo markers.\n"
-
-
-def test_update_readme_test_badge_noop_when_nothing_collected(tmp_path):
-    readme_path = tmp_path / "README.md"
-    _write_readme_with_test_badge_markers(readme_path)
-
-    with patch("aq_cli.README_PATH", readme_path):
-        aq_cli._update_readme_test_badge(passed=0, failed=0)
-
-    assert "old badge" in readme_path.read_text(encoding="utf-8")
-
-
-def _write_readme_with_test_count_markers(path) -> None:
-    marker = f"{aq_cli._TEST_COUNT_MARKER_START}828{aq_cli._TEST_COUNT_MARKER_END}"
-    path.write_text(
-        f"# Aether Quant\n\n{marker} tests, one file per module.\n\n"
-        f"| `tests/` | Pytest suite conventions ({marker} tests) |\n",
-        encoding="utf-8",
-    )
-
-
-def test_update_readme_test_badge_updates_every_test_count_marker_occurrence(tmp_path):
-    readme_path = tmp_path / "README.md"
-    _write_readme_with_test_count_markers(readme_path)
-
-    with patch("aq_cli.README_PATH", readme_path):
-        aq_cli._update_readme_test_badge(passed=1153, failed=0)
-
-    text = readme_path.read_text(encoding="utf-8")
-    assert text.count(f"{aq_cli._TEST_COUNT_MARKER_START}1153{aq_cli._TEST_COUNT_MARKER_END}") == 2
-    assert "828" not in text
-
-
-def test_update_readme_test_badge_count_uses_total_including_failures(tmp_path):
-    readme_path = tmp_path / "README.md"
-    _write_readme_with_test_count_markers(readme_path)
-
-    with patch("aq_cli.README_PATH", readme_path):
-        aq_cli._update_readme_test_badge(passed=1150, failed=3)
-
-    text = readme_path.read_text(encoding="utf-8")
-    assert f"{aq_cli._TEST_COUNT_MARKER_START}1153{aq_cli._TEST_COUNT_MARKER_END}" in text
-
-
-def test_update_readme_test_badge_noop_for_count_when_markers_missing(tmp_path):
-    readme_path = tmp_path / "README.md"
-    _write_readme_with_test_badge_markers(readme_path)  # badge markers only, no count markers
-
-    with patch("aq_cli.README_PATH", readme_path):
-        aq_cli._update_readme_test_badge(passed=5, failed=0)
-
-    text = readme_path.read_text(encoding="utf-8")
-    assert aq_cli._TEST_COUNT_MARKER_START not in text
-
-
-def test_cmd_test_parses_captured_output_and_updates_badge():
-    badge_mock = MagicMock()
-    with patch("aq_cli._run_captured", return_value=(0, "505 passed, 2 failed in 12.3s")), patch(
-        "aq_cli._update_readme_test_badge", badge_mock
-    ):
-        parser = aq_cli.build_parser()
-        args = parser.parse_args(["test"])
-        exit_code = args.func(args)
-
-    badge_mock.assert_called_once_with(505, 2)
-    assert exit_code == 0
-
-
-def test_cmd_test_treats_errors_as_failures_for_the_badge():
-    badge_mock = MagicMock()
-    with patch("aq_cli._run_captured", return_value=(2, "3 passed, 1 error in 1.0s")), patch(
-        "aq_cli._update_readme_test_badge", badge_mock
-    ):
-        parser = aq_cli.build_parser()
-        args = parser.parse_args(["test"])
-        args.func(args)
-
-    badge_mock.assert_called_once_with(3, 1)
 
 
 # ---------------------------------------------------------------------------

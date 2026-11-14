@@ -257,3 +257,54 @@ def test_the_newest_session_counts_when_yahoo_has_left_its_closes_empty():
     # yesterday's last price is not today's close
     stale = {"chart": {"result": [{"timestamp": stamps, "indicators": indicators, "meta": {"regularMarketPrice": 100.0, "regularMarketTime": 1793649600}}]}}
     assert module.yahoo_closes("SPY", lambda url: stale) == {"2026-11-02": 99.0}
+
+
+def test_one_coin_blocked_on_a_quiet_day_says_so_in_the_reason(tmp_path):
+    import forward_ledger
+
+    ledger = tmp_path / "ledger.jsonl"
+    reasons = []
+    for anchor in ("2024-09-17", "2024-09-18", "2024-09-19", "2024-09-20"):
+        written = forward_ledger.run(_candidates(tmp_path, anchor=anchor), tmp_path / f"{anchor}.jsonl", get_json=_fake_api(block="products/BTC"), now=NOW)
+        reasons.append(written[0]["payload"].get("reason") or "")
+    assert any("(Coinbase fetch failed for BTCUSD)" in reason for reason in reasons), reasons
+    assert not ledger.exists()
+
+
+def test_the_cli_writes_the_session_or_says_why_not(tmp_path, monkeypatch, capsys):
+    import forward_ledger
+
+    rows = [{"payload": {"session": "2024-09-30", "candidate": "c1", "status": "ok", "session_return": 0.01, "rebalance": False, "weights": {"BTCUSD": 0.1}}}]
+    monkeypatch.setattr(forward_ledger, "run", lambda candidates, ledger, get_json, now, session_override: rows)
+    assert forward_ledger.main(["--ledger", str(tmp_path / "l.jsonl")]) == 0 and "2024-09-30 c1: ok" in capsys.readouterr().out
+
+    def no_session(*args, **kwargs):
+        raise forward_ledger.NoSessionToRecord("2024-09-28 is not a session")
+
+    monkeypatch.setattr(forward_ledger, "run", no_session)
+    assert forward_ledger.main(["--ledger", str(tmp_path / "l.jsonl"), "--session", "2024-09-28"]) == 1 and "not a session" in capsys.readouterr().err
+
+
+def test_get_json_asks_with_the_project_agent_and_raises_on_an_error(monkeypatch):
+    import requests
+
+    import forward_ledger
+
+    seen = {}
+
+    class Response:
+        def raise_for_status(self):
+            seen["checked"] = True
+
+        def json(self):
+            return {"ok": 1}
+
+    monkeypatch.setattr(requests, "get", lambda url, headers, timeout: seen.update(url=url, headers=headers) or Response())
+    assert forward_ledger._get_json("https://x") == {"ok": 1} and seen["checked"] and seen["headers"]["User-Agent"] == forward_ledger.USER_AGENT
+
+
+def test_a_session_override_that_is_no_session_is_refused(tmp_path):
+    import forward_ledger
+
+    with pytest.raises(forward_ledger.NoSessionToRecord, match="2024-09-28"):
+        forward_ledger.run(_candidates(tmp_path), tmp_path / "l.jsonl", get_json=_fake_api(), now=NOW, session_override="2024-09-28")

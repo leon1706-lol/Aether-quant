@@ -5,7 +5,7 @@
 # inside the image instead of making Lean CLI bind-mount a generated
 # requirements.txt file from Windows (which fails on some Docker Desktop
 # installations with CreateFile: Access denied).
-ARG LEAN_BASE_IMAGE=quantconnect/lean:17900
+ARG LEAN_BASE_IMAGE=quantconnect/lean:17900@sha256:917ba212afafc9be9ad401eaed6d55986386855a0a597200a448c34a03f3360b
 FROM ${LEAN_BASE_IMAGE}
 
 COPY requirements/lean-runtime.txt /tmp/aether-quant-lean-runtime.txt

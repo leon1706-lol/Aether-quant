@@ -76,3 +76,50 @@ def test_two_runs_give_identical_scores():
     first = gbm.walk_forward(features, label, known.index, fit=_small_model)
     second = gbm.walk_forward(features, label, known.index, fit=_small_model)
     pd.testing.assert_frame_equal(first, second)
+
+
+def test_a_refit_with_no_or_too_little_history_scores_nothing():
+    # from 2018-12-25 the first refit has no labelled history at all; from 2018-11-01 it has too few rows to fit
+    for start in ("2018-12-25", "2018-11-01"):
+        days = [day.strftime("%Y-%m-%d") for day in pd.date_range(start, periods=80)]
+        label = pd.DataFrame(0.5, index=days, columns=["A", "B"])
+        scores = gbm.walk_forward({"x01": label.copy()}, label, pd.Index(days), fit=_small_model)
+        assert scores.isna().all().all(), start
+
+
+def test_main_scores_cell_cs_and_refuses_any_other(tmp_path, monkeypatch, capsys):
+    from types import SimpleNamespace
+
+    import pytest
+
+    import evaluation.wide_context as wide
+
+    known, volume, member, tables = _world()
+    cell = SimpleNamespace(cell=SimpleNamespace(name="CS", end=gbm_cells()["CS"].end), context=SimpleNamespace(panel=SimpleNamespace(known=known)),
+                           features={"quote_volume": volume}, member=member, tables=tables)
+    monkeypatch.setattr(wide, "crypto_cell", lambda root, base, name: cell)
+    monkeypatch.setattr(gbm, "feature_tables", lambda known, volume, member, tables: {"x01": known})
+    monkeypatch.setattr(gbm, "walk_forward", lambda features, label, index: pd.DataFrame(0.5, index=index, columns=known.columns))
+    monkeypatch.setattr(gbm, "OUTPUT", tmp_path / "scores" / "x13.csv")
+    assert gbm.main() == 0
+    written = pd.read_csv(tmp_path / "scores" / "x13.csv")
+    assert list(written.columns) == ["date", "ticker", "score"] and "wrote" in capsys.readouterr().out
+    cell.cell.name = "CV"
+    with pytest.raises(SystemExit, match="cell CS only"):
+        gbm.main()
+
+
+def gbm_cells():
+    from evaluation.research_cells import CELLS
+
+    return CELLS
+
+
+def test_run_as_a_script_it_stops_at_its_first_read(monkeypatch):
+    import pytest
+
+    from script_loader import Stop, run_script, stop_at_first_read
+
+    stop_at_first_read(monkeypatch)
+    with pytest.raises(Stop, match="config.json"):
+        run_script("v664_crypto_gbm", [], monkeypatch)

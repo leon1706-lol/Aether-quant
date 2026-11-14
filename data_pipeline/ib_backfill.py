@@ -132,7 +132,7 @@ def attempt_connection(config: dict, lean_config: dict) -> tuple[bool, str]:
         ib = connect_ib(config, lean_config)
     except IBNotConfiguredError as exc:
         return False, str(exc)
-    except Exception as exc:  # pragma: no cover - real-network failure paths, not unit tested
+    except Exception as exc:  # any connection failure is reported, never raised
         return False, f"connection failed — {exc}"
     else:
         disconnect_ib(ib)

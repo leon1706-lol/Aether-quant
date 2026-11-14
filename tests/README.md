@@ -23,6 +23,11 @@ def _make_conn_mock():
 
 ## Special suites
 
+- **Synthetic worlds (V6.6.6):** whole programs run on a CPU in seconds, so the gate is a literal 100% with no pragma. Use one before writing a new stub.
+  - `lean_world.py` + `lean_fakes.py` (`test_main_world_*.py`): a fake QuantConnect `QCAlgorithm` (portfolio, instant fills, order events, option chains, strategies), synthetic `ml/` artifacts and FRED series, and a seeded market. They drive `main.py`'s setup, bars, books, risk, options and teardown.
+  - `train_world.py` (`test_train_pipeline_runtime.py`, `test_train_runtime_gaps_*.py`): Lean-format zips for twelve assets and a trimmed config. `repoint()` moves every module path under the repo root to a temporary root, so nothing touches the real `data/` or `ml/`.
+  - `trainer_fakes.py` (`test_train_mains_runtime.py`): a small dataset, schema and config for the multitask, sequence and gating trainers.
+  - `script_loader.py` (`test_*_runtime.py` for `scripts/`): loads a script by path, runs its `__main__`, blocks writes and stubs the gitignored stored rules.
 - **`main.py` against a Lean stub:** `test_main_wiring.py` installs a minimal `AlgorithmImports`, builds the algorithm with `object.__new__` and drives the order-path methods. It proves this repo's decisions around Lean's APIs, not fill timing, and it doesn't drive `on_data()`. `test_main_ensure_ready_smoke.py` runs the real first-bar setup.
 - **Repo guards (`aq test --meta`):**
   - `test_ci_workflows.py`: the CI shape.

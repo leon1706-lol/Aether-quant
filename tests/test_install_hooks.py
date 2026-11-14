@@ -46,3 +46,30 @@ def test_the_wrapper_does_nothing_where_the_script_it_calls_does_not_exist():
     from scripts.install_hooks import WRAPPER
 
     assert '[ -f "$repo_root/.githooks/pre-commit" ] || exit 0' in WRAPPER and WRAPPER.index("|| exit 0") < WRAPPER.index("exec sh")
+
+
+def test_main_installs_and_checks(tmp_path, monkeypatch, capsys):
+    repo = _repo(tmp_path)
+    monkeypatch.setattr(hooks, "ROOT", repo)
+    monkeypatch.setattr(hooks, "installed", lambda root=repo: (repo / ".git" / "hooks" / "pre-commit").exists())
+    monkeypatch.setattr(hooks, "install", lambda root=repo: (repo / ".git" / "hooks" / "pre-commit").write_text("x") and "installed here")
+    assert hooks.main(["--check"]) == 1 and "not installed" in capsys.readouterr().out
+    assert hooks.main([]) == 0 and "installed here" in capsys.readouterr().out
+    assert hooks.main(["--check"]) == 0
+
+
+def test_a_hook_that_cannot_be_made_executable_is_still_installed(tmp_path, monkeypatch):
+    repo = _repo(tmp_path)
+
+    def refuse(self, mode):
+        raise OSError("read-only filesystem")
+
+    monkeypatch.setattr(Path, "chmod", refuse)
+    assert hooks.install(repo).startswith("installed ") and hooks.installed(repo)
+
+
+def test_the_check_runs_as_a_script(monkeypatch, capsys):
+    from script_loader import run_script
+
+    assert run_script("install_hooks", ["--check"], monkeypatch) in (0, 1)
+    assert "installed" in capsys.readouterr().out

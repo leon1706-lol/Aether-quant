@@ -41,6 +41,9 @@ foreach ($file in (git ls-files --others --exclude-standard)) {
     Copy-Item -LiteralPath (Join-Path $repo $file) -Destination $target -Force
 }
 
+# stage it all in the worktree, so `git ls-files` there lists what a commit of these changes would (a deleted file gone, a new one present)
+git -C $WorkDir add -A | Out-Null
+
 $previous = $env:PYTHONPATH
 $env:PYTHONPATH = $WorkDir
 Push-Location $WorkDir
