@@ -196,3 +196,14 @@ def test_a_momentum_factor_joins_the_regression():
 def test_a_ledger_that_never_started_is_flagged_first():
     actions = research_cycle.due_actions({}, {}, session=None, sessions_behind=0, sessions_since_retrain=None, broker_keys=False, record_started=False, policy_enabled=False)
     assert any("record not started" in action["why"] for action in actions)
+
+
+def test_host_memory_is_read_from_windows_through_the_kernel_call(monkeypatch):
+    import types
+
+    # a stand-in for ctypes.windll, so the Windows branch runs on any machine
+    monkeypatch.setattr(research_cycle.sys, "platform", "win32")
+    monkeypatch.setattr(research_cycle.ctypes, "windll", types.SimpleNamespace(kernel32=types.SimpleNamespace(GlobalMemoryStatusEx=lambda reference: 1)), raising=False)
+    assert research_cycle.total_memory_bytes() == 0  # the stand-in fills nothing in, so the struct reads zero
+    monkeypatch.setattr(research_cycle.ctypes, "windll", types.SimpleNamespace(kernel32=types.SimpleNamespace(GlobalMemoryStatusEx=lambda reference: 0)), raising=False)
+    assert research_cycle.total_memory_bytes() is None

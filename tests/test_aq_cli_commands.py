@@ -184,3 +184,21 @@ def test_ml_cleanup_lists_deletes_and_prints_json(tmp_path, monkeypatch, capsys)
     assert aq_cli.cmd_clean(_ns(**{**base, "json": True})) == 0 and '"total_bytes"' in capsys.readouterr().out
     assert aq_cli.cmd_clean(_ns(**{**base, "apply": True})) == 0 and not file.exists() and not folder.exists() and "deleted 3 items" in capsys.readouterr().out
     assert shutil is not None and Path is not None and ROOT is not None
+
+
+def test_a_windows_backtest_runs_lean_through_the_project_wrapper_and_another_system_runs_it_directly(monkeypatch):
+    from unittest.mock import MagicMock, patch
+
+    import aq_cli
+
+    for platform in ("win32", "linux"):
+        run_mock = MagicMock(return_value=0)
+        monkeypatch.setattr(aq_cli.sys, "platform", platform)
+        with patch("aq_cli._find_quantconnect_lean_binary", return_value="lean"), patch("aq_cli._ensure_local_lean_engine_image", return_value=True), patch(
+            "generate_backtest_report.update_readme_from_latest_backtest", return_value=False
+        ), patch("aq_cli._run", run_mock), patch("aq_cli._refresh_readme_evaluation_sections"), patch("aq_cli._resolve_lean_run_dir", return_value=None):
+            parser = aq_cli.build_parser()
+            args = parser.parse_args(["backtest"])
+            args.func(args)
+        command = run_mock.call_args.args[0]
+        assert (command[1].endswith("run_lean_cli_windows.py")) is (platform == "win32") and command[0 if platform == "linux" else 2] in ("lean", "backtest")

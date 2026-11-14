@@ -33,8 +33,10 @@ def test_temp_folders_are_made_readable_on_windows_only_and_the_cli_runs(lean_cl
     monkeypatch.setattr(subprocess, "run", lambda command, **kwargs: granted.append(command))
     assert run_script("run_lean_cli_windows", [], monkeypatch) is None
     assert lean_cli == ["lean main"]
-    monkeypatch.setattr(os, "name", os_name)
-    folder = tempfile.mkdtemp(dir=tmp_path)
+    with monkeypatch.context() as scoped:
+        # only for the call: on Linux a lasting os.name = "nt" makes pytest's own Path() a WindowsPath and aborts the session
+        scoped.setattr(os, "name", os_name)
+        folder = tempfile.mkdtemp(dir=str(tmp_path))
     assert os.path.isdir(folder)
     assert bool(granted) is (os_name == "nt")
     if granted:
