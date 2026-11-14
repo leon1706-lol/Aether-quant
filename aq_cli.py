@@ -1010,6 +1010,7 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         "test_premia_research_context.py",
         "test_wide_context_cells.py",
         "test_coverage_tails_c.py",
+        "test_ci_divergence_fixes.py",
     ],
 }
 
