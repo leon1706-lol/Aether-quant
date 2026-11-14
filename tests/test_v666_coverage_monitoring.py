@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import sys
 import os
 from pathlib import Path
 
@@ -73,7 +74,8 @@ def test_readers_degrade_instead_of_raising(tmp_path, monkeypatch):
     original = Path.stat
 
     def refuse(self, *args, **kwargs):
-        if self.name == "walk_forward_summary.json":
+        # only the mtime read fails: Python 3.11's Path.exists() and is_file() also call stat() and re-raise an error with no errno
+        if self.name == "walk_forward_summary.json" and sys._getframe(1).f_code.co_name == "_mtime":
             raise OSError("gone")
         return original(self, *args, **kwargs)
 

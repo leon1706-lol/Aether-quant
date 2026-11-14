@@ -348,3 +348,15 @@ def test_a_model_age_is_read_only_outside_a_backtest_and_a_topology_without_a_no
     monkeypatch.setattr(main, "build_market_topology", without_first_node)
     algorithm.runtime_mode = "backtest"
     market.run(2)
+
+
+def test_a_sweep_security_that_will_not_take_a_slippage_model_is_kept_with_the_default_one(monkeypatch, tmp_path):
+    import lean_fakes
+
+    def refuse(self, model):
+        if "BIL" in str(self.symbol):
+            raise RuntimeError("no slippage model here")
+
+    monkeypatch.setattr(lean_fakes.FakeSecurity, "set_slippage_model", refuse)
+    _, algorithm, _, _ = make(monkeypatch, tmp_path, bars=1)
+    assert "cash sweep slippage model not set (no slippage model here)" in "\n".join(algorithm.messages) and algorithm._cash_sweep_symbol is not None

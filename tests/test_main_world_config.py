@@ -150,6 +150,7 @@ def test_the_inference_pool_serves_the_symbols_or_falls_back_to_the_sequential_p
     InlinePool.fail = fail
     main = world.install_stub(monkeypatch)
     monkeypatch.setattr(main, "ProcessPoolExecutor", InlinePool)
+    monkeypatch.setattr(main, "windows_parallelism_slowdown_warning", lambda platform: "a pool is slower than one process on this system")
     root = world.make_root(tmp_path, overrides=world.merge(copy.deepcopy(BASE), {"phase_v2": {"inference_parallelism": {"enabled": True, "worker_count": 2}}}), tickers=TICKERS)
     monkeypatch.chdir(root)
     algorithm = world.build_algorithm(main, root)
@@ -157,6 +158,7 @@ def test_the_inference_pool_serves_the_symbols_or_falls_back_to_the_sequential_p
     market.run(8)
     text = messages(algorithm)
     assert (fail != "start") or "Inference parallelism pool failed to start" in text
+    assert (fail == "start") or "a pool is slower than one process on this system" in text
     assert (fail != "run") or "falling back" in text or algorithm._inference_pool is None
 
 

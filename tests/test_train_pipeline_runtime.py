@@ -8,6 +8,7 @@ import json
 import sys
 import types
 
+import pandas as pd
 import pytest
 
 import train
@@ -21,6 +22,8 @@ def built(tmp_path_factory):
     root = world.build_root(tmp_path_factory.mktemp("built"))
     with pytest.MonkeyPatch.context() as patch:
         world.repoint(patch, train, root)
+        # Lean's market-hours database is not in a clean checkout: give the build a forex holiday so the holiday-drop branch runs everywhere
+        patch.setattr(train, "resolve_forex_lean_holidays", lambda config: frozenset({train.day_ordinal(pd.Timestamp("2018-12-25"))}))
         config = train.load_project_config()
         dataset, metadata = train.build_feature_dataset(config)
     return dataset, metadata

@@ -13,14 +13,12 @@ from __future__ import annotations
 import os
 import subprocess
 import tempfile
-from pathlib import Path
-
 
 _real_mkdtemp = tempfile.mkdtemp
 
 
 def _docker_readable_mkdtemp(*args, **kwargs) -> str:
-    path = Path(_real_mkdtemp(*args, **kwargs))
+    path = str(_real_mkdtemp(*args, **kwargs))
     if os.name == "nt":
         # S-1-5-11 is Authenticated Users. RX is sufficient for Docker's
         # read-only bind mounts; the current user retains the directory's
@@ -28,7 +26,7 @@ def _docker_readable_mkdtemp(*args, **kwargs) -> str:
         subprocess.run(
             [
                 "icacls",
-                str(path),
+                path,
                 "/inheritance:e",
                 "/grant",
                 "*S-1-5-11:(OI)(CI)RX",
@@ -37,7 +35,7 @@ def _docker_readable_mkdtemp(*args, **kwargs) -> str:
             stderr=subprocess.DEVNULL,
             check=False,
         )
-    return str(path)
+    return path
 
 
 tempfile.mkdtemp = _docker_readable_mkdtemp
