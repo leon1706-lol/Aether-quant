@@ -62,7 +62,7 @@ pybind11>=2.10
 pyarrow>=17.0.0
 
 # V5.3.9 - CI hardening: coverage gate (pytest --cov-fail-under in ci.yml)
-pytest-cov>=7.0.0
+pytest-cov>=7.1.0
 # V6.6.6: pyproject's [tool.coverage.run] patch = ["subprocess"] needs coverage 7.10
 coverage>=7.10.0
 
