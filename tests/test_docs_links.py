@@ -10,6 +10,8 @@ helpers. Skips cleanly outside a git checkout (an sdist has no `git ls-files`)."
 
 from __future__ import annotations
 
+import functools
+import os
 import re
 import subprocess
 from pathlib import Path
@@ -89,6 +91,27 @@ def _is_gitignored(path: Path) -> bool:
     return _IGNORED_CACHE[relative]
 
 
+@functools.lru_cache(maxsize=None)
+def _names(directory: Path) -> frozenset[str]:
+    return frozenset(os.listdir(directory))
+
+
+def _exact_case(linked: Path) -> bool:
+    """True when every part of the link, as written, matches the name on disk. Windows and macOS resolve `pull_request_template.md` to
+    `PULL_REQUEST_TEMPLATE.md` (and Path.resolve() even returns the real case), so a wrong-case link passes there and breaks on Linux and
+    on GitHub (V6.6.7.2: CONTRIBUTING.md)."""
+    try:
+        parts = linked.relative_to(ROOT).parts
+    except ValueError:
+        return True
+    current = ROOT
+    for part in parts:
+        if not current.is_dir() or part not in _names(current):
+            return False
+        current = current / part
+    return True
+
+
 def _broken_links(path: Path) -> list[str]:
     text = _strip_fenced_code(path.read_text(encoding="utf-8", errors="replace"))
     broken = []
@@ -100,7 +123,8 @@ def _broken_links(path: Path) -> list[str]:
             continue
         resolved = (path.parent / relative).resolve() if not relative.startswith("/") else (ROOT / relative.lstrip("/"))
         resolved = _generated_source(resolved)
-        if not resolved.exists() or _is_gitignored(resolved):
+        linked = Path(os.path.normpath((path.parent / relative) if not relative.startswith("/") else (ROOT / relative.lstrip("/"))))
+        if not resolved.exists() or not _exact_case(_generated_source(linked)) or _is_gitignored(resolved):
             broken.append(f"{path.relative_to(ROOT)} -> {target}")
     return broken
 
@@ -170,3 +194,18 @@ def test_every_top_level_folder_readme_is_linked_from_the_main_readme():
     top_level = sorted({path for path in tracked if path.count("/") == 1})
     missing = [path for path in top_level if f"]({path})" not in readme and f"]({path.split('/')[0]}/)" not in readme]
     assert not missing, f"link these from README.md's Module Documentation table: {missing}"
+
+
+def test_a_link_in_the_wrong_case_is_broken_even_on_a_case_insensitive_file_system(tmp_path, monkeypatch):
+    (tmp_path / ".github").mkdir()
+    (tmp_path / ".github" / "PULL_REQUEST_TEMPLATE.md").write_text("x", encoding="utf-8")
+    import sys
+
+    module = sys.modules[__name__]
+    monkeypatch.setattr(module, "ROOT", tmp_path)
+    module._names.cache_clear()
+    assert module._exact_case(tmp_path / ".github" / "PULL_REQUEST_TEMPLATE.md")
+    assert not module._exact_case(tmp_path / ".github" / "pull_request_template.md")
+    assert not module._exact_case(tmp_path / ".GitHub" / "PULL_REQUEST_TEMPLATE.md")
+    assert module._exact_case(Path("/elsewhere/not/under/root.md"))
+    module._names.cache_clear()

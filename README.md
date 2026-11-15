@@ -22,6 +22,7 @@
   <a href="https://github.com/leon1706-lol/Aether-quant/actions/workflows/codeql.yml"><img src="https://github.com/leon1706-lol/Aether-quant/actions/workflows/codeql.yml/badge.svg?branch=main" alt="CodeQL"></a>
   <a href="https://leon1706-lol.github.io/Aether-quant/coverage/"><img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fleon1706-lol.github.io%2FAether-quant%2Fbadges%2Fcoverage.json&style=flat-square&labelColor=1A1A1A" alt="Python coverage"></a>
   <a href="https://scorecard.dev/viewer/?uri=github.com/leon1706-lol/Aether-quant"><img src="https://api.scorecard.dev/projects/github.com/leon1706-lol/Aether-quant/badge?style=flat-square&labelColor=1A1A1A" alt="OpenSSF Scorecard"></a>
+  <a href="https://www.bestpractices.dev/projects/16720"><img src="https://www.bestpractices.dev/projects/16720/badge" alt="OpenSSF Best Practices"></a>
   <a href="https://leon1706-lol.github.io/Aether-quant/"><img src="https://img.shields.io/badge/docs-mkdocs-526CFE?style=flat-square&labelColor=1A1A1A&logo=materialformkdocs&logoColor=white" alt="Documentation"></a>
   <img src="https://img.shields.io/pypi/pyversions/aether-quant?style=flat-square&labelColor=1A1A1A" alt="Python versions on PyPI">
   <img src="https://img.shields.io/badge/dashboard-ghcr.io%2Faether--quant--dashboard-2496ED?style=flat-square&labelColor=1A1A1A&logo=docker&logoColor=white" alt="Dashboard image on GHCR">
