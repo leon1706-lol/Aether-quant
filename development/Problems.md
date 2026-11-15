@@ -2,7 +2,7 @@
 
 Every bug and infrastructure issue found in this codebase, oldest first, with how it was fixed or why it stayed open. Numbers never change, because code and docs cite them; #73-76 don't exist, and #88 and #112 appear twice.
 
-**Entries:** <!--fact:problems.total-->379<!--/fact--> up to #<!--fact:problems.last-->381<!--/fact-->: <!--fact:problems.fixed-->343<!--/fact--> 🟢 `fixed` (changed and verified), <!--fact:problems.partial-->14<!--/fact--> 🟡 `partial` (shipped, verification pending), <!--fact:problems.closed-->19<!--/fact--> 🔴 `closed` (no code fix: declined, moot or superseded). Severity runs from 1 (cosmetic) to 10 (data loss or safety). Full text of older entries: [`backups/`](backups/README.md).
+**Entries:** <!--fact:problems.total-->379<!--/fact--> up to #<!--fact:problems.last-->381<!--/fact-->: <!--fact:problems.fixed-->344<!--/fact--> 🟢 `fixed` (changed and verified), <!--fact:problems.partial-->14<!--/fact--> 🟡 `partial` (shipped, verification pending), <!--fact:problems.closed-->18<!--/fact--> 🔴 `closed` (no code fix: declined, moot or superseded). Severity runs from 1 (cosmetic) to 10 (data loss or safety). Full text of older entries: [`backups/`](backups/README.md).
 
 **Open now** (each needs a broker key, a forward record or the laptop):
 
@@ -2130,11 +2130,11 @@ Lean's paper brokerage starts empty on each run, so the restart proves the state
 
 **Verification:** the job's steps replayed in `python:3.11-bookworm` on the PC's Docker (`ml/evaluation/v668/sanitizers_local.txt`): the canary aborts with `AddressSanitizer: heap-buffer-overflow` at `read_at`, then 77 tests pass and 3 skip under ASan and UBSan (the skips need the gitignored `ml/expert_models`, as in CI). The replay caught two flaws in the first draft, both fixed before any push: the canary tripped UBSan's object-size check first, so it now reads through a non-inlined helper, and the shape-mismatch tests aborted inside ASan (`CHECK failed: real___cxa_throw`) because `python` is a C program, so the job preloads `libstdc++` next to `libasan` (the plain build raised the expected `RuntimeError` and `ValueError`). Partial until the first green run on `ubuntu-24.04` (gcc 13) after the push: the replay used gcc 12 and `seccomp=unconfined`, because Docker's default profile blocks a syscall the gcc-12 ASan runtime needs at startup (a plain runner VM has no such filter).
 
-### 381. The repository is not FLOSS as a whole, so the best-practices badge cannot pass (V6.6.8)
-🔴 `closed` · 1/10
+### 381. The repository was not FLOSS as a whole, so the best-practices badge could not pass (V6.6.8)
+🟢 `fixed` · 2/10
 
-**Problem:** OpenSSF Best Practices `floss_license` is a MUST, and the trading system's PolyForm Noncommercial 1.0.0 is not an OSI licence, so project 16720 stays "in progress" at 99% whatever the code does.
+**Problem:** OpenSSF Best Practices `floss_license` is a MUST, and the trading system's PolyForm Noncommercial 1.0.0 is not an OSI licence, so project 16720 stayed "in progress" at 99% whatever the code did. The owner first kept the licence (2026-11-15), then chose AGPL-3.0 for the trading system the same day.
 
-**Fix:** none, by the owner's decision (2026-11-15): the licence split stays (library Apache-2.0, trading system PolyForm Noncommercial). Relicensing is recorded as a possible future step in the README's Known Limitations, `docs/about/license.md` and `development/openssf_best_practices.md`.
+**Fix:** the trading system is AGPL-3.0-only. `LICENSE` is now the verbatim AGPL-3.0 text (GitHub and the Scorecard recognise a licence only from one standard text), `LICENSES/AGPL-3.0-only.txt` replaces the PolyForm text, `REUSE.toml` defaults to `AGPL-3.0-only` with the Apache-2.0 override for the library unchanged, and `LICENSING.md` holds the path map the old `LICENSE` carried. The README's Known Limitations bullet is gone, the badge, `CONTRIBUTING.md`, `docs/` and the answer sheet say AGPL-3.0, and a commercial license without its obligations stays available on request. Releases up to 6.6.7 keep the terms they shipped under; the only other committer is Dependabot.
 
-**Verification:** `tests/test_licensing.py` is unchanged and passes; the README bullet links the badge.
+**Verification:** `tests/test_licensing.py` passes with the new split (`main.py` and the rest are AGPL-3.0-only, the wheel is all Apache-2.0, `LICENSE` equals `LICENSES/AGPL-3.0-only.txt`, no licence text is unused, no living document calls the trading system noncommercial). The Scorecard's License check and GitHub's detection only change after the push.

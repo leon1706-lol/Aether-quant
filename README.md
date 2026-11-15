@@ -11,7 +11,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/python-3.11-FF8C00?style=flat-square&labelColor=1A1A1A&logo=python&logoColor=white" alt="Python 3.11">
   <a href="LICENSE"><img src="https://img.shields.io/badge/library-Apache--2.0-2EA44F?style=flat-square&labelColor=1A1A1A" alt="Library license: Apache-2.0"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/trading%20system-PolyForm%20Noncommercial-8B5CF6?style=flat-square&labelColor=1A1A1A" alt="Trading system license: PolyForm Noncommercial 1.0.0"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/trading%20system-AGPL--3.0-8B5CF6?style=flat-square&labelColor=1A1A1A" alt="Trading system license: AGPL-3.0"></a>
   <img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fleon1706-lol.github.io%2FAether-quant%2Fbadges%2Ftests.json&style=flat-square&labelColor=1A1A1A" alt="Tests passing on CI">
   <img src="https://img.shields.io/pypi/v/aether-quant?style=flat-square&labelColor=1A1A1A&color=FF8C00&logo=pypi&logoColor=white" alt="PyPI version">
   <img src="https://img.shields.io/badge/docker-ghcr.io%2Faether--quant-2496ED?style=flat-square&labelColor=1A1A1A&logo=docker&logoColor=white" alt="Docker image on GHCR">
@@ -71,7 +71,6 @@ aq hello                        # downloads 11 coins (keyless), runs the shipped
 - **IB is unverified end to end.** Connection, live futures margin and all <!--fact:options.structures-->43<!--/fact--> option structures have only met Lean's samples, never a real Gateway. Futures and options stay data-empty until a key is connected (`aq ib status`).
 - **Not ready for live capital, measured.** `aq live-readiness` scores 21 conditions and reads NOT READY: no 60-session forward record, no paper period, no broker. See [`docs/live/paper-to-live.md`](docs/live/paper-to-live.md).
 - **Safety is field-tested without a broker only.** In Lean's paper brokerage on a fake feed, `main.py` passes the field test (#351, `scripts/lean_smoke/field_test.py`). Its orders fill, injected drift breaches reconciliation, and an injected shock trips the kill switch and flattens the book. It survives Redis and then Postgres being stopped, restarts cleanly, runs two accounts apart, and its audit chain verifies on a real Postgres. The kill switch, reconciliation and auto-rollback have still never run against a real broker over paper hours (#228, #338, #192).
-- **Not open source as a whole.** The library and everything the wheel and dashboard ship are Apache-2.0, but the trading system (`main.py`, the trainers, models and research scripts) is PolyForm Noncommercial 1.0.0, which is not an OSI licence. So the [OpenSSF Best Practices](https://www.bestpractices.dev/projects/16720) badge stays "in progress" at 99%: its one open MUST is `floss_license`. Relicensing the trading system under an OSI licence is a possible future step (owner decision, 2026-11-15, #381).
 
 ## Table of Contents
 
@@ -381,7 +380,7 @@ The guide, the live-operations pages and the API reference are published at [htt
 
 | File | Purpose |
 |---|---|
-| [`LICENSE`](LICENSE) | The license map: the library (what the wheel and dashboard ship, the UI, notebooks, docs, proofs) is Apache-2.0 with [`NOTICE`](NOTICE); the trading system is PolyForm Noncommercial 1.0.0. [`REUSE.toml`](REUSE.toml) maps every path |
+| [`LICENSE`](LICENSE) | The GNU AGPL-3.0, the license of the trading system. [`LICENSING.md`](LICENSING.md) maps the two licenses: the library (what the wheel and dashboard ship, the UI, notebooks, docs, proofs) is Apache-2.0 with [`NOTICE`](NOTICE), and [`REUSE.toml`](REUSE.toml) maps every path |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | Setup and conventions for people |
 | [`AGENTS.md`](AGENTS.md) | Setup and conventions for AI agents |
 | [`RUNBOOK.md`](RUNBOOK.md) | Everyday commands, incidents, the research cycle, what to do when keys arrive |

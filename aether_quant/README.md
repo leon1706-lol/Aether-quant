@@ -37,7 +37,7 @@ Importing it never loads torch, Lean's `AlgorithmImports`, Redis, Postgres or th
 
 The README has [a worked example](../README.md#the-aether_quant-library). The [API reference](https://leon1706-lol.github.io/Aether-quant/reference/) documents every export, and `scripts/type_completeness.py` keeps each one fully annotated.
 
-**License.** Apache-2.0 (`LICENSES/Apache-2.0.txt`, `NOTICE`), as is everything the wheel ships. The trading system around it stays PolyForm Noncommercial; see the root `LICENSE`.
+**License.** Apache-2.0 (`LICENSES/Apache-2.0.txt`, `NOTICE`), as is everything the wheel ships. The trading system around it is AGPL-3.0; see `LICENSING.md`.
 
 **Left out on purpose.** `main.py` needs Lean's engine. Workers, queues, `monitoring/api_server.py` and network fetchers stay in their own modules. The trainers' networks need torch: use `aq cycle retrain`.
 

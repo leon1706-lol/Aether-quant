@@ -14,7 +14,7 @@ The latest phases, generated from that file by `aq docs sync`:
 
 - **Stricter lint.** ruff now runs 14 rule sets instead of two, and it targets Python 3.10, the oldest version the package supports. Every rule left out carries its reason in `pyproject.toml`.
 - **The C++ accelerator under sanitizers.** A new CI job builds `cpp_inference_ext` with AddressSanitizer and UBSan. A deliberate overflow must abort first, which proves the sanitizers are on; then property tests and the exported-model parity run against the sanitized build.
-- **The licence, decided.** The trading system stays PolyForm Noncommercial, so the OpenSSF Best Practices badge stays "in progress" at 99%. Relicensing is listed as a possible future step under Known Limitations.
+- **The trading system is AGPL-3.0.** It was PolyForm Noncommercial, which is not an open-source license. AGPL-3.0 is OSI-approved, so the repository is open source as a whole and the OpenSSF Best Practices badge no longer stops on its license.
 - **The per-commit coverage gate** no longer refuses a change to `main.py`.
 
 **6.6.7: the last tidy-up.**

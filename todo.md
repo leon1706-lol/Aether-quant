@@ -25,12 +25,12 @@ The owner's live brief for what to do next; rewritten as objectives change (hist
 -----
 # Current objective: V6.6.8 — close the gaps V6.6.7 left open
 
-**State (2026-11-15): COMPLETE, uncommitted (you commit).** Plan: `C:\Users\Blackhead\.claude\plans\please-now-for-the-logical-walrus.md`. Problems #379-#381, Changelog "Phase V6.6.8". The OpenSSF Best Practices badge stays **"in progress" at 99%** by your decision: `floss_license` is a MUST and the trading system stays PolyForm Noncommercial (README Known Limitations lists relicensing as a possible future step, #381).
+**State (2026-11-15): COMPLETE, uncommitted (you commit).** Plan: `C:\Users\Blackhead\.claude\plans\please-now-for-the-logical-walrus.md`. Problems #379-#381, Changelog "Phase V6.6.8". The trading system is now **AGPL-3.0** (was PolyForm Noncommercial), so `floss_license` and `floss_license_osi` are Met and the OpenSSF Best Practices badge can reach **"passing"** once the answers below are entered and `cpp-sanitizers` has run green (#381).
 
 **Done:**
 - [x] **A. Stricter lint (#379).** ruff runs 14 sets (E, F, W, PLE, PIE, SIM, PERF, N, UP, PLW, C4, I, B, RUF) at target py310; every exclusion has its reason in `pyproject.toml`, pinned by `tests/test_ruff_config.py`. `warnings_strict` Met.
 - [x] **B. The C++ accelerator under sanitizers (#380).** CI job `cpp-sanitizers` (a canary that must abort, hypothesis kernel tests, exported-model parity, `libasan` and `libstdc++` preloaded). Replayed in Docker on the PC first, which caught two flaws in the first draft. **Partial until its first green run on `main`;** then `dynamic_analysis_unsafe` is Met.
-- [x] **C. The licence (#381).** Kept; recorded.
+- [x] **C. The licence (#381).** The trading system moved to AGPL-3.0-only: `LICENSE` is the verbatim AGPL text, `LICENSING.md` holds the path map, `REUSE.toml` and the docs follow, the PolyForm text is gone. Releases up to 6.6.7 keep their terms; a commercial license stays available on request.
 - [x] **D.** The answer sheet is updated (`development/openssf_best_practices.md`); the site's own answers are yours to edit.
 - [x] **E.** `aq verify --quick` all green; vault regenerated.
 - [x] **F.** Copy-ready answers handed over in the session's last message.
@@ -39,7 +39,7 @@ The owner's live brief for what to do next; rewritten as objectives change (hist
 
 **Then yours:**
 1. Commit and push. Watch the first `cpp-sanitizers` run (`gh run list --workflow ci.yml --limit 1`): its canary log must show `heap-buffer-overflow`. On green, set #380 to 🟢 and answer `dynamic_analysis_unsafe` Met. If it fails, the log names the line.
-2. On bestpractices.dev, fill the two empty metadata fields (home page `https://leon1706-lol.github.io/Aether-quant/`, bug-report URL `https://github.com/leon1706-lol/Aether-quant/issues`) and re-answer `warnings_strict` and `dynamic_analysis_unsafe` (lines in the session's last message).
+2. On bestpractices.dev, set `floss_license` and `floss_license_osi` to Met (AGPL-3.0 and Apache-2.0, both OSI-approved), fill the two empty metadata fields (home page `https://leon1706-lol.github.io/Aether-quant/`, bug-report URL `https://github.com/leon1706-lol/Aether-quant/issues`) and re-answer `warnings_strict` and `dynamic_analysis_unsafe` (lines in the session's last message).
 3. Tag `v6.6.7` / `v6.6.8` as you decide, and rebuild the Docker images (no behaviour changed; the lint sweep touched most files).
 4. No `aq backtest` is needed: the live path changed only by behaviour-neutral rewrites (`main.py`: one nested `if` merged and two `dict.fromkeys`; its tests and the parity tests pass).
 

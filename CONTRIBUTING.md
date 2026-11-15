@@ -74,9 +74,9 @@ Push a tag `vX.Y.Z` on `main` after writing its Changelog entry. `release.yml` t
 
 ## License
 
-Two licenses, mapped path by path in [`LICENSE`](LICENSE) and [`REUSE.toml`](REUSE.toml):
+Two licenses, mapped path by path in [`LICENSING.md`](LICENSING.md) and [`REUSE.toml`](REUSE.toml); [`LICENSE`](LICENSE) is the AGPL-3.0:
 
 - **Apache-2.0:** the library, i.e. everything the wheel and the dashboard image ship, plus `webui/`, `notebooks/`, `docs/`, `examples/` and `formal/`.
-- **PolyForm Noncommercial 1.0.0:** the trading system, including `main.py`, the trainers, `ml/`, `config.json`, `scripts/` and the research records.
+- **AGPL-3.0:** the trading system, including `main.py`, the trainers, `ml/`, `config.json`, `scripts/` and the research records.
 
 Inbound equals outbound: a contribution is licensed under the license of the path it changes. A new file takes the license its path matches in `REUSE.toml`, and `tests/test_licensing.py` checks the wheel.

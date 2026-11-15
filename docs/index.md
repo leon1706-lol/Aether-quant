@@ -30,4 +30,4 @@ That downloads a few years of daily bars for 11 coins from Coinbase's public can
 | **Learn** | [Tutorials](tutorials/00_hello_world.ipynb) (they open in Colab) and the [guide](guide/signals.md) |
 | **Look up** | The [API reference](reference/index.md), generated from the code |
 | **Go live** | [Paper to live](live/paper-to-live.md): the measured checklist, secrets, accounts, users and the field test |
-| **License** | The library is [Apache-2.0](about/license.md); the trading system is PolyForm Noncommercial |
+| **License** | The library is [Apache-2.0](about/license.md); the trading system is AGPL-3.0 |

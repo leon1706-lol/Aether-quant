@@ -4,7 +4,7 @@ The OpenSSF Scorecard's CII-Best-Practices check reads the badge level that http
 
 Registering is a sign-up, so the owner did it: project [16720](https://www.bestpractices.dev/projects/16720), registered 2026-11-15, badge in the README beside the Scorecard badge. An agent never signs in or edits the answers (`AGENTS.md`); it reads the project's public JSON (the project page's URL plus `.json`) to check them.
 
-Status as of V6.6.8 (2026-11-15): 99% of the passing criteria, "in progress". A criterion the project does not meet is marked so; nothing here is claimed that is not true.
+Status as of V6.6.8 (2026-11-15): the project read 99% of the passing criteria, "in progress", with `floss_license`, `floss_license_osi` and `dynamic_analysis_unsafe` open. The trading system moved to AGPL-3.0 the same day (#381), so the two licence rows below are now Met; `dynamic_analysis_unsafe` is Met once CI job `cpp-sanitizers` has run green on `main` (#380). A criterion the project does not meet is marked so; nothing here is claimed that is not true.
 
 **Metadata fields** (not criteria, but empty on the site): home page `https://leon1706-lol.github.io/Aether-quant/`, bug-report URL `https://github.com/leon1706-lol/Aether-quant/issues`.
 
@@ -16,8 +16,8 @@ Status as of V6.6.8 (2026-11-15): 99% of the passing criteria, "in progress". A 
 | `interact` | Met | README, `CONTRIBUTING.md` (how to obtain, give feedback, contribute) |
 | `contribution` | Met | `CONTRIBUTING.md` |
 | `contribution_requirements` | Met | `CONTRIBUTING.md` and `AGENTS.md` "Non-negotiables" (tests, ruff, 100% coverage, docs move with code) |
-| `floss_license` | **Unmet** for the repository as a whole (Met for the library) | `LICENSE` and `LICENSES/`: the library and everything the wheel ships is Apache-2.0 (FLOSS); the trading system (`main.py`, the trainers, models, research scripts) is PolyForm Noncommercial 1.0.0, which forbids commercial use and so is not FLOSS. This is a MUST: while it is Unmet the badge stays "in progress" (2 on the Scorecard check) and cannot reach "passing". Answering Met would be untrue. Only a relicensing of the trading system under an OSI licence (the owner's decision, not a documentation fix) changes it. Owner decision 2026-11-15 (#381): the split is kept, and relicensing is listed as a possible future step in the README's Known Limitations. |
-| `floss_license_osi` | Unmet for the whole repository (SUGGESTED, so it does not block) | Apache-2.0 is OSI-approved and covers the published package `aether-quant`; PolyForm Noncommercial 1.0.0 is not OSI-approved |
+| `floss_license` | Met | `LICENSE` is the GNU AGPL-3.0 (OSI-approved) and covers the trading system; the library and everything the wheel ships is Apache-2.0 (`LICENSES/`, `LICENSING.md`, `REUSE.toml` map every path). Changed 2026-11-15 from PolyForm Noncommercial, which was not FLOSS (#381); releases up to 6.6.7 keep the terms they shipped under |
+| `floss_license_osi` | Met | AGPL-3.0 and Apache-2.0 are both OSI-approved |
 | `license_location` | Met | `LICENSE` at the top level, `REUSE.toml` per path |
 | `documentation_basics` | Met | README, `docs/` (https://leon1706-lol.github.io/Aether-quant/), `RUNBOOK.md` |
 | `documentation_interface` | Met | API reference generated from docstrings (`scripts/build_docs.py`, mkdocstrings) |
@@ -107,7 +107,7 @@ Status as of V6.6.8 (2026-11-15): 99% of the passing criteria, "in progress". A 
 
 ## What stops "passing"
 
-One MUST criterion, `floss_license`, is Unmet by the repository's own licence choice (the trading system is PolyForm Noncommercial), and the SUGGESTED `floss_license_osi` with it. Everything else on this sheet is Met or not applicable (`dynamic_analysis_unsafe` became Met in V6.6.8), so the badge can only reach "passing" if the owner relicenses the trading system under an OSI-approved licence, or registers a repository that holds only the Apache-2.0 library. On 2026-11-15 the owner kept the licence (#381), so it stays "in progress" at 99%.
+Nothing is open at the passing level once `cpp-sanitizers` is green and the owner has entered the answers below. `floss_license` and `floss_license_osi` became Met when the trading system moved to AGPL-3.0 (#381, 2026-11-15); `dynamic_analysis_unsafe` is Met by the job in #380 (its first run on `main` is the proof). The badge then reads "passing" (5 on the Scorecard check instead of 2).
 
 ## Beyond passing (for later)
 

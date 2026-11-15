@@ -7,7 +7,7 @@ name = "aether-quant"
 dynamic = ["version"]
 description = "Aether Quant: a self-adapting trading research system, its library and the aq CLI"
 readme = "README.md"
-# V6.6.5 (#347): what the wheel ships is the library, Apache-2.0; the trading system in the repo stays PolyForm Noncommercial (LICENSE, REUSE.toml)
+# V6.6.5 (#347): what the wheel ships is the library, Apache-2.0; the trading system in the repo is AGPL-3.0 (LICENSE, LICENSING.md, REUSE.toml)
 license = "Apache-2.0"
 license-files = ["LICENSES/Apache-2.0.txt", "NOTICE"]
 requires-python = ">=3.10"

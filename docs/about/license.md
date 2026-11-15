@@ -5,10 +5,9 @@ Aether Quant is under two licenses, by path. `REUSE.toml` in the repository maps
 | | License | Covers |
 |---|---|---|
 | **The library** | [Apache-2.0](https://www.apache.org/licenses/LICENSE-2.0) | everything the PyPI wheel and the dashboard image ship (`aether_quant` and the packages it re-exports, the `aq` CLI), the web UI, the notebooks, the docs, the examples and the Lean 4 proofs |
-| **The trading system** | [PolyForm Noncommercial 1.0.0](https://polyformproject.org/licenses/noncommercial/1.0.0) | `main.py`, the trainers, the trained models and `ml/`, `config.json`, `scripts/`, the data, the research records and the backtests |
+| **The trading system** | [AGPL-3.0](https://www.gnu.org/licenses/agpl-3.0.html) | `main.py`, the trainers, the trained models and `ml/`, `config.json`, `scripts/`, the data, the research records and the backtests |
 
-So an institution can use, change and ship the library commercially under Apache-2.0, with its patent grant and the `NOTICE` file. The trading system stays noncommercial; a commercial license for it is available on request through the repository's GitHub page. Releases up to 6.6.4 were entirely under PolyForm Noncommercial.
+So an institution can use, change and ship the library commercially under Apache-2.0, with its patent grant and the `NOTICE` file. The trading system is AGPL-3.0: commercial use is allowed, and anyone who changes it and lets others use it, including over a network, must offer those users the source of the changed version. A commercial license without that condition is available on request through the repository's GitHub page. The trading system was PolyForm Noncommercial 1.0.0 from release 6.6.5 to 6.6.7, and releases up to 6.6.4 were entirely PolyForm Noncommercial; those releases keep the terms they shipped under.
 
 Contributions take the license of the path they change (inbound equals outbound).
 
-Because the trading system's license is not OSI-approved, the repository as a whole is not FLOSS, and its OpenSSF Best Practices badge stays "in progress" (`floss_license` is a MUST). The owner kept the split on 2026-11-15; relicensing the trading system under an OSI license is a possible future step, listed under the README's Known Limitations.

@@ -1,5 +1,5 @@
 # V6.6.5 (#347): the license of every path (https://reuse.software/spec-3.3/). Later annotations override earlier ones
-# for the same file, so the default (the trading system, PolyForm Noncommercial) comes first and the library after it.
+# for the same file, so the default (the trading system, AGPL-3.0, since V6.6.8 #381) comes first and the library after it.
 # tests/test_licensing.py checks that every file the wheel ships is Apache-2.0 and main.py is not.
 version = 1
 
@@ -7,7 +7,7 @@ version = 1
 path = "**"
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2026 Leon Schwarzkopf"
-SPDX-License-Identifier = "LicenseRef-PolyForm-Noncommercial-1.0.0"
+SPDX-License-Identifier = "AGPL-3.0-only"
 
 [[annotations]]
 path = [
