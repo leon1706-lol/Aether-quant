@@ -20,8 +20,8 @@ Status as of V6.6.7 (2026-11-14). A criterion the project does not meet is marke
 | `interact` | Met | README, `CONTRIBUTING.md` (how to obtain, give feedback, contribute) |
 | `contribution` | Met | `CONTRIBUTING.md` |
 | `contribution_requirements` | Met | `CONTRIBUTING.md` and `AGENTS.md` "Non-negotiables" (tests, ruff, 100% coverage, docs move with code) |
-| `floss_license` | Met | `LICENSE` and `LICENSES/`: the library and everything the wheel ships is Apache-2.0; the trading system is PolyForm Noncommercial 1.0.0 (source-available, not OSI). State the split. |
-| `floss_license_osi` | Unmet for the whole repository | Apache-2.0 covers the published package `aether-quant` only |
+| `floss_license` | **Unmet** for the repository as a whole (Met for the library) | `LICENSE` and `LICENSES/`: the library and everything the wheel ships is Apache-2.0 (FLOSS); the trading system (`main.py`, the trainers, models, research scripts) is PolyForm Noncommercial 1.0.0, which forbids commercial use and so is not FLOSS. This is a MUST: while it is Unmet the badge stays "in progress" (2 on the Scorecard check) and cannot reach "passing". Answering Met would be untrue. Only a relicensing of the trading system under an OSI licence (the owner's decision, not a documentation fix) changes it. |
+| `floss_license_osi` | Unmet for the whole repository (SUGGESTED, so it does not block) | Apache-2.0 is OSI-approved and covers the published package `aether-quant`; PolyForm Noncommercial 1.0.0 is not OSI-approved |
 | `license_location` | Met | `LICENSE` at the top level, `REUSE.toml` per path |
 | `documentation_basics` | Met | README, `docs/` (https://leon1706-lol.github.io/Aether-quant/), `RUNBOOK.md` |
 | `documentation_interface` | Met | API reference generated from docstrings (`scripts/build_docs.py`, mkdocstrings) |
@@ -42,7 +42,7 @@ Status as of V6.6.7 (2026-11-14). A criterion the project does not meet is marke
 | `version_semver` | Met | `vMAJOR.MINOR.PATCH` |
 | `version_tags` | Met | `git tag` |
 | `release_notes` | Met | `development/Changelog.md`, one phase per release, and `docs/about/changelog.md` |
-| `release_notes_vulns` | Met | the Changelog names the advisories a release fixes (V6.6.7: torch and pyarrow, Problems #362) |
+| `release_notes_vulns` | N/A | the criterion covers run-time vulnerabilities of the project's own code that already had a CVE, not those of its dependencies; none has been fixed (the V6.6.7 advisories were torch and pyarrow, and the parser bugs it fixed had no CVE). The Changelog still names them (Problems #362, #363) |
 
 ## Reporting
 
@@ -108,6 +108,10 @@ Status as of V6.6.7 (2026-11-14). A criterion the project does not meet is marke
 | `dynamic_analysis_unsafe` | N/A | no memory-unsafe language in the shipped code (the optional C++ accelerator falls back to NumPy) |
 | `dynamic_analysis_enable_assertions` | Met | the fuzz targets assert invariants; the suite runs with assertions on |
 | `dynamic_analysis_fixed` | Met | the first fuzz run found five robustness bugs, fixed in V6.6.7 (Problems #363) |
+
+## What stops "passing"
+
+One MUST criterion, `floss_license`, is Unmet by the repository's own licence choice (the trading system is PolyForm Noncommercial). Everything else on this sheet is Met or not applicable, so the badge can only reach "passing" if the owner relicenses the trading system under an OSI-approved licence, or registers a repository that holds only the Apache-2.0 library. Until then it stays "in progress".
 
 ## Beyond passing (for later)
 

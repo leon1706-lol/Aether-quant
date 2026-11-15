@@ -2,6 +2,12 @@
 
 A self-adapting trading system on QuantConnect Lean and PyTorch, and a library for building other algorithms. Agents should also read [`AGENTS.md`](AGENTS.md).
 
+## Get it, give feedback, contribute
+
+- **Get it:** `pip install aether-quant` for the library and `aq hello` (numpy and pandas only), or clone the repository and follow Setup below for the whole system. Releases and their signed files are on the [releases page](https://github.com/leon1706-lol/Aether-quant/releases).
+- **Report a bug or ask for a feature:** open an [issue](https://github.com/leon1706-lol/Aether-quant/issues/new/choose). The bug-report template asks for the version, the steps and the output. Report a security problem privately instead, as [`SECURITY.md`](SECURITY.md) describes.
+- **Contribute code or docs:** fork the repository, branch from `main`, make the change with its tests, and open a pull request; the [pull-request template](.github/pull_request_template.md) lists what to check. `main` is protected: a pull request needs green CI and a review from the maintainer, and CI fails under 100% coverage, a ruff finding, or an unpinned install (see Tests and Code conventions below).
+
 ## Setup
 
 ```powershell

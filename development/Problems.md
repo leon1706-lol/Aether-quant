@@ -2002,7 +2002,7 @@ Lean's paper brokerage starts empty on each run, so the restart proves the state
 
 **Fix:** `development/openssf_best_practices.md` answers every passing criterion with its evidence in the repository (met, not applicable, or unmet and why). Registering is a sign-up, so it is the owner's: https://www.bestpractices.dev, then the README badge.
 
-**Verification:** the paths it cites exist (`tests/test_docs_facts.py`). It stays 🟡 until the badge shows.
+**Verification:** the paths it cites exist (`tests/test_docs_facts.py`). The project was registered on 2026-11-15 and every criterion answered from the sheet. Private vulnerability reporting was switched on for `vulnerability_report_private`, and CONTRIBUTING.md gained a "Get it, give feedback, contribute" section for `interact`. Four criteria are Unmet: `floss_license` (a MUST: the trading system is PolyForm Noncommercial, so the badge cannot reach "passing"), `floss_license_osi`, `warnings_strict` and `dynamic_analysis_unsafe` (the optional C++ accelerator is not run under sanitizers). V6.6.8 in `todo.md` plans the closable ones. It stays 🟡 until the badge shows.
 
 ### 367. Coverage only held when someone ran all of it (V6.6.7)
 🟢 `fixed` · 3/10
