@@ -24,16 +24,22 @@ def volatility_target_weights(weights: Mapping[str, float], cov: pd.DataFrame, *
                               annualization: int = 252) -> dict[str, float]:
     """Scale `weights` so that `sqrt(w' cov w * annualization)` equals `target_annual_vol` (`cov` is of per-period returns),
     then cap gross exposure at `max_leverage`. A name missing from `cov` is dropped; a non-finite or zero risk returns the
-    weights capped but unscaled."""
+    weights capped but unscaled. A target of zero is a flat book; a negative target or leverage raises ValueError
+    (V6.6.7, #376, formal/AetherFormal/VolTarget.lean: before, a zero target returned the weights unscaled and a negative
+    leverage was silently read as positive)."""
+    target = float(target_annual_vol)
+    if math.isfinite(target) and target < 0.0:
+        raise ValueError(f"target_annual_vol must be >= 0, got {target_annual_vol!r}")
+    if float(max_leverage) < 0.0:
+        raise ValueError(f"max_leverage must be >= 0, got {max_leverage!r}")
     names = [name for name in weights if name in cov.index and name in cov.columns]
     w = np.array([float(weights[name]) for name in names], dtype=float)
     w = np.where(np.isfinite(w), w, 0.0)
-    cap = abs(float(max_leverage))
-    if not names or not math.isfinite(cap):
+    cap = float(max_leverage)
+    if not names or not math.isfinite(cap) or target == 0.0:
         return {name: 0.0 for name in names}
     matrix = cov.loc[names, names].to_numpy(float)
     variance = float(w @ matrix @ w) * float(annualization) if np.all(np.isfinite(matrix)) else float("nan")
-    target = float(target_annual_vol)
     scale = target / math.sqrt(variance) if math.isfinite(variance) and variance > 0.0 and math.isfinite(target) and target > 0.0 else 1.0
     scaled = w * scale
     gross = float(np.abs(scaled).sum())

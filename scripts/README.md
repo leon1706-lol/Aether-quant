@@ -2,6 +2,8 @@
 
 Tools run by hand, outside the runtime and the `aq` CLI. Most Lean-reading work is `aq evaluate` now; these are what remains.
 
+**Record or tool (V6.6.7).** Every script here is a **tool** (still run), except the **records**: a past phase's chain, kept so its result can be rerun and never edited to give another one. The records are the "Past research chains" section, the `codespace_*_v*.sh` and `codespace_session_v*.sh` lifetimes, and the rows marked *(record)*. Every script is named in a table below (`tests/test_scripts_readme.py`), and every tool with a command line has a `--help` test (`tests/test_script_entry_points.py`).
+
 ## Verification and packaging
 
 | Script | What it does |
@@ -14,6 +16,11 @@ Tools run by hand, outside the runtime and the `aq` CLI. Most Lean-reading work 
 | `feature_parity_audit.py` | Every offline feature has a runtime twin (`--synthetic-only` needs no data) |
 | `library_gate.py`, `install_hooks.py` | Every public name is in `aether_quant` or explained (the pre-commit hook and CI's fast-guards run it); the hook installer |
 | `check_axioms.py`, `mutation_check.py` | The Lean theorems rest on the standard axioms only; changed comparisons and constants in seven safety modules, and how many the tests catch |
+| `lock_requirements.py`, `scorecard_pins.py` | The hash-locked install sets in `requirements/lock/` (uv); every install pinned as the OpenSSF Scorecard reads it (pre-commit hook, fast-guards) |
+| `coverage_misses.py` | The uncovered lines a coverage run left, by function and with context (AGENTS.md "Coverage: 100% after every commit") |
+| `type_completeness.py` | Every callable `aether_quant` exports is fully annotated (CI typecheck) |
+| `build_docs.py`, `build_notebooks.py`, `build_hello_sample.py`, `build_dashboard_demo.py` | The docs site's API pages, the tutorial notebooks, `aq hello`'s bundled sample and the dashboard's demo data |
+| `backup_postgres.py` | `pg_dump` of the Postgres database into `state/backups/`, keeping the newest N |
 | `field_test_services.py`, `field_services.sh` | Real Redis and Postgres as plain processes: events flow, a tampered row is found, each service stops and restarts under a running pipeline |
 
 ## Codespaces
@@ -29,6 +36,8 @@ Tools run by hand, outside the runtime and the `aq` CLI. Most Lean-reading work 
 | `codespace_mem*.sh`, `codespace_diag.sh`, `codespace_wf_*.sh` | Memory, diagnostics and walk-forward progress |
 | `codespace_retrain_a.sh`, `codespace_retrain_b.sh` | Retrain: dataset and variants, then the winner's full stack |
 | `codespace_session_v*.sh`, `codespace_research_v*.sh`, `codespace_*_v*.sh` | One Codespace lifetime for a past phase's chain, kept as its record |
+| `codespace_grep.sh`, `codespace_run_tests.sh` | Read a Codespace log for step markers and failures; the suite on a Codespace |
+| `codespace_final_session.sh`, `codespace_p53_eval.sh`, `codespace_pack_eval.sh`, `codespace_rebuild_then_b.sh`, `codespace_survival_test.sh`, `codespace_topology_retrain.sh`, `codespace_v664_extras.sh`, `active_baseline_swap.sh` | *(record)* single Codespace jobs of earlier phases |
 
 ## Data
 
@@ -64,6 +73,8 @@ Tools run by hand, outside the runtime and the `aq` CLI. Most Lean-reading work 
 | `as_live_levers.py` | One-lever attribution of the as-live book |
 | `gate_sweep.py`, `gate_sweep_score_stage.py`, `gate_research.py`, `gate_value_compare.py` | The rank book's gates |
 | `overlap_vs_sharpe_analysis.py`, `promotion_gate_null_calibration.py`, `promotion_gate_null_gate_scheme.py` | What selection divergence costs; the promotion gate's null |
+| `active_baseline.py`, `holdout_report.py` | The current models' as-live and idealized book on one split; the once-only holdout report |
+| `build_legacy_probability.py`, `forex_keep_or_drop.py`, `prepare_v610_candidates.py`, `select_feature_subset.py`, `sleeve_alpha_check.py` | *(record)* rules R-CAL2, R-FX6, R-MODEL9, the V6.2.0 input subset and the V5.7.0 sleeve check |
 | `make_variant_configs.py`, `compare_training_variants.py`, `model_candidate_research.py` | Retrain variants, picked on validation IC |
 | `profile_inference.py`, `profile_subsystems.py` (`aq profile`), `profile_main_tick.py` | Hot-path timing |
 | `lean_smoke/`, `lean_teardown_smoke/` | Option, futures and teardown code against Lean's sample data |

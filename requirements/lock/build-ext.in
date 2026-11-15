@@ -1,0 +1,4 @@
+# Building cpp_inference_ext in the engine image (--profile build-ext)
+pybind11>=2.10
+setuptools>=77.0
+wheel>=0.43

@@ -41,3 +41,21 @@ def test_leverage_cap_missing_names_and_degenerate_risk():
 def test_never_exceeds_max_leverage(a, b, target, leverage):
     weights = volatility_target_weights({"A": a, "B": b}, COV, target_annual_vol=target, max_leverage=leverage)
     assert sum(abs(v) for v in weights.values()) <= leverage + 1e-9
+
+
+# --- V6.6.7 (#376, formal/AetherFormal/VolTarget.lean)
+
+def test_v667_a_zero_target_is_flat_and_a_negative_setting_is_refused():
+    import pandas as pd
+    import pytest
+
+    from risk.vol_target import volatility_target_weights
+
+    cov = pd.DataFrame([[0.0004, 0.0], [0.0, 0.0001]], index=["a", "b"], columns=["a", "b"])
+    assert volatility_target_weights({"a": 0.5, "b": -0.5}, cov, target_annual_vol=0.0) == {"a": 0.0, "b": 0.0}
+    with pytest.raises(ValueError, match="target_annual_vol"):
+        volatility_target_weights({"a": 0.5}, cov, target_annual_vol=-0.1)
+    with pytest.raises(ValueError, match="max_leverage"):
+        volatility_target_weights({"a": 0.5}, cov, target_annual_vol=0.1, max_leverage=-1.0)
+    out = volatility_target_weights({"a": 0.5, "b": -0.5}, cov, target_annual_vol=0.1, max_leverage=0.5)
+    assert abs(abs(out["a"]) + abs(out["b"]) - 0.5) < 1e-12 and out["a"] > 0 > out["b"]

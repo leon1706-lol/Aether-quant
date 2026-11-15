@@ -79,7 +79,9 @@ def legacy_trials(registry: dict[str, Any], exclude_phases: tuple[str, ...] = LE
 def deflation_inputs(entries: list[dict], legacy_registry: dict[str, Any], window: str) -> dict[str, Any]:
     """{"N", "var", "legacy_var", "same_window_trials", "floored"} for a deflated Sharpe judged on `window`. A candidate
     scored several times on a window counts once, by its last score. `entries` must hold every ledger phase's rows."""
-    legacy = [float(trial["median_sharpe"]) for trial in legacy_trials(legacy_registry)]
+    # V6.6.7 (#377): a non-finite legacy Sharpe made legacy_var NaN; append_trial already drops one from the ledger
+    legacy_values = [float(trial["median_sharpe"]) for trial in legacy_trials(legacy_registry)]
+    legacy = [value for value in legacy_values if math.isfinite(value)]
     latest: dict[str, float] = {}
     for entry in entries:
         if entry["role"] == "candidate" and entry["window"] == window and entry["annualised_sharpe"] is not None:
@@ -88,7 +90,7 @@ def deflation_inputs(entries: list[dict], legacy_registry: dict[str, Any], windo
     variance = _variance(values)
     floored = variance is None or variance < VARIANCE_FLOOR
     return {
-        "N": len(legacy) + len(candidate_ids(entries)),
+        "N": len(legacy_values) + len(candidate_ids(entries)),
         "var": VARIANCE_FLOOR if floored else variance,
         "legacy_var": _variance(legacy),
         "same_window_trials": len(values),

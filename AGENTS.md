@@ -16,6 +16,9 @@ pip install -e .          # register `aq` from source (pyproject.toml)
 aq test                   # full suite, then the doc facts (aq test --risk etc. = one subsystem)
 #                         # no --parallel on a low-memory machine: each xdist worker imports torch
 aq test --coverage        # every group in turn under coverage: every tracked module must reach 100%
+aq test --coverage --changed   # the fast gate before a commit (the pre-commit hook): changed modules at 100%
+python scripts/scorecard_pins.py      # every install pinned by hash (OpenSSF Scorecard), must print 0
+python scripts/lock_requirements.py   # regenerate requirements/lock/*.txt from their .in files (uv)
 aq evaluate               # offline evaluation
 aq cycle status           # generations, shares, decay, what is due (RUNBOOK "Research cycle")
 aq docs sync              # refresh numbers quoted in the docs
@@ -44,6 +47,7 @@ ruff check .              # must be clean before commit
     - A Lean DinD Codespace bundles every Lean run of a phase into one lifetime, then `gh codespace delete` in the same session (its ~20 GB image is billed storage).
     - Record on and off times in the phase's Changelog "Hosts" bullet.
 14. **Every commit that adds a public function or class to a shipped package updates `aether_quant`, or lists why it stays out.** Export it from the matching facade (`aether_quant/<subsystem>.py`), regenerate the API pin (`AQ_UPDATE_API_SNAPSHOT=1 aq test --meta`) and add a line to `aether_quant/README.md`; a name that must stay out goes under `unexported` in `tests/data/aether_quant_unexported.json` with a reason. `scripts/library_gate.py` enforces this in the pre-commit hook (`python scripts/install_hooks.py`) and in CI's fast-guards, and its legacy backlog can only shrink.
+15. **Every install is pinned by hash** (the OpenSSF Scorecard's Pinned-Dependencies). A workflow, Dockerfile or shell script installs with `pip install --require-hashes -r requirements/lock/<profile>.txt` (then `--no-deps -e .` or `--no-deps <wheel>`), `npm ci`, and actions and images by commit and digest. Edit the profile's `.in` and run `python scripts/lock_requirements.py --profile <name>` (uv; a Dependabot floor bump needs it on its branch). `python scripts/scorecard_pins.py` must report nothing: it runs in the pre-commit hook and in fast-guards.
 
 ## Where things live
 
@@ -56,6 +60,9 @@ ruff check .              # must be clean before commit
 | `evaluation/` · `retraining/` | Offline eval, research rounds, generations' registry and ledger · candidate gates, versioning |
 | `ml/generations/` | Generations, glide policy, lifecycle log, the once-only holdout ledger (tracked; nothing in Lean reads it) |
 | `aether_quant/` | The library, pinned by `tests/data/aether_quant_api.json` |
+| `fuzz/` | Atheris fuzz targets (`targets.py`, run by `.github/workflows/fuzz.yml`; hypothesis drives them in the suite) |
+| `requirements/lock/` | Hash-locked install sets per job (`*.in` → `*.txt`, `scripts/lock_requirements.py`) |
+| `development/openssf_best_practices.md` | The OpenSSF Best Practices answers, ready for the owner to enter |
 | `experience/` · `audit/` · `monitoring/` · `notifications/` | Redis and Postgres pipeline · hash-chained audit log · FastAPI · Telegram |
 | `data_pipeline/` · `regime/` · `topology/` | Backfills · regime detection · topology overlay |
 | `docs_facts.py` · `json_safety.py` · `performance_probe.py` · `aq_cli.py` | Doc facts · finite-safe JSON · opt-in probes · the CLI |
@@ -68,7 +75,7 @@ ruff check .              # must be clean before commit
 - **Docs move with code:** README and sub-readmes, `development/`, `aq --help` for new flags.
 - **A doc or doc section added is named here,** in "Where things live" or "After every phase", so an agent finds it.
 - **Synthetic worlds first.** `tests/README.md` "Synthetic worlds" names the fake Lean (`main.py`), the trainer and `train.py` worlds and the script loader. A new runtime test uses one rather than a fresh stub.
-- **100% coverage of every tracked module, no pragma.** A new line ships with the test that runs it; `if TYPE_CHECKING:` is the one exclusion (`tests/test_coverage_scope.py`).
+- **100% coverage of every tracked module, no pragma:** the next section.
 - **Numbers in docs are facts, not text.** A count, window or version goes through `<!--fact:key-->` (`docs_facts.py`) or a generated `AQ:*` block. `tests/test_docs_facts.py` also fails on a path, `phase_v2` key, `aq` command or problem number that no longer exists in a living doc.
 - **The README's Backtest Statistics shows the shipped book only.** The retired book's blocks live in `development/research_results.md`.
 - **Problems.md and Changelog.md entries are condensed.**
@@ -77,6 +84,29 @@ ruff check .              # must be clean before commit
   - A condensing pass snapshots to `development/backups/` first.
 - **Problems.md status markers:** 🟢 `fixed` (changed and verified) · 🟡 `partial` (shipped, verification pending) · 🔴 `closed` (no code fix: declined, moot, superseded).
 - **Comments: short and precise.** Keep one only if it says what the code can't: a non-obvious why, an invariant, a gotcha. Process history belongs in git log, Changelog and Problems.
+
+## Coverage: 100% after every commit
+
+Every tracked `.py` outside `tests/` is measured, and the gate is literally 100%. Nothing is excluded but `if TYPE_CHECKING:` (`tests/test_coverage_scope.py`). CI's `python-tests` fails under 100, and the pre-commit hook runs the fast gate.
+
+- **Before every commit: `aq test --coverage --changed`.** The hook runs it. It runs every registered test that names a module changed since HEAD (new files included) and fails on any uncovered line in those files.
+  - A fresh full `coverage.json` that already shows them covered passes at once.
+  - More than 40 changed modules means a phase: run `aq test --coverage`.
+  - `AQ_SKIP_COVERAGE_HOOK=1` is only for the commit right after a full run on that tree.
+- **A new line ships with the test that runs it,** in the module's own `tests/test_<module>.py`, registered in `_SUBSYSTEM_TEST_FILES` (the gate refuses an unregistered test that names the module). Never `# pragma: no cover`, never a new `omit`, never a test that only imports.
+- **Finding misses.** After a run: `python scripts/coverage_misses.py --include "risk/*" --by-function --context 2`. The last full run's `coverage.json` is the worklist.
+- **Use the synthetic worlds, not a fresh stub:**
+  - `tests/lean_world.py` with `tests/lean_fakes.py` (main.py against a fake Lean);
+  - `tests/train_world.py` with `tests/trainer_fakes.py` (train*.py);
+  - `tests/script_loader.py` (`load_script`, `run_script`, `fake_module`, `block_path_writes`, `stop_at_first_read`);
+  - `tests/research_fakes.py` and `tests/synthetic_lean.py` (research scripts, Lean run folders).
+- **Dead code is deleted, not excluded.** A branch no input can reach goes, and the commit says why. A defensive guard stays only if a test reaches it.
+- **CI has no gitignored files.** A test that skips without `ml/` or `data/` leaves lines uncovered there: build its input in a tmp dir and confirm with `scripts/clean_checkout_test.ps1`.
+- **Gotchas:**
+  - Never `--cov=pkg.module` (it double-imports); use bare `--cov` with `coverage report --include`.
+  - Give each slice its own `COVERAGE_FILE`.
+  - On the 4 GB PC, run the full gate detached (`Start-Process aq -ArgumentList 'test','--coverage'`) with other apps closed.
+  - Scripts a test runs as a subprocess are measured through `patch = ["subprocess"]`.
 
 ## Model training
 
@@ -106,10 +136,12 @@ Automatic: the PyPI, CI, CodeQL, Scorecard, coverage and test badges; every `<!-
 | Older releases | GitHub releases without assets | Once per such release: `gh workflow run release.yml -f backfill_tag=vX.Y.Z` |
 | Scorecard account checks | branch protection, code review, CII badge | Owner decisions, outside the code |
 | `webui/package.json` version | stays `0.0.0` | Never: a private package, versioned by the image tag |
+| OpenSSF Scorecard | `curl -s https://api.securityscorecards.dev/projects/github.com/leon1706-lol/Aether-quant` | Every phase: a check that fell gets a Problems entry (the ceiling without a second maintainer is about 8.8) |
+| Best Practices badge | bestpractices.dev, then the README badge | Once, by the owner (a sign-up): `development/openssf_best_practices.md` holds the answers |
 
 ## Wrap-up checklist
 
-After every code change, from [`development/verification.md`](development/verification.md) (`aq verify --list`): unit tests added; for a new invariant in a safety, admission or ledger path a Lean spec with its differential test (`formal/README.md`, `aq prove`) and a property test; for a new public function the `aether_quant` export (rule 14); `aq verify --quick` on the PC; `aq test` (a Codespace when the PC cannot finish it, #324), `aq test --coverage` at 100%, and ruff green; `aq docs sync`; vault regenerated. Before handing over a commit also run `scripts/clean_checkout_test.ps1` (CI has no gitignored files), or on the 4 GB dev PC `scripts/codespace_verify.ps1 -Start`, which runs every CI job except Windows, the webui image build and `npm audit` on a Codespace. A change to the live path adds Lean on a DinD Codespace and the parity test (rule 6). Install the pre-commit hook once: `python scripts/install_hooks.py`.
+After every code change, from [`development/verification.md`](development/verification.md) (`aq verify --list`): unit tests added; for a new invariant in a safety, admission or ledger path a Lean spec with its differential test (`formal/README.md`, `aq prove`) and a property test; for a new public function the `aether_quant` export (rule 14); `aq verify --quick` on the PC; `aq test --coverage --changed` and `python scripts/scorecard_pins.py`; `aq test` (a Codespace when the PC cannot finish it, #324), `aq test --coverage` at 100%, and ruff green; `aq docs sync`; vault regenerated. Before handing over a commit also run `scripts/clean_checkout_test.ps1` (CI has no gitignored files), or on the 4 GB dev PC `scripts/codespace_verify.ps1 -Start`, which runs every CI job except Windows, the webui image build and `npm audit` on a Codespace. A change to the live path adds Lean on a DinD Codespace and the parity test (rule 6). Install the pre-commit hook once: `python scripts/install_hooks.py`.
 
 ```powershell
 cd Aether-quant-Obsidian-Vault

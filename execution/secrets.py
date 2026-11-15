@@ -156,11 +156,13 @@ def redact_url(url: object) -> str:
     that is not a URL, comes back as it was."""
     text = str(url)
     scheme, sep, rest = text.partition("://")
-    if not sep or "@" not in rest.split("/", 1)[0]:
+    authority, slash, path = rest.partition("/")
+    if not sep or "@" not in authority:
         return text
-    userinfo, _, host = rest.partition("@")
+    # the host follows the LAST @ of the authority: a password may contain @ (V6.6.7, #363: the first @ leaked its tail)
+    userinfo, _, host = authority.rpartition("@")
     user, colon, _password = userinfo.partition(":")
-    return f"{scheme}://{user}{':***' if colon else ''}@{host}"
+    return f"{scheme}://{user}{':***' if colon else ''}@{host}{slash}{path}"
 
 
 def redact(text: str, values: Iterable[SecretValue | str | None]) -> str:

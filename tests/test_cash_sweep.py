@@ -91,3 +91,15 @@ def test_the_risk_value_compounds_strategy_pnl_over_the_total_it_is_sized_on():
     assert value == pytest.approx(99_000.0)
     assert advance_strategy_value(state, math.nan, 8_100.0)[1] == pytest.approx(99_000.0)
     assert advance_strategy_value(None, 0.0, 0.0)[0] is None
+
+
+# --- V6.6.7 (#374, formal/AetherFormal/CashSweep.lean)
+
+def test_v667_the_strategy_value_never_goes_negative():
+    from portfolio.cash_sweep import advance_strategy_value
+
+    state = {"total": 100.0, "sweep": 0.0, "value": 100.0}
+    new_state, value = advance_strategy_value(state, 50.0, 80.0)
+    assert value == 0.0 and new_state["value"] == 0.0
+    _, value = advance_strategy_value(state, 110.0, 5.0)
+    assert abs(value - 105.0) < 1e-12, "an ordinary session compounds as before"

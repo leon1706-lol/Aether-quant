@@ -4,7 +4,7 @@ set -u
 OUT=/tmp/aq_v660
 mkdir -p "${OUT}"
 echo "$(date -u +%FT%TZ) DEPS" >> "${OUT}/status"
-python3 -m pip install --quiet --user pyarrow requests scikit-learn > "${OUT}/pip.log" 2>&1
+python3 -m pip install --quiet --user --require-hashes -r requirements/lock/ci.txt > "${OUT}/pip.log" 2>&1
 python3 scripts/build_crypto_wide_root.py --out data_crypto_wide > "${OUT}/crypto.log" 2>&1
 code=$?
 echo "$(date -u +%FT%TZ) CRYPTO exit ${code}" >> "${OUT}/status"

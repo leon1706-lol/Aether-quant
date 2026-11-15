@@ -146,5 +146,7 @@ def advance_strategy_value(state: dict[str, Any] | None, total_value: float, swe
     if not math.isfinite(total) or total <= 0.0 or state["total"] <= 0.0:
         return state, state["value"]
     strategy_return = ((total - state["total"]) - (sweep - state["sweep"])) / state["total"]
-    value = state["value"] * (1.0 + strategy_return)
+    # V6.6.7 (#374, formal/AetherFormal/CashSweep.lean): a session that loses more than the strategy holds (a large sweep
+    # profit while the total falls) gave strategy_return < -1 and a negative value; the floor is zero, a 100% drawdown
+    value = max(0.0, state["value"] * (1.0 + strategy_return))
     return {"total": total, "sweep": sweep, "value": value}, value

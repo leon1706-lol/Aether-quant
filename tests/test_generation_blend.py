@@ -234,9 +234,20 @@ def test_a_floor_means_barely_profitable_earns_nothing():
 
 
 @pytest.mark.parametrize("bad", [{"a": math.nan}, {"a": -0.1}, {"a": 0.9, "b": 0.9}])
-def test_dynamic_damaged_shares_hold(bad):
+def test_dynamic_damaged_shares_are_repaired_not_held(bad):
+    """V6.6.7 (#375): a damaged allocation used to come back as it was (over-allocated, negative, a tripped name holding)."""
     out = dynamic_generation_shares(bad, {"a": "active", "b": "active"}, {}, {"a": _record(0.5), "b": _record(0.5)}, {}, DYNAMIC)
-    assert sum(1 for name in bad if out[name] != (bad[name] if bad[name] == bad[name] else 0.0)) == 0
+    assert all(0.0 <= value <= 1.0 for value in out.values()) and sum(out.values()) <= 1.0 + 1e-9
+    tripped = dynamic_generation_shares({"a": 0.9, "b": 0.9}, {"a": "active", "b": "active"}, {"a": "tripped"}, {"a": _record(0.5), "b": _record(0.5)}, {}, DYNAMIC)
+    assert tripped["a"] == 0.0
+
+
+def test_repair_shares():
+    from portfolio.generation_blend import repair_shares
+
+    assert repair_shares({"a": math.nan, "b": -1.0, "c": 0.25}) == {"a": 0.0, "b": 0.0, "c": 0.25}
+    assert repair_shares({"a": 1.5, "b": 0.5}) == pytest.approx({"a": 0.75, "b": 0.25})
+    assert repair_shares({}) == {}
 
 
 def test_a_non_finite_score_earns_no_share_and_stops_nothing():

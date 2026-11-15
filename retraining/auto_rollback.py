@@ -62,11 +62,13 @@ def select_rollback_target(
     exists."""
     failures: list[str] = []
 
-    if not bool(config.get("enabled", False)):
+    # V6.6.7 (#371, formal/AetherFormal/AutoRollback.lean): `is True`, as documented. bool("false") is True, so a
+    # hand-edited string enabled the most consequential action in the system; a string trigger or gate flag did the same
+    if config.get("enabled", False) is not True:
         return {"should_rollback": False, "to_version_id": None, "reason": "auto_rollback_disabled", "failures": []}
 
     configured_triggers = list(config.get("triggers", ["kill_switch_tripped", "net_sharpe_decay", "rank_ic_decay"]))
-    fired_triggers = [name for name in configured_triggers if bool(degradation_signals.get(name, False))]
+    fired_triggers = [name for name in configured_triggers if degradation_signals.get(name, False) is True]
     if not fired_triggers:
         return {
             "should_rollback": False, "to_version_id": None,
@@ -88,7 +90,7 @@ def select_rollback_target(
     if not failures:
         for candidate in version_history:
             if require_prior_gate_pass:
-                gate_passed = bool((candidate.get("metrics") or {}).get("validation_gate", {}).get("passed", False))
+                gate_passed = ((candidate.get("metrics") or {}).get("validation_gate") or {}).get("passed", False) is True
                 if not gate_passed:
                     continue
             to_version_id = candidate.get("model_version_id")

@@ -144,7 +144,7 @@ aq hello                        # downloads 11 coins (keyless), runs the shipped
 
 ## The `aether_quant` Library
 
-One importable package over the same pure functions the live algorithm and the research chain call: <!--fact:library.names-->929<!--/fact--> public names across <!--fact:library.modules-->32<!--/fact--> modules.
+One importable package over the same pure functions the live algorithm and the research chain call: <!--fact:library.names-->930<!--/fact--> public names across <!--fact:library.modules-->32<!--/fact--> modules.
 
 ```powershell
 pip install "aether-quant[research]"    # the library is Apache-2.0; scipy, scikit-learn and friends come with [research]
@@ -670,13 +670,14 @@ Builds the dataset and trains the models into `ml/`.
 
 #### `aq test`
 ```text
-aq test [--ruff] [--parallel] [--lean|--full] [--coverage]
+aq test [--ruff] [--parallel] [--lean|--full] [--coverage [--changed]]
 aq test [--cli] [--risk] [--portfolio] [--features] [--data-pipeline] [--webui] [--ml] [--retraining] [--notifications] [--storage] [--live] [--audit] [--evaluation] [--formal] [--meta] [--scripts]
 ```
 Runs pytest, then syncs the doc facts on a full run. The test badge is CI's.
 
 - **`--ruff`:** lint first and fail fast.
 - **`--coverage`:** each group in turn under coverage, then the combined report; every tracked module must reach 100%.
+- **`--coverage --changed`:** the fast gate before a commit (the pre-commit hook runs it). It runs the tests that name each module changed since HEAD, new files included, and fails on any uncovered line in those modules; a fresh full `coverage.json` that already shows them covered passes at once.
 - **`--parallel`:** xdist. Don't use it on a low-memory machine, because each worker imports torch.
 - **`--lean`, `--full`:** add the real Lean integration test, over an hour.
 - **Subsystem flags:** run only those test files; they combine.

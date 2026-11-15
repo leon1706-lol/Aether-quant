@@ -206,7 +206,15 @@ def rl_sizing_multiplier(
     except (KeyError, TypeError, ValueError, ZeroDivisionError):
         return 1.0, "rl_sizing_malformed_model"
 
-    clamped = max(float(min_rl_multiplier), min(raw_multiplier, float(max_rl_multiplier)))
+    # V6.6.7 (#368, formal/AetherFormal/RlSizing.lean): a band that is not finite or has min > max is a strict no-op;
+    # max(min, min(raw, max)) with min 1.2 and max 1.0 returned 1.2, an amplified size from a shrink-only control
+    try:
+        low, high = float(min_rl_multiplier), float(max_rl_multiplier)
+    except (TypeError, ValueError):
+        return 1.0, "rl_sizing_invalid_bounds"
+    if not (math.isfinite(low) and math.isfinite(high)) or low > high:
+        return 1.0, "rl_sizing_invalid_bounds"
+    clamped = max(low, min(raw_multiplier, high))
     return clamped, "rl_sizing_policy_scaled_sizing"
 
 
@@ -260,5 +268,7 @@ def rl_shadow_guard_allows(excess_history: list[float], guard: dict[str, Any]) -
     constant sizing falls back to 1.0 until the loss leaves the window)."""
     if not guard.get("enabled", False):
         return True
-    recent = excess_history[-int(guard.get("window_bars", 60)):]
+    # at least one bar, as resolve_rl_shadow_guard clamps it: xs[-0:] is the whole history (V6.6.7, #368)
+    window = max(1, int(guard.get("window_bars", 60)))
+    recent = excess_history[-window:]
     return sum(value for value in recent if math.isfinite(value)) >= -float(guard.get("tolerance_nav_fraction", 0.002))

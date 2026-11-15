@@ -23,7 +23,8 @@ def compute_degradation_score(degradation_signals: dict[str, Any], *, weights: d
         "slippage_divergence": 0.15,
     }
     score = sum(float(wt) for name, wt in w.items() if bool(degradation_signals.get(name, False)))
-    return min(round(score, 4), 1.0)
+    # V6.6.7 (#377): custom negative weights gave a negative score; the composite stays in [0, 1]
+    return max(0.0, min(round(score, 4), 1.0))
 
 
 def select_rollback_target_dry_run(

@@ -12,6 +12,7 @@ then the caps. Nothing here is fitted to returns.
 
 from __future__ import annotations
 
+import math
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 
@@ -38,6 +39,17 @@ class WeightSettings:
     name_cap: float = 0.15
     class_caps: Mapping[str, float] = field(default_factory=lambda: {"crypto": 0.15})
     name_cap_by_class: Mapping[str, float] = field(default_factory=lambda: {"crypto": 0.05})
+
+    def __post_init__(self) -> None:
+        # V6.6.7 (#372, formal/AetherFormal/PremiaCaps.lean): the caps hold only when they are finite and not negative. A
+        # negative name cap made np.clip(x, -cap, cap) return the cap for every name (all equal shorts), and a negative
+        # class or gross cap, or volatility target, flipped every sign
+        values = {"target_vol": self.target_vol, "gross_cap": self.gross_cap, "name_cap": self.name_cap,
+                  **{f"class_caps[{k}]": v for k, v in self.class_caps.items()},
+                  **{f"name_cap_by_class[{k}]": v for k, v in self.name_cap_by_class.items()}}
+        for name, value in values.items():
+            if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value < 0.0:
+                raise ValueError(f"WeightSettings.{name} must be a finite number >= 0, got {value!r}")
 
 
 @dataclass(frozen=True)
@@ -313,7 +325,12 @@ def scale_and_cap(raw: pd.Series, covariance: pd.DataFrame, asset_class: Mapping
     variance = float(vector @ matrix @ vector) * TRADING_DAYS
     if not np.isfinite(variance) or variance <= 0.0:
         return {}
-    weights = weights * (settings.target_vol / np.sqrt(variance))
+    return _apply_weight_caps(weights * (settings.target_vol / np.sqrt(variance)), asset_class, settings)
+
+
+def _apply_weight_caps(weights: pd.Series, asset_class: Mapping[str, str], settings: WeightSettings) -> dict[str, float]:
+    """The per-name, per-class and gross caps, in that order (formal/AetherFormal/PremiaCaps.lean)."""
+    weights = weights.copy()
     for ticker in weights.index:
         cap = settings.name_cap_by_class.get(asset_class.get(ticker), settings.name_cap)
         weights[ticker] = float(np.clip(weights[ticker], -cap, cap))

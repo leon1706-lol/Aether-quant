@@ -1,0 +1,5 @@
+# The release SBOM venv: the wheel's own dependencies plus the generator; the wheel installs with --no-deps (--profile sbom)
+numpy>=1.24.0
+pandas>=2.0.0
+cyclonedx-bom==8.0.1
+lxml>=6.1.0  # cyclonedx-python-lib's XML dependency: 5.4.0 has PYSEC-2026-87 (fixed in 6.1.0)

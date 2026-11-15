@@ -2,7 +2,7 @@
 
 Every bug and infrastructure issue found in this codebase, oldest first, with how it was fixed or why it stayed open. Numbers never change, because code and docs cite them; #73-76 don't exist, and #88 and #112 appear twice.
 
-**Entries:** <!--fact:problems.total-->358<!--/fact--> up to #<!--fact:problems.last-->360<!--/fact-->: <!--fact:problems.fixed-->325<!--/fact--> 🟢 `fixed` (changed and verified), <!--fact:problems.partial-->12<!--/fact--> 🟡 `partial` (shipped, verification pending), <!--fact:problems.closed-->18<!--/fact--> 🔴 `closed` (no code fix: declined, moot or superseded). Severity runs from 1 (cosmetic) to 10 (data loss or safety). Full text of older entries: [`backups/`](backups/README.md).
+**Entries:** <!--fact:problems.total-->376<!--/fact--> up to #<!--fact:problems.last-->378<!--/fact-->: <!--fact:problems.fixed-->339<!--/fact--> 🟢 `fixed` (changed and verified), <!--fact:problems.partial-->16<!--/fact--> 🟡 `partial` (shipped, verification pending), <!--fact:problems.closed-->18<!--/fact--> 🔴 `closed` (no code fix: declined, moot or superseded). Severity runs from 1 (cosmetic) to 10 (data loss or safety). Full text of older entries: [`backups/`](backups/README.md).
 
 **Open now** (each needs a broker key, a forward record or the laptop):
 
@@ -15,6 +15,15 @@ Every bug and infrastructure issue found in this codebase, oldest first, with ho
 - **#321** Anyone can retrain, on any machine with the RAM
 - **#323** A dynamic glide: three or more generations, smooth, with shares from each one's record
 - **#338** IB field test: what the Lean samples cannot show about options and futures
+
+**Waiting on the owner's push, tag or sign-up (V6.6.7, each only needs a GitHub run or an account to confirm):**
+
+- **#361** Every install was unpinned (the Scorecard reads Pinned-Dependencies after the push)
+- **#362** Vulnerabilities: five advisories, four of them torch (the Scorecard reads it after the push)
+- **#363** Nothing was fuzzed (`fuzz.yml` runs on GitHub after the push)
+- **#364** Branch protection: none on `main` (the Scorecard reads the ruleset on its next run)
+- **#365** Release provenance (the tag, then the two `backfill_tag` dispatches)
+- **#366** No OpenSSF Best Practices badge (the owner registers)
 
 ---
 
@@ -1814,7 +1823,7 @@ Lean's paper brokerage starts empty on each run, so the restart proves the state
 
 
 ### 354. The first CI run of V6.6.5 failed on what the PC could not show (V6.6.5)
-🟡 `partial` · 4/10
+🟢 `fixed` · 4/10
 
 **Problem:** the push of `1edb206` failed Scorecard and eight CI jobs, for causes the PC could not show:
 
@@ -1842,7 +1851,7 @@ Lean's paper brokerage starts empty on each run, so the restart proves the state
 - The wheel's SBOM step used `--output-file`, which `cyclonedx-py` 4.6.1 does not have; the flag is `--outfile`.
 - `anchore/sbom-action` tried to attach each image's SBOM to the release, which needs `contents: write`. Both images were already pushed and attested by then.
 
-**Release fix:** the flag is corrected (checked against 4.6.1's own help and run end to end), the image SBOMs stay workflow artifacts (`upload-release-assets: false`), and `github-release` skips a release that already exists, so the moved tag can run again. It stays 🟡 until that run publishes to PyPI.
+**Release fix:** the flag is corrected (checked against 4.6.1's own help and run end to end), the image SBOMs stay workflow artifacts (`upload-release-assets: false`), and `github-release` skips a release that already exists, so the moved tag can run again. The re-run published `aether-quant` 6.6.5 to PyPI (checked 2026-11-15: the wheel and the sdist are there), so it is 🟢.
 
 ### 355. CodeQL's first analysis: a Telegram token and Redis passwords could reach the logs (V6.6.5)
 🟢 `fixed` · 6/10
@@ -1865,13 +1874,13 @@ Lean's paper brokerage starts empty on each run, so the restart proves the state
 
 
 ### 356. The OpenSSF Scorecard never saw a release (V6.6.6)
-🟡 `partial` · 5/10
+🟢 `fixed` · 5/10
 
 **Problem:** the Scorecard scored the newest commit, but Signed-Releases read "no releases found". Scorecard skips a release with no assets, and `release.yml` created notes-only releases: the wheel, the SBOMs and the attestations went to PyPI, GHCR and the attestation store, never to the release.
 
 **Fix:** each tag now attaches the wheel, the sdist, the SBOM, a Sigstore `.sigstore.json` per file and an SLSA `.intoto.jsonl` (the generic SLSA 3 generator), then dispatches the Scorecard on `main`. A `backfill_tag` dispatch attaches PyPI's own files, checked against PyPI's digests and signed, to an older release (RUNBOOK "Releases").
 
-**Verification:** `tests/test_ci_workflows.py` pins the assets, the provenance job, the re-run path, the backfill and the Scorecard dispatch; actionlint is clean. It stays 🟡 until a tag shows Signed-Releases above zero.
+**Verification:** `tests/test_ci_workflows.py` pins the assets, the provenance job, the re-run path, the backfill and the Scorecard dispatch; actionlint is clean. Checked 2026-11-14: Signed-Releases reads 8 of 10: all three releases it looked at carry Sigstore signatures. The missing two points are the provenance file, which #365 replaces the SLSA generator with.
 
 ### 357. Scorecard hygiene: unpinned actions, top-level write tokens, a risky checkout, low dependency floors (V6.6.6)
 🟢 `fixed` · 4/10
@@ -1885,7 +1894,7 @@ Lean's paper brokerage starts empty on each run, so the restart proves the state
 - Writes moved onto the one job that needs them.
 - Pages checks out `main` and uses CI's coverage only when it ran on that same commit.
 - Floors rose to the first fixed versions: black, pyarrow, pytest, flask, python-dotenv, requests, scikit-learn, torch 2.9.1 (what the PC runs), and vitest 4.1.12.
-- Still open: five torch advisories with no fixed version, three fixed only in torch 2.10 to 2.13, held per `todo.md` because a torch bump can move the model files. Hash-pinned pip installs are out of scope.
+- Still open then, closed in V6.6.7: the torch and pyarrow advisories (#362) and the hash-pinned pip installs (#361).
 
 **Verification:** tests pin the SHA pins, the digests, the job-level writes and the checkout. Branch protection, code review, the CII badge and fuzzing stay owner and process items.
 
@@ -1934,3 +1943,174 @@ Lean's paper brokerage starts empty on each run, so the restart proves the state
 **Fix:** the sleeve checks the real reason string, enables the exit function whenever either rule is configured, and passes an infinite stop when none is.
 
 **Verification:** `tests/test_rank_book_legacy_step.py` covers an age exit, a trailing-stop exit, and no exit when none is configured. Dead guards the same round found (a fold that cannot be empty, an event that is always in its own date list, a group that cannot have zero rows, a purchase that is never routine) were removed with a one-line comment each.
+
+### 361. Every install was unpinned, and CI ran downloaded code it never checked (V6.6.7)
+🟡 `partial` · 4/10
+
+**Problem:** the OpenSSF Scorecard's Pinned-Dependencies read 3. About sixty `pip install` lines in workflows, Dockerfiles and scripts named no hash, `elan-init.sh` was fetched from `master` and run, and the actionlint, hadolint and gitleaks downloads had no checksum.
+
+**Fix:**
+
+- `requirements/lock/` holds 13 hash-locked profiles (`ci`, `runtime`, `tools`, `compat`, `docs`, `notebooks`, `light`, `dashboard`, `build-ext`, `fuzz`, `sbom`, `lean-cli`, `lean-runtime`), compiled by `scripts/lock_requirements.py` with uv for CPython 3.11 on Linux and Windows. `ci` and `runtime` take CPU torch, so neither OS pulls the CUDA wheels.
+- Every install is `pip install --require-hashes -r requirements/lock/<profile>.txt`, then `--no-deps -e .` or `--no-deps <wheel>`. The three CI binaries are checked by sha256, and `elan-init.sh` is fetched at a fixed commit and checked.
+- `scripts/scorecard_pins.py` mirrors the Scorecard's rule offline (pip, npm, actions, `FROM`, download-then-shell). It runs in the pre-commit hook and in fast-guards; AGENTS.md rule 15 states it.
+
+**Verification:** the checker found 52 unpinned commands on the old tree and reports 0 now. `tests/test_scorecard_pins.py`, `test_lock_requirements.py`, `test_requirement_locks.py` (every lock is hashed and satisfies every floor it inherits) and `test_ci_workflows.py` pass. It stays 🟡 until the Scorecard reads Pinned-Dependencies after the push.
+
+### 362. Vulnerabilities: five advisories, four of them torch (V6.6.7)
+🟡 `partial` · 5/10
+
+**Problem:** Vulnerabilities read 5: torch's floor (`>=2.9.1`) allowed four advisories fixed only in 2.10 to 2.13, and pyarrow `>=17` allowed GHSA-rgxp-2hwp-jwgg (fixed in 23.0.1). The first audit of the new locks also found `lxml 5.4.0` (PYSEC-2026-87, fixed in 6.1.0) behind `cyclonedx-bom 4.6.1`, which caps `lxml<6`.
+
+**Fix:** torch `>=2.15.0` and pyarrow `>=23.0.1` (also in the `research` and `train` extras), with the joblib and psycopg floors from the merged Dependabot PRs. The release tools moved to `cyclonedx-bom 8.0.1` (its flag is `-o`, not `--outfile`) and lxml 6.1.3.
+
+**Verification:** before the bump the PC's five model checkpoints hashed identically on torch 2.9.1 and 2.15.0, and `aq test --ml` passed 712 of 712 on 2.15.0. `pip-audit --require-hashes` over all 13 locks reports no known vulnerability (the CPU torch wheel is not on PyPI, so it is skipped by name). It stays 🟡 until the Scorecard reads it.
+
+### 363. Nothing was fuzzed, and the first fuzz run found five bugs (V6.6.7)
+🟡 `partial` · 6/10
+
+**Problem:** Fuzzing read 0. Writing the targets showed:
+
+- `redact_url` split the host at the first `@`, so a password containing `@` leaked its tail into the logs.
+- `parse_users` raised `AttributeError` on a non-object row, and read the string `"a*"` as the scope `("a", "*")`: every account.
+- The kill switch's rolling Sharpe raised `OverflowError` on a huge return (`** 2`), and `rebalance_deltas` raised it when an order size overflowed, both mid-bar.
+- `record_holdout_read` raised on a non-object ledger line and read a string `cells` as characters, so a spent holdout read as fresh.
+
+**Fix:** eight targets in `fuzz/targets.py` (JSON sanitizing, secret refs, the audit hash chain, account overrides, the users file, the kill switch, the rebalance orders, the holdout ledger), the Atheris entry `fuzz/run_fuzz.py`, a line-guided seed corpus, and `.github/workflows/fuzz.yml` (two minutes a target on a push that touches one, and weekly). Each bug fails closed: a refusal, an empty order or an unreadable window.
+
+**Verification:** `tests/test_fuzz_targets.py` runs every target over its corpus and under hypothesis, `test_fuzz_runner.py` runs the entry against a stand-in Atheris, and each module's own test file holds a regression test. `fuzz/` is at 100%. It stays 🟡 until `fuzz.yml` is green on GitHub (Atheris has no Windows wheel).
+
+### 364. Branch protection: none on `main` (V6.6.7)
+🟡 `partial` · 5/10
+
+**Problem:** Branch-Protection read 0, and no pull request had ever merged, so CI-Tests read -1 (no pull request found).
+
+**Fix:** `.github/CODEOWNERS` and a ruleset on `main`: no deletion, no force push, a pull request with 2 approvals, code-owner review, last-push approval, stale reviews dismissed, and four required checks. The repository admin is an always-bypass actor, so the owner's direct pushes still work (git prints "Bypassed rule violations"). Any bypass actor counts as "not applied to admins", so the ceiling is 9. The 14 Dependabot PRs merged through pull requests with green CI, which gives CI-Tests something to read.
+
+**Verification:** the ruleset was applied on 2026-11-15 (id 27309425), and a Scorecard run on `main` read it at once: Branch-Protection 8, CI-Tests 10 (14 of 14 merged pull requests checked by CI), total 7.6 (from 6.7). The workflow's default token reads rulesets, so no extra token is needed. The two remaining warnings are the bypass actor ("settings apply to administrators" is the ceiling) and "codeowners review is required but no codeowners file found", which `.github/CODEOWNERS` removes once it is on `main`. It stays 🟡 until that run reads 9.
+
+### 365. Release provenance came from an unpinned reusable workflow (V6.6.7)
+🟡 `partial` · 3/10
+
+**Problem:** `slsa-github-generator@v2.1.0` was the one action not pinned by commit (it refuses a SHA), and v6.6.5 and v6.6.4 had signatures but no `.intoto.jsonl`, so Signed-Releases read 8 of 10.
+
+**Fix:** the release job writes the build attestation's Sigstore bundle as `aether_quant-<tag>.intoto.jsonl` (`attest-build-provenance`'s `bundle-path`, one JSON value per line) and the generator job is gone. `backfill_tag` attaches the provenance recorded when the files were built: the tag build's GitHub attestation (`gh attestation download`, which v6.6.5 has), else PyPI's PEP 740 provenance (which v6.6.4 has). It never attests files the run did not build. Immutable releases stay off, because the file is uploaded after the release exists.
+
+**Verification:** `tests/test_ci_workflows.py` pins the job shape, the backfill's two sources and that no action is unpinned. It stays 🟡 until the owner's tag and the two `backfill_tag` dispatches show `.intoto.jsonl` on v6.6.7, v6.6.5 and v6.6.4.
+
+### 366. No OpenSSF Best Practices badge (V6.6.7)
+🟡 `partial` · 2/10
+
+**Problem:** CII-Best-Practices read 0.
+
+**Fix:** `development/openssf_best_practices.md` answers every passing criterion with its evidence in the repository (met, not applicable, or unmet and why). Registering is a sign-up, so it is the owner's: https://www.bestpractices.dev, then the README badge.
+
+**Verification:** the paths it cites exist (`tests/test_docs_facts.py`). It stays 🟡 until the badge shows.
+
+### 367. Coverage only held when someone ran all of it (V6.6.7)
+🟢 `fixed` · 3/10
+
+**Problem:** the 100% gate (#359) needs a full run of 1 to 2 hours on the PC, so a commit could drop below it unseen until CI.
+
+**Fix:** `aq test --coverage --changed` runs the registered tests that name each changed module (against HEAD, new files included) and fails on any uncovered line in those files; a fresh full `coverage.json` that already shows them covered passes at once, and a test that names a changed module but is in no group is an error. The pre-commit hook runs it (`AQ_SKIP_COVERAGE_HOOK=1` skips it). `scripts/coverage_misses.py` lists a run's misses by function, with context. AGENTS.md has a "Coverage: 100% after every commit" section.
+
+**Verification:** `tests/test_aq_cli_coverage_changed.py` (a fake git and runner), `test_coverage_misses.py` and `test_install_hooks.py` pass; the verification matrix lists both new surfaces. The full `aq test --coverage` on the PC (2026-11-15, all 16 groups) measured 48,147 statements and found two uncovered lines, in the update-check branch: a test did not clear `AQ_SKIP_UPDATE_CHECK`, so a shell that sets it hid the branch. With the test fixed the total is **100%, 0 missed**. CI's view (`scripts/clean_checkout_test.ps1`, no gitignored files) passed 7054 tests.
+
+### 368. A shrink-only RL size could amplify, and a zero window read the whole history (V6.6.7)
+🟢 `fixed` · 4/10
+
+**Problem:** `rl_sizing_multiplier` clamped with `max(min, min(raw, max))`, so a band with `min > max` (1.2 and 1.0) returned 1.2: an amplified size from a control documented as shrink-only. `rl_shadow_guard_allows` sliced `excess_history[-window:]`, so a window of 0 read the whole history and a negative one dropped the oldest bars instead of keeping the newest.
+
+**Fix:** a band that is not finite or has `min > max` is a no-op (`1.0`, `rl_sizing_invalid_bounds`); the guard reads at least one bar. The shipped band (0.6 to 1.0) is unchanged. `RlSizing.lean` proves `clamp_within`, `invalid_bounds_noop` and `shrink_only`.
+
+**Verification:** `tests/test_formal_differential_rl_sizing.py` (480 cases) and the regression tests in `tests/test_rl_sizing.py`.
+
+### 369. The generation drawdown guard never tripped on a NaN return (V6.6.7)
+🟢 `fixed` · 5/10
+
+**Problem:** `_max_drawdown` turned a NaN session return into a NaN curve, and `nan >= ceiling` is False, so a generation with a corrupt record was never tripped. A return of -100% or worse took the curve through zero.
+
+**Fix:** a non-finite return, or one at or below -1, reads as a drawdown of 1, so the guard trips and latches. `DrawdownGuard.lean` proves the drawdown stays in [0, 1], never falls when a session is added (`dd_mono_append`), and trips on any non-finite return.
+
+**Verification:** `tests/test_formal_differential_drawdown_guard.py` (301 cases) and `tests/test_generation_ledger.py`.
+
+### 370. The retraining gate passed a candidate with no result, or a NaN threshold (V6.6.7)
+🟢 `fixed` · 5/10
+
+**Problem:** `compare_backtests` read a missing or NaN candidate return as 0.0, which beats a losing active model, and a NaN `min_excess_return_vs_active` made `excess < nan` False, so the gate passed (the class of #122).
+
+**Fix:** a candidate without a finite return fails (`candidate_return_missing`), and so does a threshold that is not a finite number (`min_excess_return_vs_active_invalid`). `BacktestGate.lean` proves `passes_iff`, `missing_candidate_fails` and the monotonicity in the candidate and the threshold.
+
+**Verification:** `tests/test_formal_differential_backtest_gate.py` (300 cases) and `tests/test_backtest_gate.py`.
+
+### 371. The string "false" switched on automatic rollback (V6.6.7)
+🟢 `fixed` · 6/10
+
+**Problem:** `select_rollback_target` documented `config["enabled"] is not True`, but read `bool(config.get("enabled"))`, and the trigger and gate flags the same way. `bool("false")` is True, so a hand-edited config string enabled the most consequential action in the system.
+
+**Fix:** `enabled`, each trigger and the validation gate must be exactly `True`. `AutoRollback.lean` proves a rollback needs every guard (`rollback_needs_all`) and picks the newest eligible candidate (`target_is_first`).
+
+**Verification:** `tests/test_formal_differential_auto_rollback.py` (400 cases) and `tests/test_auto_rollback.py`.
+
+### 372. A negative cap flipped the premia book to shorts (V6.6.7)
+🟢 `fixed` · 5/10
+
+**Problem:** `WeightSettings` was never validated. A negative `name_cap` made `np.clip(x, -cap, cap)` return the cap for every name (all equal shorts), and a negative class or gross cap or volatility target flipped every sign.
+
+**Fix:** `WeightSettings` refuses a negative or non-finite cap or target (`ValueError`), and the cap stage is `_apply_weight_caps`, which the differential test calls directly. `PremiaCaps.lean` proves every name is within its cap, no larger than its signal weight and never flips sign (`capAll_good`), and that the book's gross and each class's gross end within their caps.
+
+**Verification:** `tests/test_formal_differential_premia_caps.py` (250 cases) and `tests/test_premia_signals.py` (with a hypothesis property).
+
+### 373. An order through zero was sorted as a reduction (V6.6.7)
+🟢 `fixed` · 4/10
+
+**Problem:** in `rebalance_deltas`, a position held at +10 and an order of -30 was tagged `reduces=True` and sorted first, although it opens a short that needs buying power.
+
+**Fix:** a reduction is an order in the position's direction that is at most the position (`abs(delta) <= abs(held)`). `Rebalance.lean` proves a trade toward a weight never passes it (`no_overshoot`), a reduction never goes through zero, and closing a position is a reduction.
+
+**Verification:** `tests/test_formal_differential_rebalance.py` (400 cases) and `tests/test_target_weights.py`.
+
+### 374. The strategy value could go negative, and a NaN minimum let a resize through (V6.6.7)
+🟢 `fixed` · 4/10
+
+**Problem:** `advance_strategy_value` multiplied the previous value by `1 + return`, so a session that lost more than the strategy held (a large sweep profit while the total fell) gave a negative value to the risk controls. `resize_below_minimum` read a NaN `min_trade_usd` as "no minimum" (both comparisons False) and raised `TypeError` on `None`, against its docstring.
+
+**Fix:** the value is floored at zero (a 100% drawdown), and a non-finite minimum blocks the resize. `CashSweep.lean` proves the sweep target stays in `[0, max_weight]` and never rises with margin used or reserved, and the value stays non-negative.
+
+**Verification:** `tests/test_formal_differential_cash_sweep.py` (570 cases), `tests/test_cash_sweep.py` and `tests/test_class_sleeve.py`.
+
+### 375. A damaged generation allocation was kept as it was (V6.6.7)
+🟢 `fixed` · 5/10
+
+**Problem:** `dynamic_generation_shares` returned a damaged allocation (a NaN or negative share, or a total above one) unchanged, so a tripped or dead generation kept its share and an over-allocated book stayed over-allocated.
+
+**Fix:** `repair_shares` makes it valid first (a NaN or negative share is zero, a total above one is scaled to one), then the dynamic rule runs. It is exported from `aether_quant.cycle`. `DynamicTargets.lean` proves the water-filling gives no generation more than its cap and only to open generations, and the repair is non-negative and sums to at most one.
+
+**Verification:** `tests/test_formal_differential_dynamic_targets.py` (450 cases) and `tests/test_generation_blend.py`.
+
+### 376. Two sizing controls ignored a zero or negative setting (V6.6.7)
+🟢 `fixed` · 3/10
+
+**Problem:** `volatility_target_weights` with a target of 0 returned the weights unscaled instead of flat, and read a negative `max_leverage` as its absolute value. `cap_forex_target_to_book_weight` was correct but unproved.
+
+**Fix:** a zero target is a flat book, and a negative target or leverage raises `ValueError`. This is a library API change, noted in the Changelog; the book's own settings are positive. `VolTarget.lean` and `ForexCap.lean` prove the uniform non-negative scaling, the leverage cap, and the forex cap's bound, sign, idempotence and zero for a non-finite input.
+
+**Verification:** `tests/test_formal_differential_vol_target.py`, `test_formal_differential_forex_cap.py` (250 cases each) and `tests/test_vol_target.py`.
+
+### 377. Four small guards failed quietly (V6.6.7)
+🟢 `fixed` · 2/10
+
+**Problem:** a non-finite legacy Sharpe made `deflation_inputs`'s `legacy_var` NaN; `compute_degradation_score` went negative with a negative custom weight; a NaN rolling IC reported the reason `rolling_ic_above_floor`; and `trailing_drawdown`'s docstring promised the largest fall inside the window while the code (and its Lean model) returns the current drawdown at the last bar.
+
+**Fix:** the legacy variance skips non-finite values (the trial count still counts them), the score is clamped to [0, 1], the gate reports `rolling_ic_nonfinite` (still fail-open, as documented), and the docstring says what the code does.
+
+**Verification:** a regression test in `tests/test_trial_ledger.py`, `test_rollback_hardening.py` and `test_rolling_ic_gate.py` each.
+
+### 378. Tidy-up: every module has its own test, the library backlog is gone, every script is marked (V6.6.7)
+🟢 `fixed` · 2/10
+
+**Problem:** 24 shipped modules had no test file of their own, 288 public names sat on a legacy "unexported" backlog, and `scripts/README.md` did not say which of 181 scripts were tools and which were records, nor name 26 of them.
+
+**Fix:** the 24 modules got their own test files (the frozen list is empty, its ceiling 0). Each of the 288 names is now under `unexported` with a per-module reason, and `LEGACY_CEILING` is 0. `scripts/README.md` says what a record is, names every script, and `tests/test_scripts_readme.py` keeps it so.
+
+**Verification:** `tests/test_module_has_test.py`, `tests/test_library_gate.py`, `tests/test_aether_quant_coverage.py` and `tests/test_scripts_readme.py` pass, and `python scripts/library_gate.py` is clean.

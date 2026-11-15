@@ -23,6 +23,10 @@ Report privately, not in a public issue or PR:
 
 Include the affected files, reproduction steps and your view of the impact. Responses are best-effort, within about a week. Please allow time for a fix before disclosing.
 
+## How it is checked
+
+Every install is hash-pinned (`requirements/lock/`, `scripts/scorecard_pins.py`), actions are pinned by commit and base images by digest, dependencies are audited in CI (`pip-audit`, `npm audit`, trivy), CodeQL and bandit scan the code, gitleaks scans for secrets, and the parsers and guards that take untrusted input are fuzzed (`fuzz/`, `.github/workflows/fuzz.yml`). Release files are signed with Sigstore and carry build provenance. The OpenSSF Scorecard reads all of it: https://scorecard.dev/viewer/?uri=github.com/leon1706-lol/Aether-quant.
+
 ## Secrets
 
 Secrets never belong in the repo. Copy `.env.compose.example` or `.env.live.example` to a gitignored `.env`, fill it in, and reference values as `${VAR}`. `aq secrets-check` guards commits. If a real credential was ever committed, rotate it first, then report it.

@@ -51,3 +51,12 @@ class TestDryRun:
         result = select_rollback_target_dry_run(ACTIVE, HISTORY, DEGRADATION, cfg)
         assert result["should_rollback"] is False
         assert result["reason"] == "auto_rollback_disabled"
+
+
+# --- V6.6.7 (#377)
+
+def test_v667_the_degradation_score_stays_in_zero_one():
+    from retraining.rollback_hardening import compute_degradation_score
+
+    assert compute_degradation_score({"a": True}, weights={"a": -0.5}) == 0.0
+    assert compute_degradation_score({"a": True, "b": True}, weights={"a": 0.8, "b": 0.8}) == 1.0

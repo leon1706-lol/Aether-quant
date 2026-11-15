@@ -83,6 +83,7 @@ The research cycle: generations sharing a book, the admission rule, decay, the f
         - record_holdout_read
         - record_of
         - render_schedule
+        - repair_shares
         - replay_dynamic
         - replay_handover
         - resolve_glide_policy

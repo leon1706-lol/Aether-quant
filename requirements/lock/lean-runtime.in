@@ -1,0 +1,3 @@
+# Dockerfile.lean: what the pinned quantconnect/lean image lacks; installed with --no-deps so Lean's own packages are
+# never resolved again (--profile lean-runtime)
+-r ../lean-runtime.txt

@@ -1739,7 +1739,8 @@ def test_check_for_update_silent_on_dev_build(tmp_path, capsys):
     assert capsys.readouterr().err == ""
 
 
-def test_check_for_update_never_raises_when_pypi_unreachable(tmp_path, capsys):
+def test_check_for_update_never_raises_when_pypi_unreachable(tmp_path, capsys, monkeypatch):
+    monkeypatch.delenv("AQ_SKIP_UPDATE_CHECK", raising=False)  # a shell that sets it would skip the branch under test (and its coverage)
     with patch("aq_cli.UPDATE_CACHE_PATH", tmp_path / "update_check.json"), patch(
         "aq_cli.installed_version", return_value="1.0.0"
     ), patch("aq_cli._fetch_latest_version_from_pypi", side_effect=Exception("network down")):

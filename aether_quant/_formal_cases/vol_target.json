@@ -1,0 +1,11450 @@
+{
+ "target": "vol_target",
+ "spec_files": [
+  "AetherFormal/VolTarget.lean"
+ ],
+ "cases": [
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": -1,
+      "den": 2
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 2
+    },
+    "risk": {
+     "num": 29,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": -4,
+      "den": 29
+     },
+     {
+      "num": -2,
+      "den": 29
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": 0,
+      "den": 1
+     }
+    ],
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "risk": {
+     "num": 25,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 5,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": 3,
+      "den": 4
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 8
+    },
+    "risk": {
+     "num": 11,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 15,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": -7,
+      "den": 88
+     },
+     {
+      "num": 1,
+      "den": 11
+     },
+     {
+      "num": 1,
+      "den": 11
+     },
+     {
+      "num": 3,
+      "den": 44
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 3,
+      "den": 4
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 8
+    },
+    "risk": {
+     "num": 29,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 3,
+      "den": 116
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 2
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 16
+    },
+    "risk": {
+     "num": 11,
+     "den": 4
+    },
+    "max_leverage": {
+     "num": 5,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 352
+     },
+     {
+      "num": 1,
+      "den": 44
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 3,
+      "den": 352
+     },
+     {
+      "num": 1,
+      "den": 88
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": 3,
+      "den": 4
+     }
+    ],
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "risk": {
+     "num": 25,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 13,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 3,
+      "den": 4
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": 1,
+      "den": 4
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 16
+    },
+    "risk": {
+     "num": 3,
+     "den": 2
+    },
+    "max_leverage": {
+     "num": 7,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 32
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": -1,
+      "den": 96
+     },
+     {
+      "num": -1,
+      "den": 96
+     },
+     {
+      "num": 1,
+      "den": 96
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 7,
+      "den": 8
+     },
+     {
+      "num": -5,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 16
+    },
+    "risk": {
+     "num": 21,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 2,
+     "den": 1
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 48
+     },
+     {
+      "num": -5,
+      "den": 336
+     },
+     {
+      "num": -1,
+      "den": 336
+     },
+     {
+      "num": -1,
+      "den": 112
+     },
+     {
+      "num": -1,
+      "den": 112
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": 3,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "risk": {
+     "num": 15,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 15,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 4
+     },
+     {
+      "num": 7,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": 0,
+      "den": 1
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 16
+    },
+    "risk": {
+     "num": 5,
+     "den": 2
+    },
+    "max_leverage": {
+     "num": 9,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 3,
+      "den": 320
+     },
+     {
+      "num": 1,
+      "den": 160
+     },
+     {
+      "num": 7,
+      "den": 320
+     },
+     {
+      "num": 3,
+      "den": 320
+     },
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 4
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 2
+    },
+    "risk": {
+     "num": 13,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 5,
+      "den": 44
+     },
+     {
+      "num": -3,
+      "den": 22
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 3,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 8
+    },
+    "risk": {
+     "num": 9,
+     "den": 4
+    },
+    "max_leverage": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 48
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 1
+     }
+    ],
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "risk": {
+     "num": 13,
+     "den": 4
+    },
+    "max_leverage": {
+     "num": 9,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 7,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "risk": {
+     "num": 3,
+     "den": 2
+    },
+    "max_leverage": {
+     "num": 15,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": -7,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 2
+    },
+    "risk": {
+     "num": 21,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 7,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 21
+     },
+     {
+      "num": 4,
+      "den": 21
+     },
+     {
+      "num": -1,
+      "den": 6
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 2
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 16
+    },
+    "risk": {
+     "num": 1,
+     "den": 1
+    },
+    "max_leverage": {
+     "num": 2,
+     "den": 1
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 16
+     },
+     {
+      "num": -1,
+      "den": 64
+     },
+     {
+      "num": -7,
+      "den": 128
+     },
+     {
+      "num": 1,
+      "den": 32
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": -7,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "risk": null,
+    "max_leverage": {
+     "num": 5,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": -5,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 2
+    },
+    "risk": {
+     "num": 9,
+     "den": 4
+    },
+    "max_leverage": {
+     "num": 1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 12
+     },
+     {
+      "num": -5,
+      "den": 36
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": 1,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 16
+    },
+    "risk": {
+     "num": 11,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 3,
+     "den": 2
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 5,
+      "den": 176
+     },
+     {
+      "num": 1,
+      "den": 176
+     },
+     {
+      "num": 1,
+      "den": 22
+     },
+     {
+      "num": 1,
+      "den": 176
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 7,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 2
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 2
+    },
+    "risk": {
+     "num": 1,
+     "den": 1
+    },
+    "max_leverage": {
+     "num": 5,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 35,
+      "den": 128
+     },
+     {
+      "num": 15,
+      "den": 128
+     },
+     {
+      "num": 5,
+      "den": 128
+     },
+     {
+      "num": 5,
+      "den": 128
+     },
+     {
+      "num": 5,
+      "den": 32
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": 7,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 2
+    },
+    "risk": null,
+    "max_leverage": {
+     "num": 15,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": 7,
+      "den": 8
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 2
+     }
+    ],
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "risk": {
+     "num": 25,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 3,
+     "den": 2
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 5,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 2
+    },
+    "risk": {
+     "num": 2,
+     "den": 1
+    },
+    "max_leverage": {
+     "num": 1,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 8
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 3,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": -7,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 2
+    },
+    "risk": {
+     "num": 29,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 3,
+      "den": 29
+     },
+     {
+      "num": -2,
+      "den": 29
+     },
+     {
+      "num": -3,
+      "den": 29
+     },
+     {
+      "num": -4,
+      "den": 29
+     },
+     {
+      "num": -7,
+      "den": 58
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -5,
+      "den": 8
+     },
+     {
+      "num": 7,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 8
+    },
+    "risk": {
+     "num": 11,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 3,
+     "den": 2
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": -5,
+      "den": 88
+     },
+     {
+      "num": 7,
+      "den": 88
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 4
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 16
+    },
+    "risk": {
+     "num": 27,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 3,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 108
+     },
+     {
+      "num": -1,
+      "den": 54
+     },
+     {
+      "num": -1,
+      "den": 72
+     },
+     {
+      "num": -1,
+      "den": 432
+     },
+     {
+      "num": 1,
+      "den": 216
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 3,
+      "den": 4
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 16
+    },
+    "risk": {
+     "num": 15,
+     "den": 4
+    },
+    "max_leverage": {
+     "num": 5,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 80
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 3,
+      "den": 4
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 8
+    },
+    "risk": {
+     "num": 7,
+     "den": 2
+    },
+    "max_leverage": {
+     "num": 7,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 3,
+      "den": 112
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": -5,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": -1,
+      "den": 1
+     }
+    ],
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "risk": {
+     "num": 27,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 5,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": -5,
+      "den": 8
+     },
+     {
+      "num": -5,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 8
+    },
+    "risk": {
+     "num": 15,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 1,
+      "den": 15
+     },
+     {
+      "num": -1,
+      "den": 24
+     },
+     {
+      "num": -1,
+      "den": 24
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": -1,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 2
+    },
+    "risk": {
+     "num": 31,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 5,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 31
+     },
+     {
+      "num": -4,
+      "den": 31
+     },
+     {
+      "num": -1,
+      "den": 62
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": 1,
+      "den": 1
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 16
+    },
+    "risk": {
+     "num": 2,
+     "den": 1
+    },
+    "max_leverage": {
+     "num": 2,
+     "den": 1
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 32
+     },
+     {
+      "num": -3,
+      "den": 128
+     },
+     {
+      "num": -1,
+      "den": 64
+     },
+     {
+      "num": 1,
+      "den": 32
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 7,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "risk": {
+     "num": 27,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 1,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -5,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": 7,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 8
+    },
+    "risk": {
+     "num": 11,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 1,
+      "den": 4
+     },
+     {
+      "num": 1,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "risk": {
+     "num": 15,
+     "den": 4
+    },
+    "max_leverage": {
+     "num": 1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": 1,
+      "den": 4
+     },
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 4
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 8
+    },
+    "risk": null,
+    "max_leverage": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 4,
+      "den": 23
+     },
+     {
+      "num": 1,
+      "den": 23
+     },
+     {
+      "num": -7,
+      "den": 46
+     },
+     {
+      "num": -3,
+      "den": 23
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": -5,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 2
+     }
+    ],
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "risk": {
+     "num": 1,
+     "den": 1
+    },
+    "max_leverage": {
+     "num": 13,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": -3,
+      "den": 4
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 8
+    },
+    "risk": {
+     "num": 13,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 11,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 26
+     },
+     {
+      "num": -3,
+      "den": 52
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 4
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 2
+    },
+    "risk": {
+     "num": 21,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 2,
+      "den": 21
+     },
+     {
+      "num": 1,
+      "den": 14
+     },
+     {
+      "num": -4,
+      "den": 21
+     },
+     {
+      "num": -1,
+      "den": 42
+     },
+     {
+      "num": 1,
+      "den": 21
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 5,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 16
+    },
+    "risk": {
+     "num": 15,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 5,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 48
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 8
+    },
+    "risk": {
+     "num": 23,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 13,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 184
+     },
+     {
+      "num": -1,
+      "den": 184
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": -5,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 4
+     }
+    ],
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "risk": {
+     "num": 17,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 9,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": -5,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 16
+    },
+    "risk": {
+     "num": 7,
+     "den": 2
+    },
+    "max_leverage": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": -5,
+      "den": 448
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": -7,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 8
+    },
+    "risk": {
+     "num": 5,
+     "den": 4
+    },
+    "max_leverage": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 80
+     },
+     {
+      "num": -1,
+      "den": 10
+     },
+     {
+      "num": -1,
+      "den": 10
+     },
+     {
+      "num": -7,
+      "den": 80
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": 1,
+      "den": 2
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 8
+    },
+    "risk": {
+     "num": 23,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 2
+    },
+    "risk": {
+     "num": 5,
+     "den": 2
+    },
+    "max_leverage": {
+     "num": 7,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": -3,
+      "den": 40
+     },
+     {
+      "num": -1,
+      "den": 40
+     },
+     {
+      "num": 1,
+      "den": 5
+     },
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 40
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": 7,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": -1,
+      "den": 1
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 16
+    },
+    "risk": {
+     "num": 17,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 3,
+     "den": 2
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 68
+     },
+     {
+      "num": 1,
+      "den": 68
+     },
+     {
+      "num": 7,
+      "den": 272
+     },
+     {
+      "num": -1,
+      "den": 34
+     },
+     {
+      "num": -1,
+      "den": 34
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": 7,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 3,
+      "den": 4
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 16
+    },
+    "risk": {
+     "num": 7,
+     "den": 2
+    },
+    "max_leverage": {
+     "num": 3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 112
+     },
+     {
+      "num": 1,
+      "den": 64
+     },
+     {
+      "num": -3,
+      "den": 224
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 3,
+      "den": 224
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 1
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 2
+    },
+    "risk": {
+     "num": 2,
+     "den": 1
+    },
+    "max_leverage": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 4
+     },
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 1
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 2
+    },
+    "risk": {
+     "num": 1,
+     "den": 1
+    },
+    "max_leverage": {
+     "num": 1,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 30
+     },
+     {
+      "num": 1,
+      "den": 80
+     },
+     {
+      "num": 1,
+      "den": 40
+     },
+     {
+      "num": 1,
+      "den": 48
+     },
+     {
+      "num": 1,
+      "den": 30
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "risk": {
+     "num": 23,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 1
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 8
+    },
+    "risk": null,
+    "max_leverage": {
+     "num": 15,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 1
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -3,
+      "den": 4
+     }
+    ],
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "risk": {
+     "num": 11,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 3,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 4
+     },
+     {
+      "num": 1,
+      "den": 1
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 16
+    },
+    "risk": {
+     "num": 25,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 4
+     }
+    ],
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "risk": {
+     "num": 17,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 7,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": -5,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 1
+     }
+    ],
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "risk": {
+     "num": 9,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 3,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "risk": {
+     "num": 5,
+     "den": 4
+    },
+    "max_leverage": {
+     "num": 1,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 4
+     },
+     {
+      "num": 3,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 2
+    },
+    "risk": {
+     "num": 11,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 9,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 11
+     },
+     {
+      "num": -1,
+      "den": 22
+     },
+     {
+      "num": 1,
+      "den": 11
+     },
+     {
+      "num": 3,
+      "den": 22
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 8
+    },
+    "risk": {
+     "num": 13,
+     "den": 4
+    },
+    "max_leverage": {
+     "num": 5,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 104
+     },
+     {
+      "num": -1,
+      "den": 208
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": -1,
+      "den": 1
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 8
+    },
+    "risk": {
+     "num": 11,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 88
+     },
+     {
+      "num": -1,
+      "den": 22
+     },
+     {
+      "num": 1,
+      "den": 11
+     },
+     {
+      "num": -1,
+      "den": 11
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": -5,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": -1,
+      "den": 2
+     }
+    ],
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "risk": {
+     "num": 11,
+     "den": 4
+    },
+    "max_leverage": {
+     "num": 1,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 4
+     },
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": 3,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "risk": null,
+    "max_leverage": {
+     "num": 7,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": 1,
+      "den": 4
+     },
+     {
+      "num": 0,
+      "den": 1
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 2
+    },
+    "risk": null,
+    "max_leverage": {
+     "num": 1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": -3,
+      "den": 28
+     },
+     {
+      "num": -1,
+      "den": 14
+     },
+     {
+      "num": 1,
+      "den": 14
+     },
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 3,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 8
+    },
+    "risk": {
+     "num": 15,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 15,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 60
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 1,
+      "den": 40
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 3,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": -1,
+      "den": 2
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 2
+    },
+    "risk": {
+     "num": 19,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 3,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 3,
+      "den": 19
+     },
+     {
+      "num": -2,
+      "den": 19
+     },
+     {
+      "num": -2,
+      "den": 19
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": 7,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": 1,
+      "den": 2
+     }
+    ],
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "risk": {
+     "num": 25,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 1,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": 5,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 16
+    },
+    "risk": {
+     "num": 17,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 34
+     },
+     {
+      "num": 1,
+      "den": 34
+     },
+     {
+      "num": -7,
+      "den": 272
+     },
+     {
+      "num": 5,
+      "den": 272
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 2
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 16
+    },
+    "risk": {
+     "num": 25,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 1,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 3,
+      "den": 400
+     },
+     {
+      "num": 1,
+      "den": 100
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 1
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 16
+    },
+    "risk": {
+     "num": 19,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 11,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": -7,
+      "den": 304
+     },
+     {
+      "num": 1,
+      "den": 76
+     },
+     {
+      "num": -1,
+      "den": 152
+     },
+     {
+      "num": -1,
+      "den": 38
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": 1,
+      "den": 2
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 16
+    },
+    "risk": null,
+    "max_leverage": {
+     "num": 1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 6
+     },
+     {
+      "num": 1,
+      "den": 12
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 3,
+      "den": 4
+     },
+     {
+      "num": 0,
+      "den": 1
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 2
+    },
+    "risk": null,
+    "max_leverage": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 1
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 2
+    },
+    "risk": {
+     "num": 1,
+     "den": 1
+    },
+    "max_leverage": {
+     "num": 1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 4
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": -5,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 16
+    },
+    "risk": {
+     "num": 4,
+     "den": 1
+    },
+    "max_leverage": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 4
+     }
+    ],
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "risk": {
+     "num": 5,
+     "den": 2
+    },
+    "max_leverage": {
+     "num": 5,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": 3,
+      "den": 4
+     },
+     {
+      "num": -5,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 4
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 16
+    },
+    "risk": {
+     "num": 25,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 11,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 200
+     },
+     {
+      "num": -3,
+      "den": 200
+     },
+     {
+      "num": 3,
+      "den": 200
+     },
+     {
+      "num": -1,
+      "den": 80
+     },
+     {
+      "num": 1,
+      "den": 200
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 4
+     },
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": -7,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 16
+    },
+    "risk": {
+     "num": 11,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 15,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 88
+     },
+     {
+      "num": 1,
+      "den": 176
+     },
+     {
+      "num": 3,
+      "den": 176
+     },
+     {
+      "num": -7,
+      "den": 176
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 7,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 16
+    },
+    "risk": {
+     "num": 2,
+     "den": 1
+    },
+    "max_leverage": {
+     "num": 3,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 7,
+      "den": 256
+     },
+     {
+      "num": -3,
+      "den": 256
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 5,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 16
+    },
+    "risk": null,
+    "max_leverage": {
+     "num": 7,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 5,
+      "den": 8
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": 3,
+      "den": 4
+     },
+     {
+      "num": -7,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "risk": {
+     "num": 13,
+     "den": 4
+    },
+    "max_leverage": {
+     "num": 3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": -7,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 16
+    },
+    "risk": {
+     "num": 25,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 7,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 100
+     },
+     {
+      "num": -3,
+      "den": 200
+     },
+     {
+      "num": -7,
+      "den": 400
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": -5,
+      "den": 8
+     },
+     {
+      "num": 7,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 8
+    },
+    "risk": null,
+    "max_leverage": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": -5,
+      "den": 16
+     },
+     {
+      "num": 7,
+      "den": 16
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": 5,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 16
+    },
+    "risk": {
+     "num": 17,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": 1,
+      "den": 2
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 16
+    },
+    "risk": {
+     "num": 13,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 2,
+     "den": 1
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 1,
+      "den": 52
+     },
+     {
+      "num": 1,
+      "den": 52
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 4
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 16
+    },
+    "risk": {
+     "num": 25,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 7,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": -3,
+      "den": 400
+     },
+     {
+      "num": 3,
+      "den": 400
+     },
+     {
+      "num": -1,
+      "den": 200
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": 5,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 2
+    },
+    "risk": {
+     "num": 4,
+     "den": 1
+    },
+    "max_leverage": {
+     "num": 7,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": 5,
+      "den": 64
+     },
+     {
+      "num": -1,
+      "den": 32
+     },
+     {
+      "num": 5,
+      "den": 64
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": 1,
+      "den": 4
+     },
+     {
+      "num": -5,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 16
+    },
+    "risk": {
+     "num": 31,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 5,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 62
+     },
+     {
+      "num": -1,
+      "den": 124
+     },
+     {
+      "num": -3,
+      "den": 248
+     },
+     {
+      "num": 1,
+      "den": 248
+     },
+     {
+      "num": -5,
+      "den": 496
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -5,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": 7,
+      "den": 8
+     },
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": 7,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 8
+    },
+    "risk": {
+     "num": 21,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": -5,
+      "den": 168
+     },
+     {
+      "num": 1,
+      "den": 21
+     },
+     {
+      "num": 1,
+      "den": 24
+     },
+     {
+      "num": 5,
+      "den": 168
+     },
+     {
+      "num": 1,
+      "den": 24
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 5,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 8
+    },
+    "risk": null,
+    "max_leverage": {
+     "num": 13,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 5,
+      "den": 8
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 3,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 16
+    },
+    "risk": {
+     "num": 17,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 3,
+      "den": 272
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 2
+    },
+    "risk": {
+     "num": 11,
+     "den": 4
+    },
+    "max_leverage": {
+     "num": 9,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 44
+     },
+     {
+      "num": 3,
+      "den": 44
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 2
+    },
+    "risk": {
+     "num": 31,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 62
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": 7,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 4
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 8
+    },
+    "risk": {
+     "num": 7,
+     "den": 4
+    },
+    "max_leverage": {
+     "num": 1,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 50
+     },
+     {
+      "num": -1,
+      "den": 50
+     },
+     {
+      "num": -1,
+      "den": 50
+     },
+     {
+      "num": 7,
+      "den": 200
+     },
+     {
+      "num": 3,
+      "den": 100
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": -3,
+      "den": 4
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 8
+    },
+    "risk": {
+     "num": 5,
+     "den": 4
+    },
+    "max_leverage": {
+     "num": 13,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 10
+     },
+     {
+      "num": -3,
+      "den": 40
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": -1,
+      "den": 1
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 2
+    },
+    "risk": {
+     "num": 13,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 15,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 4,
+      "den": 13
+     },
+     {
+      "num": 2,
+      "den": 13
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": -4,
+      "den": 13
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 7,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 2
+    },
+    "risk": {
+     "num": 17,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 15,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": -3,
+      "den": 17
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 7,
+      "den": 34
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -3,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 2
+    },
+    "risk": {
+     "num": 1,
+     "den": 1
+    },
+    "max_leverage": {
+     "num": 5,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": -3,
+      "den": 16
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 4
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 8
+    },
+    "risk": null,
+    "max_leverage": {
+     "num": 3,
+     "den": 2
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 4
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 8
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -5,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 8
+    },
+    "risk": {
+     "num": 9,
+     "den": 4
+    },
+    "max_leverage": {
+     "num": 9,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": -5,
+      "den": 144
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 2
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 8
+    },
+    "risk": {
+     "num": 31,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 7,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 62
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 1
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 2
+    },
+    "risk": {
+     "num": 27,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 9,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 4,
+      "den": 27
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 4
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 8
+    },
+    "risk": {
+     "num": 17,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 68
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 7,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": -7,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "risk": null,
+    "max_leverage": {
+     "num": 3,
+     "den": 2
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 2
+    },
+    "risk": {
+     "num": 7,
+     "den": 4
+    },
+    "max_leverage": {
+     "num": 13,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 14
+     },
+     {
+      "num": -3,
+      "den": 28
+     },
+     {
+      "num": 1,
+      "den": 28
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 3,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 1
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 2
+    },
+    "risk": {
+     "num": 27,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 2,
+     "den": 1
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 54
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 1,
+      "den": 9
+     },
+     {
+      "num": -4,
+      "den": 27
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": -7,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "risk": {
+     "num": 7,
+     "den": 2
+    },
+    "max_leverage": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": 7,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 2
+    },
+    "risk": {
+     "num": 25,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 2,
+      "den": 25
+     },
+     {
+      "num": 1,
+      "den": 50
+     },
+     {
+      "num": -1,
+      "den": 25
+     },
+     {
+      "num": 7,
+      "den": 50
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 2
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 2
+    },
+    "risk": {
+     "num": 19,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 2,
+     "den": 1
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": -2,
+      "den": 19
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -5,
+      "den": 8
+     },
+     {
+      "num": 0,
+      "den": 1
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 16
+    },
+    "risk": {
+     "num": 3,
+     "den": 1
+    },
+    "max_leverage": {
+     "num": 1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": -5,
+      "den": 384
+     },
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 2
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 16
+    },
+    "risk": {
+     "num": 15,
+     "den": 4
+    },
+    "max_leverage": {
+     "num": 1,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 120
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 8
+    },
+    "risk": {
+     "num": 15,
+     "den": 4
+    },
+    "max_leverage": {
+     "num": 7,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 240
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 4
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 16
+    },
+    "risk": {
+     "num": 5,
+     "den": 4
+    },
+    "max_leverage": {
+     "num": 13,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 160
+     },
+     {
+      "num": -3,
+      "den": 80
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 4
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 8
+    },
+    "risk": {
+     "num": 21,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 84
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": 5,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "risk": null,
+    "max_leverage": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 4
+     },
+     {
+      "num": 1,
+      "den": 4
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 2
+    },
+    "risk": {
+     "num": 27,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 13,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 27
+     },
+     {
+      "num": 1,
+      "den": 27
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 2
+    },
+    "risk": {
+     "num": 21,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 14
+     },
+     {
+      "num": 1,
+      "den": 42
+     },
+     {
+      "num": -1,
+      "den": 14
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": 1,
+      "den": 4
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 8
+    },
+    "risk": {
+     "num": 11,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 2,
+     "den": 1
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 88
+     },
+     {
+      "num": 1,
+      "den": 22
+     },
+     {
+      "num": -1,
+      "den": 22
+     },
+     {
+      "num": 1,
+      "den": 11
+     },
+     {
+      "num": 1,
+      "den": 44
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": 1,
+      "den": 1
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 8
+    },
+    "risk": {
+     "num": 3,
+     "den": 2
+    },
+    "max_leverage": {
+     "num": 15,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 48
+     },
+     {
+      "num": -1,
+      "den": 24
+     },
+     {
+      "num": 1,
+      "den": 12
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": -1,
+      "den": 4
+     }
+    ],
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "risk": {
+     "num": 9,
+     "den": 4
+    },
+    "max_leverage": {
+     "num": 2,
+     "den": 1
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 4
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 8
+    },
+    "risk": null,
+    "max_leverage": {
+     "num": 2,
+     "den": 1
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 4
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -3,
+      "den": 4
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 8
+    },
+    "risk": {
+     "num": 23,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 5,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": -3,
+      "den": 92
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -7,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 16
+    },
+    "risk": null,
+    "max_leverage": {
+     "num": 5,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": -5,
+      "den": 8
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 4
+     },
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 8
+    },
+    "risk": {
+     "num": 3,
+     "den": 2
+    },
+    "max_leverage": {
+     "num": 15,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 96
+     },
+     {
+      "num": -1,
+      "den": 96
+     },
+     {
+      "num": 1,
+      "den": 48
+     },
+     {
+      "num": -1,
+      "den": 32
+     },
+     {
+      "num": -1,
+      "den": 96
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": -5,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 4
+     },
+     {
+      "num": 0,
+      "den": 1
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 2
+    },
+    "risk": {
+     "num": 11,
+     "den": 4
+    },
+    "max_leverage": {
+     "num": 9,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": -3,
+      "den": 22
+     },
+     {
+      "num": -5,
+      "den": 44
+     },
+     {
+      "num": 3,
+      "den": 22
+     },
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -5,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": -3,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "risk": {
+     "num": 19,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 13,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": 1,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 8
+    },
+    "risk": {
+     "num": 5,
+     "den": 2
+    },
+    "max_leverage": {
+     "num": 3,
+     "den": 2
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": -3,
+      "den": 160
+     },
+     {
+      "num": -1,
+      "den": 20
+     },
+     {
+      "num": 1,
+      "den": 160
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": -5,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 4
+     },
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": -7,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 2
+    },
+    "risk": {
+     "num": 3,
+     "den": 2
+    },
+    "max_leverage": {
+     "num": 13,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 3
+     },
+     {
+      "num": -5,
+      "den": 24
+     },
+     {
+      "num": 1,
+      "den": 12
+     },
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": -7,
+      "den": 24
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": -5,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "risk": {
+     "num": 2,
+     "den": 1
+    },
+    "max_leverage": {
+     "num": 5,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 2
+     }
+    ],
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "risk": {
+     "num": 27,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 2,
+     "den": 1
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 2
+    },
+    "risk": {
+     "num": 15,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 4
+     },
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 4
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 2
+    },
+    "risk": {
+     "num": 9,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 5,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 5,
+      "den": 18
+     },
+     {
+      "num": 1,
+      "den": 9
+     },
+     {
+      "num": 1,
+      "den": 18
+     },
+     {
+      "num": -1,
+      "den": 3
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 2
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 8
+    },
+    "risk": {
+     "num": 9,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 5,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 24
+     },
+     {
+      "num": 1,
+      "den": 18
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 8
+    },
+    "risk": {
+     "num": 11,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 5,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 88
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": -7,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "risk": null,
+    "max_leverage": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": 7,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 2
+    },
+    "risk": {
+     "num": 9,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 5,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 40
+     },
+     {
+      "num": -3,
+      "den": 20
+     },
+     {
+      "num": -1,
+      "den": 5
+     },
+     {
+      "num": 3,
+      "den": 40
+     },
+     {
+      "num": 7,
+      "den": 40
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 3,
+      "den": 4
+     },
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": 1,
+      "den": 1
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 16
+    },
+    "risk": {
+     "num": 13,
+     "den": 4
+    },
+    "max_leverage": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 3,
+      "den": 208
+     },
+     {
+      "num": 5,
+      "den": 416
+     },
+     {
+      "num": 1,
+      "den": 416
+     },
+     {
+      "num": 1,
+      "den": 104
+     },
+     {
+      "num": 1,
+      "den": 52
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 4
+     },
+     {
+      "num": 1,
+      "den": 4
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 16
+    },
+    "risk": {
+     "num": 3,
+     "den": 1
+    },
+    "max_leverage": {
+     "num": 5,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 5,
+      "den": 384
+     },
+     {
+      "num": 1,
+      "den": 192
+     },
+     {
+      "num": 1,
+      "den": 192
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": 1,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 16
+    },
+    "risk": {
+     "num": 29,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 1,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 58
+     },
+     {
+      "num": 1,
+      "den": 464
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": -7,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 2
+    },
+    "risk": {
+     "num": 21,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 13,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 7
+     },
+     {
+      "num": -1,
+      "den": 6
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": -3,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 8
+    },
+    "risk": {
+     "num": 7,
+     "den": 2
+    },
+    "max_leverage": {
+     "num": 11,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 5,
+      "den": 224
+     },
+     {
+      "num": 1,
+      "den": 56
+     },
+     {
+      "num": -3,
+      "den": 224
+     },
+     {
+      "num": 1,
+      "den": 28
+     },
+     {
+      "num": -3,
+      "den": 224
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": 1,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 16
+    },
+    "risk": {
+     "num": 27,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 2,
+     "den": 1
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 54
+     },
+     {
+      "num": -1,
+      "den": 108
+     },
+     {
+      "num": 1,
+      "den": 54
+     },
+     {
+      "num": -1,
+      "den": 54
+     },
+     {
+      "num": 1,
+      "den": 432
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": 7,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "risk": null,
+    "max_leverage": {
+     "num": 1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -5,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 8
+    },
+    "risk": {
+     "num": 25,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 5,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 40
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": 0,
+      "den": 1
+     }
+    ],
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "risk": {
+     "num": 19,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 5,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 4
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 8
+    },
+    "risk": {
+     "num": 7,
+     "den": 2
+    },
+    "max_leverage": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 1
+     }
+    ],
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "risk": {
+     "num": 9,
+     "den": 4
+    },
+    "max_leverage": {
+     "num": 13,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 4
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 2
+    },
+    "risk": {
+     "num": 13,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 7,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": -7,
+      "den": 26
+     },
+     {
+      "num": 3,
+      "den": 26
+     },
+     {
+      "num": -1,
+      "den": 13
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 2
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 8
+    },
+    "risk": {
+     "num": 19,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 15,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 5,
+      "den": 152
+     },
+     {
+      "num": 1,
+      "den": 38
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 4
+     }
+    ],
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "risk": {
+     "num": 29,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 9,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": 5,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 16
+    },
+    "risk": {
+     "num": 9,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 2,
+     "den": 1
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 48
+     },
+     {
+      "num": 5,
+      "den": 144
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": -7,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "risk": {
+     "num": 3,
+     "den": 1
+    },
+    "max_leverage": {
+     "num": 2,
+     "den": 1
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -3,
+      "den": 4
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 2
+    },
+    "risk": {
+     "num": 1,
+     "den": 1
+    },
+    "max_leverage": {
+     "num": 7,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": -3,
+      "den": 8
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 4
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 8
+    },
+    "risk": {
+     "num": 3,
+     "den": 2
+    },
+    "max_leverage": {
+     "num": 13,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 32
+     },
+     {
+      "num": -1,
+      "den": 16
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": 1,
+      "den": 4
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 2
+    },
+    "risk": {
+     "num": 3,
+     "den": 1
+    },
+    "max_leverage": {
+     "num": 13,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": -7,
+      "den": 48
+     },
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 12
+     },
+     {
+      "num": 1,
+      "den": 24
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 16
+    },
+    "risk": {
+     "num": 7,
+     "den": 2
+    },
+    "max_leverage": {
+     "num": 7,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": -3,
+      "den": 224
+     },
+     {
+      "num": -1,
+      "den": 224
+     },
+     {
+      "num": 3,
+      "den": 448
+     },
+     {
+      "num": 1,
+      "den": 448
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 2
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 8
+    },
+    "risk": null,
+    "max_leverage": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 2
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 2
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 2
+    },
+    "risk": {
+     "num": 9,
+     "den": 4
+    },
+    "max_leverage": {
+     "num": 1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 9
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": 0,
+      "den": 1
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 16
+    },
+    "risk": {
+     "num": 31,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 3,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": -3,
+      "den": 248
+     },
+     {
+      "num": -3,
+      "den": 496
+     },
+     {
+      "num": -1,
+      "den": 248
+     },
+     {
+      "num": -3,
+      "den": 496
+     },
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 3,
+      "den": 4
+     },
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 4
+     },
+     {
+      "num": 5,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 2
+    },
+    "risk": {
+     "num": 13,
+     "den": 4
+    },
+    "max_leverage": {
+     "num": 11,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 3,
+      "den": 26
+     },
+     {
+      "num": 1,
+      "den": 13
+     },
+     {
+      "num": -7,
+      "den": 52
+     },
+     {
+      "num": 1,
+      "den": 26
+     },
+     {
+      "num": 5,
+      "den": 52
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": -7,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "risk": {
+     "num": 15,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 15,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": 3,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 4
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 16
+    },
+    "risk": {
+     "num": 29,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 9,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 232
+     },
+     {
+      "num": -1,
+      "den": 116
+     },
+     {
+      "num": 3,
+      "den": 232
+     },
+     {
+      "num": -1,
+      "den": 232
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": -5,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 16
+    },
+    "risk": {
+     "num": 5,
+     "den": 2
+    },
+    "max_leverage": {
+     "num": 3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 3,
+      "den": 320
+     },
+     {
+      "num": -1,
+      "den": 64
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 16
+    },
+    "risk": {
+     "num": 4,
+     "den": 1
+    },
+    "max_leverage": {
+     "num": 1,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 256
+     },
+     {
+      "num": 5,
+      "den": 512
+     },
+     {
+      "num": -1,
+      "den": 256
+     },
+     {
+      "num": -3,
+      "den": 512
+     },
+     {
+      "num": -1,
+      "den": 512
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -3,
+      "den": 4
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 8
+    },
+    "risk": {
+     "num": 7,
+     "den": 4
+    },
+    "max_leverage": {
+     "num": 11,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": -3,
+      "den": 56
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": -5,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 2
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 16
+    },
+    "risk": null,
+    "max_leverage": {
+     "num": 7,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 7,
+      "den": 80
+     },
+     {
+      "num": -7,
+      "den": 16
+     },
+     {
+      "num": -7,
+      "den": 20
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 3,
+      "den": 4
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 2
+    },
+    "risk": null,
+    "max_leverage": {
+     "num": 3,
+     "den": 2
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 3,
+      "den": 4
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 4
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": -7,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 16
+    },
+    "risk": {
+     "num": 11,
+     "den": 4
+    },
+    "max_leverage": {
+     "num": 13,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 352
+     },
+     {
+      "num": 3,
+      "den": 176
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": -7,
+      "den": 352
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -3,
+      "den": 4
+     }
+    ],
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "risk": {
+     "num": 5,
+     "den": 4
+    },
+    "max_leverage": {
+     "num": 13,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": -5,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 16
+    },
+    "risk": null,
+    "max_leverage": {
+     "num": 3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": -5,
+      "den": 8
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 7,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 16
+    },
+    "risk": {
+     "num": 7,
+     "den": 4
+    },
+    "max_leverage": {
+     "num": 3,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 32
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": 3,
+      "den": 4
+     },
+     {
+      "num": -3,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "risk": {
+     "num": 11,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 4
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 2
+    },
+    "risk": {
+     "num": 5,
+     "den": 2
+    },
+    "max_leverage": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": -5,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 1
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 2
+    },
+    "risk": {
+     "num": 11,
+     "den": 4
+    },
+    "max_leverage": {
+     "num": 5,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": -2,
+      "den": 11
+     },
+     {
+      "num": -1,
+      "den": 11
+     },
+     {
+      "num": -5,
+      "den": 44
+     },
+     {
+      "num": 2,
+      "den": 11
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 1
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 2
+    },
+    "risk": {
+     "num": 7,
+     "den": 4
+    },
+    "max_leverage": {
+     "num": 9,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 2,
+      "den": 7
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 4
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 16
+    },
+    "risk": {
+     "num": 29,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 1,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": -7,
+      "den": 464
+     },
+     {
+      "num": 3,
+      "den": 232
+     },
+     {
+      "num": -1,
+      "den": 232
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": 5,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 2
+    },
+    "risk": {
+     "num": 1,
+     "den": 1
+    },
+    "max_leverage": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": -8,
+      "den": 19
+     },
+     {
+      "num": -6,
+      "den": 19
+     },
+     {
+      "num": 5,
+      "den": 19
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": -1,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "risk": null,
+    "max_leverage": {
+     "num": 9,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 7,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 2
+     }
+    ],
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "risk": {
+     "num": 23,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 7,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": 0,
+      "den": 1
+     }
+    ],
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "risk": {
+     "num": 31,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 7,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -7,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 2
+    },
+    "risk": {
+     "num": 4,
+     "den": 1
+    },
+    "max_leverage": {
+     "num": 11,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": -7,
+      "den": 64
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": 7,
+      "den": 8
+     },
+     {
+      "num": 7,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "risk": {
+     "num": 2,
+     "den": 1
+    },
+    "max_leverage": {
+     "num": 3,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 2
+     }
+    ],
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "risk": {
+     "num": 1,
+     "den": 1
+    },
+    "max_leverage": {
+     "num": 3,
+     "den": 2
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 7,
+      "den": 8
+     },
+     {
+      "num": -5,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 1
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 16
+    },
+    "risk": {
+     "num": 9,
+     "den": 4
+    },
+    "max_leverage": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 7,
+      "den": 288
+     },
+     {
+      "num": -5,
+      "den": 288
+     },
+     {
+      "num": 1,
+      "den": 36
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": 5,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 16
+    },
+    "risk": {
+     "num": 11,
+     "den": 4
+    },
+    "max_leverage": {
+     "num": 2,
+     "den": 1
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 352
+     },
+     {
+      "num": -1,
+      "den": 176
+     },
+     {
+      "num": 5,
+      "den": 352
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": 7,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 2
+    },
+    "risk": {
+     "num": 5,
+     "den": 4
+    },
+    "max_leverage": {
+     "num": 5,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": -3,
+      "den": 10
+     },
+     {
+      "num": -1,
+      "den": 20
+     },
+     {
+      "num": 1,
+      "den": 5
+     },
+     {
+      "num": 7,
+      "den": 20
+     },
+     {
+      "num": 1,
+      "den": 20
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -5,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 1
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 2
+    },
+    "risk": null,
+    "max_leverage": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": -5,
+      "den": 18
+     },
+     {
+      "num": 1,
+      "den": 6
+     },
+     {
+      "num": -1,
+      "den": 9
+     },
+     {
+      "num": -4,
+      "den": 9
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 16
+    },
+    "risk": {
+     "num": 15,
+     "den": 4
+    },
+    "max_leverage": {
+     "num": 3,
+     "den": 2
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 480
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": -5,
+      "den": 8
+     },
+     {
+      "num": 0,
+      "den": 1
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 8
+    },
+    "risk": null,
+    "max_leverage": {
+     "num": 7,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": -5,
+      "den": 8
+     },
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": 1,
+      "den": 4
+     },
+     {
+      "num": 7,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "risk": null,
+    "max_leverage": {
+     "num": 5,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 4
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 8
+    },
+    "risk": {
+     "num": 17,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": -3,
+      "den": 136
+     },
+     {
+      "num": -1,
+      "den": 136
+     },
+     {
+      "num": 1,
+      "den": 68
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 5,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 8
+    },
+    "risk": {
+     "num": 15,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 2,
+     "den": 1
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 24
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "risk": {
+     "num": 15,
+     "den": 4
+    },
+    "max_leverage": {
+     "num": 5,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": 1,
+      "den": 4
+     },
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 4
+     }
+    ],
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "risk": null,
+    "max_leverage": {
+     "num": 1,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": -5,
+      "den": 8
+     },
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 2
+    },
+    "risk": {
+     "num": 15,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": -2,
+      "den": 27
+     },
+     {
+      "num": -4,
+      "den": 27
+     },
+     {
+      "num": -5,
+      "den": 54
+     },
+     {
+      "num": -7,
+      "den": 54
+     },
+     {
+      "num": -1,
+      "den": 18
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": 7,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 2
+    },
+    "risk": {
+     "num": 17,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 5,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": -15,
+      "den": 88
+     },
+     {
+      "num": 25,
+      "den": 176
+     },
+     {
+      "num": 5,
+      "den": 44
+     },
+     {
+      "num": 35,
+      "den": 176
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -5,
+      "den": 8
+     },
+     {
+      "num": 7,
+      "den": 8
+     },
+     {
+      "num": 7,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 16
+    },
+    "risk": {
+     "num": 23,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": -5,
+      "den": 368
+     },
+     {
+      "num": 7,
+      "den": 368
+     },
+     {
+      "num": 7,
+      "den": 368
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": 3,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "risk": {
+     "num": 15,
+     "den": 4
+    },
+    "max_leverage": {
+     "num": 1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 7,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 4
+     },
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 1
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 2
+    },
+    "risk": {
+     "num": 7,
+     "den": 2
+    },
+    "max_leverage": {
+     "num": 1,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 7,
+      "den": 208
+     },
+     {
+      "num": 3,
+      "den": 104
+     },
+     {
+      "num": -3,
+      "den": 208
+     },
+     {
+      "num": -1,
+      "den": 104
+     },
+     {
+      "num": -1,
+      "den": 26
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 4
+     },
+     {
+      "num": 3,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "risk": {
+     "num": 21,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 7,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": 3,
+      "den": 4
+     },
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 2
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 8
+    },
+    "risk": {
+     "num": 2,
+     "den": 1
+    },
+    "max_leverage": {
+     "num": 13,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 32
+     },
+     {
+      "num": 3,
+      "den": 64
+     },
+     {
+      "num": 3,
+      "den": 128
+     },
+     {
+      "num": -1,
+      "den": 32
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 3,
+      "den": 4
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 8
+    },
+    "risk": {
+     "num": 13,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 3,
+      "den": 52
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": 3,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 2
+    },
+    "risk": null,
+    "max_leverage": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 4,
+      "den": 15
+     },
+     {
+      "num": -2,
+      "den": 15
+     },
+     {
+      "num": 1,
+      "den": 10
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": 1,
+      "den": 4
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 2
+    },
+    "risk": {
+     "num": 3,
+     "den": 1
+    },
+    "max_leverage": {
+     "num": 1,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 136
+     },
+     {
+      "num": -1,
+      "den": 34
+     },
+     {
+      "num": -3,
+      "den": 68
+     },
+     {
+      "num": 1,
+      "den": 34
+     },
+     {
+      "num": 1,
+      "den": 68
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 2
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 16
+    },
+    "risk": {
+     "num": 2,
+     "den": 1
+    },
+    "max_leverage": {
+     "num": 7,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 256
+     },
+     {
+      "num": -3,
+      "den": 128
+     },
+     {
+      "num": -1,
+      "den": 256
+     },
+     {
+      "num": -1,
+      "den": 64
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 4
+     },
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": -3,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "risk": {
+     "num": 19,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": -7,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 8
+    },
+    "risk": {
+     "num": 2,
+     "den": 1
+    },
+    "max_leverage": {
+     "num": 5,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": -3,
+      "den": 64
+     },
+     {
+      "num": -1,
+      "den": 64
+     },
+     {
+      "num": -7,
+      "den": 128
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -3,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 2
+    },
+    "risk": {
+     "num": 11,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 7,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": -3,
+      "den": 22
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": -1,
+      "den": 2
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 16
+    },
+    "risk": {
+     "num": 27,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 1,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": -1,
+      "den": 216
+     },
+     {
+      "num": 1,
+      "den": 108
+     },
+     {
+      "num": 1,
+      "den": 108
+     },
+     {
+      "num": -1,
+      "den": 108
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": -5,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "risk": null,
+    "max_leverage": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 16
+    },
+    "risk": {
+     "num": 11,
+     "den": 4
+    },
+    "max_leverage": {
+     "num": 13,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": -3,
+      "den": 352
+     },
+     {
+      "num": -1,
+      "den": 44
+     },
+     {
+      "num": 5,
+      "den": 352
+     },
+     {
+      "num": 3,
+      "den": 352
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 1
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 16
+    },
+    "risk": {
+     "num": 7,
+     "den": 2
+    },
+    "max_leverage": {
+     "num": 9,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 56
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 2
+    },
+    "risk": {
+     "num": 5,
+     "den": 4
+    },
+    "max_leverage": {
+     "num": 3,
+     "den": 2
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 20
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": 0,
+      "den": 1
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 16
+    },
+    "risk": {
+     "num": 27,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 7,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 54
+     },
+     {
+      "num": 1,
+      "den": 54
+     },
+     {
+      "num": -1,
+      "den": 216
+     },
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": 7,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 16
+    },
+    "risk": {
+     "num": 15,
+     "den": 4
+    },
+    "max_leverage": {
+     "num": 5,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 240
+     },
+     {
+      "num": 1,
+      "den": 60
+     },
+     {
+      "num": 7,
+      "den": 480
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 3,
+      "den": 4
+     }
+    ],
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "risk": {
+     "num": 9,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 7,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 4
+     }
+    ],
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "risk": {
+     "num": 15,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 5,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": -5,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 1
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 16
+    },
+    "risk": {
+     "num": 27,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 9,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 5,
+      "den": 432
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": -1,
+      "den": 72
+     },
+     {
+      "num": -5,
+      "den": 432
+     },
+     {
+      "num": 1,
+      "den": 54
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 3,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 4
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 8
+    },
+    "risk": {
+     "num": 5,
+     "den": 2
+    },
+    "max_leverage": {
+     "num": 9,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 3,
+      "den": 80
+     },
+     {
+      "num": -1,
+      "den": 20
+     },
+     {
+      "num": 1,
+      "den": 20
+     },
+     {
+      "num": 1,
+      "den": 32
+     },
+     {
+      "num": -3,
+      "den": 80
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -5,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 8
+    },
+    "risk": {
+     "num": 9,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 3,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": -5,
+      "den": 72
+     },
+     {
+      "num": 1,
+      "den": 72
+     },
+     {
+      "num": -1,
+      "den": 72
+     },
+     {
+      "num": -1,
+      "den": 24
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 16
+    },
+    "risk": {
+     "num": 11,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 5,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": -3,
+      "den": 88
+     },
+     {
+      "num": 1,
+      "den": 22
+     },
+     {
+      "num": -1,
+      "den": 22
+     },
+     {
+      "num": -3,
+      "den": 176
+     },
+     {
+      "num": 1,
+      "den": 176
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 4
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 16
+    },
+    "risk": {
+     "num": 17,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": -7,
+      "den": 272
+     },
+     {
+      "num": -1,
+      "den": 136
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": 7,
+      "den": 8
+     },
+     {
+      "num": -5,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 16
+    },
+    "risk": {
+     "num": 5,
+     "den": 4
+    },
+    "max_leverage": {
+     "num": 5,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": -3,
+      "den": 160
+     },
+     {
+      "num": -1,
+      "den": 160
+     },
+     {
+      "num": 7,
+      "den": 160
+     },
+     {
+      "num": -1,
+      "den": 32
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 2
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 2
+    },
+    "risk": {
+     "num": 27,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 7,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 18
+     },
+     {
+      "num": 1,
+      "den": 54
+     },
+     {
+      "num": -1,
+      "den": 54
+     },
+     {
+      "num": -2,
+      "den": 27
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 8
+    },
+    "risk": {
+     "num": 13,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 7,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 104
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 0,
+      "den": 1
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 8
+    },
+    "risk": {
+     "num": 0,
+     "den": 1
+    },
+    "max_leverage": {
+     "num": 3,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 1
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 2
+    },
+    "risk": null,
+    "max_leverage": {
+     "num": 15,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 1
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 8
+    },
+    "risk": {
+     "num": 31,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 5,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 31
+     },
+     {
+      "num": -3,
+      "den": 248
+     },
+     {
+      "num": -3,
+      "den": 248
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 3,
+      "den": 4
+     },
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 16
+    },
+    "risk": {
+     "num": 5,
+     "den": 4
+    },
+    "max_leverage": {
+     "num": 5,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 3,
+      "den": 80
+     },
+     {
+      "num": -3,
+      "den": 80
+     },
+     {
+      "num": -1,
+      "den": 160
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 4
+     },
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 4
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 8
+    },
+    "risk": {
+     "num": 17,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 3,
+      "den": 136
+     },
+     {
+      "num": 1,
+      "den": 68
+     },
+     {
+      "num": -3,
+      "den": 136
+     },
+     {
+      "num": -1,
+      "den": 68
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": -5,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": 5,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 16
+    },
+    "risk": {
+     "num": 3,
+     "den": 2
+    },
+    "max_leverage": {
+     "num": 3,
+     "den": 2
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 64
+     },
+     {
+      "num": -5,
+      "den": 192
+     },
+     {
+      "num": 1,
+      "den": 64
+     },
+     {
+      "num": 5,
+      "den": 192
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 2
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 2
+    },
+    "risk": {
+     "num": 13,
+     "den": 4
+    },
+    "max_leverage": {
+     "num": 7,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 26
+     },
+     {
+      "num": -1,
+      "den": 13
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 3,
+      "den": 4
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 2
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 16
+    },
+    "risk": {
+     "num": 3,
+     "den": 2
+    },
+    "max_leverage": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 32
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": -1,
+      "den": 64
+     },
+     {
+      "num": 1,
+      "den": 48
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 4
+     },
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": 3,
+      "den": 4
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 2
+    },
+    "risk": {
+     "num": 17,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": -7,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 2
+    },
+    "risk": {
+     "num": 21,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 15,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 42
+     },
+     {
+      "num": -1,
+      "den": 6
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 4
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 2
+    },
+    "risk": null,
+    "max_leverage": {
+     "num": 7,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 4
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": -5,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 4
+     }
+    ],
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "risk": {
+     "num": 11,
+     "den": 4
+    },
+    "max_leverage": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": 5,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 16
+    },
+    "risk": {
+     "num": 5,
+     "den": 4
+    },
+    "max_leverage": {
+     "num": 3,
+     "den": 2
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 160
+     },
+     {
+      "num": 3,
+      "den": 160
+     },
+     {
+      "num": -1,
+      "den": 20
+     },
+     {
+      "num": 1,
+      "den": 32
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 3,
+      "den": 4
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 8
+    },
+    "risk": null,
+    "max_leverage": {
+     "num": 5,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 5,
+      "den": 8
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 2
+     }
+    ],
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "risk": {
+     "num": 21,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 3,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": 1,
+      "den": 4
+     },
+     {
+      "num": -5,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 16
+    },
+    "risk": {
+     "num": 5,
+     "den": 4
+    },
+    "max_leverage": {
+     "num": 9,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 32
+     },
+     {
+      "num": -3,
+      "den": 80
+     },
+     {
+      "num": 1,
+      "den": 80
+     },
+     {
+      "num": -1,
+      "den": 32
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 3,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 16
+    },
+    "risk": {
+     "num": 13,
+     "den": 4
+    },
+    "max_leverage": {
+     "num": 15,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 3,
+      "den": 416
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 3,
+      "den": 4
+     },
+     {
+      "num": 1,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "risk": {
+     "num": 1,
+     "den": 1
+    },
+    "max_leverage": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -5,
+      "den": 8
+     },
+     {
+      "num": 7,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "risk": {
+     "num": 17,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 13,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 8
+    },
+    "risk": {
+     "num": 29,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 13,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 3,
+      "den": 232
+     },
+     {
+      "num": 1,
+      "den": 29
+     },
+     {
+      "num": 1,
+      "den": 58
+     },
+     {
+      "num": -3,
+      "den": 116
+     },
+     {
+      "num": -1,
+      "den": 232
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 16
+    },
+    "risk": {
+     "num": 27,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 108
+     },
+     {
+      "num": 1,
+      "den": 144
+     },
+     {
+      "num": -1,
+      "den": 432
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 4
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 8
+    },
+    "risk": {
+     "num": 3,
+     "den": 1
+    },
+    "max_leverage": {
+     "num": 3,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 64
+     },
+     {
+      "num": -1,
+      "den": 32
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": -5,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": 7,
+      "den": 8
+     },
+     {
+      "num": 0,
+      "den": 1
+     }
+    ],
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "risk": {
+     "num": 21,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 3,
+     "den": 2
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": -7,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 16
+    },
+    "risk": null,
+    "max_leverage": {
+     "num": 7,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": -7,
+      "den": 20
+     },
+     {
+      "num": -3,
+      "den": 10
+     },
+     {
+      "num": -7,
+      "den": 20
+     },
+     {
+      "num": 2,
+      "den": 5
+     },
+     {
+      "num": -7,
+      "den": 20
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": 3,
+      "den": 4
+     },
+     {
+      "num": 1,
+      "den": 2
+     }
+    ],
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "risk": {
+     "num": 9,
+     "den": 8
+    },
+    "max_leverage": {
+     "num": 15,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 8
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 2
+    },
+    "risk": {
+     "num": 5,
+     "den": 4
+    },
+    "max_leverage": {
+     "num": 7,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 3,
+      "den": 20
+     },
+     {
+      "num": 3,
+      "den": 20
+     },
+     {
+      "num": -3,
+      "den": 20
+     }
+    ]
+   }
+  },
+  {
+   "input": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 4
+     },
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 1
+     }
+    ],
+    "target": {
+     "num": 1,
+     "den": 8
+    },
+    "risk": {
+     "num": 15,
+     "den": 4
+    },
+    "max_leverage": {
+     "num": 5,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weights": [
+     {
+      "num": 1,
+      "den": 120
+     },
+     {
+      "num": 1,
+      "den": 240
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 1,
+      "den": 80
+     },
+     {
+      "num": -1,
+      "den": 30
+     }
+    ]
+   }
+  }
+ ],
+ "spec_sha256": "25cd36169fd1b8d7eeb1a3cf6ca1829684eed8ede94bc9ba2d5d79c94ff990d9"
+}

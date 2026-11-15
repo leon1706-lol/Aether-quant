@@ -40,6 +40,9 @@ def test_the_hook_the_wrapper_calls_runs_the_secret_check_and_the_library_gate()
     text = (ROOT / ".githooks" / "pre-commit").read_text(encoding="utf-8")
     assert "secrets-check" in text and "scripts/library_gate.py" in text
     assert text.index("secrets-check") < text.index("library_gate"), "secrets are checked first"
+    # V6.6.7 (#361, #367): the pins and the coverage of the changed modules, the slow one last and skippable by name only
+    assert text.index("library_gate") < text.index("scripts/scorecard_pins.py") < text.index("test --coverage --changed")
+    assert '"${AQ_SKIP_COVERAGE_HOOK:-0}" != "1"' in text
 
 
 def test_the_wrapper_does_nothing_where_the_script_it_calls_does_not_exist():

@@ -184,3 +184,19 @@ def test_reason_lists_the_fired_triggers():
     assert "kill_switch_tripped" in result["reason"]
     assert "net_sharpe_decay" in result["reason"]
     assert "rank_ic_decay" not in result["reason"]
+
+
+# --- V6.6.7 (#371, formal/AetherFormal/AutoRollback.lean)
+
+def test_v667_only_true_enables_or_fires_or_passes_the_gate():
+    from retraining.auto_rollback import select_rollback_target
+
+    history = [{"model_version_id": "v1", "metrics": {"validation_gate": {"passed": True}}}]
+    signals = {"kill_switch_tripped": True, "bars_since_promotion": 100, "bars_since_last_rollback": None}
+    assert select_rollback_target({}, history, signals, {"enabled": True})["should_rollback"] is True
+    for flag in ("false", "true", 1):
+        assert select_rollback_target({}, history, signals, {"enabled": flag})["reason"] == "auto_rollback_disabled"
+    assert select_rollback_target({}, history, {**signals, "kill_switch_tripped": "true"}, {"enabled": True})["reason"] == "no_configured_trigger_fired"
+    stringly = [{"model_version_id": "v1", "metrics": {"validation_gate": {"passed": "true"}}}]
+    assert select_rollback_target({}, stringly, signals, {"enabled": True})["failures"] == ["no_eligible_rollback_target"]
+    assert select_rollback_target({}, [{"model_version_id": "v2", "metrics": {"validation_gate": None}}], signals, {"enabled": True})["failures"] == ["no_eligible_rollback_target"]

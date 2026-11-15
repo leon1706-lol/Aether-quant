@@ -57,6 +57,7 @@ verification result to either one cleanly.
 
 from __future__ import annotations
 
+import math
 from evaluation.rank_ic_core import aggregate_rank_ic_observations, resolve_realized_rank_ic_observations
 from typing import Any
 
@@ -166,6 +167,15 @@ def evaluate_rolling_ic_gate(rolling_ic_state: dict[str, Any], config: dict[str,
             "num_resolved_dates": num_resolved_dates,
         }
 
+    # V6.6.7 (#377): still fail-open, as documented, but named: a NaN compared False and reported "above floor"
+    if not (math.isfinite(float(observed_rolling_mean_ic)) and math.isfinite(float(min_rolling_mean_ic))):
+        return {
+            "engaged": True,
+            "reason": "rolling_ic_nonfinite",
+            "observed_rolling_mean_ic": observed_rolling_mean_ic,
+            "min_rolling_mean_ic": min_rolling_mean_ic,
+            "num_resolved_dates": num_resolved_dates,
+        }
     if observed_rolling_mean_ic < min_rolling_mean_ic:
         return {
             "engaged": False,

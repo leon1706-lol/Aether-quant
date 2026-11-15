@@ -484,3 +484,11 @@ def test_a_latched_trip_is_held_by_the_release_band_whatever_the_confirmation():
     held = evaluate_kill_switch({"recent_bar_returns": returns, "rolling_sharpe_tripped_last_bar": True}, config)
     assert held.tripped
 
+
+# --- V6.6.7 (#363): found by fuzz/targets.py
+
+def test_v667_a_huge_return_is_an_unreadable_window_not_an_overflow():
+    from risk.kill_switch import _rolling_sharpe
+
+    assert _rolling_sharpe([1e308, -1e308, 1e308]) is None
+    assert _rolling_sharpe([0.01, -0.02, 0.015, 0.0]) is not None

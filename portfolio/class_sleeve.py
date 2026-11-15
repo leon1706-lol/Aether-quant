@@ -84,13 +84,17 @@ def resize_below_minimum(delta_units: float, price: float, min_trade_usd: float)
     """True when a resize of `delta_units` at `price` is worth less than `min_trade_usd` in notional (a fixed per-order
     fee would cost more bps than the move is worth). `min_trade_usd <= 0` disables the check (False). Non-finite inputs ->
     True (do not trade on garbage)."""
-    if min_trade_usd <= 0.0:
-        return False
     try:
+        minimum = float(min_trade_usd)
         notional = abs(float(delta_units)) * float(price)
     except (TypeError, ValueError):
         return True
-    return (not math.isfinite(notional)) or notional < float(min_trade_usd)
+    # V6.6.7 (#374): a NaN minimum compared False both ways and let the trade through; None raised TypeError
+    if not math.isfinite(minimum):
+        return True
+    if minimum <= 0.0:
+        return False
+    return (not math.isfinite(notional)) or notional < minimum
 
 
 def sleeve_classes_out_of_main_pool(configs: Mapping[str, ClassSleeveConfig], class_enabled: Mapping[str, bool]) -> frozenset[str]:

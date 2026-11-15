@@ -169,11 +169,18 @@ def append_event(path: Path, *, event: str, session: str, candidate: str, payloa
 
 
 def _max_drawdown(values: Sequence[float]) -> float:
+    """Largest fall from a running peak of the compounded curve, in [0, 1] (formal/AetherFormal/DrawdownGuard.lean).
+
+    V6.6.7 (#369): fail closed. A non-finite session return gave a NaN drawdown, and `nan >= ceiling` is False, so the guard
+    never tripped; a return at or below -1 (everything lost) took the curve through zero. Both now read as a drawdown of 1."""
     if not len(values):
         return 0.0
-    curve = np.cumprod(1.0 + np.asarray(values, dtype=float))
+    returns = np.asarray(values, dtype=float)
+    if not np.isfinite(returns).all() or (returns <= -1.0).any():
+        return 1.0
+    curve = np.cumprod(1.0 + returns)
     peak = np.maximum.accumulate(np.concatenate([[1.0], curve]))[1:]
-    return float(1.0 - (curve / peak).min())
+    return float(min(1.0, max(0.0, 1.0 - (curve / peak).min())))
 
 
 def generation_state(generation: Generation, mine: Sequence[Mapping], *, config: DecayConfig | None = None, guard_max_drawdown: float = GUARD_MAX_DRAWDOWN) -> dict[str, Any]:

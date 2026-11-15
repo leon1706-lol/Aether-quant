@@ -39,18 +39,15 @@ jobs:
         with:
           python-version: "3.11"
           cache: "pip"
+          cache-dependency-path: requirements/lock/ci.txt
 
       - name: Syntax-check main.py (no Lean runtime available in CI - see development/Problems.md #69)
         run: python -m py_compile main.py
 
-      - name: Install CPU-only PyTorch (Linux runner)
-        if: runner.os == 'Linux'
-        run: pip install torch --index-url https://download.pytorch.org/whl/cpu
-
-      - name: Install dependencies
-        run: |
-          pip install -r requirements/requirements.txt -r requirements/requirements-dev.txt
-          pip install pytest-cov
+      # V6.6.7 (#361): every install is hash-locked (requirements/lock/, scripts/lock_requirements.py); the ci lock
+      # carries CPU torch for both runners, so neither pulls the CUDA wheels
+      - name: Install dependencies (hash-locked)
+        run: python -m pip install --require-hashes -r requirements/lock/ci.txt
 
       - name: Run full test suite with coverage gate
         run: >
@@ -83,16 +80,15 @@ jobs:
         with:
           python-version: "3.11"
           cache: "pip"
-          cache-dependency-path: requirements/requirements-dev.txt
+          cache-dependency-path: requirements/lock/tools.txt
 
       # V5.3.11 FIX: bare `ruff check .` — NOT `aq test --ruff` (which
       # requires importing aq_cli → pandas via the full package chain, but
       # this job intentionally has a minimal environment). Local devs use
       # `aq test --ruff`; CI uses bare ruff for speed.
-      # V5.4.7: ruff is PINNED - the previous unbounded range let new ruff
-      # releases add rules and break CI independently of any repo change.
-      - name: Install ruff
-        run: pip install "ruff==0.16.4"
+      # V5.4.7: ruff is PINNED (requirements/lock/tools.in, equal to requirements-dev.txt).
+      - name: Install ruff (hash-locked tools)
+        run: python -m pip install --require-hashes -r requirements/lock/tools.txt
 
       - name: Ruff check (E/F ruleset calibrated in pyproject.toml)
         run: ruff check .
@@ -110,19 +106,17 @@ jobs:
         with:
           python-version: "3.11"
           cache: "pip"
-          cache-dependency-path: requirements/requirements.txt
+          cache-dependency-path: requirements/lock/tools.txt
 
-      - name: Install pip-audit
-        run: pip install pip-audit
+      - name: Install pip-audit (hash-locked tools)
+        run: python -m pip install --require-hashes -r requirements/lock/tools.txt
 
-      - name: Audit runtime dependencies for known CVEs
-        run: |
-          pip install -r requirements/requirements.txt
-          pip-audit --requirement requirements/requirements.txt --desc
+      # V6.6.7 (#362): the locks are what CI and the images install, so they are what gets audited
+      - name: Audit the runtime lock for known CVEs
+        run: pip-audit --requirement requirements/lock/runtime.txt --require-hashes --disable-pip --desc
 
-      - name: Audit dev dependencies for known CVEs
-        run: |
-          pip-audit --requirement requirements/requirements-dev.txt --desc
+      - name: Audit the dev lock for known CVEs
+        run: pip-audit --requirement requirements/lock/ci.txt --require-hashes --disable-pip --desc
 
   webui-tests:
     runs-on: ubuntu-24.04
@@ -165,18 +159,13 @@ jobs:
         with:
           python-version: "3.11"
           cache: "pip"
-          cache-dependency-path: requirements/requirements.txt
+          cache-dependency-path: requirements/lock/runtime.txt
 
-      # V5.5.0 - the default Linux torch wheel drags in ~2 GB of CUDA libraries a
-      # CPU-only runner never uses. Installing the CPU build FIRST lets the
-      # requirements install below see torch as already satisfied.
-      - name: Install CPU-only PyTorch
-        run: pip install torch --index-url https://download.pytorch.org/whl/cpu
-
-      - name: Install package editable
+      # the runtime lock carries CPU torch: the default Linux wheel drags in ~2 GB of CUDA libraries
+      - name: Install package editable (hash-locked)
         run: |
-          pip install -r requirements/requirements.txt
-          pip install -e .
+          python -m pip install --require-hashes -r requirements/lock/runtime.txt
+          python -m pip install --no-deps -e .
 
       - name: CLI smoke battery (offline, deterministic)
         run: |
@@ -199,6 +188,7 @@ jobs:
         run: |
           curl -sSL -o actionlint.tar.gz \
             https://github.com/rhysd/actionlint/releases/download/v1.7.7/actionlint_1.7.7_linux_amd64.tar.gz
+          echo "023070a287cd8cccd71515fedc843f1985bf96c436b7effaecce67290e7e0757  actionlint.tar.gz" | sha256sum -c -
           tar -xzf actionlint.tar.gz actionlint
           ./actionlint -no-color -verbose
 
@@ -216,16 +206,10 @@ jobs:
         with:
           python-version: "3.11"
           cache: "pip"
-          cache-dependency-path: requirements/requirements-dev.txt
+          cache-dependency-path: requirements/lock/ci.txt
 
-      # V5.5.0 - the default Linux torch wheel drags in ~2 GB of CUDA libraries a
-      # CPU-only runner never uses. Installing the CPU build FIRST lets the
-      # requirements install below see torch as already satisfied.
-      - name: Install CPU-only PyTorch
-        run: pip install torch --index-url https://download.pytorch.org/whl/cpu
-
-      - name: Install dependencies
-        run: pip install -r requirements/requirements.txt -r requirements/requirements-dev.txt
+      - name: Install dependencies (hash-locked, CPU torch)
+        run: python -m pip install --require-hashes -r requirements/lock/ci.txt
 
       - name: Guard tests (registration, help surface, workflows, packaging, docs links, parity round)
         run: >
@@ -238,6 +222,8 @@ jobs:
           tests/test_docs_links.py
           tests/test_docs_facts.py
           tests/test_aether_quant_coverage.py
+          tests/test_scorecard_pins.py
+          tests/test_requirement_locks.py
           tests/test_v550_parity_fixes.py
           tests/test_aq_cli.py::test_subsystem_test_files_maps_every_real_test_file_to_exactly_one_bucket
 
@@ -259,18 +245,12 @@ jobs:
         with:
           python-version: "3.11"
           cache: "pip"
-          cache-dependency-path: requirements/requirements-dev.txt
+          cache-dependency-path: requirements/lock/ci.txt
 
-      # V5.5.0 - the default Linux torch wheel drags in ~2 GB of CUDA libraries a
-      # CPU-only runner never uses. Installing the CPU build FIRST lets the
-      # requirements install below see torch as already satisfied.
-      - name: Install CPU-only PyTorch
-        run: pip install torch --index-url https://download.pytorch.org/whl/cpu
-
-      - name: Install dependencies and the package
+      - name: Install dependencies and the package (hash-locked, CPU torch)
         run: |
-          pip install -r requirements/requirements.txt -r requirements/requirements-dev.txt
-          pip install -e .
+          python -m pip install --require-hashes -r requirements/lock/ci.txt
+          python -m pip install --no-deps -e .
 
       - name: aq test --${{ matrix.subsystem }}
         run: aq test --${{ matrix.subsystem }}
@@ -291,19 +271,18 @@ jobs:
         with:
           python-version: "3.11"
           cache: "pip"
-          cache-dependency-path: requirements/requirements.txt
+          cache-dependency-path: requirements/lock/runtime.txt
 
       - name: Build the wheel
         run: |
-          pip install build
+          python -m pip install --require-hashes -r requirements/lock/tools.txt
           python -m build --wheel
 
-      - name: Install the wheel into a clean venv (CPU torch first)
+      - name: Install the wheel into a clean venv (hash-locked runtime, CPU torch)
         run: |
           python -m venv "$RUNNER_TEMP/aq-wheel"
-          "$RUNNER_TEMP/aq-wheel/bin/pip" install --upgrade pip
-          "$RUNNER_TEMP/aq-wheel/bin/pip" install torch --index-url https://download.pytorch.org/whl/cpu
-          "$RUNNER_TEMP/aq-wheel/bin/pip" install -r requirements/requirements.txt dist/*.whl
+          "$RUNNER_TEMP/aq-wheel/bin/pip" install --require-hashes -r requirements/lock/runtime.txt
+          "$RUNNER_TEMP/aq-wheel/bin/pip" install --no-deps dist/*.whl
 
       - name: Smoke-test the installed wheel from outside the checkout
         working-directory: ${{ runner.temp }}
@@ -331,7 +310,7 @@ jobs:
       # Byte-compiling can't see a standard-library name that is new in 3.11 (datetime.UTC, #326). vermin reads what each source needs and fails on anything above 3.10.
       - name: First-party sources need no more than Python 3.10 (vermin)
         run: |
-          pip install vermin==1.9.2
+          python -m pip install --require-hashes -r requirements/lock/compat.txt
           vermin -t=3.10- --no-tips --violations -q aether_quant analyzer audit data_pipeline evaluation execution experience experts features inference liquidity moe monitoring notifications performance portfolio regime retraining risk topology aq_cli.py docs_facts.py json_safety.py performance_probe.py risk_controls.py generate_backtest_report.py generate_evaluation_report.py scripts/cycle_daily.py scripts/forward_ledger.py
 
   # V5.5.0 - Docker is never built with Lean in CI (the 40 GB base image does
@@ -346,6 +325,7 @@ jobs:
         run: |
           curl -sSL -o hadolint \
             https://github.com/hadolint/hadolint/releases/download/v2.12.0/hadolint-Linux-x86_64
+          echo "56de6d5e5ec427e17b74fa48d51271c7fc0d61244bf5c90e828aab8362d55010  hadolint" | sha256sum -c -
           chmod +x hadolint
           ./hadolint --failure-threshold error Dockerfile Dockerfile.lean
 
@@ -403,16 +383,10 @@ jobs:
         with:
           python-version: "3.11"
           cache: "pip"
-          cache-dependency-path: requirements/requirements-dev.txt
+          cache-dependency-path: requirements/lock/ci.txt
 
-      # V5.5.0 - the default Linux torch wheel drags in ~2 GB of CUDA libraries a
-      # CPU-only runner never uses. Installing the CPU build FIRST lets the
-      # requirements install below see torch as already satisfied.
-      - name: Install CPU-only PyTorch
-        run: pip install torch --index-url https://download.pytorch.org/whl/cpu
-
-      - name: Install dependencies
-        run: pip install -r requirements/requirements.txt -r requirements/requirements-dev.txt
+      - name: Install dependencies (hash-locked, CPU torch)
+        run: python -m pip install --require-hashes -r requirements/lock/ci.txt
 
       - name: Backtest audit, as-live simulator, calibration and sleeve tests
         run: >
@@ -442,6 +416,7 @@ jobs:
         run: |
           curl -sSL -o gitleaks.tar.gz \
             https://github.com/gitleaks/gitleaks/releases/download/v8.18.4/gitleaks_8.18.4_linux_x64.tar.gz
+          echo "ba6dbb656933921c775ee5a2d1c13a91046e7952e9d919f9bac4cec61d628e7d  gitleaks.tar.gz" | sha256sum -c -
           tar -xzf gitleaks.tar.gz gitleaks
           ./gitleaks detect --source . --no-git --no-banner --redact --exit-code 1 --config .gitleaks.toml
 
@@ -464,9 +439,10 @@ jobs:
 
       - name: Build the wheel
         run: |
-          pip install build
+          python -m pip install --require-hashes -r requirements/lock/tools.txt
           python -m build --wheel
 
+      # the one install that resolves on purpose: the job proves a bare wheel pulls numpy and pandas only
       - name: Install the wheel with no extras into a clean venv
         run: |
           python -m venv "$RUNNER_TEMP/aq-lite"
@@ -504,13 +480,13 @@ jobs:
 
       - name: Type completeness of the public API
         run: |
-          pip install numpy pandas
+          python -m pip install --require-hashes -r requirements/lock/light.txt
           python scripts/type_completeness.py
 
       - name: pyright --verifytypes on the installed wheel (advisory)
         continue-on-error: true
         run: |
-          pip install build "pyright==1.1.409"
+          python -m pip install --require-hashes -r requirements/lock/tools.txt
           python -m build --wheel
           python -m venv "$RUNNER_TEMP/aq-types"
           "$RUNNER_TEMP/aq-types/bin/pip" install dist/*.whl
@@ -530,7 +506,7 @@ jobs:
 
       - name: Build the site
         run: |
-          pip install -r requirements/requirements-docs.txt numpy pandas
+          python -m pip install --require-hashes -r requirements/lock/docs.txt
           python scripts/build_docs.py --check
           python scripts/build_docs.py
           mkdocs build --strict
@@ -553,7 +529,7 @@ jobs:
 
       - name: Run every notebook
         run: |
-          pip install numpy pandas scipy matplotlib nbclient nbformat ipykernel
+          python -m pip install --require-hashes -r requirements/lock/notebooks.txt
           python -m ipykernel install --user --name python3
           python scripts/build_notebooks.py --check --execute
 
@@ -570,6 +546,6 @@ jobs:
 
       - name: bandit (high severity fails)
         run: |
-          pip install "bandit==1.9.4"
+          python -m pip install --require-hashes -r requirements/lock/tools.txt
           bandit -q -r aether_quant analyzer audit data_pipeline evaluation execution experience experts features inference liquidity moe monitoring notifications performance portfolio regime retraining risk topology aq_cli.py docs_facts.py json_safety.py performance_probe.py risk_controls.py generate_backtest_report.py generate_evaluation_report.py -lll
 

@@ -45,7 +45,10 @@ from evaluation.research_round import (
     trial_table,
     write_rules,
 )
-from portfolio.generation_blend import GlidePolicy, blend_due, blend_generation_rows, dynamic_generation_shares, dynamic_targets, ew_sharpe, ew_update, resolve_glide_policy, shrunk_sharpe, step_toward, update_generation_shares
+from portfolio.generation_blend import (
+    GlidePolicy, blend_due, blend_generation_rows, dynamic_generation_shares, dynamic_targets, ew_sharpe, ew_update, repair_shares, resolve_glide_policy,
+    shrunk_sharpe, step_toward, update_generation_shares,
+)
 
 from evaluation.forward_ledger import NoSessionToRecord, resolve_session, session_for_outage
 from evaluation.research_round import clause_overrides, family_of, live_rows, r_hold1_crypto, universe_for
@@ -130,6 +133,7 @@ __all__ = [
     "record_holdout_read",
     "record_of",
     "render_schedule",
+    "repair_shares",
     "replay_dynamic",
     "replay_handover",
     "resolve_glide_policy",

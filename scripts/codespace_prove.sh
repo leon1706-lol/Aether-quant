@@ -10,7 +10,7 @@ cd /workspaces/Aether-quant || exit 1
 export PATH="${HOME}/.elan/bin:${PATH}"
 mark PROVE_START
 if ! command -v lake > /dev/null; then
-  curl -sSf https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh -o "${STATE}/elan-init.sh" && bash "${STATE}/elan-init.sh" -y --default-toolchain none > "${STATE}/elan.log" 2>&1
+  curl -sSf https://raw.githubusercontent.com/leanprover/elan/9605b24b08cf68b78dce0014b6fa01be1f8e2cee/elan-init.sh -o "${STATE}/elan-init.sh" && echo "a620ff1641616222c8d37c54845492004bb84d6877cdbc944dd65c1aa685bf53  ${STATE}/elan-init.sh" | sha256sum -c - && sh "${STATE}/elan-init.sh" -y --default-toolchain none > "${STATE}/elan.log" 2>&1
   mark "ELAN exit $?"
 fi
 cd formal || exit 1

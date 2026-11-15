@@ -1,0 +1,4341 @@
+{
+ "target": "forex_cap",
+ "spec_files": [
+  "AetherFormal/ForexCap.lean"
+ ],
+ "cases": [
+  {
+   "input": {
+    "target": {
+     "num": 5,
+     "den": 2
+    },
+    "book": null
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "target": null,
+    "book": null
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -7,
+     "den": 8
+    },
+    "book": {
+     "num": 1,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -1,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 19,
+     "den": 8
+    },
+    "book": {
+     "num": -3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 3,
+     "den": 4
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -1,
+     "den": 4
+    },
+    "book": {
+     "num": 1,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -1,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -13,
+     "den": 8
+    },
+    "book": {
+     "num": -5,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -5,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -11,
+     "den": 8
+    },
+    "book": {
+     "num": -3,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -3,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -5,
+     "den": 4
+    },
+    "book": {
+     "num": 1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -1,
+     "den": 4
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -3,
+     "den": 2
+    },
+    "book": {
+     "num": 1,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -1,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -17,
+     "den": 8
+    },
+    "book": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -1,
+     "den": 2
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -5,
+     "den": 2
+    },
+    "book": {
+     "num": -3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -3,
+     "den": 4
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -1,
+     "den": 8
+    },
+    "book": {
+     "num": -1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -1,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 21,
+     "den": 8
+    },
+    "book": {
+     "num": 5,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 5,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -3,
+     "den": 4
+    },
+    "book": {
+     "num": 7,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -3,
+     "den": 4
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -3,
+     "den": 2
+    },
+    "book": {
+     "num": -1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -1,
+     "den": 4
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 2,
+     "den": 1
+    },
+    "book": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -5,
+     "den": 4
+    },
+    "book": {
+     "num": 1,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -1,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 15,
+     "den": 8
+    },
+    "book": {
+     "num": -1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 1,
+     "den": 2
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -15,
+     "den": 8
+    },
+    "book": null
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 2,
+     "den": 1
+    },
+    "book": {
+     "num": -1,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 1,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 11,
+     "den": 8
+    },
+    "book": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "target": null,
+    "book": {
+     "num": 7,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -11,
+     "den": 8
+    },
+    "book": {
+     "num": 3,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -3,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 11,
+     "den": 4
+    },
+    "book": {
+     "num": -1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 1,
+     "den": 2
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -3,
+     "den": 2
+    },
+    "book": {
+     "num": -1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -1,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "target": null,
+    "book": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 5,
+     "den": 4
+    },
+    "book": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 1,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -2,
+     "den": 1
+    },
+    "book": {
+     "num": 1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -1,
+     "den": 4
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -3,
+     "den": 2
+    },
+    "book": {
+     "num": -7,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -7,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 3,
+     "den": 4
+    },
+    "book": {
+     "num": 3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 3,
+     "den": 4
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 1,
+     "den": 4
+    },
+    "book": {
+     "num": 7,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 1,
+     "den": 4
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -3,
+     "den": 2
+    },
+    "book": {
+     "num": 1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -1,
+     "den": 4
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 2,
+     "den": 1
+    },
+    "book": {
+     "num": -7,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 7,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -7,
+     "den": 4
+    },
+    "book": {
+     "num": -1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -1,
+     "den": 2
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -1,
+     "den": 2
+    },
+    "book": {
+     "num": -1,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -1,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -1,
+     "den": 1
+    },
+    "book": {
+     "num": -3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -3,
+     "den": 4
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 3,
+     "den": 4
+    },
+    "book": {
+     "num": 3,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 3,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -17,
+     "den": 8
+    },
+    "book": null
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -21,
+     "den": 8
+    },
+    "book": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -1,
+     "den": 2
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "book": {
+     "num": -3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -3,
+     "den": 4
+    },
+    "book": null
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -3,
+     "den": 8
+    },
+    "book": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -3,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -15,
+     "den": 8
+    },
+    "book": {
+     "num": 3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -3,
+     "den": 4
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 5,
+     "den": 8
+    },
+    "book": {
+     "num": 1,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 1,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 21,
+     "den": 8
+    },
+    "book": {
+     "num": -1,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 1,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -21,
+     "den": 8
+    },
+    "book": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -1,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -7,
+     "den": 4
+    },
+    "book": {
+     "num": 1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -1,
+     "den": 4
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 3,
+     "den": 2
+    },
+    "book": {
+     "num": 3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 3,
+     "den": 4
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 9,
+     "den": 4
+    },
+    "book": {
+     "num": -3,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 3,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -1,
+     "den": 1
+    },
+    "book": {
+     "num": -1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -1,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -1,
+     "den": 2
+    },
+    "book": {
+     "num": 7,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -1,
+     "den": 2
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 9,
+     "den": 8
+    },
+    "book": {
+     "num": -5,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 5,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 1,
+     "den": 1
+    },
+    "book": {
+     "num": 3,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 3,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -15,
+     "den": 8
+    },
+    "book": {
+     "num": -1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -1,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "target": null,
+    "book": {
+     "num": 1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 1,
+     "den": 4
+    },
+    "book": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 1,
+     "den": 4
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -15,
+     "den": 8
+    },
+    "book": {
+     "num": -1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -1,
+     "den": 2
+    }
+   }
+  },
+  {
+   "input": {
+    "target": null,
+    "book": {
+     "num": 5,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 5,
+     "den": 8
+    },
+    "book": {
+     "num": -3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 5,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -1,
+     "den": 4
+    },
+    "book": {
+     "num": -1,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -1,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 23,
+     "den": 8
+    },
+    "book": {
+     "num": -5,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 5,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": null,
+    "book": {
+     "num": -1,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 11,
+     "den": 8
+    },
+    "book": {
+     "num": -5,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 5,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 15,
+     "den": 8
+    },
+    "book": {
+     "num": 1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 1,
+     "den": 4
+    }
+   }
+  },
+  {
+   "input": {
+    "target": null,
+    "book": {
+     "num": 3,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -19,
+     "den": 8
+    },
+    "book": {
+     "num": -5,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -5,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -7,
+     "den": 8
+    },
+    "book": {
+     "num": 1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -1,
+     "den": 4
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 15,
+     "den": 8
+    },
+    "book": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 1,
+     "den": 2
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 17,
+     "den": 8
+    },
+    "book": {
+     "num": 5,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 5,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": null,
+    "book": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -5,
+     "den": 4
+    },
+    "book": {
+     "num": -5,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -5,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": null,
+    "book": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -19,
+     "den": 8
+    },
+    "book": null
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 9,
+     "den": 8
+    },
+    "book": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -2,
+     "den": 1
+    },
+    "book": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -7,
+     "den": 4
+    },
+    "book": {
+     "num": -1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -1,
+     "den": 2
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 11,
+     "den": 8
+    },
+    "book": {
+     "num": -1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 1,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 13,
+     "den": 8
+    },
+    "book": {
+     "num": -3,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 3,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -7,
+     "den": 4
+    },
+    "book": {
+     "num": -1,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -1,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": null,
+    "book": null
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 11,
+     "den": 8
+    },
+    "book": {
+     "num": -3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 3,
+     "den": 4
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -2,
+     "den": 1
+    },
+    "book": null
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -1,
+     "den": 8
+    },
+    "book": {
+     "num": -1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -1,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -3,
+     "den": 4
+    },
+    "book": {
+     "num": 1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -1,
+     "den": 4
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 19,
+     "den": 8
+    },
+    "book": {
+     "num": -3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 3,
+     "den": 4
+    }
+   }
+  },
+  {
+   "input": {
+    "target": null,
+    "book": {
+     "num": 3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "target": null,
+    "book": {
+     "num": 5,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "target": null,
+    "book": {
+     "num": -3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 21,
+     "den": 8
+    },
+    "book": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 1,
+     "den": 2
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 23,
+     "den": 8
+    },
+    "book": null
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -1,
+     "den": 2
+    },
+    "book": {
+     "num": 3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -1,
+     "den": 2
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 11,
+     "den": 8
+    },
+    "book": {
+     "num": 1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 1,
+     "den": 4
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 11,
+     "den": 4
+    },
+    "book": {
+     "num": -1,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 1,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": null,
+    "book": null
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -15,
+     "den": 8
+    },
+    "book": {
+     "num": -7,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -7,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 3,
+     "den": 2
+    },
+    "book": {
+     "num": -3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 3,
+     "den": 4
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 11,
+     "den": 4
+    },
+    "book": null
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -23,
+     "den": 8
+    },
+    "book": null
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 3,
+     "den": 4
+    },
+    "book": {
+     "num": 5,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 5,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -9,
+     "den": 8
+    },
+    "book": {
+     "num": -1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -1,
+     "den": 4
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -11,
+     "den": 8
+    },
+    "book": {
+     "num": -1,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -1,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 23,
+     "den": 8
+    },
+    "book": {
+     "num": -1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 1,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -5,
+     "den": 8
+    },
+    "book": {
+     "num": -1,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -1,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": null,
+    "book": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -2,
+     "den": 1
+    },
+    "book": {
+     "num": 7,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -7,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -11,
+     "den": 4
+    },
+    "book": {
+     "num": -1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -1,
+     "den": 2
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 11,
+     "den": 4
+    },
+    "book": {
+     "num": -1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 1,
+     "den": 2
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -11,
+     "den": 8
+    },
+    "book": {
+     "num": -7,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -7,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -9,
+     "den": 4
+    },
+    "book": {
+     "num": 3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -3,
+     "den": 4
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 7,
+     "den": 8
+    },
+    "book": {
+     "num": 1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 1,
+     "den": 4
+    }
+   }
+  },
+  {
+   "input": {
+    "target": null,
+    "book": {
+     "num": 5,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 23,
+     "den": 8
+    },
+    "book": {
+     "num": -3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 3,
+     "den": 4
+    }
+   }
+  },
+  {
+   "input": {
+    "target": null,
+    "book": {
+     "num": -7,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -3,
+     "den": 1
+    },
+    "book": null
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 17,
+     "den": 8
+    },
+    "book": null
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -1,
+     "den": 2
+    },
+    "book": {
+     "num": 5,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -1,
+     "den": 2
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -15,
+     "den": 8
+    },
+    "book": {
+     "num": -5,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -5,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -5,
+     "den": 4
+    },
+    "book": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -1,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 9,
+     "den": 8
+    },
+    "book": {
+     "num": -1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 1,
+     "den": 4
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -1,
+     "den": 4
+    },
+    "book": null
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -2,
+     "den": 1
+    },
+    "book": {
+     "num": 3,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -3,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 1,
+     "den": 2
+    },
+    "book": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 1,
+     "den": 1
+    },
+    "book": null
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -19,
+     "den": 8
+    },
+    "book": {
+     "num": -5,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -5,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 5,
+     "den": 4
+    },
+    "book": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 1,
+     "den": 2
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -13,
+     "den": 8
+    },
+    "book": {
+     "num": -3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -3,
+     "den": 4
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 9,
+     "den": 8
+    },
+    "book": null
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 5,
+     "den": 2
+    },
+    "book": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 1,
+     "den": 2
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -11,
+     "den": 8
+    },
+    "book": {
+     "num": -5,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -5,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -13,
+     "den": 8
+    },
+    "book": {
+     "num": 1,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -1,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 5,
+     "den": 2
+    },
+    "book": {
+     "num": -1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 1,
+     "den": 2
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -3,
+     "den": 8
+    },
+    "book": {
+     "num": 3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -3,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -9,
+     "den": 8
+    },
+    "book": {
+     "num": -5,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -5,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": null,
+    "book": {
+     "num": 1,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 5,
+     "den": 4
+    },
+    "book": {
+     "num": 1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 1,
+     "den": 4
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 5,
+     "den": 8
+    },
+    "book": {
+     "num": -3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 5,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 0,
+     "den": 1
+    },
+    "book": {
+     "num": -7,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 19,
+     "den": 8
+    },
+    "book": null
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 17,
+     "den": 8
+    },
+    "book": {
+     "num": -1,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 1,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 21,
+     "den": 8
+    },
+    "book": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "target": null,
+    "book": {
+     "num": -1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 23,
+     "den": 8
+    },
+    "book": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 3,
+     "den": 2
+    },
+    "book": {
+     "num": 5,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 5,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -3,
+     "den": 2
+    },
+    "book": {
+     "num": 3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -3,
+     "den": 4
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 3,
+     "den": 8
+    },
+    "book": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 3,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 9,
+     "den": 8
+    },
+    "book": {
+     "num": -1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 1,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -5,
+     "den": 8
+    },
+    "book": null
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 3,
+     "den": 4
+    },
+    "book": null
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 1,
+     "den": 8
+    },
+    "book": {
+     "num": -1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 1,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -9,
+     "den": 4
+    },
+    "book": {
+     "num": 5,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -5,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 9,
+     "den": 4
+    },
+    "book": {
+     "num": -3,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 3,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -21,
+     "den": 8
+    },
+    "book": {
+     "num": 1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -1,
+     "den": 4
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -1,
+     "den": 4
+    },
+    "book": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -1,
+     "den": 4
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 21,
+     "den": 8
+    },
+    "book": {
+     "num": -1,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 1,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -2,
+     "den": 1
+    },
+    "book": {
+     "num": 3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -3,
+     "den": 4
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -3,
+     "den": 4
+    },
+    "book": {
+     "num": -1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -1,
+     "den": 4
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 9,
+     "den": 8
+    },
+    "book": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 1,
+     "den": 2
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 2,
+     "den": 1
+    },
+    "book": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -1,
+     "den": 8
+    },
+    "book": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -1,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -1,
+     "den": 1
+    },
+    "book": {
+     "num": -1,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -1,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 9,
+     "den": 8
+    },
+    "book": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 1,
+     "den": 2
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -13,
+     "den": 8
+    },
+    "book": {
+     "num": -1,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -1,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": null,
+    "book": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 1,
+     "den": 1
+    },
+    "book": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 1,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "target": null,
+    "book": {
+     "num": -5,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -23,
+     "den": 8
+    },
+    "book": {
+     "num": -1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -1,
+     "den": 2
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 3,
+     "den": 2
+    },
+    "book": {
+     "num": -1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 1,
+     "den": 2
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 19,
+     "den": 8
+    },
+    "book": {
+     "num": 1,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 1,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -3,
+     "den": 4
+    },
+    "book": {
+     "num": 5,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -5,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": null,
+    "book": {
+     "num": 1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -3,
+     "den": 8
+    },
+    "book": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -3,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": null,
+    "book": {
+     "num": -3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 13,
+     "den": 8
+    },
+    "book": {
+     "num": -7,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 7,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 1,
+     "den": 1
+    },
+    "book": {
+     "num": -3,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 3,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -9,
+     "den": 8
+    },
+    "book": {
+     "num": -1,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -1,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -3,
+     "den": 8
+    },
+    "book": {
+     "num": -3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -3,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 5,
+     "den": 4
+    },
+    "book": {
+     "num": -1,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 1,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -17,
+     "den": 8
+    },
+    "book": null
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 7,
+     "den": 8
+    },
+    "book": {
+     "num": -7,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 7,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 21,
+     "den": 8
+    },
+    "book": null
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 3,
+     "den": 1
+    },
+    "book": null
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -3,
+     "den": 2
+    },
+    "book": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -1,
+     "den": 2
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -3,
+     "den": 2
+    },
+    "book": {
+     "num": -1,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -1,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 5,
+     "den": 2
+    },
+    "book": {
+     "num": 3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 3,
+     "den": 4
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -5,
+     "den": 8
+    },
+    "book": {
+     "num": -5,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -5,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -2,
+     "den": 1
+    },
+    "book": null
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "target": null,
+    "book": {
+     "num": -7,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "target": null,
+    "book": null
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "target": null,
+    "book": {
+     "num": 7,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -1,
+     "den": 2
+    },
+    "book": {
+     "num": -1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -1,
+     "den": 2
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 2,
+     "den": 1
+    },
+    "book": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 9,
+     "den": 8
+    },
+    "book": {
+     "num": -3,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 3,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -1,
+     "den": 4
+    },
+    "book": {
+     "num": 3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -1,
+     "den": 4
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 17,
+     "den": 8
+    },
+    "book": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 7,
+     "den": 8
+    },
+    "book": {
+     "num": -1,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 1,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 1,
+     "den": 1
+    },
+    "book": {
+     "num": -5,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 5,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 9,
+     "den": 4
+    },
+    "book": {
+     "num": -1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 1,
+     "den": 2
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -7,
+     "den": 4
+    },
+    "book": {
+     "num": 1,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -1,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -15,
+     "den": 8
+    },
+    "book": {
+     "num": -1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -1,
+     "den": 4
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -23,
+     "den": 8
+    },
+    "book": {
+     "num": -1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -1,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 5,
+     "den": 2
+    },
+    "book": {
+     "num": 3,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 3,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 1,
+     "den": 2
+    },
+    "book": {
+     "num": -1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 1,
+     "den": 2
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 2,
+     "den": 1
+    },
+    "book": {
+     "num": -1,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 1,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": null,
+    "book": {
+     "num": 5,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 23,
+     "den": 8
+    },
+    "book": {
+     "num": -7,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 7,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 3,
+     "den": 8
+    },
+    "book": {
+     "num": -1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 3,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 3,
+     "den": 4
+    },
+    "book": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -3,
+     "den": 2
+    },
+    "book": {
+     "num": -1,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -1,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -11,
+     "den": 4
+    },
+    "book": {
+     "num": 1,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -1,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 5,
+     "den": 4
+    },
+    "book": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 1,
+     "den": 2
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 17,
+     "den": 8
+    },
+    "book": {
+     "num": -1,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 1,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -1,
+     "den": 8
+    },
+    "book": {
+     "num": -1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -1,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -3,
+     "den": 1
+    },
+    "book": {
+     "num": 5,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -5,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 3,
+     "den": 1
+    },
+    "book": {
+     "num": 1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 1,
+     "den": 4
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 21,
+     "den": 8
+    },
+    "book": {
+     "num": -3,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 3,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 3,
+     "den": 8
+    },
+    "book": {
+     "num": -3,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 3,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -7,
+     "den": 8
+    },
+    "book": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -1,
+     "den": 4
+    },
+    "book": {
+     "num": 3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -1,
+     "den": 4
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -1,
+     "den": 8
+    },
+    "book": {
+     "num": -5,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -1,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -17,
+     "den": 8
+    },
+    "book": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -1,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 3,
+     "den": 4
+    },
+    "book": null
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 5,
+     "den": 2
+    },
+    "book": {
+     "num": -5,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 5,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -9,
+     "den": 8
+    },
+    "book": {
+     "num": -5,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -5,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -5,
+     "den": 4
+    },
+    "book": {
+     "num": 7,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -7,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -17,
+     "den": 8
+    },
+    "book": {
+     "num": -5,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -5,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 1,
+     "den": 4
+    },
+    "book": {
+     "num": -1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 1,
+     "den": 4
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 21,
+     "den": 8
+    },
+    "book": {
+     "num": 5,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 5,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 5,
+     "den": 4
+    },
+    "book": {
+     "num": -3,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 3,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -5,
+     "den": 8
+    },
+    "book": {
+     "num": 1,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -1,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -17,
+     "den": 8
+    },
+    "book": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -3,
+     "den": 1
+    },
+    "book": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -1,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 3,
+     "den": 2
+    },
+    "book": {
+     "num": -1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 1,
+     "den": 4
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 2,
+     "den": 1
+    },
+    "book": {
+     "num": -3,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 3,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -5,
+     "den": 4
+    },
+    "book": {
+     "num": 1,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -1,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 5,
+     "den": 4
+    },
+    "book": {
+     "num": 1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 1,
+     "den": 4
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 5,
+     "den": 2
+    },
+    "book": null
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "target": null,
+    "book": {
+     "num": 5,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 11,
+     "den": 8
+    },
+    "book": {
+     "num": -7,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 7,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 5,
+     "den": 2
+    },
+    "book": {
+     "num": 7,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 7,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -3,
+     "den": 4
+    },
+    "book": {
+     "num": -1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -1,
+     "den": 4
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 13,
+     "den": 8
+    },
+    "book": {
+     "num": -1,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 1,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -7,
+     "den": 8
+    },
+    "book": {
+     "num": -1,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -1,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 7,
+     "den": 8
+    },
+    "book": {
+     "num": 1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 1,
+     "den": 4
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -21,
+     "den": 8
+    },
+    "book": {
+     "num": -1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -1,
+     "den": 4
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -3,
+     "den": 4
+    },
+    "book": {
+     "num": -1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -3,
+     "den": 4
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -3,
+     "den": 4
+    },
+    "book": {
+     "num": -7,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -3,
+     "den": 4
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 3,
+     "den": 8
+    },
+    "book": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 3,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": 3,
+     "den": 1
+    },
+    "book": {
+     "num": 5,
+     "den": 8
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": 5,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -5,
+     "den": 2
+    },
+    "book": null
+   },
+   "expected": {
+    "weight": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "target": {
+     "num": -19,
+     "den": 8
+    },
+    "book": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "weight": {
+     "num": -1,
+     "den": 2
+    }
+   }
+  }
+ ],
+ "spec_sha256": "e98a6ec71bda4e03a05052106624b269a5d1e6537fa1b65b05047bae84005c98"
+}

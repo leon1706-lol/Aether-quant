@@ -232,12 +232,16 @@ def rebalance_deltas(
             continue
         lot = _finite(lots.get(ticker, 1.0), 1.0)
         lot = lot if lot > 0.0 else 1.0
-        delta = math.trunc((wanted - current) * nav / unit_value / lot) * lot
+        lots_wanted = (wanted - current) * nav / unit_value / lot
+        if not math.isfinite(lots_wanted):  # an overflowing size is no order, never an OverflowError mid-bar (V6.6.7, #363)
+            continue
+        delta = math.trunc(lots_wanted) * lot
         notional = abs(delta) * unit_value
         minimum = config.forex_min_trade_usd if classes.get(ticker) == "forex" else config.min_trade_usd
         if delta == 0.0 or notional < minimum:
             continue
-        reduces = held != 0.0 and (delta < 0.0) == (held > 0.0)
+        # an order through zero (held +10, delta -30) opens exposure that needs buying power: it is not a reduction (#373)
+        reduces = held != 0.0 and (delta < 0.0) == (held > 0.0) and abs(delta) <= abs(held)
         orders.append((ticker, delta, reduces))
     orders.sort(key=lambda order: (not order[2], order[0]))
     return [(ticker, delta) for ticker, delta, _ in orders]

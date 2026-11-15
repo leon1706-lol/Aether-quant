@@ -87,7 +87,7 @@ if ! docker image inspect "${IMAGE}" > /dev/null 2>&1; then
 fi
 
 if [ "$(pip show lean 2>/dev/null | awk '/^Version:/{print $2}')" != "${LEAN_CLI_VERSION}" ]; then
-  pip install "lean==${LEAN_CLI_VERSION}" > "${STATE_DIR}/pip.log" 2>&1 || fail_all "pip install lean==${LEAN_CLI_VERSION}"
+  pip install --require-hashes -r requirements/lock/lean-cli.txt > "${STATE_DIR}/pip.log" 2>&1 || fail_all "pip install lean==${LEAN_CLI_VERSION} (requirements/lock/lean-cli.txt)"
 fi
 
 [ -f config.json ] && cp config.json "${STATE_DIR}/config.json.orig"

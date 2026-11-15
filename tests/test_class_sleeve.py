@@ -48,3 +48,17 @@ def test_resize_deadband_and_pool_exclusion():
     assert resize_below_minimum(float("nan"), 1.0, 100.0)
     configs = {"forex": ClassSleeveConfig("forex", enabled=True), "bond": ClassSleeveConfig("bond", enabled=True)}
     assert sleeve_classes_out_of_main_pool(configs, {"forex": False}) == frozenset({"bond"})
+
+
+# --- V6.6.7 (#374)
+
+def test_v667_a_non_finite_minimum_blocks_the_resize():
+    import math
+
+    from portfolio.class_sleeve import resize_below_minimum
+
+    assert resize_below_minimum(10.0, 5.0, math.nan) is True
+    assert resize_below_minimum(10.0, 5.0, None) is True
+    assert resize_below_minimum(10.0, 5.0, math.inf) is True
+    assert resize_below_minimum(10.0, 5.0, 0.0) is False
+    assert resize_below_minimum(10.0, 5.0, 100.0) is True and resize_below_minimum(30.0, 5.0, 100.0) is False

@@ -17,7 +17,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 import library_gate as gate  # noqa: E402
 
 BASELINE = ROOT / "tests" / "data" / "modules_without_own_test.json"
-CEILING = 24  # the modules without a test file of their own when the check was added; lower it when one gains one
+CEILING = 0  # V6.6.7: every shipped module has its own test file; the list stays empty
 
 
 def modules_without_a_test() -> list[str]:

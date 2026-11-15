@@ -36,10 +36,10 @@ jobs:
         with:
           python-version: "3.11"
           cache: "pip"
+          cache-dependency-path: requirements/lock/ci.txt
 
-      - name: Install dependencies
-        run: |
-          pip install -r requirements/requirements.txt -r requirements/requirements-dev.txt
+      - name: Install dependencies (hash-locked, CPU torch)
+        run: python -m pip install --require-hashes -r requirements/lock/ci.txt
 
       - name: Run full offline suite (visibility only - does not gate the release)
         run: pytest -m "not lean_backtest" -ra
@@ -47,8 +47,6 @@ jobs:
   publish-pypi:
     if: github.event_name == 'push'
     runs-on: ubuntu-24.04
-    outputs:
-      hashes: ${{ steps.hash.outputs.hashes }}
     environment: pypi # must match the Environment name configured in PyPI's Trusted Publisher setup
     permissions:
       # Required for PyPI Trusted Publishing (OIDC) - no PyPI token is ever
@@ -69,10 +67,11 @@ jobs:
 
       - name: Build sdist and wheel
         run: |
-          pip install build
+          python -m pip install --require-hashes -r requirements/lock/tools.txt
           python -m build
 
       - name: Attest build provenance of the wheel and sdist
+        id: attest
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: "dist/*"
@@ -80,20 +79,20 @@ jobs:
       - name: SBOM of the wheel's dependencies (CycloneDX)
         run: |
           python -m venv "$RUNNER_TEMP/sbom"
-          "$RUNNER_TEMP/sbom/bin/pip" install dist/*.whl "cyclonedx-bom==4.6.1"
-          "$RUNNER_TEMP/sbom/bin/cyclonedx-py" environment "$RUNNER_TEMP/sbom" --output-format JSON --outfile sbom-wheel.cdx.json
+          "$RUNNER_TEMP/sbom/bin/pip" install --require-hashes -r requirements/lock/sbom.txt
+          "$RUNNER_TEMP/sbom/bin/pip" install --no-deps dist/*.whl
+          "$RUNNER_TEMP/sbom/bin/cyclonedx-py" environment "$RUNNER_TEMP/sbom" --of JSON -o sbom-wheel.cdx.json
 
-      - name: Subjects of the SLSA provenance
-        id: hash
-        run: echo "hashes=$(cd dist && sha256sum -- * | base64 -w0)" >> "$GITHUB_OUTPUT"
-
-      # signed in a copy: the publish step uploads everything in dist/
-      - name: Release assets, each signed with Sigstore
+      # signed in a copy: the publish step uploads everything in dist/. V6.6.7 (#365): the provenance is the attestation
+      # just made (a Sigstore bundle holding the in-toto SLSA statement), one JSON value per line, as the Scorecard reads it
+      - name: Release assets, each signed with Sigstore, and the provenance
+        env:
+          BUNDLE: ${{ steps.attest.outputs.bundle-path }}
         run: |
           mkdir release-assets
           cp dist/* sbom-wheel.cdx.json release-assets/
-          python -m pip install "sigstore==4.5.1"
           python -m sigstore sign release-assets/*.whl release-assets/*.tar.gz
+          jq -c . "$BUNDLE" > "release-assets/aether_quant-${GITHUB_REF_NAME}.intoto.jsonl"
 
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -215,25 +214,10 @@ jobs:
           BODY="See [development/Changelog.md](https://github.com/${GITHUB_REPOSITORY}/blob/main/development/Changelog.md) for the full entry for \`V${VERSION}\` and every prior release."
           gh release create "$TAG" release-assets/*             --title "Aether Quant ${TAG}"             --notes "$BODY"             --generate-notes
 
-  # SLSA level 3 provenance of the wheel and sdist, attached to the release as an .intoto.jsonl.
-  provenance:
-    if: github.event_name == 'push'
-    needs: [publish-pypi, github-release]
-    permissions:
-      actions: read
-      id-token: write
-      contents: write
-    # a reusable workflow is referenced by tag: the generator verifies its own ref and refuses a commit SHA
-    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.1.0
-    with:
-      base64-subjects: ${{ needs.publish-pypi.outputs.hashes }}
-      provenance-name: aether_quant-${{ github.ref_name }}.intoto.jsonl
-      upload-assets: true
-
   # The Scorecard reads releases when it runs; run it on main once the release and its provenance exist.
   scorecard-refresh:
     if: github.event_name == 'push'
-    needs: provenance
+    needs: [publish-pypi, github-release]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
@@ -245,7 +229,9 @@ jobs:
           GH_REPO: ${{ github.repository }}
         run: gh workflow run scorecard.yml --ref main
 
-  # Dispatch only: PyPI's own wheel and sdist for an older tag (digests checked against PyPI), signed and attached.
+  # Dispatch only: PyPI's own wheel and sdist for an older tag (digests checked against PyPI), signed and attached, with
+  # the provenance recorded when they were built (V6.6.7, #365): the tag build's GitHub attestation, else PyPI's PEP 740
+  # publish attestation. Nothing here attests files this run did not build.
   backfill-assets:
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
@@ -254,7 +240,13 @@ jobs:
       contents: write
       id-token: write
       actions: write
+      attestations: read
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: requirements/lock
+
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.11"
@@ -283,7 +275,35 @@ jobs:
               with open(f"release-assets/{entry['filename']}", "wb") as handle:
                   handle.write(body)
           EOF
-          python -m pip install "sigstore==4.5.1"
+          python -m pip install --require-hashes -r requirements/lock/tools.txt
           python -m sigstore sign release-assets/*
+          mkdir provenance
+          for file in release-assets/*.whl release-assets/*.tar.gz; do
+            (cd provenance && gh attestation download "../$file" -R "$GH_REPO") || true
+          done
+          if ls provenance/*.jsonl > /dev/null 2>&1; then
+            cat provenance/*.jsonl > "release-assets/aether_quant-${TAG}.intoto.jsonl"
+          else
+            python - "${TAG#v}" "release-assets/aether_quant-${TAG}.intoto.jsonl" <<'EOF'
+          import json, os, sys, urllib.error, urllib.request
+          version, out = sys.argv[1], sys.argv[2]
+          lines = []
+          for name in sorted(os.listdir("release-assets")):
+              if not name.endswith((".whl", ".tar.gz")):
+                  continue
+              url = f"https://pypi.org/integrity/aether-quant/{version}/{name}/provenance"
+              try:
+                  with urllib.request.urlopen(url, timeout=60) as response:
+                      document = json.load(response)
+              except urllib.error.HTTPError:
+                  continue
+              lines += [json.dumps(item, separators=(",", ":")) for bundle in document.get("attestation_bundles", []) for item in bundle.get("attestations", [])]
+          if lines:
+              with open(out, "w", encoding="utf-8") as handle:
+                  handle.write("\n".join(lines) + "\n")
+          else:
+              print(f"no provenance recorded for {version}: signatures only")
+          EOF
+          fi
           gh release upload "$TAG" release-assets/* --clobber
           gh workflow run scorecard.yml --ref main

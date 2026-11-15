@@ -141,3 +141,18 @@ def test_sweep_reserve_is_a_fixed_share_of_gross():
     assert reserve["long"] == pytest.approx(0.15)
     assert reserve["short"] == pytest.approx(0.15)
     assert reserve["margin"] == pytest.approx(0.15)
+
+
+# --- V6.6.7 (#363, #373, formal/AetherFormal/Rebalance.lean)
+
+def test_v667_an_order_through_zero_is_not_sorted_as_a_reduction():
+    from portfolio.target_weights import TargetWeightsConfig, rebalance_deltas
+
+    orders = rebalance_deltas({"A": 10.0, "B": 10.0}, {"A": 100.0, "B": 100.0}, 10_000.0, {"A": -0.2, "B": 0.05}, TargetWeightsConfig())
+    assert orders == [("B", -5.0), ("A", -30.0)]
+
+
+def test_v667_an_overflowing_order_size_is_no_order():
+    from portfolio.target_weights import TargetWeightsConfig, rebalance_deltas
+
+    assert rebalance_deltas({"A": 1.0}, {"A": 5e-324}, 1e308, {"A": 1.0}, TargetWeightsConfig()) == []

@@ -29,6 +29,16 @@ def _finite_or_default(value, default: float = 0.0) -> float:
     return as_float if math.isfinite(as_float) else default
 
 
+def _finite_or_none(value) -> float | None:
+    if isinstance(value, bool):
+        return None
+    try:
+        as_float = float(value)
+    except (TypeError, ValueError):
+        return None
+    return as_float if math.isfinite(as_float) else None
+
+
 def compare_backtests(active_report: dict[str, Any], candidate_report: dict[str, Any], config: dict[str, Any]) -> dict[str, Any]:
     """3-way (active / candidate / buy-and-hold) comparison, plus an optional
     4th risk-adjusted-benchmark row.
@@ -51,14 +61,25 @@ def compare_backtests(active_report: dict[str, Any], candidate_report: dict[str,
         if isinstance(asset_report, dict):
             benchmark = asset_report.get("strategy")
 
-    min_excess_return_vs_active = float(config.get("min_excess_return_vs_active", -0.02))
-    candidate_return = _finite_or_default(candidate_strategy.get("total_return"))
+    # V6.6.7 (#370, formal/AetherFormal/BacktestGate.lean): a candidate without a finite return, or a threshold that is
+    # not a finite number, fails. Before, a missing candidate return read 0.0 (which beats a losing active model) and a
+    # NaN threshold made `excess < nan` False, so the gate passed vacuously (the class of #122).
+    threshold = _finite_or_none(config.get("min_excess_return_vs_active", -0.02))
+    candidate_value = _finite_or_none(candidate_strategy.get("total_return"))
+    candidate_return = 0.0 if candidate_value is None else candidate_value
     active_return = _finite_or_default(active_strategy.get("total_return"))
     excess_return_vs_active = candidate_return - active_return
+    min_excess_return_vs_active = threshold if threshold is not None else math.nan
 
     reasons: list[str] = []
     passed = True
-    if excess_return_vs_active < min_excess_return_vs_active:
+    if threshold is None:
+        passed = False
+        reasons.append(f"min_excess_return_vs_active_invalid ({config.get('min_excess_return_vs_active')!r})")
+    elif candidate_value is None:
+        passed = False
+        reasons.append("candidate_return_missing")
+    elif excess_return_vs_active < min_excess_return_vs_active:
         passed = False
         reasons.append(
             f"candidate_excess_return_vs_active_below_threshold "

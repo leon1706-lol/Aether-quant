@@ -113,7 +113,10 @@ def _rolling_sharpe(
     if any(not math.isfinite(float(value)) for value in returns):
         return None
     mean = sum(returns) / len(returns)
-    variance = sum((value - mean) ** 2 for value in returns) / (len(returns) - 1)
+    # a product, not `** 2`: float power raises OverflowError on a huge return where a product gives inf (V6.6.7, #363)
+    variance = sum((value - mean) * (value - mean) for value in returns) / (len(returns) - 1)
+    if not (math.isfinite(mean) and math.isfinite(variance)):
+        return None
     std = math.sqrt(variance)
     if std <= max(0.0, min_return_std_floor):
         return 0.0

@@ -51,7 +51,7 @@ jobs:
 
       - name: Build the site, the coverage pages and the badge
         run: |
-          pip install -r requirements/requirements-docs.txt numpy pandas
+          python -m pip install --require-hashes -r requirements/lock/docs.txt
           python scripts/build_docs.py
           mkdocs build --strict
           if [ -f coverage-artifacts/coverage-xml/coverage.json ]; then

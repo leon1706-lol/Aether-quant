@@ -139,6 +139,10 @@ def record_holdout_read(path: Path, *, candidate: str, cells: tuple[str, ...], d
     Written before the read: a crash after it still counts as spent."""
     path = Path(path)
     held = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()] if path.exists() else []
+    # fail closed on a malformed entry: a string `cells` used to iterate into characters, so "V1" never read as spent (#363)
+    for number, entry in enumerate(held, start=1):
+        if not isinstance(entry, dict) or not isinstance(entry.get("cells", []), list) or not all(isinstance(cell, str) for cell in entry.get("cells", [])):
+            raise ValueError(f"{path}: entry {number} is not a holdout record; refusing every read until it is repaired")
     spent = {cell for entry in held for cell in entry.get("cells", ())}
     again = sorted(spent & set(cells))
     if again:

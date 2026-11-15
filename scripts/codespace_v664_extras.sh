@@ -10,7 +10,7 @@ mkdir -p "${STATE}" ml/evaluation/v664
 cd /workspaces/Aether-quant || exit 1
 mark() { echo "$(date -u +%T) $1" >> "${STATUS}"; }
 mark EXTRAS_START
-python3 -m pip install --quiet pyarrow httpx requests scikit-learn psycopg[binary] redis > "${STATE}/extras_pip.log" 2>&1
+python3 -m pip install --quiet --require-hashes -r requirements/lock/ci.txt > "${STATE}/extras_pip.log" 2>&1
 mark "PIP exit $?"
 for scenario in scale all43 arb assign; do
   mark "SCENARIO ${scenario} start"

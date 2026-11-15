@@ -1,0 +1,2 @@
+# python-compat runs on 3.10, so vermin is locked for 3.10 (--profile compat)
+vermin==1.9.2

@@ -1,0 +1,8119 @@
+{
+ "target": "auto_rollback",
+ "spec_files": [
+  "AetherFormal/AutoRollback.lean"
+ ],
+ "cases": [
+  {
+   "input": {
+    "triggers": [
+     "missing",
+     "string_true",
+     "string_true"
+    ],
+    "require_gate": false,
+    "gates": [],
+    "enabled": "true",
+    "bars_since_promotion": null,
+    "bars_since_last_rollback": 133
+   },
+   "expected": {
+    "target": null,
+    "reason": "no_trigger"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "string_true",
+     "missing",
+     "one"
+    ],
+    "require_gate": false,
+    "gates": [
+     "true"
+    ],
+    "enabled": "false",
+    "bars_since_promotion": 12,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "missing",
+     "missing",
+     "one"
+    ],
+    "require_gate": true,
+    "gates": [],
+    "enabled": "true",
+    "bars_since_promotion": 60,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "no_trigger"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "true",
+     "true",
+     "one"
+    ],
+    "require_gate": true,
+    "gates": [
+     "false",
+     "false"
+    ],
+    "enabled": "missing",
+    "bars_since_promotion": null,
+    "bars_since_last_rollback": 196
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "false",
+     "string_true",
+     "one"
+    ],
+    "require_gate": false,
+    "gates": [
+     "string_true"
+    ],
+    "enabled": "one",
+    "bars_since_promotion": 61,
+    "bars_since_last_rollback": 3
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "false",
+     "one",
+     "missing"
+    ],
+    "require_gate": false,
+    "gates": [
+     "string_true"
+    ],
+    "enabled": "one",
+    "bars_since_promotion": 22,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "one",
+     "string_true",
+     "string_true"
+    ],
+    "require_gate": true,
+    "gates": [
+     "false",
+     "false"
+    ],
+    "enabled": "missing",
+    "bars_since_promotion": 1,
+    "bars_since_last_rollback": 18
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "string_true",
+     "true",
+     "true"
+    ],
+    "require_gate": false,
+    "gates": [
+     "false",
+     "string_true",
+     "false"
+    ],
+    "enabled": "string_true",
+    "bars_since_promotion": 41,
+    "bars_since_last_rollback": 101
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "string_true",
+     "one",
+     "missing"
+    ],
+    "require_gate": false,
+    "gates": [
+     "string_true",
+     "string_true",
+     "false"
+    ],
+    "enabled": "string_true",
+    "bars_since_promotion": 24,
+    "bars_since_last_rollback": 220
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "true",
+     "true",
+     "one"
+    ],
+    "require_gate": true,
+    "gates": [],
+    "enabled": "false",
+    "bars_since_promotion": 10,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "one",
+     "false",
+     "missing"
+    ],
+    "require_gate": false,
+    "gates": [],
+    "enabled": "missing",
+    "bars_since_promotion": 8,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "one",
+     "string_true",
+     "string_true"
+    ],
+    "require_gate": true,
+    "gates": [
+     "false",
+     "string_true"
+    ],
+    "enabled": "true",
+    "bars_since_promotion": 48,
+    "bars_since_last_rollback": 206
+   },
+   "expected": {
+    "target": null,
+    "reason": "no_trigger"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "true",
+     "one",
+     "string_true"
+    ],
+    "require_gate": true,
+    "gates": [
+     "false"
+    ],
+    "enabled": "one",
+    "bars_since_promotion": null,
+    "bars_since_last_rollback": 172
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "false",
+     "missing",
+     "true"
+    ],
+    "require_gate": true,
+    "gates": [
+     "false",
+     "false",
+     "true"
+    ],
+    "enabled": "false",
+    "bars_since_promotion": 76,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "one",
+     "string_true",
+     "false"
+    ],
+    "require_gate": true,
+    "gates": [
+     "string_true",
+     "true",
+     "string_true"
+    ],
+    "enabled": "true",
+    "bars_since_promotion": 58,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "no_trigger"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "one",
+     "string_true",
+     "false"
+    ],
+    "require_gate": false,
+    "gates": [],
+    "enabled": "true",
+    "bars_since_promotion": 67,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "no_trigger"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "missing",
+     "one",
+     "false"
+    ],
+    "require_gate": true,
+    "gates": [
+     "false",
+     "true",
+     "string_true"
+    ],
+    "enabled": "true",
+    "bars_since_promotion": 53,
+    "bars_since_last_rollback": 66
+   },
+   "expected": {
+    "target": null,
+    "reason": "no_trigger"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "true",
+     "missing",
+     "one"
+    ],
+    "require_gate": false,
+    "gates": [
+     "string_true"
+    ],
+    "enabled": "false",
+    "bars_since_promotion": 9,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "string_true",
+     "missing",
+     "string_true"
+    ],
+    "require_gate": false,
+    "gates": [
+     "string_true",
+     "true"
+    ],
+    "enabled": "string_true",
+    "bars_since_promotion": 1,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "missing",
+     "false",
+     "missing"
+    ],
+    "require_gate": false,
+    "gates": [
+     "true",
+     "true",
+     "true"
+    ],
+    "enabled": "one",
+    "bars_since_promotion": 20,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "true",
+     "string_true",
+     "true"
+    ],
+    "require_gate": true,
+    "gates": [
+     "true",
+     "true"
+    ],
+    "enabled": "string_true",
+    "bars_since_promotion": 74,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "missing",
+     "missing",
+     "true"
+    ],
+    "require_gate": true,
+    "gates": [
+     "false",
+     "false",
+     "string_true"
+    ],
+    "enabled": "string_true",
+    "bars_since_promotion": 33,
+    "bars_since_last_rollback": 207
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "missing",
+     "one",
+     "true"
+    ],
+    "require_gate": true,
+    "gates": [
+     "true"
+    ],
+    "enabled": "missing",
+    "bars_since_promotion": 62,
+    "bars_since_last_rollback": 32
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "string_true",
+     "true",
+     "one"
+    ],
+    "require_gate": true,
+    "gates": [],
+    "enabled": "false",
+    "bars_since_promotion": 20,
+    "bars_since_last_rollback": 89
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "missing",
+     "one",
+     "string_true"
+    ],
+    "require_gate": true,
+    "gates": [],
+    "enabled": "true",
+    "bars_since_promotion": 40,
+    "bars_since_last_rollback": 207
+   },
+   "expected": {
+    "target": null,
+    "reason": "no_trigger"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "false",
+     "string_true",
+     "missing"
+    ],
+    "require_gate": true,
+    "gates": [],
+    "enabled": "false",
+    "bars_since_promotion": 63,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "false",
+     "false",
+     "false"
+    ],
+    "require_gate": false,
+    "gates": [
+     "string_true",
+     "true",
+     "string_true"
+    ],
+    "enabled": "string_true",
+    "bars_since_promotion": 20,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "false",
+     "true",
+     "missing"
+    ],
+    "require_gate": false,
+    "gates": [
+     "false",
+     "string_true"
+    ],
+    "enabled": "false",
+    "bars_since_promotion": 75,
+    "bars_since_last_rollback": 173
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "one",
+     "string_true",
+     "one"
+    ],
+    "require_gate": true,
+    "gates": [],
+    "enabled": "one",
+    "bars_since_promotion": 47,
+    "bars_since_last_rollback": 1
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "one",
+     "string_true",
+     "string_true"
+    ],
+    "require_gate": true,
+    "gates": [
+     "string_true"
+    ],
+    "enabled": "string_true",
+    "bars_since_promotion": 53,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "one",
+     "missing",
+     "true"
+    ],
+    "require_gate": true,
+    "gates": [
+     "true",
+     "false",
+     "true"
+    ],
+    "enabled": "false",
+    "bars_since_promotion": 0,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "missing",
+     "one",
+     "false"
+    ],
+    "require_gate": true,
+    "gates": [
+     "false",
+     "string_true"
+    ],
+    "enabled": "one",
+    "bars_since_promotion": 53,
+    "bars_since_last_rollback": 11
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "false",
+     "string_true",
+     "string_true"
+    ],
+    "require_gate": true,
+    "gates": [
+     "false",
+     "false"
+    ],
+    "enabled": "missing",
+    "bars_since_promotion": 50,
+    "bars_since_last_rollback": 81
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "missing",
+     "true",
+     "one"
+    ],
+    "require_gate": true,
+    "gates": [],
+    "enabled": "one",
+    "bars_since_promotion": 12,
+    "bars_since_last_rollback": 206
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "false",
+     "false",
+     "false"
+    ],
+    "require_gate": false,
+    "gates": [
+     "false",
+     "true"
+    ],
+    "enabled": "false",
+    "bars_since_promotion": null,
+    "bars_since_last_rollback": 190
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "true",
+     "missing",
+     "one"
+    ],
+    "require_gate": true,
+    "gates": [
+     "false",
+     "false",
+     "true"
+    ],
+    "enabled": "one",
+    "bars_since_promotion": null,
+    "bars_since_last_rollback": 210
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "one",
+     "string_true",
+     "missing"
+    ],
+    "require_gate": true,
+    "gates": [
+     "string_true",
+     "true"
+    ],
+    "enabled": "string_true",
+    "bars_since_promotion": null,
+    "bars_since_last_rollback": 219
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "true",
+     "one",
+     "false"
+    ],
+    "require_gate": true,
+    "gates": [
+     "true",
+     "string_true",
+     "true"
+    ],
+    "enabled": "one",
+    "bars_since_promotion": 28,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "true",
+     "string_true",
+     "true"
+    ],
+    "require_gate": false,
+    "gates": [
+     "string_true",
+     "true",
+     "string_true"
+    ],
+    "enabled": "missing",
+    "bars_since_promotion": 11,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "one",
+     "one",
+     "false"
+    ],
+    "require_gate": true,
+    "gates": [
+     "string_true",
+     "false"
+    ],
+    "enabled": "one",
+    "bars_since_promotion": 71,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "string_true",
+     "one",
+     "false"
+    ],
+    "require_gate": true,
+    "gates": [
+     "false",
+     "true",
+     "string_true"
+    ],
+    "enabled": "false",
+    "bars_since_promotion": null,
+    "bars_since_last_rollback": 51
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "false",
+     "false",
+     "one"
+    ],
+    "require_gate": false,
+    "gates": [],
+    "enabled": "string_true",
+    "bars_since_promotion": 31,
+    "bars_since_last_rollback": 131
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "one",
+     "string_true",
+     "false"
+    ],
+    "require_gate": true,
+    "gates": [
+     "string_true",
+     "true",
+     "string_true"
+    ],
+    "enabled": "string_true",
+    "bars_since_promotion": 42,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "false",
+     "one",
+     "false"
+    ],
+    "require_gate": true,
+    "gates": [
+     "false",
+     "false",
+     "false"
+    ],
+    "enabled": "true",
+    "bars_since_promotion": 42,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "no_trigger"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "false",
+     "one",
+     "true"
+    ],
+    "require_gate": false,
+    "gates": [
+     "false"
+    ],
+    "enabled": "string_true",
+    "bars_since_promotion": 33,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "false",
+     "one",
+     "true"
+    ],
+    "require_gate": false,
+    "gates": [
+     "false"
+    ],
+    "enabled": "false",
+    "bars_since_promotion": 21,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "missing",
+     "true",
+     "true"
+    ],
+    "require_gate": true,
+    "gates": [
+     "true"
+    ],
+    "enabled": "false",
+    "bars_since_promotion": 51,
+    "bars_since_last_rollback": 112
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "true",
+     "true",
+     "false"
+    ],
+    "require_gate": false,
+    "gates": [],
+    "enabled": "one",
+    "bars_since_promotion": 78,
+    "bars_since_last_rollback": 1
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "true",
+     "true",
+     "false"
+    ],
+    "require_gate": true,
+    "gates": [
+     "false",
+     "true"
+    ],
+    "enabled": "true",
+    "bars_since_promotion": 66,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": 1,
+    "reason": "triggered"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "true",
+     "string_true",
+     "false"
+    ],
+    "require_gate": false,
+    "gates": [],
+    "enabled": "false",
+    "bars_since_promotion": 52,
+    "bars_since_last_rollback": 158
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "missing",
+     "true",
+     "string_true"
+    ],
+    "require_gate": false,
+    "gates": [],
+    "enabled": "string_true",
+    "bars_since_promotion": null,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "missing",
+     "one",
+     "one"
+    ],
+    "require_gate": false,
+    "gates": [
+     "false",
+     "string_true"
+    ],
+    "enabled": "one",
+    "bars_since_promotion": 35,
+    "bars_since_last_rollback": 2
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "string_true",
+     "string_true",
+     "string_true"
+    ],
+    "require_gate": false,
+    "gates": [
+     "true"
+    ],
+    "enabled": "one",
+    "bars_since_promotion": 12,
+    "bars_since_last_rollback": 233
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "false",
+     "one",
+     "one"
+    ],
+    "require_gate": false,
+    "gates": [
+     "false"
+    ],
+    "enabled": "false",
+    "bars_since_promotion": 60,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "one",
+     "missing",
+     "false"
+    ],
+    "require_gate": false,
+    "gates": [
+     "false"
+    ],
+    "enabled": "string_true",
+    "bars_since_promotion": 1,
+    "bars_since_last_rollback": 228
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "missing",
+     "false",
+     "true"
+    ],
+    "require_gate": false,
+    "gates": [
+     "false",
+     "false",
+     "true"
+    ],
+    "enabled": "one",
+    "bars_since_promotion": null,
+    "bars_since_last_rollback": 119
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "false",
+     "true",
+     "missing"
+    ],
+    "require_gate": false,
+    "gates": [
+     "string_true"
+    ],
+    "enabled": "one",
+    "bars_since_promotion": null,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "string_true",
+     "missing",
+     "true"
+    ],
+    "require_gate": false,
+    "gates": [
+     "true",
+     "false"
+    ],
+    "enabled": "false",
+    "bars_since_promotion": 77,
+    "bars_since_last_rollback": 56
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "one",
+     "true",
+     "missing"
+    ],
+    "require_gate": true,
+    "gates": [
+     "false",
+     "true"
+    ],
+    "enabled": "string_true",
+    "bars_since_promotion": 48,
+    "bars_since_last_rollback": 69
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "false",
+     "one",
+     "missing"
+    ],
+    "require_gate": false,
+    "gates": [
+     "false"
+    ],
+    "enabled": "one",
+    "bars_since_promotion": 1,
+    "bars_since_last_rollback": 165
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "true",
+     "one",
+     "missing"
+    ],
+    "require_gate": true,
+    "gates": [
+     "true",
+     "false"
+    ],
+    "enabled": "missing",
+    "bars_since_promotion": 67,
+    "bars_since_last_rollback": 161
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "missing",
+     "missing",
+     "missing"
+    ],
+    "require_gate": false,
+    "gates": [],
+    "enabled": "missing",
+    "bars_since_promotion": 38,
+    "bars_since_last_rollback": 213
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "false",
+     "true",
+     "one"
+    ],
+    "require_gate": true,
+    "gates": [
+     "true",
+     "false",
+     "string_true"
+    ],
+    "enabled": "true",
+    "bars_since_promotion": 41,
+    "bars_since_last_rollback": 208
+   },
+   "expected": {
+    "target": 0,
+    "reason": "triggered"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "true",
+     "string_true",
+     "missing"
+    ],
+    "require_gate": false,
+    "gates": [
+     "true",
+     "string_true"
+    ],
+    "enabled": "string_true",
+    "bars_since_promotion": 66,
+    "bars_since_last_rollback": 60
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "true",
+     "string_true",
+     "false"
+    ],
+    "require_gate": true,
+    "gates": [
+     "false"
+    ],
+    "enabled": "one",
+    "bars_since_promotion": 45,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "missing",
+     "string_true",
+     "one"
+    ],
+    "require_gate": false,
+    "gates": [
+     "string_true",
+     "string_true"
+    ],
+    "enabled": "string_true",
+    "bars_since_promotion": null,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "string_true",
+     "missing",
+     "false"
+    ],
+    "require_gate": true,
+    "gates": [
+     "false"
+    ],
+    "enabled": "false",
+    "bars_since_promotion": 59,
+    "bars_since_last_rollback": 70
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "one",
+     "string_true",
+     "true"
+    ],
+    "require_gate": false,
+    "gates": [],
+    "enabled": "true",
+    "bars_since_promotion": 67,
+    "bars_since_last_rollback": 231
+   },
+   "expected": {
+    "target": null,
+    "reason": "blocked"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "missing",
+     "true",
+     "false"
+    ],
+    "require_gate": false,
+    "gates": [
+     "true",
+     "true",
+     "false"
+    ],
+    "enabled": "false",
+    "bars_since_promotion": 24,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "one",
+     "one",
+     "one"
+    ],
+    "require_gate": false,
+    "gates": [
+     "false"
+    ],
+    "enabled": "string_true",
+    "bars_since_promotion": 56,
+    "bars_since_last_rollback": 88
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "missing",
+     "true",
+     "missing"
+    ],
+    "require_gate": false,
+    "gates": [
+     "true",
+     "false",
+     "false"
+    ],
+    "enabled": "true",
+    "bars_since_promotion": 39,
+    "bars_since_last_rollback": 229
+   },
+   "expected": {
+    "target": null,
+    "reason": "blocked"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "false",
+     "one",
+     "true"
+    ],
+    "require_gate": false,
+    "gates": [],
+    "enabled": "one",
+    "bars_since_promotion": 79,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "true",
+     "false",
+     "one"
+    ],
+    "require_gate": true,
+    "gates": [],
+    "enabled": "string_true",
+    "bars_since_promotion": 1,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "true",
+     "one",
+     "missing"
+    ],
+    "require_gate": true,
+    "gates": [
+     "true"
+    ],
+    "enabled": "string_true",
+    "bars_since_promotion": 0,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "true",
+     "one",
+     "true"
+    ],
+    "require_gate": false,
+    "gates": [
+     "true",
+     "string_true",
+     "true"
+    ],
+    "enabled": "true",
+    "bars_since_promotion": 73,
+    "bars_since_last_rollback": 30
+   },
+   "expected": {
+    "target": null,
+    "reason": "blocked"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "string_true",
+     "false",
+     "missing"
+    ],
+    "require_gate": false,
+    "gates": [
+     "true",
+     "false"
+    ],
+    "enabled": "one",
+    "bars_since_promotion": null,
+    "bars_since_last_rollback": 173
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "one",
+     "missing",
+     "one"
+    ],
+    "require_gate": false,
+    "gates": [
+     "true"
+    ],
+    "enabled": "missing",
+    "bars_since_promotion": 7,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "missing",
+     "string_true",
+     "false"
+    ],
+    "require_gate": true,
+    "gates": [
+     "false",
+     "true",
+     "true"
+    ],
+    "enabled": "false",
+    "bars_since_promotion": 47,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "string_true",
+     "false",
+     "missing"
+    ],
+    "require_gate": false,
+    "gates": [],
+    "enabled": "missing",
+    "bars_since_promotion": 1,
+    "bars_since_last_rollback": 141
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "one",
+     "one",
+     "string_true"
+    ],
+    "require_gate": false,
+    "gates": [],
+    "enabled": "one",
+    "bars_since_promotion": 57,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "false",
+     "string_true",
+     "one"
+    ],
+    "require_gate": false,
+    "gates": [
+     "string_true",
+     "true"
+    ],
+    "enabled": "true",
+    "bars_since_promotion": 45,
+    "bars_since_last_rollback": 119
+   },
+   "expected": {
+    "target": null,
+    "reason": "no_trigger"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "missing",
+     "true",
+     "missing"
+    ],
+    "require_gate": true,
+    "gates": [
+     "false"
+    ],
+    "enabled": "string_true",
+    "bars_since_promotion": 33,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "string_true",
+     "one",
+     "true"
+    ],
+    "require_gate": true,
+    "gates": [
+     "string_true",
+     "string_true"
+    ],
+    "enabled": "false",
+    "bars_since_promotion": 13,
+    "bars_since_last_rollback": 208
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "string_true",
+     "false",
+     "string_true"
+    ],
+    "require_gate": true,
+    "gates": [],
+    "enabled": "true",
+    "bars_since_promotion": 49,
+    "bars_since_last_rollback": 108
+   },
+   "expected": {
+    "target": null,
+    "reason": "no_trigger"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "one",
+     "string_true",
+     "missing"
+    ],
+    "require_gate": true,
+    "gates": [
+     "string_true"
+    ],
+    "enabled": "true",
+    "bars_since_promotion": 21,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "no_trigger"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "true",
+     "one",
+     "one"
+    ],
+    "require_gate": false,
+    "gates": [
+     "string_true",
+     "string_true",
+     "string_true"
+    ],
+    "enabled": "false",
+    "bars_since_promotion": 42,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "false",
+     "true",
+     "string_true"
+    ],
+    "require_gate": true,
+    "gates": [
+     "string_true"
+    ],
+    "enabled": "true",
+    "bars_since_promotion": 7,
+    "bars_since_last_rollback": 150
+   },
+   "expected": {
+    "target": null,
+    "reason": "blocked"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "missing",
+     "false",
+     "one"
+    ],
+    "require_gate": false,
+    "gates": [],
+    "enabled": "false",
+    "bars_since_promotion": null,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "one",
+     "one",
+     "true"
+    ],
+    "require_gate": true,
+    "gates": [
+     "string_true",
+     "string_true",
+     "string_true"
+    ],
+    "enabled": "missing",
+    "bars_since_promotion": 78,
+    "bars_since_last_rollback": 164
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "missing",
+     "true",
+     "false"
+    ],
+    "require_gate": true,
+    "gates": [
+     "false",
+     "true",
+     "false"
+    ],
+    "enabled": "false",
+    "bars_since_promotion": null,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "false",
+     "string_true",
+     "one"
+    ],
+    "require_gate": true,
+    "gates": [
+     "true"
+    ],
+    "enabled": "true",
+    "bars_since_promotion": 14,
+    "bars_since_last_rollback": 89
+   },
+   "expected": {
+    "target": null,
+    "reason": "no_trigger"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "string_true",
+     "missing",
+     "true"
+    ],
+    "require_gate": true,
+    "gates": [
+     "false",
+     "string_true",
+     "false"
+    ],
+    "enabled": "false",
+    "bars_since_promotion": 42,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "string_true",
+     "string_true",
+     "false"
+    ],
+    "require_gate": false,
+    "gates": [
+     "false",
+     "string_true"
+    ],
+    "enabled": "string_true",
+    "bars_since_promotion": 77,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "string_true",
+     "true",
+     "true"
+    ],
+    "require_gate": false,
+    "gates": [
+     "true"
+    ],
+    "enabled": "string_true",
+    "bars_since_promotion": null,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "false",
+     "false",
+     "missing"
+    ],
+    "require_gate": true,
+    "gates": [],
+    "enabled": "one",
+    "bars_since_promotion": 18,
+    "bars_since_last_rollback": 19
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "one",
+     "one",
+     "missing"
+    ],
+    "require_gate": false,
+    "gates": [
+     "true",
+     "true"
+    ],
+    "enabled": "false",
+    "bars_since_promotion": 46,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "missing",
+     "one",
+     "one"
+    ],
+    "require_gate": false,
+    "gates": [],
+    "enabled": "one",
+    "bars_since_promotion": 68,
+    "bars_since_last_rollback": 229
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "one",
+     "missing",
+     "false"
+    ],
+    "require_gate": false,
+    "gates": [
+     "true"
+    ],
+    "enabled": "true",
+    "bars_since_promotion": 62,
+    "bars_since_last_rollback": 206
+   },
+   "expected": {
+    "target": null,
+    "reason": "no_trigger"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "string_true",
+     "missing",
+     "true"
+    ],
+    "require_gate": true,
+    "gates": [
+     "string_true",
+     "false"
+    ],
+    "enabled": "false",
+    "bars_since_promotion": 34,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "one",
+     "string_true",
+     "one"
+    ],
+    "require_gate": true,
+    "gates": [
+     "true"
+    ],
+    "enabled": "false",
+    "bars_since_promotion": 69,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "false",
+     "missing",
+     "true"
+    ],
+    "require_gate": false,
+    "gates": [
+     "string_true",
+     "true",
+     "true"
+    ],
+    "enabled": "missing",
+    "bars_since_promotion": 73,
+    "bars_since_last_rollback": 101
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "string_true",
+     "true",
+     "false"
+    ],
+    "require_gate": false,
+    "gates": [],
+    "enabled": "true",
+    "bars_since_promotion": 10,
+    "bars_since_last_rollback": 177
+   },
+   "expected": {
+    "target": null,
+    "reason": "blocked"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "false",
+     "string_true",
+     "missing"
+    ],
+    "require_gate": false,
+    "gates": [
+     "false"
+    ],
+    "enabled": "string_true",
+    "bars_since_promotion": 54,
+    "bars_since_last_rollback": 108
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "true",
+     "string_true",
+     "missing"
+    ],
+    "require_gate": false,
+    "gates": [
+     "string_true"
+    ],
+    "enabled": "true",
+    "bars_since_promotion": 40,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": 0,
+    "reason": "triggered"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "string_true",
+     "false",
+     "false"
+    ],
+    "require_gate": false,
+    "gates": [
+     "string_true",
+     "false"
+    ],
+    "enabled": "missing",
+    "bars_since_promotion": 7,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "false",
+     "missing",
+     "string_true"
+    ],
+    "require_gate": false,
+    "gates": [
+     "false",
+     "false",
+     "true"
+    ],
+    "enabled": "false",
+    "bars_since_promotion": 60,
+    "bars_since_last_rollback": 215
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "true",
+     "one",
+     "one"
+    ],
+    "require_gate": true,
+    "gates": [
+     "string_true",
+     "false"
+    ],
+    "enabled": "missing",
+    "bars_since_promotion": 28,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "one",
+     "false",
+     "missing"
+    ],
+    "require_gate": false,
+    "gates": [
+     "true",
+     "true",
+     "true"
+    ],
+    "enabled": "true",
+    "bars_since_promotion": 57,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "no_trigger"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "true",
+     "true",
+     "missing"
+    ],
+    "require_gate": false,
+    "gates": [],
+    "enabled": "string_true",
+    "bars_since_promotion": 13,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "true",
+     "true",
+     "missing"
+    ],
+    "require_gate": false,
+    "gates": [],
+    "enabled": "string_true",
+    "bars_since_promotion": 53,
+    "bars_since_last_rollback": 45
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "string_true",
+     "one",
+     "one"
+    ],
+    "require_gate": false,
+    "gates": [
+     "string_true",
+     "true",
+     "false"
+    ],
+    "enabled": "false",
+    "bars_since_promotion": 3,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "missing",
+     "missing",
+     "false"
+    ],
+    "require_gate": false,
+    "gates": [
+     "string_true",
+     "false"
+    ],
+    "enabled": "string_true",
+    "bars_since_promotion": null,
+    "bars_since_last_rollback": 222
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "true",
+     "true",
+     "true"
+    ],
+    "require_gate": true,
+    "gates": [
+     "false",
+     "false"
+    ],
+    "enabled": "one",
+    "bars_since_promotion": 39,
+    "bars_since_last_rollback": 101
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "one",
+     "missing",
+     "string_true"
+    ],
+    "require_gate": true,
+    "gates": [],
+    "enabled": "true",
+    "bars_since_promotion": null,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "no_trigger"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "string_true",
+     "missing",
+     "true"
+    ],
+    "require_gate": false,
+    "gates": [
+     "false",
+     "true"
+    ],
+    "enabled": "missing",
+    "bars_since_promotion": null,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "one",
+     "one",
+     "string_true"
+    ],
+    "require_gate": true,
+    "gates": [],
+    "enabled": "true",
+    "bars_since_promotion": 3,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "no_trigger"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "false",
+     "missing",
+     "one"
+    ],
+    "require_gate": true,
+    "gates": [],
+    "enabled": "one",
+    "bars_since_promotion": null,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "string_true",
+     "string_true",
+     "false"
+    ],
+    "require_gate": true,
+    "gates": [
+     "string_true",
+     "false",
+     "string_true"
+    ],
+    "enabled": "true",
+    "bars_since_promotion": 79,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "no_trigger"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "one",
+     "one",
+     "string_true"
+    ],
+    "require_gate": false,
+    "gates": [],
+    "enabled": "false",
+    "bars_since_promotion": null,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "false",
+     "false",
+     "missing"
+    ],
+    "require_gate": false,
+    "gates": [
+     "false",
+     "false",
+     "false"
+    ],
+    "enabled": "false",
+    "bars_since_promotion": 6,
+    "bars_since_last_rollback": 95
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "false",
+     "one",
+     "false"
+    ],
+    "require_gate": false,
+    "gates": [
+     "string_true",
+     "true",
+     "true"
+    ],
+    "enabled": "false",
+    "bars_since_promotion": 67,
+    "bars_since_last_rollback": 92
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "missing",
+     "one",
+     "one"
+    ],
+    "require_gate": false,
+    "gates": [
+     "string_true"
+    ],
+    "enabled": "one",
+    "bars_since_promotion": 37,
+    "bars_since_last_rollback": 207
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "string_true",
+     "true",
+     "false"
+    ],
+    "require_gate": true,
+    "gates": [
+     "true",
+     "true"
+    ],
+    "enabled": "one",
+    "bars_since_promotion": 75,
+    "bars_since_last_rollback": 106
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "true",
+     "string_true",
+     "true"
+    ],
+    "require_gate": true,
+    "gates": [
+     "string_true",
+     "true"
+    ],
+    "enabled": "one",
+    "bars_since_promotion": null,
+    "bars_since_last_rollback": 102
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "true",
+     "false",
+     "string_true"
+    ],
+    "require_gate": true,
+    "gates": [
+     "true"
+    ],
+    "enabled": "string_true",
+    "bars_since_promotion": 67,
+    "bars_since_last_rollback": 115
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "true",
+     "missing",
+     "string_true"
+    ],
+    "require_gate": false,
+    "gates": [],
+    "enabled": "string_true",
+    "bars_since_promotion": null,
+    "bars_since_last_rollback": 158
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "false",
+     "missing",
+     "missing"
+    ],
+    "require_gate": false,
+    "gates": [
+     "string_true"
+    ],
+    "enabled": "missing",
+    "bars_since_promotion": null,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "missing",
+     "one",
+     "missing"
+    ],
+    "require_gate": true,
+    "gates": [
+     "true",
+     "true"
+    ],
+    "enabled": "false",
+    "bars_since_promotion": null,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "missing",
+     "true",
+     "false"
+    ],
+    "require_gate": true,
+    "gates": [
+     "string_true"
+    ],
+    "enabled": "true",
+    "bars_since_promotion": 26,
+    "bars_since_last_rollback": 211
+   },
+   "expected": {
+    "target": null,
+    "reason": "blocked"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "false",
+     "false",
+     "false"
+    ],
+    "require_gate": true,
+    "gates": [],
+    "enabled": "false",
+    "bars_since_promotion": 76,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "missing",
+     "one",
+     "missing"
+    ],
+    "require_gate": false,
+    "gates": [
+     "false",
+     "string_true",
+     "string_true"
+    ],
+    "enabled": "string_true",
+    "bars_since_promotion": 29,
+    "bars_since_last_rollback": 229
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "string_true",
+     "one",
+     "missing"
+    ],
+    "require_gate": false,
+    "gates": [],
+    "enabled": "string_true",
+    "bars_since_promotion": 75,
+    "bars_since_last_rollback": 8
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "one",
+     "false",
+     "string_true"
+    ],
+    "require_gate": false,
+    "gates": [
+     "string_true"
+    ],
+    "enabled": "true",
+    "bars_since_promotion": 62,
+    "bars_since_last_rollback": 146
+   },
+   "expected": {
+    "target": null,
+    "reason": "no_trigger"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "one",
+     "missing",
+     "true"
+    ],
+    "require_gate": false,
+    "gates": [
+     "false"
+    ],
+    "enabled": "true",
+    "bars_since_promotion": 14,
+    "bars_since_last_rollback": 38
+   },
+   "expected": {
+    "target": null,
+    "reason": "blocked"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "false",
+     "true",
+     "true"
+    ],
+    "require_gate": false,
+    "gates": [],
+    "enabled": "true",
+    "bars_since_promotion": 12,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "blocked"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "one",
+     "string_true",
+     "missing"
+    ],
+    "require_gate": false,
+    "gates": [
+     "false",
+     "false",
+     "string_true"
+    ],
+    "enabled": "string_true",
+    "bars_since_promotion": 10,
+    "bars_since_last_rollback": 207
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "true",
+     "one",
+     "true"
+    ],
+    "require_gate": false,
+    "gates": [
+     "true",
+     "false",
+     "false"
+    ],
+    "enabled": "true",
+    "bars_since_promotion": null,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "blocked"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "missing",
+     "string_true",
+     "false"
+    ],
+    "require_gate": true,
+    "gates": [
+     "true"
+    ],
+    "enabled": "missing",
+    "bars_since_promotion": 19,
+    "bars_since_last_rollback": 226
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "one",
+     "missing",
+     "false"
+    ],
+    "require_gate": false,
+    "gates": [
+     "string_true"
+    ],
+    "enabled": "false",
+    "bars_since_promotion": 18,
+    "bars_since_last_rollback": 75
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "string_true",
+     "one",
+     "true"
+    ],
+    "require_gate": true,
+    "gates": [
+     "false"
+    ],
+    "enabled": "string_true",
+    "bars_since_promotion": 66,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "missing",
+     "true",
+     "false"
+    ],
+    "require_gate": true,
+    "gates": [
+     "string_true",
+     "true",
+     "string_true"
+    ],
+    "enabled": "string_true",
+    "bars_since_promotion": 29,
+    "bars_since_last_rollback": 114
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "false",
+     "missing",
+     "string_true"
+    ],
+    "require_gate": true,
+    "gates": [
+     "false",
+     "false",
+     "string_true"
+    ],
+    "enabled": "true",
+    "bars_since_promotion": 41,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "no_trigger"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "missing",
+     "true",
+     "one"
+    ],
+    "require_gate": false,
+    "gates": [
+     "false",
+     "string_true"
+    ],
+    "enabled": "one",
+    "bars_since_promotion": null,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "string_true",
+     "string_true",
+     "false"
+    ],
+    "require_gate": false,
+    "gates": [
+     "true",
+     "true",
+     "string_true"
+    ],
+    "enabled": "false",
+    "bars_since_promotion": 56,
+    "bars_since_last_rollback": 231
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "false",
+     "string_true",
+     "true"
+    ],
+    "require_gate": true,
+    "gates": [],
+    "enabled": "missing",
+    "bars_since_promotion": 5,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "true",
+     "string_true",
+     "one"
+    ],
+    "require_gate": false,
+    "gates": [
+     "true",
+     "true",
+     "string_true"
+    ],
+    "enabled": "false",
+    "bars_since_promotion": 43,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "one",
+     "false",
+     "one"
+    ],
+    "require_gate": true,
+    "gates": [
+     "false"
+    ],
+    "enabled": "one",
+    "bars_since_promotion": 67,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "true",
+     "string_true",
+     "false"
+    ],
+    "require_gate": true,
+    "gates": [
+     "true",
+     "true"
+    ],
+    "enabled": "one",
+    "bars_since_promotion": null,
+    "bars_since_last_rollback": 10
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "true",
+     "false",
+     "missing"
+    ],
+    "require_gate": false,
+    "gates": [
+     "string_true",
+     "true",
+     "string_true"
+    ],
+    "enabled": "missing",
+    "bars_since_promotion": 49,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "missing",
+     "false",
+     "string_true"
+    ],
+    "require_gate": true,
+    "gates": [],
+    "enabled": "false",
+    "bars_since_promotion": 29,
+    "bars_since_last_rollback": 172
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "one",
+     "missing",
+     "false"
+    ],
+    "require_gate": true,
+    "gates": [
+     "true"
+    ],
+    "enabled": "string_true",
+    "bars_since_promotion": 62,
+    "bars_since_last_rollback": 21
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "false",
+     "one",
+     "true"
+    ],
+    "require_gate": true,
+    "gates": [
+     "false"
+    ],
+    "enabled": "false",
+    "bars_since_promotion": 54,
+    "bars_since_last_rollback": 157
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "false",
+     "true",
+     "true"
+    ],
+    "require_gate": false,
+    "gates": [
+     "true",
+     "true"
+    ],
+    "enabled": "missing",
+    "bars_since_promotion": 28,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "true",
+     "true",
+     "one"
+    ],
+    "require_gate": true,
+    "gates": [
+     "string_true",
+     "true",
+     "string_true"
+    ],
+    "enabled": "one",
+    "bars_since_promotion": 62,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "false",
+     "missing",
+     "missing"
+    ],
+    "require_gate": false,
+    "gates": [
+     "string_true",
+     "false"
+    ],
+    "enabled": "string_true",
+    "bars_since_promotion": 14,
+    "bars_since_last_rollback": 205
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "false",
+     "false",
+     "true"
+    ],
+    "require_gate": true,
+    "gates": [],
+    "enabled": "false",
+    "bars_since_promotion": 36,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "missing",
+     "one",
+     "true"
+    ],
+    "require_gate": false,
+    "gates": [
+     "string_true"
+    ],
+    "enabled": "false",
+    "bars_since_promotion": 18,
+    "bars_since_last_rollback": 40
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "string_true",
+     "missing",
+     "false"
+    ],
+    "require_gate": false,
+    "gates": [],
+    "enabled": "missing",
+    "bars_since_promotion": 56,
+    "bars_since_last_rollback": 120
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "missing",
+     "true",
+     "true"
+    ],
+    "require_gate": false,
+    "gates": [
+     "true",
+     "string_true",
+     "false"
+    ],
+    "enabled": "true",
+    "bars_since_promotion": 41,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": 0,
+    "reason": "triggered"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "string_true",
+     "true",
+     "true"
+    ],
+    "require_gate": false,
+    "gates": [
+     "false",
+     "true",
+     "true"
+    ],
+    "enabled": "false",
+    "bars_since_promotion": 58,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "string_true",
+     "missing",
+     "missing"
+    ],
+    "require_gate": false,
+    "gates": [
+     "string_true",
+     "false",
+     "false"
+    ],
+    "enabled": "false",
+    "bars_since_promotion": null,
+    "bars_since_last_rollback": 166
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "true",
+     "missing",
+     "one"
+    ],
+    "require_gate": false,
+    "gates": [
+     "false"
+    ],
+    "enabled": "true",
+    "bars_since_promotion": 0,
+    "bars_since_last_rollback": 188
+   },
+   "expected": {
+    "target": null,
+    "reason": "blocked"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "true",
+     "string_true",
+     "false"
+    ],
+    "require_gate": true,
+    "gates": [
+     "false",
+     "true"
+    ],
+    "enabled": "missing",
+    "bars_since_promotion": null,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "string_true",
+     "string_true",
+     "string_true"
+    ],
+    "require_gate": false,
+    "gates": [
+     "string_true",
+     "string_true"
+    ],
+    "enabled": "missing",
+    "bars_since_promotion": null,
+    "bars_since_last_rollback": 228
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "missing",
+     "true",
+     "string_true"
+    ],
+    "require_gate": false,
+    "gates": [
+     "string_true"
+    ],
+    "enabled": "missing",
+    "bars_since_promotion": 2,
+    "bars_since_last_rollback": 1
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "one",
+     "false",
+     "one"
+    ],
+    "require_gate": true,
+    "gates": [
+     "string_true",
+     "false",
+     "false"
+    ],
+    "enabled": "string_true",
+    "bars_since_promotion": null,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "string_true",
+     "missing",
+     "false"
+    ],
+    "require_gate": false,
+    "gates": [],
+    "enabled": "true",
+    "bars_since_promotion": 37,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "no_trigger"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "true",
+     "one",
+     "string_true"
+    ],
+    "require_gate": true,
+    "gates": [
+     "true"
+    ],
+    "enabled": "missing",
+    "bars_since_promotion": 24,
+    "bars_since_last_rollback": 127
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "missing",
+     "string_true",
+     "one"
+    ],
+    "require_gate": true,
+    "gates": [
+     "false"
+    ],
+    "enabled": "one",
+    "bars_since_promotion": 74,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "one",
+     "missing",
+     "false"
+    ],
+    "require_gate": false,
+    "gates": [
+     "true",
+     "false"
+    ],
+    "enabled": "one",
+    "bars_since_promotion": 18,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "string_true",
+     "string_true",
+     "missing"
+    ],
+    "require_gate": false,
+    "gates": [
+     "false",
+     "string_true",
+     "string_true"
+    ],
+    "enabled": "one",
+    "bars_since_promotion": 74,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "missing",
+     "true",
+     "missing"
+    ],
+    "require_gate": true,
+    "gates": [
+     "string_true",
+     "false"
+    ],
+    "enabled": "one",
+    "bars_since_promotion": 31,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "one",
+     "true",
+     "missing"
+    ],
+    "require_gate": true,
+    "gates": [],
+    "enabled": "false",
+    "bars_since_promotion": 62,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "true",
+     "missing",
+     "true"
+    ],
+    "require_gate": false,
+    "gates": [
+     "true",
+     "true",
+     "string_true"
+    ],
+    "enabled": "true",
+    "bars_since_promotion": 1,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "blocked"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "string_true",
+     "missing",
+     "false"
+    ],
+    "require_gate": false,
+    "gates": [
+     "false",
+     "true",
+     "string_true"
+    ],
+    "enabled": "true",
+    "bars_since_promotion": 0,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "no_trigger"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "one",
+     "false",
+     "missing"
+    ],
+    "require_gate": true,
+    "gates": [
+     "true",
+     "string_true"
+    ],
+    "enabled": "false",
+    "bars_since_promotion": 19,
+    "bars_since_last_rollback": 224
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "string_true",
+     "string_true",
+     "false"
+    ],
+    "require_gate": false,
+    "gates": [
+     "string_true",
+     "true"
+    ],
+    "enabled": "false",
+    "bars_since_promotion": null,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "one",
+     "false",
+     "string_true"
+    ],
+    "require_gate": true,
+    "gates": [
+     "true",
+     "false"
+    ],
+    "enabled": "string_true",
+    "bars_since_promotion": 79,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "missing",
+     "false",
+     "one"
+    ],
+    "require_gate": true,
+    "gates": [],
+    "enabled": "missing",
+    "bars_since_promotion": 38,
+    "bars_since_last_rollback": 66
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "false",
+     "one",
+     "string_true"
+    ],
+    "require_gate": true,
+    "gates": [],
+    "enabled": "string_true",
+    "bars_since_promotion": null,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "false",
+     "missing",
+     "missing"
+    ],
+    "require_gate": false,
+    "gates": [],
+    "enabled": "one",
+    "bars_since_promotion": 67,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "string_true",
+     "true",
+     "string_true"
+    ],
+    "require_gate": false,
+    "gates": [],
+    "enabled": "one",
+    "bars_since_promotion": 42,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "missing",
+     "true",
+     "one"
+    ],
+    "require_gate": true,
+    "gates": [
+     "string_true",
+     "false"
+    ],
+    "enabled": "missing",
+    "bars_since_promotion": 78,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "missing",
+     "missing",
+     "false"
+    ],
+    "require_gate": true,
+    "gates": [
+     "true"
+    ],
+    "enabled": "false",
+    "bars_since_promotion": 61,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "true",
+     "string_true",
+     "false"
+    ],
+    "require_gate": true,
+    "gates": [
+     "string_true",
+     "string_true",
+     "false"
+    ],
+    "enabled": "one",
+    "bars_since_promotion": 79,
+    "bars_since_last_rollback": 175
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "false",
+     "missing",
+     "missing"
+    ],
+    "require_gate": true,
+    "gates": [
+     "false"
+    ],
+    "enabled": "one",
+    "bars_since_promotion": null,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "false",
+     "missing",
+     "true"
+    ],
+    "require_gate": false,
+    "gates": [
+     "string_true",
+     "string_true"
+    ],
+    "enabled": "false",
+    "bars_since_promotion": 44,
+    "bars_since_last_rollback": 112
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "one",
+     "missing",
+     "missing"
+    ],
+    "require_gate": true,
+    "gates": [
+     "false"
+    ],
+    "enabled": "one",
+    "bars_since_promotion": 78,
+    "bars_since_last_rollback": 181
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "one",
+     "one",
+     "string_true"
+    ],
+    "require_gate": false,
+    "gates": [
+     "false",
+     "false"
+    ],
+    "enabled": "missing",
+    "bars_since_promotion": 50,
+    "bars_since_last_rollback": 139
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "string_true",
+     "missing",
+     "false"
+    ],
+    "require_gate": true,
+    "gates": [
+     "string_true",
+     "false",
+     "true"
+    ],
+    "enabled": "false",
+    "bars_since_promotion": 31,
+    "bars_since_last_rollback": 26
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "false",
+     "true",
+     "string_true"
+    ],
+    "require_gate": false,
+    "gates": [
+     "false"
+    ],
+    "enabled": "false",
+    "bars_since_promotion": 78,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "false",
+     "missing",
+     "string_true"
+    ],
+    "require_gate": true,
+    "gates": [],
+    "enabled": "false",
+    "bars_since_promotion": 57,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "one",
+     "true",
+     "one"
+    ],
+    "require_gate": true,
+    "gates": [
+     "string_true",
+     "string_true",
+     "string_true"
+    ],
+    "enabled": "false",
+    "bars_since_promotion": 21,
+    "bars_since_last_rollback": 207
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "false",
+     "true",
+     "false"
+    ],
+    "require_gate": true,
+    "gates": [
+     "true",
+     "string_true"
+    ],
+    "enabled": "string_true",
+    "bars_since_promotion": 39,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "string_true",
+     "string_true",
+     "false"
+    ],
+    "require_gate": true,
+    "gates": [
+     "false",
+     "string_true"
+    ],
+    "enabled": "missing",
+    "bars_since_promotion": 7,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "false",
+     "one",
+     "missing"
+    ],
+    "require_gate": true,
+    "gates": [
+     "string_true"
+    ],
+    "enabled": "one",
+    "bars_since_promotion": 63,
+    "bars_since_last_rollback": 59
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "missing",
+     "false",
+     "missing"
+    ],
+    "require_gate": true,
+    "gates": [],
+    "enabled": "missing",
+    "bars_since_promotion": 10,
+    "bars_since_last_rollback": 45
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "false",
+     "true",
+     "false"
+    ],
+    "require_gate": true,
+    "gates": [
+     "false",
+     "true",
+     "string_true"
+    ],
+    "enabled": "true",
+    "bars_since_promotion": 22,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "blocked"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "false",
+     "true",
+     "missing"
+    ],
+    "require_gate": false,
+    "gates": [],
+    "enabled": "one",
+    "bars_since_promotion": 30,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "string_true",
+     "true",
+     "string_true"
+    ],
+    "require_gate": true,
+    "gates": [],
+    "enabled": "string_true",
+    "bars_since_promotion": 34,
+    "bars_since_last_rollback": 159
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "string_true",
+     "false",
+     "string_true"
+    ],
+    "require_gate": true,
+    "gates": [
+     "true",
+     "true",
+     "false"
+    ],
+    "enabled": "one",
+    "bars_since_promotion": 38,
+    "bars_since_last_rollback": 189
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "false",
+     "false",
+     "string_true"
+    ],
+    "require_gate": false,
+    "gates": [
+     "string_true",
+     "string_true",
+     "true"
+    ],
+    "enabled": "missing",
+    "bars_since_promotion": 6,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "true",
+     "false",
+     "false"
+    ],
+    "require_gate": true,
+    "gates": [
+     "false"
+    ],
+    "enabled": "string_true",
+    "bars_since_promotion": 1,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "true",
+     "missing",
+     "true"
+    ],
+    "require_gate": false,
+    "gates": [],
+    "enabled": "missing",
+    "bars_since_promotion": 43,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "true",
+     "true",
+     "missing"
+    ],
+    "require_gate": true,
+    "gates": [],
+    "enabled": "missing",
+    "bars_since_promotion": null,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "missing",
+     "missing",
+     "string_true"
+    ],
+    "require_gate": false,
+    "gates": [
+     "false",
+     "false",
+     "true"
+    ],
+    "enabled": "false",
+    "bars_since_promotion": 17,
+    "bars_since_last_rollback": 15
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "true",
+     "one",
+     "false"
+    ],
+    "require_gate": false,
+    "gates": [
+     "false"
+    ],
+    "enabled": "one",
+    "bars_since_promotion": 70,
+    "bars_since_last_rollback": 135
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "false",
+     "true",
+     "one"
+    ],
+    "require_gate": true,
+    "gates": [],
+    "enabled": "true",
+    "bars_since_promotion": null,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "blocked"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "string_true",
+     "true",
+     "one"
+    ],
+    "require_gate": true,
+    "gates": [],
+    "enabled": "false",
+    "bars_since_promotion": 11,
+    "bars_since_last_rollback": 130
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "string_true",
+     "false",
+     "string_true"
+    ],
+    "require_gate": true,
+    "gates": [
+     "string_true"
+    ],
+    "enabled": "missing",
+    "bars_since_promotion": 21,
+    "bars_since_last_rollback": 76
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "one",
+     "missing",
+     "false"
+    ],
+    "require_gate": true,
+    "gates": [
+     "string_true",
+     "false"
+    ],
+    "enabled": "false",
+    "bars_since_promotion": 35,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "string_true",
+     "missing",
+     "missing"
+    ],
+    "require_gate": true,
+    "gates": [],
+    "enabled": "false",
+    "bars_since_promotion": null,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "false",
+     "missing",
+     "true"
+    ],
+    "require_gate": true,
+    "gates": [
+     "false",
+     "true",
+     "false"
+    ],
+    "enabled": "missing",
+    "bars_since_promotion": 43,
+    "bars_since_last_rollback": 142
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "one",
+     "string_true",
+     "missing"
+    ],
+    "require_gate": true,
+    "gates": [
+     "true",
+     "false"
+    ],
+    "enabled": "true",
+    "bars_since_promotion": 2,
+    "bars_since_last_rollback": 218
+   },
+   "expected": {
+    "target": null,
+    "reason": "no_trigger"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "one",
+     "false",
+     "one"
+    ],
+    "require_gate": false,
+    "gates": [
+     "string_true",
+     "true"
+    ],
+    "enabled": "false",
+    "bars_since_promotion": 57,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "true",
+     "false",
+     "true"
+    ],
+    "require_gate": false,
+    "gates": [
+     "true",
+     "false",
+     "false"
+    ],
+    "enabled": "string_true",
+    "bars_since_promotion": 4,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "true",
+     "one",
+     "false"
+    ],
+    "require_gate": true,
+    "gates": [],
+    "enabled": "missing",
+    "bars_since_promotion": 77,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "string_true",
+     "missing",
+     "one"
+    ],
+    "require_gate": false,
+    "gates": [
+     "false",
+     "string_true",
+     "true"
+    ],
+    "enabled": "missing",
+    "bars_since_promotion": 49,
+    "bars_since_last_rollback": 40
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "false",
+     "one",
+     "one"
+    ],
+    "require_gate": true,
+    "gates": [
+     "false"
+    ],
+    "enabled": "missing",
+    "bars_since_promotion": 71,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "one",
+     "true",
+     "false"
+    ],
+    "require_gate": false,
+    "gates": [
+     "true",
+     "true",
+     "string_true"
+    ],
+    "enabled": "true",
+    "bars_since_promotion": 37,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "blocked"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "one",
+     "missing",
+     "one"
+    ],
+    "require_gate": true,
+    "gates": [
+     "string_true",
+     "string_true"
+    ],
+    "enabled": "true",
+    "bars_since_promotion": 77,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "no_trigger"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "true",
+     "string_true",
+     "string_true"
+    ],
+    "require_gate": true,
+    "gates": [
+     "true",
+     "true",
+     "true"
+    ],
+    "enabled": "string_true",
+    "bars_since_promotion": 50,
+    "bars_since_last_rollback": 92
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "string_true",
+     "false",
+     "string_true"
+    ],
+    "require_gate": false,
+    "gates": [],
+    "enabled": "string_true",
+    "bars_since_promotion": 28,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "one",
+     "true",
+     "one"
+    ],
+    "require_gate": false,
+    "gates": [
+     "string_true"
+    ],
+    "enabled": "missing",
+    "bars_since_promotion": 32,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "missing",
+     "one",
+     "one"
+    ],
+    "require_gate": false,
+    "gates": [
+     "false",
+     "string_true",
+     "false"
+    ],
+    "enabled": "true",
+    "bars_since_promotion": 43,
+    "bars_since_last_rollback": 20
+   },
+   "expected": {
+    "target": null,
+    "reason": "no_trigger"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "true",
+     "true",
+     "false"
+    ],
+    "require_gate": false,
+    "gates": [
+     "true"
+    ],
+    "enabled": "true",
+    "bars_since_promotion": 52,
+    "bars_since_last_rollback": 228
+   },
+   "expected": {
+    "target": 0,
+    "reason": "triggered"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "false",
+     "missing",
+     "string_true"
+    ],
+    "require_gate": false,
+    "gates": [],
+    "enabled": "one",
+    "bars_since_promotion": 67,
+    "bars_since_last_rollback": 191
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "missing",
+     "true",
+     "false"
+    ],
+    "require_gate": true,
+    "gates": [
+     "false",
+     "string_true",
+     "string_true"
+    ],
+    "enabled": "one",
+    "bars_since_promotion": 41,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "false",
+     "false",
+     "true"
+    ],
+    "require_gate": true,
+    "gates": [
+     "string_true"
+    ],
+    "enabled": "true",
+    "bars_since_promotion": 64,
+    "bars_since_last_rollback": 164
+   },
+   "expected": {
+    "target": null,
+    "reason": "blocked"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "false",
+     "string_true",
+     "true"
+    ],
+    "require_gate": true,
+    "gates": [
+     "true",
+     "string_true",
+     "true"
+    ],
+    "enabled": "one",
+    "bars_since_promotion": 19,
+    "bars_since_last_rollback": 172
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "one",
+     "false",
+     "false"
+    ],
+    "require_gate": true,
+    "gates": [],
+    "enabled": "false",
+    "bars_since_promotion": 3,
+    "bars_since_last_rollback": 39
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "missing",
+     "one",
+     "missing"
+    ],
+    "require_gate": true,
+    "gates": [
+     "string_true"
+    ],
+    "enabled": "false",
+    "bars_since_promotion": 2,
+    "bars_since_last_rollback": 212
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "true",
+     "false",
+     "missing"
+    ],
+    "require_gate": false,
+    "gates": [
+     "false",
+     "false",
+     "false"
+    ],
+    "enabled": "true",
+    "bars_since_promotion": 79,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": 0,
+    "reason": "triggered"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "true",
+     "true",
+     "one"
+    ],
+    "require_gate": true,
+    "gates": [
+     "string_true"
+    ],
+    "enabled": "false",
+    "bars_since_promotion": null,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "true",
+     "false",
+     "false"
+    ],
+    "require_gate": false,
+    "gates": [
+     "false"
+    ],
+    "enabled": "false",
+    "bars_since_promotion": 2,
+    "bars_since_last_rollback": 208
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "string_true",
+     "one",
+     "false"
+    ],
+    "require_gate": false,
+    "gates": [
+     "false",
+     "true",
+     "true"
+    ],
+    "enabled": "one",
+    "bars_since_promotion": null,
+    "bars_since_last_rollback": 105
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "one",
+     "true",
+     "false"
+    ],
+    "require_gate": true,
+    "gates": [],
+    "enabled": "one",
+    "bars_since_promotion": 79,
+    "bars_since_last_rollback": 104
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "missing",
+     "false",
+     "true"
+    ],
+    "require_gate": true,
+    "gates": [
+     "false",
+     "false",
+     "string_true"
+    ],
+    "enabled": "false",
+    "bars_since_promotion": 72,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "string_true",
+     "true",
+     "true"
+    ],
+    "require_gate": false,
+    "gates": [],
+    "enabled": "string_true",
+    "bars_since_promotion": 30,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "missing",
+     "false",
+     "string_true"
+    ],
+    "require_gate": true,
+    "gates": [
+     "false"
+    ],
+    "enabled": "missing",
+    "bars_since_promotion": 19,
+    "bars_since_last_rollback": 163
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "false",
+     "missing",
+     "missing"
+    ],
+    "require_gate": false,
+    "gates": [],
+    "enabled": "missing",
+    "bars_since_promotion": null,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "missing",
+     "string_true",
+     "missing"
+    ],
+    "require_gate": true,
+    "gates": [
+     "false",
+     "false"
+    ],
+    "enabled": "missing",
+    "bars_since_promotion": 51,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "one",
+     "one",
+     "string_true"
+    ],
+    "require_gate": false,
+    "gates": [
+     "string_true",
+     "true"
+    ],
+    "enabled": "one",
+    "bars_since_promotion": 72,
+    "bars_since_last_rollback": 201
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "missing",
+     "false",
+     "false"
+    ],
+    "require_gate": false,
+    "gates": [
+     "false"
+    ],
+    "enabled": "missing",
+    "bars_since_promotion": null,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "missing",
+     "true",
+     "false"
+    ],
+    "require_gate": true,
+    "gates": [],
+    "enabled": "one",
+    "bars_since_promotion": 65,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "one",
+     "true",
+     "one"
+    ],
+    "require_gate": true,
+    "gates": [
+     "false",
+     "string_true"
+    ],
+    "enabled": "true",
+    "bars_since_promotion": 34,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "blocked"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "missing",
+     "missing",
+     "false"
+    ],
+    "require_gate": false,
+    "gates": [
+     "true",
+     "string_true",
+     "false"
+    ],
+    "enabled": "false",
+    "bars_since_promotion": 56,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "one",
+     "string_true",
+     "string_true"
+    ],
+    "require_gate": true,
+    "gates": [
+     "string_true",
+     "true",
+     "string_true"
+    ],
+    "enabled": "missing",
+    "bars_since_promotion": 76,
+    "bars_since_last_rollback": 70
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "true",
+     "missing",
+     "one"
+    ],
+    "require_gate": true,
+    "gates": [],
+    "enabled": "string_true",
+    "bars_since_promotion": 55,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "string_true",
+     "true",
+     "true"
+    ],
+    "require_gate": false,
+    "gates": [],
+    "enabled": "string_true",
+    "bars_since_promotion": 11,
+    "bars_since_last_rollback": 89
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "missing",
+     "one",
+     "false"
+    ],
+    "require_gate": false,
+    "gates": [
+     "true",
+     "true",
+     "string_true"
+    ],
+    "enabled": "true",
+    "bars_since_promotion": 17,
+    "bars_since_last_rollback": 177
+   },
+   "expected": {
+    "target": null,
+    "reason": "no_trigger"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "one",
+     "missing",
+     "string_true"
+    ],
+    "require_gate": true,
+    "gates": [
+     "string_true",
+     "string_true"
+    ],
+    "enabled": "one",
+    "bars_since_promotion": 78,
+    "bars_since_last_rollback": 109
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "one",
+     "true",
+     "one"
+    ],
+    "require_gate": false,
+    "gates": [
+     "false",
+     "false",
+     "string_true"
+    ],
+    "enabled": "false",
+    "bars_since_promotion": 62,
+    "bars_since_last_rollback": 177
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "string_true",
+     "string_true",
+     "one"
+    ],
+    "require_gate": true,
+    "gates": [],
+    "enabled": "missing",
+    "bars_since_promotion": 56,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "true",
+     "true",
+     "missing"
+    ],
+    "require_gate": true,
+    "gates": [
+     "string_true"
+    ],
+    "enabled": "true",
+    "bars_since_promotion": 54,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "blocked"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "missing",
+     "true",
+     "one"
+    ],
+    "require_gate": true,
+    "gates": [
+     "string_true"
+    ],
+    "enabled": "true",
+    "bars_since_promotion": 64,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "blocked"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "false",
+     "true",
+     "true"
+    ],
+    "require_gate": false,
+    "gates": [
+     "false"
+    ],
+    "enabled": "string_true",
+    "bars_since_promotion": 21,
+    "bars_since_last_rollback": 189
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "false",
+     "string_true",
+     "false"
+    ],
+    "require_gate": true,
+    "gates": [
+     "string_true"
+    ],
+    "enabled": "missing",
+    "bars_since_promotion": 52,
+    "bars_since_last_rollback": 198
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "false",
+     "string_true",
+     "string_true"
+    ],
+    "require_gate": false,
+    "gates": [
+     "false"
+    ],
+    "enabled": "string_true",
+    "bars_since_promotion": 14,
+    "bars_since_last_rollback": 86
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "one",
+     "true",
+     "true"
+    ],
+    "require_gate": false,
+    "gates": [],
+    "enabled": "string_true",
+    "bars_since_promotion": 8,
+    "bars_since_last_rollback": 213
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "string_true",
+     "true",
+     "true"
+    ],
+    "require_gate": true,
+    "gates": [
+     "false",
+     "string_true"
+    ],
+    "enabled": "false",
+    "bars_since_promotion": 51,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "false",
+     "missing",
+     "string_true"
+    ],
+    "require_gate": false,
+    "gates": [
+     "string_true",
+     "true",
+     "true"
+    ],
+    "enabled": "string_true",
+    "bars_since_promotion": 57,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "false",
+     "false",
+     "true"
+    ],
+    "require_gate": false,
+    "gates": [
+     "true",
+     "true"
+    ],
+    "enabled": "string_true",
+    "bars_since_promotion": null,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "one",
+     "missing",
+     "false"
+    ],
+    "require_gate": true,
+    "gates": [
+     "true",
+     "string_true",
+     "string_true"
+    ],
+    "enabled": "false",
+    "bars_since_promotion": 25,
+    "bars_since_last_rollback": 153
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "true",
+     "true",
+     "missing"
+    ],
+    "require_gate": true,
+    "gates": [
+     "string_true"
+    ],
+    "enabled": "true",
+    "bars_since_promotion": 58,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "blocked"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "missing",
+     "true",
+     "true"
+    ],
+    "require_gate": true,
+    "gates": [
+     "false"
+    ],
+    "enabled": "true",
+    "bars_since_promotion": null,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "blocked"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "one",
+     "string_true",
+     "false"
+    ],
+    "require_gate": false,
+    "gates": [
+     "string_true",
+     "string_true"
+    ],
+    "enabled": "false",
+    "bars_since_promotion": 12,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "one",
+     "one",
+     "missing"
+    ],
+    "require_gate": false,
+    "gates": [
+     "false",
+     "string_true",
+     "false"
+    ],
+    "enabled": "missing",
+    "bars_since_promotion": 76,
+    "bars_since_last_rollback": 14
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "false",
+     "true",
+     "false"
+    ],
+    "require_gate": false,
+    "gates": [
+     "string_true",
+     "string_true",
+     "string_true"
+    ],
+    "enabled": "true",
+    "bars_since_promotion": 35,
+    "bars_since_last_rollback": 158
+   },
+   "expected": {
+    "target": null,
+    "reason": "blocked"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "missing",
+     "true",
+     "true"
+    ],
+    "require_gate": true,
+    "gates": [
+     "string_true",
+     "false",
+     "string_true"
+    ],
+    "enabled": "true",
+    "bars_since_promotion": 77,
+    "bars_since_last_rollback": 84
+   },
+   "expected": {
+    "target": null,
+    "reason": "blocked"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "one",
+     "one",
+     "string_true"
+    ],
+    "require_gate": false,
+    "gates": [],
+    "enabled": "string_true",
+    "bars_since_promotion": null,
+    "bars_since_last_rollback": 144
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "one",
+     "one",
+     "false"
+    ],
+    "require_gate": false,
+    "gates": [
+     "true",
+     "true"
+    ],
+    "enabled": "true",
+    "bars_since_promotion": 5,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "no_trigger"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "one",
+     "false",
+     "false"
+    ],
+    "require_gate": true,
+    "gates": [
+     "string_true",
+     "false",
+     "true"
+    ],
+    "enabled": "true",
+    "bars_since_promotion": 76,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "no_trigger"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "missing",
+     "false",
+     "true"
+    ],
+    "require_gate": false,
+    "gates": [],
+    "enabled": "string_true",
+    "bars_since_promotion": 55,
+    "bars_since_last_rollback": 222
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "true",
+     "missing",
+     "string_true"
+    ],
+    "require_gate": true,
+    "gates": [],
+    "enabled": "missing",
+    "bars_since_promotion": 77,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "false",
+     "missing",
+     "string_true"
+    ],
+    "require_gate": false,
+    "gates": [
+     "true"
+    ],
+    "enabled": "false",
+    "bars_since_promotion": 13,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "false",
+     "true",
+     "string_true"
+    ],
+    "require_gate": false,
+    "gates": [
+     "true"
+    ],
+    "enabled": "true",
+    "bars_since_promotion": null,
+    "bars_since_last_rollback": 69
+   },
+   "expected": {
+    "target": null,
+    "reason": "blocked"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "false",
+     "string_true",
+     "true"
+    ],
+    "require_gate": false,
+    "gates": [
+     "true",
+     "true",
+     "false"
+    ],
+    "enabled": "one",
+    "bars_since_promotion": 50,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "false",
+     "false",
+     "one"
+    ],
+    "require_gate": true,
+    "gates": [
+     "true",
+     "true",
+     "string_true"
+    ],
+    "enabled": "true",
+    "bars_since_promotion": null,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "no_trigger"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "true",
+     "missing",
+     "one"
+    ],
+    "require_gate": false,
+    "gates": [
+     "string_true"
+    ],
+    "enabled": "missing",
+    "bars_since_promotion": 31,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "missing",
+     "false",
+     "true"
+    ],
+    "require_gate": true,
+    "gates": [],
+    "enabled": "missing",
+    "bars_since_promotion": null,
+    "bars_since_last_rollback": 239
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "missing",
+     "one",
+     "true"
+    ],
+    "require_gate": false,
+    "gates": [
+     "false",
+     "true",
+     "false"
+    ],
+    "enabled": "true",
+    "bars_since_promotion": 47,
+    "bars_since_last_rollback": 223
+   },
+   "expected": {
+    "target": 0,
+    "reason": "triggered"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "one",
+     "string_true",
+     "false"
+    ],
+    "require_gate": false,
+    "gates": [
+     "true",
+     "false"
+    ],
+    "enabled": "one",
+    "bars_since_promotion": 16,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "missing",
+     "true",
+     "string_true"
+    ],
+    "require_gate": false,
+    "gates": [],
+    "enabled": "false",
+    "bars_since_promotion": 64,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "missing",
+     "one",
+     "missing"
+    ],
+    "require_gate": true,
+    "gates": [
+     "string_true",
+     "false"
+    ],
+    "enabled": "string_true",
+    "bars_since_promotion": 32,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "false",
+     "missing",
+     "one"
+    ],
+    "require_gate": true,
+    "gates": [
+     "false"
+    ],
+    "enabled": "string_true",
+    "bars_since_promotion": 68,
+    "bars_since_last_rollback": 209
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "true",
+     "true",
+     "string_true"
+    ],
+    "require_gate": true,
+    "gates": [
+     "string_true"
+    ],
+    "enabled": "false",
+    "bars_since_promotion": 15,
+    "bars_since_last_rollback": 156
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "one",
+     "string_true",
+     "string_true"
+    ],
+    "require_gate": false,
+    "gates": [
+     "string_true",
+     "false",
+     "false"
+    ],
+    "enabled": "false",
+    "bars_since_promotion": 77,
+    "bars_since_last_rollback": 163
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "one",
+     "true",
+     "string_true"
+    ],
+    "require_gate": true,
+    "gates": [],
+    "enabled": "string_true",
+    "bars_since_promotion": 33,
+    "bars_since_last_rollback": 235
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "string_true",
+     "missing",
+     "false"
+    ],
+    "require_gate": true,
+    "gates": [
+     "false",
+     "string_true"
+    ],
+    "enabled": "one",
+    "bars_since_promotion": 19,
+    "bars_since_last_rollback": 77
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "true",
+     "true",
+     "one"
+    ],
+    "require_gate": false,
+    "gates": [],
+    "enabled": "true",
+    "bars_since_promotion": 16,
+    "bars_since_last_rollback": 164
+   },
+   "expected": {
+    "target": null,
+    "reason": "blocked"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "string_true",
+     "false",
+     "string_true"
+    ],
+    "require_gate": true,
+    "gates": [],
+    "enabled": "missing",
+    "bars_since_promotion": 45,
+    "bars_since_last_rollback": 105
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "true",
+     "missing",
+     "true"
+    ],
+    "require_gate": false,
+    "gates": [
+     "true",
+     "string_true",
+     "string_true"
+    ],
+    "enabled": "one",
+    "bars_since_promotion": 47,
+    "bars_since_last_rollback": 58
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "false",
+     "missing",
+     "one"
+    ],
+    "require_gate": true,
+    "gates": [
+     "string_true",
+     "true",
+     "false"
+    ],
+    "enabled": "false",
+    "bars_since_promotion": 12,
+    "bars_since_last_rollback": 223
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "true",
+     "string_true",
+     "missing"
+    ],
+    "require_gate": true,
+    "gates": [
+     "false"
+    ],
+    "enabled": "false",
+    "bars_since_promotion": null,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "string_true",
+     "missing",
+     "true"
+    ],
+    "require_gate": true,
+    "gates": [],
+    "enabled": "missing",
+    "bars_since_promotion": 63,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "true",
+     "false",
+     "string_true"
+    ],
+    "require_gate": true,
+    "gates": [],
+    "enabled": "true",
+    "bars_since_promotion": null,
+    "bars_since_last_rollback": 73
+   },
+   "expected": {
+    "target": null,
+    "reason": "blocked"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "missing",
+     "false",
+     "true"
+    ],
+    "require_gate": true,
+    "gates": [],
+    "enabled": "one",
+    "bars_since_promotion": 17,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "true",
+     "string_true",
+     "false"
+    ],
+    "require_gate": false,
+    "gates": [
+     "string_true",
+     "false",
+     "false"
+    ],
+    "enabled": "one",
+    "bars_since_promotion": 9,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "missing",
+     "false",
+     "false"
+    ],
+    "require_gate": true,
+    "gates": [
+     "string_true",
+     "false",
+     "false"
+    ],
+    "enabled": "one",
+    "bars_since_promotion": 54,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "one",
+     "one",
+     "string_true"
+    ],
+    "require_gate": false,
+    "gates": [
+     "true",
+     "false",
+     "true"
+    ],
+    "enabled": "one",
+    "bars_since_promotion": 67,
+    "bars_since_last_rollback": 194
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "missing",
+     "false",
+     "true"
+    ],
+    "require_gate": true,
+    "gates": [
+     "true",
+     "false",
+     "true"
+    ],
+    "enabled": "one",
+    "bars_since_promotion": 4,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "missing",
+     "false",
+     "true"
+    ],
+    "require_gate": false,
+    "gates": [],
+    "enabled": "string_true",
+    "bars_since_promotion": null,
+    "bars_since_last_rollback": 37
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "false",
+     "false",
+     "true"
+    ],
+    "require_gate": true,
+    "gates": [
+     "true",
+     "false",
+     "false"
+    ],
+    "enabled": "missing",
+    "bars_since_promotion": 14,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "false",
+     "missing",
+     "one"
+    ],
+    "require_gate": true,
+    "gates": [
+     "false"
+    ],
+    "enabled": "one",
+    "bars_since_promotion": 57,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "true",
+     "missing",
+     "true"
+    ],
+    "require_gate": true,
+    "gates": [
+     "string_true",
+     "true",
+     "true"
+    ],
+    "enabled": "string_true",
+    "bars_since_promotion": null,
+    "bars_since_last_rollback": 237
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "missing",
+     "missing",
+     "missing"
+    ],
+    "require_gate": false,
+    "gates": [
+     "true",
+     "true",
+     "string_true"
+    ],
+    "enabled": "one",
+    "bars_since_promotion": 7,
+    "bars_since_last_rollback": 232
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "string_true",
+     "missing",
+     "true"
+    ],
+    "require_gate": false,
+    "gates": [],
+    "enabled": "string_true",
+    "bars_since_promotion": 11,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "one",
+     "string_true",
+     "string_true"
+    ],
+    "require_gate": true,
+    "gates": [
+     "string_true"
+    ],
+    "enabled": "false",
+    "bars_since_promotion": null,
+    "bars_since_last_rollback": 137
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "missing",
+     "true",
+     "one"
+    ],
+    "require_gate": false,
+    "gates": [
+     "false",
+     "string_true"
+    ],
+    "enabled": "one",
+    "bars_since_promotion": 37,
+    "bars_since_last_rollback": 138
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "one",
+     "one",
+     "one"
+    ],
+    "require_gate": false,
+    "gates": [],
+    "enabled": "one",
+    "bars_since_promotion": null,
+    "bars_since_last_rollback": 192
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "string_true",
+     "true",
+     "missing"
+    ],
+    "require_gate": true,
+    "gates": [
+     "string_true",
+     "false",
+     "true"
+    ],
+    "enabled": "false",
+    "bars_since_promotion": 7,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "true",
+     "false",
+     "true"
+    ],
+    "require_gate": false,
+    "gates": [
+     "string_true"
+    ],
+    "enabled": "string_true",
+    "bars_since_promotion": 31,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "string_true",
+     "string_true",
+     "false"
+    ],
+    "require_gate": true,
+    "gates": [
+     "false",
+     "string_true"
+    ],
+    "enabled": "true",
+    "bars_since_promotion": 74,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "no_trigger"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "one",
+     "true",
+     "false"
+    ],
+    "require_gate": true,
+    "gates": [],
+    "enabled": "true",
+    "bars_since_promotion": null,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "blocked"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "missing",
+     "missing",
+     "string_true"
+    ],
+    "require_gate": true,
+    "gates": [
+     "true",
+     "string_true"
+    ],
+    "enabled": "false",
+    "bars_since_promotion": 45,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "one",
+     "true",
+     "false"
+    ],
+    "require_gate": false,
+    "gates": [
+     "false",
+     "false"
+    ],
+    "enabled": "one",
+    "bars_since_promotion": 24,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "missing",
+     "string_true",
+     "string_true"
+    ],
+    "require_gate": true,
+    "gates": [
+     "string_true"
+    ],
+    "enabled": "one",
+    "bars_since_promotion": 52,
+    "bars_since_last_rollback": 51
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "one",
+     "string_true",
+     "true"
+    ],
+    "require_gate": true,
+    "gates": [
+     "false",
+     "false"
+    ],
+    "enabled": "missing",
+    "bars_since_promotion": null,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "false",
+     "missing",
+     "true"
+    ],
+    "require_gate": true,
+    "gates": [
+     "true",
+     "string_true"
+    ],
+    "enabled": "one",
+    "bars_since_promotion": 5,
+    "bars_since_last_rollback": 123
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "false",
+     "true",
+     "true"
+    ],
+    "require_gate": false,
+    "gates": [],
+    "enabled": "missing",
+    "bars_since_promotion": 54,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "missing",
+     "true",
+     "true"
+    ],
+    "require_gate": true,
+    "gates": [
+     "string_true"
+    ],
+    "enabled": "missing",
+    "bars_since_promotion": null,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "one",
+     "one",
+     "string_true"
+    ],
+    "require_gate": true,
+    "gates": [
+     "string_true",
+     "true",
+     "string_true"
+    ],
+    "enabled": "string_true",
+    "bars_since_promotion": 43,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "string_true",
+     "one",
+     "true"
+    ],
+    "require_gate": true,
+    "gates": [
+     "true",
+     "string_true"
+    ],
+    "enabled": "true",
+    "bars_since_promotion": null,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "blocked"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "one",
+     "string_true",
+     "true"
+    ],
+    "require_gate": false,
+    "gates": [
+     "true"
+    ],
+    "enabled": "missing",
+    "bars_since_promotion": 35,
+    "bars_since_last_rollback": 7
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "string_true",
+     "string_true",
+     "false"
+    ],
+    "require_gate": false,
+    "gates": [
+     "false",
+     "string_true"
+    ],
+    "enabled": "one",
+    "bars_since_promotion": 31,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "false",
+     "string_true",
+     "true"
+    ],
+    "require_gate": true,
+    "gates": [
+     "false"
+    ],
+    "enabled": "false",
+    "bars_since_promotion": 40,
+    "bars_since_last_rollback": 84
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "one",
+     "true",
+     "missing"
+    ],
+    "require_gate": true,
+    "gates": [
+     "true"
+    ],
+    "enabled": "missing",
+    "bars_since_promotion": 77,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "string_true",
+     "true",
+     "string_true"
+    ],
+    "require_gate": false,
+    "gates": [
+     "true",
+     "false"
+    ],
+    "enabled": "string_true",
+    "bars_since_promotion": 52,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "true",
+     "one",
+     "true"
+    ],
+    "require_gate": true,
+    "gates": [],
+    "enabled": "missing",
+    "bars_since_promotion": 13,
+    "bars_since_last_rollback": 73
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "false",
+     "string_true",
+     "true"
+    ],
+    "require_gate": true,
+    "gates": [
+     "string_true",
+     "false",
+     "true"
+    ],
+    "enabled": "true",
+    "bars_since_promotion": null,
+    "bars_since_last_rollback": 8
+   },
+   "expected": {
+    "target": null,
+    "reason": "blocked"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "true",
+     "true",
+     "one"
+    ],
+    "require_gate": true,
+    "gates": [],
+    "enabled": "missing",
+    "bars_since_promotion": 75,
+    "bars_since_last_rollback": 236
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "string_true",
+     "string_true",
+     "string_true"
+    ],
+    "require_gate": false,
+    "gates": [
+     "true"
+    ],
+    "enabled": "missing",
+    "bars_since_promotion": 79,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "string_true",
+     "one",
+     "false"
+    ],
+    "require_gate": false,
+    "gates": [
+     "true",
+     "false"
+    ],
+    "enabled": "missing",
+    "bars_since_promotion": 73,
+    "bars_since_last_rollback": 179
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "true",
+     "string_true",
+     "true"
+    ],
+    "require_gate": true,
+    "gates": [],
+    "enabled": "false",
+    "bars_since_promotion": 63,
+    "bars_since_last_rollback": 55
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "false",
+     "true",
+     "false"
+    ],
+    "require_gate": true,
+    "gates": [
+     "false"
+    ],
+    "enabled": "true",
+    "bars_since_promotion": 43,
+    "bars_since_last_rollback": 66
+   },
+   "expected": {
+    "target": null,
+    "reason": "blocked"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "missing",
+     "true",
+     "one"
+    ],
+    "require_gate": true,
+    "gates": [
+     "true"
+    ],
+    "enabled": "true",
+    "bars_since_promotion": 49,
+    "bars_since_last_rollback": 0
+   },
+   "expected": {
+    "target": null,
+    "reason": "blocked"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "true",
+     "missing",
+     "one"
+    ],
+    "require_gate": false,
+    "gates": [
+     "false",
+     "true",
+     "false"
+    ],
+    "enabled": "one",
+    "bars_since_promotion": null,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "string_true",
+     "false",
+     "false"
+    ],
+    "require_gate": true,
+    "gates": [],
+    "enabled": "missing",
+    "bars_since_promotion": 17,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "one",
+     "string_true",
+     "true"
+    ],
+    "require_gate": false,
+    "gates": [
+     "true"
+    ],
+    "enabled": "one",
+    "bars_since_promotion": 35,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "true",
+     "string_true",
+     "one"
+    ],
+    "require_gate": true,
+    "gates": [],
+    "enabled": "true",
+    "bars_since_promotion": 40,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "blocked"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "true",
+     "false",
+     "one"
+    ],
+    "require_gate": false,
+    "gates": [],
+    "enabled": "string_true",
+    "bars_since_promotion": 14,
+    "bars_since_last_rollback": 43
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "false",
+     "false",
+     "string_true"
+    ],
+    "require_gate": false,
+    "gates": [
+     "string_true",
+     "string_true",
+     "false"
+    ],
+    "enabled": "true",
+    "bars_since_promotion": null,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "no_trigger"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "true",
+     "true",
+     "string_true"
+    ],
+    "require_gate": false,
+    "gates": [
+     "false"
+    ],
+    "enabled": "missing",
+    "bars_since_promotion": 72,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "string_true",
+     "one",
+     "missing"
+    ],
+    "require_gate": false,
+    "gates": [
+     "true",
+     "false",
+     "false"
+    ],
+    "enabled": "true",
+    "bars_since_promotion": 49,
+    "bars_since_last_rollback": 178
+   },
+   "expected": {
+    "target": null,
+    "reason": "no_trigger"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "string_true",
+     "one",
+     "true"
+    ],
+    "require_gate": false,
+    "gates": [
+     "string_true",
+     "false",
+     "string_true"
+    ],
+    "enabled": "false",
+    "bars_since_promotion": 30,
+    "bars_since_last_rollback": 56
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "string_true",
+     "string_true",
+     "missing"
+    ],
+    "require_gate": true,
+    "gates": [
+     "false",
+     "false",
+     "true"
+    ],
+    "enabled": "string_true",
+    "bars_since_promotion": 20,
+    "bars_since_last_rollback": 166
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "missing",
+     "string_true",
+     "one"
+    ],
+    "require_gate": false,
+    "gates": [
+     "false"
+    ],
+    "enabled": "true",
+    "bars_since_promotion": 30,
+    "bars_since_last_rollback": 100
+   },
+   "expected": {
+    "target": null,
+    "reason": "no_trigger"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "true",
+     "missing",
+     "missing"
+    ],
+    "require_gate": true,
+    "gates": [
+     "true",
+     "true",
+     "false"
+    ],
+    "enabled": "missing",
+    "bars_since_promotion": 9,
+    "bars_since_last_rollback": 205
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "one",
+     "false",
+     "false"
+    ],
+    "require_gate": true,
+    "gates": [],
+    "enabled": "string_true",
+    "bars_since_promotion": 2,
+    "bars_since_last_rollback": 50
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "one",
+     "string_true",
+     "false"
+    ],
+    "require_gate": true,
+    "gates": [
+     "true",
+     "false",
+     "true"
+    ],
+    "enabled": "one",
+    "bars_since_promotion": 47,
+    "bars_since_last_rollback": 190
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "one",
+     "true",
+     "missing"
+    ],
+    "require_gate": true,
+    "gates": [
+     "true",
+     "false"
+    ],
+    "enabled": "false",
+    "bars_since_promotion": 79,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "string_true",
+     "missing",
+     "string_true"
+    ],
+    "require_gate": true,
+    "gates": [
+     "string_true"
+    ],
+    "enabled": "false",
+    "bars_since_promotion": 65,
+    "bars_since_last_rollback": 72
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "one",
+     "string_true",
+     "true"
+    ],
+    "require_gate": false,
+    "gates": [],
+    "enabled": "true",
+    "bars_since_promotion": 4,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "blocked"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "string_true",
+     "one",
+     "string_true"
+    ],
+    "require_gate": false,
+    "gates": [
+     "true",
+     "false"
+    ],
+    "enabled": "true",
+    "bars_since_promotion": 78,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "no_trigger"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "string_true",
+     "missing",
+     "true"
+    ],
+    "require_gate": true,
+    "gates": [
+     "string_true"
+    ],
+    "enabled": "string_true",
+    "bars_since_promotion": 43,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "false",
+     "true",
+     "one"
+    ],
+    "require_gate": false,
+    "gates": [
+     "true",
+     "true",
+     "true"
+    ],
+    "enabled": "missing",
+    "bars_since_promotion": null,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "one",
+     "one",
+     "false"
+    ],
+    "require_gate": true,
+    "gates": [
+     "true",
+     "true"
+    ],
+    "enabled": "true",
+    "bars_since_promotion": 77,
+    "bars_since_last_rollback": 81
+   },
+   "expected": {
+    "target": null,
+    "reason": "no_trigger"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "true",
+     "false",
+     "false"
+    ],
+    "require_gate": true,
+    "gates": [
+     "false"
+    ],
+    "enabled": "one",
+    "bars_since_promotion": null,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "true",
+     "false",
+     "false"
+    ],
+    "require_gate": true,
+    "gates": [
+     "string_true"
+    ],
+    "enabled": "false",
+    "bars_since_promotion": 57,
+    "bars_since_last_rollback": 130
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "missing",
+     "one",
+     "string_true"
+    ],
+    "require_gate": true,
+    "gates": [],
+    "enabled": "false",
+    "bars_since_promotion": 71,
+    "bars_since_last_rollback": 238
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "one",
+     "missing",
+     "missing"
+    ],
+    "require_gate": false,
+    "gates": [],
+    "enabled": "false",
+    "bars_since_promotion": null,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "string_true",
+     "missing",
+     "false"
+    ],
+    "require_gate": true,
+    "gates": [
+     "true",
+     "true"
+    ],
+    "enabled": "false",
+    "bars_since_promotion": 1,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "string_true",
+     "true",
+     "true"
+    ],
+    "require_gate": false,
+    "gates": [
+     "false",
+     "true"
+    ],
+    "enabled": "missing",
+    "bars_since_promotion": 52,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "one",
+     "string_true",
+     "string_true"
+    ],
+    "require_gate": false,
+    "gates": [
+     "true",
+     "true",
+     "string_true"
+    ],
+    "enabled": "string_true",
+    "bars_since_promotion": 70,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "one",
+     "string_true",
+     "false"
+    ],
+    "require_gate": false,
+    "gates": [
+     "string_true",
+     "true",
+     "false"
+    ],
+    "enabled": "false",
+    "bars_since_promotion": 3,
+    "bars_since_last_rollback": 128
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "string_true",
+     "true",
+     "missing"
+    ],
+    "require_gate": false,
+    "gates": [
+     "true"
+    ],
+    "enabled": "false",
+    "bars_since_promotion": 57,
+    "bars_since_last_rollback": 129
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "string_true",
+     "false",
+     "false"
+    ],
+    "require_gate": false,
+    "gates": [
+     "true",
+     "true",
+     "false"
+    ],
+    "enabled": "one",
+    "bars_since_promotion": 75,
+    "bars_since_last_rollback": 98
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "missing",
+     "true",
+     "missing"
+    ],
+    "require_gate": true,
+    "gates": [
+     "string_true",
+     "true"
+    ],
+    "enabled": "true",
+    "bars_since_promotion": 71,
+    "bars_since_last_rollback": 61
+   },
+   "expected": {
+    "target": null,
+    "reason": "blocked"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "false",
+     "string_true",
+     "string_true"
+    ],
+    "require_gate": false,
+    "gates": [],
+    "enabled": "missing",
+    "bars_since_promotion": 76,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "missing",
+     "true",
+     "one"
+    ],
+    "require_gate": true,
+    "gates": [
+     "true",
+     "true",
+     "true"
+    ],
+    "enabled": "false",
+    "bars_since_promotion": 79,
+    "bars_since_last_rollback": 16
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "one",
+     "string_true",
+     "true"
+    ],
+    "require_gate": false,
+    "gates": [
+     "true"
+    ],
+    "enabled": "false",
+    "bars_since_promotion": null,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "missing",
+     "string_true",
+     "missing"
+    ],
+    "require_gate": false,
+    "gates": [],
+    "enabled": "string_true",
+    "bars_since_promotion": 22,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "string_true",
+     "one",
+     "one"
+    ],
+    "require_gate": false,
+    "gates": [],
+    "enabled": "one",
+    "bars_since_promotion": null,
+    "bars_since_last_rollback": 41
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "false",
+     "string_true",
+     "missing"
+    ],
+    "require_gate": true,
+    "gates": [
+     "string_true",
+     "false"
+    ],
+    "enabled": "true",
+    "bars_since_promotion": null,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "no_trigger"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "missing",
+     "string_true",
+     "one"
+    ],
+    "require_gate": false,
+    "gates": [
+     "true"
+    ],
+    "enabled": "true",
+    "bars_since_promotion": 68,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "no_trigger"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "true",
+     "true",
+     "string_true"
+    ],
+    "require_gate": true,
+    "gates": [],
+    "enabled": "missing",
+    "bars_since_promotion": 65,
+    "bars_since_last_rollback": 235
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "false",
+     "false",
+     "one"
+    ],
+    "require_gate": true,
+    "gates": [
+     "string_true",
+     "false"
+    ],
+    "enabled": "string_true",
+    "bars_since_promotion": 48,
+    "bars_since_last_rollback": 146
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "false",
+     "string_true",
+     "string_true"
+    ],
+    "require_gate": false,
+    "gates": [
+     "string_true"
+    ],
+    "enabled": "true",
+    "bars_since_promotion": null,
+    "bars_since_last_rollback": 23
+   },
+   "expected": {
+    "target": null,
+    "reason": "no_trigger"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "false",
+     "true",
+     "string_true"
+    ],
+    "require_gate": false,
+    "gates": [
+     "false",
+     "false"
+    ],
+    "enabled": "string_true",
+    "bars_since_promotion": 33,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "missing",
+     "false",
+     "false"
+    ],
+    "require_gate": true,
+    "gates": [],
+    "enabled": "missing",
+    "bars_since_promotion": 30,
+    "bars_since_last_rollback": 183
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "true",
+     "false",
+     "one"
+    ],
+    "require_gate": true,
+    "gates": [
+     "string_true",
+     "true"
+    ],
+    "enabled": "false",
+    "bars_since_promotion": 49,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "missing",
+     "one",
+     "false"
+    ],
+    "require_gate": false,
+    "gates": [
+     "false"
+    ],
+    "enabled": "string_true",
+    "bars_since_promotion": 62,
+    "bars_since_last_rollback": 217
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "one",
+     "one",
+     "string_true"
+    ],
+    "require_gate": true,
+    "gates": [
+     "false"
+    ],
+    "enabled": "string_true",
+    "bars_since_promotion": 17,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "string_true",
+     "string_true",
+     "true"
+    ],
+    "require_gate": false,
+    "gates": [
+     "true",
+     "true",
+     "string_true"
+    ],
+    "enabled": "missing",
+    "bars_since_promotion": 26,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "string_true",
+     "false",
+     "one"
+    ],
+    "require_gate": false,
+    "gates": [
+     "true",
+     "false"
+    ],
+    "enabled": "true",
+    "bars_since_promotion": 21,
+    "bars_since_last_rollback": 229
+   },
+   "expected": {
+    "target": null,
+    "reason": "no_trigger"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "false",
+     "one",
+     "one"
+    ],
+    "require_gate": false,
+    "gates": [
+     "true"
+    ],
+    "enabled": "string_true",
+    "bars_since_promotion": null,
+    "bars_since_last_rollback": 44
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "string_true",
+     "true",
+     "missing"
+    ],
+    "require_gate": false,
+    "gates": [
+     "true"
+    ],
+    "enabled": "string_true",
+    "bars_since_promotion": 17,
+    "bars_since_last_rollback": 29
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "true",
+     "true",
+     "string_true"
+    ],
+    "require_gate": true,
+    "gates": [
+     "false",
+     "string_true",
+     "string_true"
+    ],
+    "enabled": "false",
+    "bars_since_promotion": 30,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "string_true",
+     "string_true",
+     "string_true"
+    ],
+    "require_gate": true,
+    "gates": [
+     "string_true"
+    ],
+    "enabled": "false",
+    "bars_since_promotion": 46,
+    "bars_since_last_rollback": 43
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "missing",
+     "true",
+     "string_true"
+    ],
+    "require_gate": true,
+    "gates": [
+     "false",
+     "false",
+     "false"
+    ],
+    "enabled": "true",
+    "bars_since_promotion": null,
+    "bars_since_last_rollback": 36
+   },
+   "expected": {
+    "target": null,
+    "reason": "blocked"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "missing",
+     "string_true",
+     "true"
+    ],
+    "require_gate": false,
+    "gates": [
+     "string_true",
+     "string_true",
+     "true"
+    ],
+    "enabled": "false",
+    "bars_since_promotion": null,
+    "bars_since_last_rollback": 105
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "missing",
+     "one",
+     "missing"
+    ],
+    "require_gate": false,
+    "gates": [],
+    "enabled": "true",
+    "bars_since_promotion": null,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "no_trigger"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "missing",
+     "missing",
+     "one"
+    ],
+    "require_gate": false,
+    "gates": [
+     "string_true"
+    ],
+    "enabled": "missing",
+    "bars_since_promotion": 29,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "false",
+     "string_true",
+     "false"
+    ],
+    "require_gate": true,
+    "gates": [
+     "true",
+     "false"
+    ],
+    "enabled": "missing",
+    "bars_since_promotion": null,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "false",
+     "false",
+     "missing"
+    ],
+    "require_gate": true,
+    "gates": [
+     "false"
+    ],
+    "enabled": "true",
+    "bars_since_promotion": 68,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "no_trigger"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "true",
+     "false",
+     "true"
+    ],
+    "require_gate": true,
+    "gates": [
+     "false",
+     "true"
+    ],
+    "enabled": "true",
+    "bars_since_promotion": 46,
+    "bars_since_last_rollback": 100
+   },
+   "expected": {
+    "target": null,
+    "reason": "blocked"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "missing",
+     "one",
+     "true"
+    ],
+    "require_gate": true,
+    "gates": [
+     "false",
+     "true"
+    ],
+    "enabled": "one",
+    "bars_since_promotion": 54,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "missing",
+     "string_true",
+     "true"
+    ],
+    "require_gate": true,
+    "gates": [
+     "false",
+     "string_true"
+    ],
+    "enabled": "missing",
+    "bars_since_promotion": 27,
+    "bars_since_last_rollback": 85
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  },
+  {
+   "input": {
+    "triggers": [
+     "true",
+     "true",
+     "true"
+    ],
+    "require_gate": true,
+    "gates": [
+     "string_true",
+     "false",
+     "true"
+    ],
+    "enabled": "one",
+    "bars_since_promotion": 77,
+    "bars_since_last_rollback": null
+   },
+   "expected": {
+    "target": null,
+    "reason": "disabled"
+   }
+  }
+ ],
+ "spec_sha256": "9a1172ba8c037c6f3a700f8d27876c100ea3d30689511d6a15d0aa77df9e08e5"
+}

@@ -22,8 +22,11 @@ RUN SETUPTOOLS_SCM_PRETEND_VERSION=${AQ_VERSION} pip wheel --no-cache-dir --no-d
 FROM python:3.11-slim@sha256:07d4824036af339fa1b6ef769cc99d9c10a141769538b52b3b597c84f7a7b535 AS dashboard
 WORKDIR /app
 COPY --from=wheel-builder /wheels /wheels
-# the test suites of pandas and numpy, and pip itself, are dead weight at runtime (about 80 MB)
-RUN pip install --no-cache-dir "$(ls /wheels/*.whl)[dashboard]" && rm -rf /wheels \
+# V6.6.7 (#361): the dashboard extra from a hash lock, then the wheel without resolving. The test suites of pandas and
+# numpy, and pip itself, are dead weight at runtime (about 80 MB)
+COPY requirements/lock/dashboard.txt /tmp/dashboard.txt
+RUN pip install --no-cache-dir --require-hashes -r /tmp/dashboard.txt \
+    && pip install --no-cache-dir --no-deps /wheels/*.whl && rm -rf /wheels /tmp/dashboard.txt \
     && SITE="$(python -c 'import sysconfig; print(sysconfig.get_path("purelib"))')" \
     && rm -rf "$SITE/pandas/tests" && find "$SITE/numpy" -type d -name tests -prune -exec rm -rf {} + \
     && pip uninstall -y pip setuptools wheel \
@@ -52,10 +55,10 @@ CMD ["uvicorn", "monitoring.api_server:app", "--host", "0.0.0.0", "--port", "800
 # (CMD below is just the default/app entrypoint).
 FROM python:3.11-slim@sha256:07d4824036af339fa1b6ef769cc99d9c10a141769538b52b3b597c84f7a7b535 AS engine
 WORKDIR /app
-COPY requirements/requirements.txt ./requirements/
-# CPU torch first (V6.6.5): the default Linux wheel pulls about 2 GB of CUDA libraries the engine never uses.
-RUN pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu torch \
-    && pip install --no-cache-dir -r requirements/requirements.txt
+COPY requirements/lock/runtime.txt ./requirements/lock/
+# V6.6.7 (#361): hash-locked, CPU torch included (the default Linux wheel pulls about 2 GB of CUDA libraries the engine
+# never uses)
+RUN pip install --no-cache-dir --require-hashes -r requirements/lock/runtime.txt
 COPY . .
 
 # Optional C++/pybind11 accelerator for inference/exported_model.py's
@@ -75,8 +78,9 @@ COPY . .
 # that has never had the accelerator built.
 RUN (apt-get update && \
         apt-get install -y --no-install-recommends build-essential && \
-        pip install --no-cache-dir "pybind11>=2.10" && \
-        pip install --no-cache-dir ./cpp_inference_ext && \
+        pip install --no-cache-dir --require-hashes -r requirements/lock/build-ext.txt && \
+        pip wheel --no-cache-dir --no-deps --no-build-isolation -w /tmp/cppw ./cpp_inference_ext && \
+        pip install --no-cache-dir --no-deps /tmp/cppw/*.whl && rm -rf /tmp/cppw && \
         apt-get purge -y --auto-remove build-essential && \
         rm -rf /var/lib/apt/lists/*) \
     || echo "cpp_inference_ext: optional C++ accelerator build failed or was skipped - continuing without it (see development/Problems.md #32/#68)"

@@ -1,0 +1,68 @@
+name: Fuzz
+
+# V6.6.7 (#363): Atheris (coverage-guided, libFuzzer) over the targets in fuzz/targets.py: the parsers and guards that
+# take untrusted or corrupt input (JSON sanitizing, secret refs and redaction, the audit hash chain, account overrides,
+# the users file, the kill switch, the rebalance orders, the once-only holdout ledger). Two minutes a target on a push
+# that touches them and every week; the same targets run under hypothesis in the suite. A crash uploads its input.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "fuzz/**"
+      - "json_safety.py"
+      - "execution/secrets.py"
+      - "execution/accounts.py"
+      - "audit/hash_chain.py"
+      - "monitoring/auth.py"
+      - "risk/kill_switch.py"
+      - "portfolio/target_weights.py"
+      - "evaluation/research_cells.py"
+      - "requirements/lock/fuzz.txt"
+      - ".github/workflows/fuzz.yml"
+  pull_request:
+    paths:
+      - "fuzz/**"
+  schedule:
+    - cron: "23 4 * * 0"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fuzz-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  atheris:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [json_safety, secret_refs, hash_chain, account_overrides, users_doc, kill_switch, rebalance, holdout_ledger]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: requirements/lock/fuzz.txt
+
+      - name: Install Atheris and the targets' few dependencies (hash-locked)
+        run: python -m pip install --require-hashes -r requirements/lock/fuzz.txt
+
+      - name: Fuzz ${{ matrix.target }} for two minutes
+        run: python fuzz/run_fuzz.py "${{ matrix.target }}" -max_total_time=120 -timeout=10 -rss_limit_mb=2048 "fuzz/corpus/${{ matrix.target }}"
+
+      - name: Upload the crashing input
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: fuzz-crash-${{ matrix.target }}
+          path: |
+            crash-*
+            timeout-*
+            oom-*
+          if-no-files-found: ignore

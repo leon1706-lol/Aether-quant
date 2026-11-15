@@ -57,7 +57,7 @@ SURFACES: tuple[Surface, ...] = (
     _s("prove", "aq prove", "the Lean 4 specs build (Mathlib)", ["Codespace", "CI"], "5 min (Mathlib cached)", "stdout; CI formal.yml", "every change to formal/ or a modelled file"),
     _s("prove_sorry", "aq prove --check-sorry", "no sorry or admit in any spec", ["PC", "CI"], "1 s", "stdout; tests/test_formal_no_sorry.py", "every commit", [PY, "aq_cli.py", "prove", "--check-sorry"]),
     _s("axioms", "python scripts/check_axioms.py", "every theorem rests on the three standard axioms, but two named native_decide findings", ["Codespace", "CI"], "2 min", "stdout; CI formal.yml", "every change to formal/"),
-    _s("differential", "aq test --formal", "the Python functions equal the Lean models on thousands of computed cases (18 targets)", ["PC", "CI"], "1 min", "aether_quant/_formal_cases/*.json", "every commit"),
+    _s("differential", "aq test --formal", "the Python functions equal the Lean models on thousands of computed cases (28 targets)", ["PC", "CI"], "1 min", "aether_quant/_formal_cases/*.json", "every commit"),
     # --- other kinds of test
     _s("properties", "pytest tests/test_v664_properties.py", "invariants of the order gate, admission, session, shares, weight caps, hash chain and JSON safety hold for every input (hypothesis, derandomized)", ["PC", "CI"], "2 min", "stdout", "every commit"),
     _s("mutation", "python scripts/mutation_check.py --out ml/evaluation/v664/mutation.json", "the tests of seven safety and ledger modules notice a changed comparison, operator or constant", ["Codespace"], "1-2 h", "ml/evaluation/v664/mutation.json", "a phase"),
@@ -98,6 +98,8 @@ SURFACES: tuple[Surface, ...] = (
     _s("bandit", "bandit -r <shipped packages> -lll -c pyproject.toml", "no high-severity static finding in shipped code", ["PC", "CI"], "1 min", "stdout", "every commit"),
     # --- CI jobs (one row each; the table is held to ci.yml)
     _s("coverage", "aq test --coverage", "every tracked module at 100%, one group at a time", ["PC", "Codespace"], "1-2 h on the PC", "coverage.json", "every commit"),
+    _s("coverage_changed", "aq test --coverage --changed", "every module changed since HEAD at 100% under the tests that name it (the pre-commit hook)", ["PC", "CI"], "1-5 min", "stdout; .coverage.changed", "every commit", [PY, "aq_cli.py", "test", "--coverage", "--changed"]),
+    _s("scorecard_pins", "python scripts/scorecard_pins.py", "every install in a workflow, Dockerfile or shell script is pinned by hash, as the OpenSSF Scorecard reads it", ["PC", "CI"], "1 s", "stdout; pre-commit hook; CI fast-guards", "every commit", [PY, "scripts/scorecard_pins.py"]),
     _s("ci:python-tests", "CI: ubuntu and windows, coverage gate 100% of every tracked module", "the suite on both platforms, and the JUnit report behind the test badge", ["CI"], "6 min", "GitHub Actions", "every push"),
     _s("ci:python-lint", "CI: ruff and py_compile main.py", "lint and syntax", ["CI"], "1 min", "GitHub Actions", "every push"),
     _s("ci:dependency-audit", "CI: pip-audit", "no known-vulnerable pinned dependency", ["CI"], "3 min", "GitHub Actions", "every push"),
@@ -123,6 +125,7 @@ SURFACES: tuple[Surface, ...] = (
     _s("wf:keepalive", ".github/workflows/keepalive.yml", "the schedules stay enabled", ["GitHub"], "10 s", "GitHub Actions", "monthly"),
     _s("wf:release", ".github/workflows/release.yml", "the tagged commit's suite, PyPI and both images with SBOMs and provenance (the tag is the owner's)", ["GitHub", "owner"], "20 min", "GitHub Actions", "a release"),
     _s("wf:codeql", ".github/workflows/codeql.yml", "CodeQL over Python, TypeScript and the workflows", ["GitHub"], "10 min", "GitHub code scanning", "every push to main; weekly"),
+    _s("wf:fuzz", ".github/workflows/fuzz.yml", "Atheris over the eight fuzz targets, two minutes each", ["GitHub"], "5 min", "GitHub Actions (crash inputs as artifacts)", "every change to a target; weekly"),
     _s("wf:scorecard", ".github/workflows/scorecard.yml", "the OpenSSF Scorecard of the repository", ["GitHub"], "2 min", "GitHub code scanning, scorecard.dev", "every push to main; weekly"),
     _s("wf:pages", ".github/workflows/pages.yml", "the docs, coverage HTML and the coverage badge on GitHub Pages", ["GitHub"], "3 min", "https://leon1706-lol.github.io/Aether-quant/", "every green CI on main"),
     _s("wf:ci", ".github/workflows/ci.yml", "the jobs above", ["GitHub"], "6 min", "GitHub Actions", "every push"),

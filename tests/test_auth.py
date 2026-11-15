@@ -87,3 +87,17 @@ def test_a_new_token_carries_32_random_bytes():
 def test_a_users_file_needs_both_a_valid_salt_and_a_valid_hash(salt, digest):
     with pytest.raises(ValueError, match="salt and token hash"):
         parse_users({"users": [{"name": "ops", "role": "operator", "salt": salt, "token_hash": digest}]})
+
+
+# --- V6.6.7 (#363): found by fuzz/targets.py
+
+def test_v667_a_users_file_of_the_wrong_shape_is_refused_not_a_crash():
+    import pytest
+
+    from monitoring.auth import parse_users
+
+    row = {"name": "ann", "role": "viewer", "salt": "0" * 32, "token_hash": "a" * 64}
+    for bad in ([["ann"]], ["ann"], [None], [{**row, "accounts": "a*"}], [{**row, "accounts": ["a", 3]}]):
+        with pytest.raises(ValueError):
+            parse_users({"users": bad})
+    assert parse_users({"users": [{**row, "accounts": []}]})[0].accounts == ("*",)

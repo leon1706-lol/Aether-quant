@@ -241,3 +241,33 @@ def test_judging_skips_the_allocation_rows(tmp_path):
     append_event(path, event=ALLOCATION_EVENT, session=SESSIONS[303], candidate=ALLOCATION_ID, payload={"status": "allocation", "shares": {"g1": 1.0}}, created_at="t")
     report = judge_generations(read_ledger(path))
     assert list(report["generations"]) == ["g1"] and report["latest_allocation"]["shares"] == {"g1": 1.0}
+
+
+# --- V6.6.7 (#369, formal/AetherFormal/DrawdownGuard.lean)
+
+def test_v667_the_drawdown_guard_fails_closed():
+    import math
+
+    from evaluation.generation_ledger import _max_drawdown
+
+    assert _max_drawdown([0.01, math.nan]) == 1.0
+    assert _max_drawdown([0.01, math.inf]) == 1.0
+    assert _max_drawdown([0.2, -1.0]) == 1.0
+    assert _max_drawdown([0.1, -1.5]) == 1.0
+    assert _max_drawdown([]) == 0.0
+    assert abs(_max_drawdown([0.1, -0.5, 0.2]) - 0.5) < 1e-12
+
+
+def test_v667_the_drawdown_never_falls_when_a_session_is_added():
+    from hypothesis import given, settings
+    from hypothesis import strategies as st
+
+    from evaluation.generation_ledger import _max_drawdown
+
+    @settings(max_examples=200, deadline=None)
+    @given(st.lists(st.floats(min_value=-0.99, max_value=2.0), max_size=20), st.floats(min_value=-0.99, max_value=2.0))
+    def check(returns, extra):
+        before, after = _max_drawdown(returns), _max_drawdown(returns + [extra])
+        assert 0.0 <= before <= 1.0 and after >= before - 1e-12
+
+    check()

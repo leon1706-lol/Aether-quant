@@ -4,7 +4,28 @@ The owner's live brief for what to do next; rewritten as objectives change (hist
 `development/Changelog.md` and `development/Problems.md`).
 
 -----
-# Current objective: V6.6.5 — open the door: a 5-minute start, a first-class library, a hardened live path
+# Current objective: V6.6.7 — last tidy-up before the alpha search: the Scorecard near its ceiling, coverage after every commit, ten more proofs
+
+**State (2026-11-15): code, proofs and records done; the full coverage run, the clean-checkout run and the ruleset are the last steps; uncommitted.** Plan: `C:\Users\Blackhead\.claude\plans\now-please-make-in-jaunty-axolotl.md`. Problems #361-#378, Changelog "Phase V6.6.7".
+
+**Done:**
+- **Dependabot.** All 14 PRs merged; only `main` and `forward-ledger` remain as branches.
+- **Pinning.** Every install is hash-locked (`requirements/lock/`, `scripts/scorecard_pins.py` = 0 findings); `pip-audit` over all 13 locks finds nothing.
+- **Vulnerabilities.** torch `>=2.15.0` (PC parity checked: identical checkpoints, `aq test --ml` 712/712), pyarrow `>=23.0.1`, `cyclonedx-bom 8.0.1` with lxml 6.1.3.
+- **Releases.** Provenance comes from the build's own attestation (no unpinned SLSA ref), and the backfill takes the real attestations.
+- **Fuzzing.** Eight Atheris targets plus `fuzz.yml`; the first run found 5 bugs, all fixed.
+- **Lean.** 28 specs, 270 theorems, no `sorry`, axioms clean, all 28 case files regenerate identically, the 10 new differential tests pass, and reverting four fixes makes their tests fail.
+- **Coverage gate.** `aq test --coverage --changed`, the pre-commit hook, `scripts/coverage_misses.py` and the AGENTS.md section.
+- **Tidy-up.** Every module has its own test file, the library-gate backlog is 0, and every script is a tool or a record.
+
+**Verified (2026-11-15):** the full `aq test --coverage` measures 48,147 statements at **100%** (all 16 groups green after four small fixes), `scripts/clean_checkout_test.ps1` passes 7054 tests, ruff, the pin checker, the library gate and `--check-sorry` are clean, and the branch ruleset is applied (the Scorecard read 7.6 on `main` before any of this is pushed: CI-Tests 10, Branch-Protection 8, Vulnerabilities 9).
+
+**Not done (the PC ran out of memory and Claude Code stopped both jobs):** `aq verify --quick` as one command (its parts were each run) and the vault regeneration (`Aether-quant-Obsidian-Vault`, the two commands in AGENTS.md). Run them with the other apps closed.
+
+**Then yours:** commit and push, tag v6.6.7, run `gh workflow run release.yml -f backfill_tag=v6.6.5` and again with `v6.6.4`, register at bestpractices.dev, and rebuild the Docker images (`Dockerfile.lean` now installs from a hash lock: your next `aq backtest` is its first proof).
+
+-----
+# V6.6.5 — open the door: a 5-minute start, a first-class library, a hardened live path
 
 **State (2026-11-12): COMPLETE, uncommitted.** Every box below is ticked and verified on the PC: `aq test` 5349 of 5349, the field test 9 of 9, the dashboard image smoke-tested, mutation 0.982 on an independent seed (`ml/evaluation/v665/`). Left for the owner: commit and tag v6.6.5, rebuild the engine image, an `aq backtest` of the default account. Next is V6.6.6 below. Same book and record as before (no verified alpha, paper only); V6.6.5 spent no alpha trial. Plan: `C:\Users\Blackhead\.claude\plans\for-the-next-plan-starry-scott.md`; evidence in `ml/evaluation/v665/`.
 

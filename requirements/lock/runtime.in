@@ -1,0 +1,2 @@
+# The app stack alone: dependency-audit, wheel-smoke, the engine image (--profile runtime)
+-r ../requirements.txt

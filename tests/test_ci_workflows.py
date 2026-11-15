@@ -51,7 +51,8 @@ def test_research_cycle_runs_daily_shares_the_ledgers_lock_and_writes_only_its_o
 def test_python_compat_checks_the_minimum_python_of_the_sources_and_not_only_that_they_compile():
     steps = _load(CI)["jobs"]["python-compat"]["steps"]
     text = "\n".join(str(step.get("run", "")) for step in steps)
-    assert "compileall" in text and "vermin==" in text and "-t=3.10-" in text and "--violations" in text
+    assert "compileall" in text and "requirements/lock/compat.txt" in text and "-t=3.10-" in text and "--violations" in text
+    assert "vermin==" in (ROOT / "requirements" / "lock" / "compat.in").read_text(encoding="utf-8")
     pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
     assert 'requires-python = ">=3.10"' in pyproject, "the check and the metadata must name the same floor"
     assert "datetime import UTC" not in (ROOT / "evaluation" / "lean_statistics.py").read_text(encoding="utf-8")
@@ -161,6 +162,7 @@ def test_every_requirements_line_parses_as_a_valid_requirement():
     non-empty line of every requirements file must parse."""
     from packaging.requirements import Requirement
 
+    # requirements/lock/*.txt hold hash continuation lines; tests/test_requirement_locks.py checks those
     for req_file in sorted((ROOT / "requirements").glob("*.txt")):
         for line_no, raw in enumerate(
             req_file.read_text(encoding="utf-8").splitlines(), start=1
@@ -284,15 +286,16 @@ def test_advisory_jobs_are_advisory_and_blocking_jobs_are_not():
     assert not audit_step.get("continue-on-error"), "V6.6.5: npm audit of runtime dependencies blocks"
 
 
-def test_every_job_that_installs_the_requirements_on_linux_installs_cpu_torch_first():
+def test_every_suite_job_installs_the_hash_locked_ci_or_runtime_set():
+    """V6.6.7 (#361): the locks carry CPU torch (the default Linux wheel pulls ~2 GB of CUDA) and a hash per file."""
     jobs = _load(CI)["jobs"]
-    for name in ("python-tests", "fast-guards", "subsystem-matrix", "parity-smoke", "cli-smoke"):
-        runs = [step.get("run", "") for step in jobs[name]["steps"]]
-        cpu = next((i for i, run in enumerate(runs) if "download.pytorch.org/whl/cpu" in run), None)
-        install = next((i for i, run in enumerate(runs) if "-r requirements/requirements.txt" in run), None)
-        assert cpu is not None and install is not None and cpu < install, f"{name}: CPU torch must precede the requirements install"
-    windows_safe = next(s for s in jobs["python-tests"]["steps"] if "download.pytorch.org" in s.get("run", ""))
-    assert windows_safe["if"] == "runner.os == 'Linux'"
+    for name, lock in (("python-tests", "ci"), ("fast-guards", "ci"), ("subsystem-matrix", "ci"), ("parity-smoke", "ci"), ("cli-smoke", "runtime")):
+        runs = "\n".join(step.get("run", "") for step in jobs[name]["steps"])
+        assert f"--require-hashes -r requirements/lock/{lock}.txt" in runs, name
+        assert "download.pytorch.org" not in runs and "-r requirements/requirements.txt" not in runs, name
+    for lock in ("ci", "runtime"):
+        text = (ROOT / "requirements" / "lock" / f"{lock}.txt").read_text(encoding="utf-8")
+        assert "--index-url https://download.pytorch.org/whl/cpu" in text and "+cpu ; sys_platform != 'darwin'" in text, lock
 
 
 def test_scripts_and_test_files_the_workflows_reference_exist():
@@ -324,7 +327,8 @@ def test_dependabot_covers_pip_npm_github_actions_and_docker():
 
 
 def test_dev_requirements_pin_the_same_ruff_as_the_lint_job():
-    ci_pin = re.search(r'pip install "ruff==([0-9.]+)"', CI.read_text(encoding="utf-8"))
+    ci_pin = re.search(r"^ruff==([0-9.]+)$", (ROOT / "requirements" / "lock" / "tools.in").read_text(encoding="utf-8"), re.M)
+    assert "requirements/lock/tools.txt" in _scripts(_load(CI)["jobs"]["python-lint"])
     dev_pin = re.search(r"^ruff==([0-9.]+)$", (ROOT / "requirements" / "requirements-dev.txt").read_text(encoding="utf-8"), re.M)
     assert ci_pin and dev_pin, "both places must pin ruff exactly"
     assert ci_pin.group(1) == dev_pin.group(1)
@@ -346,11 +350,13 @@ def test_v665_jobs_exist_with_timeouts_and_check_what_they_claim():
     lite = _scripts(jobs["lite-install"])
     assert "python -m build --wheel" in lite and "aq hello --offline" in lite and "pip install -e" not in lite
     assert all(heavy in lite for heavy in ("torch", "lean", "fastapi", "scipy")), "the light install is checked for every heavy package"
-    assert "scripts/type_completeness.py" in _scripts(jobs["typecheck"]) and "pyright==1.1.409" in _scripts(jobs["typecheck"])
+    tools = (ROOT / "requirements" / "lock" / "tools.in").read_text(encoding="utf-8")
+    assert "scripts/type_completeness.py" in _scripts(jobs["typecheck"]) and "pyright==1.1.409" in tools and "pyright --verifytypes" in _scripts(jobs["typecheck"])
     docs = _scripts(jobs["docs"])
-    assert "mkdocs build --strict" in docs and "scripts/build_docs.py --check" in docs and "requirements/requirements-docs.txt" in docs
+    assert "mkdocs build --strict" in docs and "scripts/build_docs.py --check" in docs and "requirements/lock/docs.txt" in docs
+    assert "-r ../requirements-docs.txt" in (ROOT / "requirements" / "lock" / "docs.in").read_text(encoding="utf-8")
     assert "scripts/build_notebooks.py --check --execute" in _scripts(jobs["notebooks"])
-    assert '"bandit==1.9.4"' in _scripts(jobs["bandit"]) and "-lll" in _scripts(jobs["bandit"])
+    assert "bandit==1.9.4" in tools and "requirements/lock/tools.txt" in _scripts(jobs["bandit"]) and "-lll" in _scripts(jobs["bandit"])
     assert "--cov-report=json" in _scripts(jobs["python-tests"]) and "coverage_badge.py" in _scripts(jobs["python-tests"])
     assert any("--coverage" in s.get("run", "") for s in jobs["webui-tests"]["steps"])
 
@@ -395,7 +401,8 @@ def test_release_publishes_both_images_with_sbom_and_provenance():
     pypi_uses = [step.get("uses", "") for step in release["jobs"]["publish-pypi"]["steps"]]
     assert any(u.startswith("actions/attest-build-provenance@") for u in pypi_uses)
     assert "cyclonedx-py" in _scripts(release["jobs"]["publish-pypi"])
-    assert "--outfile" in _scripts(release["jobs"]["publish-pypi"])  # cyclonedx-bom 4.x has no --output-file (v6.6.5 release)
+    assert "--of JSON -o sbom-wheel.cdx.json" in _scripts(release["jobs"]["publish-pypi"])  # cyclonedx-bom 8.x: -o, no --outfile (4.x had --outfile and no --output-file: the v6.6.5 release)
+    assert "cyclonedx-bom==8.0.1" in (ROOT / "requirements" / "lock" / "sbom.in").read_text(encoding="utf-8")
 
 
 
@@ -429,13 +436,11 @@ def _uses(workflow: dict) -> list[str]:
 
 
 def test_every_action_is_pinned_to_a_commit_with_its_version_beside_it():
-    """V6.6.6 (#357): Scorecard Pinned-Dependencies. The SLSA generator is the one exception: it refuses a SHA ref."""
+    """V6.6.6 (#357): Scorecard Pinned-Dependencies. V6.6.7 (#365): no exception left (the SLSA generator, which refuses
+    a SHA ref, gave way to the attestation's own bundle)."""
     for path in WORKFLOWS:
         text = path.read_text(encoding="utf-8")
         for ref in _uses(_load(path)):
-            if ref.startswith("slsa-framework/slsa-github-generator/"):
-                assert re.fullmatch(r".+@v\d+\.\d+\.\d+", ref), ref
-                continue
             assert re.fullmatch(r"[\w.-]+/[\w./-]+@[0-9a-f]{40}", ref), f"{path.name}: {ref} is not pinned by commit"
             assert re.search(re.escape(ref) + r" # v\d+\.\d+\.\d+", text), f"{path.name}: {ref} has no version comment"
 
@@ -472,20 +477,22 @@ def test_every_release_carries_signed_assets_provenance_and_refreshes_the_scorec
     release = _load(RELEASE)
     jobs = release["jobs"]
     pypi = _scripts(jobs["publish-pypi"])
-    assert "sigstore==" in pypi and "python -m sigstore sign" in pypi and "release-assets/" in pypi
+    assert "requirements/lock/tools.txt" in pypi and "python -m sigstore sign" in pypi and "release-assets/" in pypi
+    assert "sigstore==" in (ROOT / "requirements" / "lock" / "tools.in").read_text(encoding="utf-8")
     sign_line = pypi.split("python -m sigstore sign", 1)[1].splitlines()[0]
     assert "dist/" not in sign_line, "never sign inside dist/: PyPI uploads all of it"
-    assert jobs["publish-pypi"]["outputs"]["hashes"] == "${{ steps.hash.outputs.hashes }}"
+    attest = next(step for step in jobs["publish-pypi"]["steps"] if "attest-build-provenance@" in step.get("uses", ""))
+    assert attest["id"] == "attest" and attest["with"]["subject-path"] == "dist/*"
+    provenance = next(step for step in jobs["publish-pypi"]["steps"] if ".intoto.jsonl" in step.get("run", ""))
+    assert provenance["env"]["BUNDLE"] == "${{ steps.attest.outputs.bundle-path }}" and 'jq -c . "$BUNDLE"' in provenance["run"]
     assert any(step.get("with", {}).get("name") == "release-assets" for step in jobs["publish-pypi"]["steps"])
     gh = jobs["github-release"]
     assert gh["needs"] == "publish-pypi"
     assert any(step.get("with", {}).get("name") == "release-assets" for step in gh["steps"] if "download-artifact@" in step.get("uses", ""))
     script = _scripts(gh)
     assert 'gh release create "$TAG" release-assets/*' in script and 'gh release upload "$TAG" release-assets/* --clobber' in script
-    provenance = jobs["provenance"]
-    assert provenance["uses"].startswith("slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@")
-    assert provenance["with"]["upload-assets"] is True and provenance["with"]["provenance-name"].endswith(".intoto.jsonl")
-    assert set(provenance["needs"]) == {"publish-pypi", "github-release"}
+    assert "provenance" not in jobs and "slsa-framework" not in RELEASE.read_text(encoding="utf-8")
+    assert set(jobs["scorecard-refresh"]["needs"]) == {"publish-pypi", "github-release"}
     assert "gh workflow run scorecard.yml --ref main" in _scripts(jobs["scorecard-refresh"])
 
 
@@ -500,3 +507,26 @@ def test_a_dispatch_backfills_assets_and_publishes_nothing():
     assert "digests" in backfill and "sha256" in backfill, "PyPI's own bytes, checked against PyPI's digests"
     assert "python -m sigstore sign release-assets/*" in backfill and "--clobber" in backfill
     assert "python -m build" not in backfill, "a backfill attaches the published files, never a rebuild"
+    # V6.6.7 (#365): the provenance recorded when the files were built, never a new attestation of files it did not build
+    assert 'gh attestation download "../$file"' in backfill and "pypi.org/integrity/aether-quant/" in backfill
+    assert "attest-build-provenance" not in str(release["jobs"]["backfill-assets"])
+    assert release["jobs"]["backfill-assets"]["permissions"]["attestations"] == "read"
+
+
+def test_fuzz_workflow_runs_every_target_read_only_from_the_hash_lock():
+    """V6.6.7 (#363): Atheris over fuzz/targets.py; the Scorecard's Fuzzing check reads `import atheris`."""
+    fuzz = _load(ROOT / ".github" / "workflows" / "fuzz.yml")
+    on = fuzz.get(True) or fuzz.get("on")
+    assert on["schedule"][0]["cron"] and "workflow_dispatch" in on and "fuzz/**" in on["push"]["paths"]
+    assert fuzz["permissions"] == {"contents": "read"}
+    job = fuzz["jobs"]["atheris"]
+    assert job["timeout-minutes"] <= 30
+    script = _scripts(job)
+    assert "--require-hashes -r requirements/lock/fuzz.txt" in script and "fuzz/run_fuzz.py" in script and "-max_total_time=" in script
+    import sys
+
+    sys.path.insert(0, str(ROOT / "fuzz"))
+    from targets import TARGETS
+
+    assert set(job["strategy"]["matrix"]["target"]) == set(TARGETS)
+    assert "${{ secrets." not in (ROOT / ".github" / "workflows" / "fuzz.yml").read_text(encoding="utf-8")

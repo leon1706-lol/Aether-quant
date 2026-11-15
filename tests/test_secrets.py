@@ -116,3 +116,13 @@ def test_redact_url_masks_only_the_password(url, expected):
     from execution.secrets import redact_url
 
     assert redact_url(url) == expected
+
+
+# --- V6.6.7 (#363): found by fuzz/targets.py
+
+def test_v667_redact_url_masks_a_password_that_contains_an_at_sign():
+    from execution.secrets import redact_url
+
+    assert redact_url("redis://:p@ss@host:6379/0") == "redis://:***@host:6379/0"
+    assert redact_url("postgresql://user:a@b@db/x?y=@") == "postgresql://user:***@db/x?y=@"
+    assert redact_url("https://host/path@x") == "https://host/path@x"

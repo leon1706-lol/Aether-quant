@@ -34,3 +34,25 @@ if command -v python >/dev/null 2>&1; then
 elif command -v python3 >/dev/null 2>&1; then
     python3 scripts/library_gate.py
 fi
+
+# V6.6.7 (#361) - every install hash-pinned, as the OpenSSF Scorecard reads it (scripts/scorecard_pins.py, about a second).
+if command -v python >/dev/null 2>&1; then
+    python scripts/scorecard_pins.py
+elif command -v python3 >/dev/null 2>&1; then
+    python3 scripts/scorecard_pins.py
+fi
+
+# V6.6.7 (#367) - coverage stays at 100% after every commit (AGENTS.md "Coverage: 100% after every commit"): the tests
+# that name each changed module run under coverage. A full `aq test --coverage` newer than the changes passes at once.
+# Skip only when that full run is what you just did: AQ_SKIP_COVERAGE_HOOK=1 git commit ...
+if [ "${AQ_SKIP_COVERAGE_HOOK:-0}" != "1" ]; then
+    start=$(date +%s)
+    if command -v aq >/dev/null 2>&1; then
+        aq test --coverage --changed
+    elif command -v python >/dev/null 2>&1; then
+        python aq_cli.py test --coverage --changed
+    else
+        python3 aq_cli.py test --coverage --changed
+    fi
+    echo "pre-commit: coverage of the changed modules checked in $(( $(date +%s) - start )) s"
+fi

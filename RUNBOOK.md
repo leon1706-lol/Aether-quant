@@ -164,9 +164,11 @@ Every credential resolves, first match wins, from a file named by `AETHER_<NAME>
 
 ## Releases
 
-- **Cut one:** `git tag vX.Y.Z` on `main`, then `git push origin vX.Y.Z`. `release.yml` publishes PyPI and both images, creates the release with the wheel, sdist and SBOM, a Sigstore `.sigstore.json` per file and an SLSA `.intoto.jsonl`, then reruns the OpenSSF Scorecard.
-- **An older release without assets:** `gh workflow run release.yml -f backfill_tag=vX.Y.Z`. It downloads PyPI's own files for that version, checks their digests against PyPI, signs and attaches them, and publishes nothing. The Scorecard counts only releases with assets.
+- **Cut one:** `git tag vX.Y.Z` on `main`, then `git push origin vX.Y.Z`. `release.yml` publishes PyPI and both images, creates the release with the wheel, sdist and SBOM, a Sigstore `.sigstore.json` per file and the build's own provenance as `aether_quant-<tag>.intoto.jsonl` (the attestation's bundle, so no unpinned reusable workflow), then reruns the OpenSSF Scorecard.
+- **An older release without assets:** `gh workflow run release.yml -f backfill_tag=vX.Y.Z`. It downloads PyPI's own files for that version, checks their digests against PyPI, signs and attaches them together with the provenance recorded when they were built (the tag build's GitHub attestation, else PyPI's PEP 740 provenance), and publishes nothing. The Scorecard counts only releases with assets, and Signed-Releases only a release with its `.intoto.jsonl` as a 10.
 - **Check:** `gh release view vX.Y.Z --json assets`, and the Signed-Releases check at `api.securityscorecards.dev`.
+- **Dependabot pull requests:** `main` has a ruleset (V6.6.7): no force push or deletion, a reviewed pull request with the required checks. The owner is a bypass actor, so a direct push works and prints "Bypassed rule violations". Merge a green Dependabot PR with `gh pr comment <N> --body "@dependabot rebase"`, then `gh pr merge <N> --squash --delete-branch` (add `--admin` if the review rule blocks it). A floor bump in `requirements/` needs `python scripts/lock_requirements.py` pushed onto its branch first.
+- **The Scorecard's own check:** `curl -s https://api.securityscorecards.dev/projects/github.com/leon1706-lol/Aether-quant`; `gh workflow run scorecard.yml --ref main` refreshes it after a change.
 
 ## Field test
 

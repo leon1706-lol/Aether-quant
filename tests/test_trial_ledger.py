@@ -76,3 +76,20 @@ def test_no_scored_candidate_on_the_window_falls_back_to_the_floor():
     out = deflation_inputs([], LEGACY, "selection")
     assert out["var"] == VARIANCE_FLOOR
     assert out["N"] == 3
+
+
+# --- V6.6.7 (#377)
+
+def test_v667_a_non_finite_legacy_sharpe_is_counted_but_not_averaged():
+    import math
+
+    from evaluation import trial_ledger
+
+    registry = {"trials": [{"median_sharpe": 0.5}, {"median_sharpe": math.nan}, {"median_sharpe": 0.1}]}
+    original = trial_ledger.legacy_trials
+    try:
+        trial_ledger.legacy_trials = lambda reg: reg["trials"]
+        out = trial_ledger.deflation_inputs([], registry, "w")
+    finally:
+        trial_ledger.legacy_trials = original
+    assert out["N"] == 3 and math.isfinite(out["legacy_var"])

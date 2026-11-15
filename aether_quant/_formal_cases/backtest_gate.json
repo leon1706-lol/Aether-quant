@@ -1,0 +1,5595 @@
+{
+ "target": "backtest_gate",
+ "spec_files": [
+  "AetherFormal/BacktestGate.lean"
+ ],
+ "cases": [
+  {
+   "input": {
+    "threshold": {
+     "num": -1,
+     "den": 4
+    },
+    "candidate": null,
+    "active": {
+     "num": 5,
+     "den": 4
+    }
+   },
+   "expected": {
+    "reason": "candidate_missing",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": null,
+    "candidate": {
+     "num": 7,
+     "den": 8
+    },
+    "active": null
+   },
+   "expected": {
+    "reason": "threshold_invalid",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 1,
+     "den": 1
+    },
+    "candidate": null,
+    "active": {
+     "num": 2,
+     "den": 1
+    }
+   },
+   "expected": {
+    "reason": "candidate_missing",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 5,
+     "den": 8
+    },
+    "candidate": {
+     "num": 3,
+     "den": 8
+    },
+    "active": null
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -1,
+     "den": 4
+    },
+    "candidate": {
+     "num": -7,
+     "den": 8
+    },
+    "active": null
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 3,
+     "den": 4
+    },
+    "candidate": {
+     "num": -7,
+     "den": 8
+    },
+    "active": {
+     "num": 11,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 1,
+     "den": 4
+    },
+    "candidate": {
+     "num": 1,
+     "den": 8
+    },
+    "active": {
+     "num": 3,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": null,
+    "candidate": {
+     "num": 7,
+     "den": 4
+    },
+    "active": {
+     "num": 13,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "threshold_invalid",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -1,
+     "den": 1
+    },
+    "candidate": null,
+    "active": null
+   },
+   "expected": {
+    "reason": "candidate_missing",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 1,
+     "den": 2
+    },
+    "candidate": {
+     "num": 7,
+     "den": 4
+    },
+    "active": {
+     "num": 11,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -1,
+     "den": 4
+    },
+    "candidate": {
+     "num": 1,
+     "den": 2
+    },
+    "active": {
+     "num": -3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -1,
+     "den": 2
+    },
+    "candidate": null,
+    "active": {
+     "num": 1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "reason": "candidate_missing",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 3,
+     "den": 8
+    },
+    "candidate": {
+     "num": 1,
+     "den": 8
+    },
+    "active": {
+     "num": 7,
+     "den": 4
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 0,
+     "den": 1
+    },
+    "candidate": {
+     "num": 1,
+     "den": 1
+    },
+    "active": {
+     "num": -5,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 1,
+     "den": 2
+    },
+    "candidate": {
+     "num": 3,
+     "den": 4
+    },
+    "active": null
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 1,
+     "den": 8
+    },
+    "candidate": {
+     "num": -1,
+     "den": 4
+    },
+    "active": {
+     "num": -3,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 1,
+     "den": 1
+    },
+    "candidate": {
+     "num": 13,
+     "den": 8
+    },
+    "active": {
+     "num": -7,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -5,
+     "den": 8
+    },
+    "candidate": {
+     "num": -5,
+     "den": 8
+    },
+    "active": {
+     "num": 3,
+     "den": 2
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 3,
+     "den": 8
+    },
+    "candidate": null,
+    "active": {
+     "num": 9,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "candidate_missing",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -7,
+     "den": 8
+    },
+    "candidate": {
+     "num": 1,
+     "den": 8
+    },
+    "active": null
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 3,
+     "den": 8
+    },
+    "candidate": {
+     "num": -1,
+     "den": 2
+    },
+    "active": {
+     "num": 7,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 5,
+     "den": 8
+    },
+    "candidate": {
+     "num": 0,
+     "den": 1
+    },
+    "active": null
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": null,
+    "candidate": {
+     "num": 15,
+     "den": 8
+    },
+    "active": {
+     "num": 1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "reason": "threshold_invalid",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -1,
+     "den": 8
+    },
+    "candidate": {
+     "num": -1,
+     "den": 1
+    },
+    "active": null
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 1,
+     "den": 2
+    },
+    "candidate": {
+     "num": -1,
+     "den": 1
+    },
+    "active": {
+     "num": 3,
+     "den": 2
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 3,
+     "den": 8
+    },
+    "candidate": {
+     "num": 15,
+     "den": 8
+    },
+    "active": {
+     "num": 9,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 7,
+     "den": 8
+    },
+    "candidate": {
+     "num": 1,
+     "den": 8
+    },
+    "active": {
+     "num": -1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 3,
+     "den": 4
+    },
+    "candidate": {
+     "num": 15,
+     "den": 8
+    },
+    "active": {
+     "num": 3,
+     "den": 2
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 1,
+     "den": 4
+    },
+    "candidate": {
+     "num": 1,
+     "den": 1
+    },
+    "active": null
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -5,
+     "den": 8
+    },
+    "candidate": null,
+    "active": {
+     "num": 2,
+     "den": 1
+    }
+   },
+   "expected": {
+    "reason": "candidate_missing",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 7,
+     "den": 8
+    },
+    "candidate": null,
+    "active": null
+   },
+   "expected": {
+    "reason": "candidate_missing",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 1,
+     "den": 4
+    },
+    "candidate": {
+     "num": -3,
+     "den": 8
+    },
+    "active": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 1,
+     "den": 8
+    },
+    "candidate": {
+     "num": 5,
+     "den": 8
+    },
+    "active": {
+     "num": -3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 3,
+     "den": 8
+    },
+    "candidate": {
+     "num": -1,
+     "den": 4
+    },
+    "active": {
+     "num": 3,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 5,
+     "den": 8
+    },
+    "candidate": {
+     "num": 3,
+     "den": 2
+    },
+    "active": {
+     "num": -3,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -7,
+     "den": 8
+    },
+    "candidate": {
+     "num": 7,
+     "den": 4
+    },
+    "active": {
+     "num": 15,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 3,
+     "den": 8
+    },
+    "candidate": null,
+    "active": {
+     "num": 1,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "candidate_missing",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 1,
+     "den": 1
+    },
+    "candidate": {
+     "num": 3,
+     "den": 8
+    },
+    "active": {
+     "num": -1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 1,
+     "den": 4
+    },
+    "candidate": {
+     "num": -1,
+     "den": 2
+    },
+    "active": {
+     "num": 5,
+     "den": 4
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -7,
+     "den": 8
+    },
+    "candidate": null,
+    "active": {
+     "num": -1,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "candidate_missing",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 3,
+     "den": 4
+    },
+    "candidate": {
+     "num": -5,
+     "den": 8
+    },
+    "active": {
+     "num": 3,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 1,
+     "den": 4
+    },
+    "candidate": null,
+    "active": {
+     "num": 3,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "candidate_missing",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 1,
+     "den": 8
+    },
+    "candidate": null,
+    "active": {
+     "num": -1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "reason": "candidate_missing",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -1,
+     "den": 1
+    },
+    "candidate": null,
+    "active": null
+   },
+   "expected": {
+    "reason": "candidate_missing",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -1,
+     "den": 1
+    },
+    "candidate": {
+     "num": 3,
+     "den": 8
+    },
+    "active": {
+     "num": -1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": null,
+    "candidate": null,
+    "active": {
+     "num": 11,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "threshold_invalid",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": null,
+    "candidate": {
+     "num": 0,
+     "den": 1
+    },
+    "active": null
+   },
+   "expected": {
+    "reason": "threshold_invalid",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 0,
+     "den": 1
+    },
+    "candidate": {
+     "num": 5,
+     "den": 8
+    },
+    "active": {
+     "num": 5,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -3,
+     "den": 8
+    },
+    "candidate": null,
+    "active": {
+     "num": -1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "reason": "candidate_missing",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -1,
+     "den": 1
+    },
+    "candidate": {
+     "num": 1,
+     "den": 4
+    },
+    "active": {
+     "num": 7,
+     "den": 4
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -5,
+     "den": 8
+    },
+    "candidate": null,
+    "active": null
+   },
+   "expected": {
+    "reason": "candidate_missing",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -1,
+     "den": 8
+    },
+    "candidate": {
+     "num": 9,
+     "den": 8
+    },
+    "active": {
+     "num": 5,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 1,
+     "den": 4
+    },
+    "candidate": {
+     "num": 15,
+     "den": 8
+    },
+    "active": {
+     "num": 7,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -3,
+     "den": 8
+    },
+    "candidate": {
+     "num": -1,
+     "den": 8
+    },
+    "active": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": null,
+    "candidate": null,
+    "active": {
+     "num": -3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "reason": "threshold_invalid",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 1,
+     "den": 8
+    },
+    "candidate": {
+     "num": -1,
+     "den": 2
+    },
+    "active": {
+     "num": 13,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -5,
+     "den": 8
+    },
+    "candidate": null,
+    "active": {
+     "num": -3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "reason": "candidate_missing",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": null,
+    "candidate": {
+     "num": 1,
+     "den": 4
+    },
+    "active": {
+     "num": 11,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "threshold_invalid",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": null,
+    "candidate": null,
+    "active": {
+     "num": -5,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "threshold_invalid",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": null,
+    "candidate": null,
+    "active": {
+     "num": -1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "reason": "threshold_invalid",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 1,
+     "den": 8
+    },
+    "candidate": {
+     "num": 1,
+     "den": 4
+    },
+    "active": {
+     "num": -5,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 5,
+     "den": 8
+    },
+    "candidate": {
+     "num": 5,
+     "den": 4
+    },
+    "active": {
+     "num": 15,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -1,
+     "den": 1
+    },
+    "candidate": {
+     "num": 5,
+     "den": 8
+    },
+    "active": null
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -1,
+     "den": 1
+    },
+    "candidate": null,
+    "active": {
+     "num": -1,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "candidate_missing",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 1,
+     "den": 2
+    },
+    "candidate": null,
+    "active": {
+     "num": 15,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "candidate_missing",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 5,
+     "den": 8
+    },
+    "candidate": null,
+    "active": {
+     "num": 1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "reason": "candidate_missing",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -3,
+     "den": 4
+    },
+    "candidate": null,
+    "active": {
+     "num": -1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "reason": "candidate_missing",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -5,
+     "den": 8
+    },
+    "candidate": {
+     "num": 3,
+     "den": 2
+    },
+    "active": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 1,
+     "den": 4
+    },
+    "candidate": {
+     "num": 0,
+     "den": 1
+    },
+    "active": {
+     "num": -7,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 7,
+     "den": 8
+    },
+    "candidate": {
+     "num": 7,
+     "den": 8
+    },
+    "active": null
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 0,
+     "den": 1
+    },
+    "candidate": {
+     "num": 1,
+     "den": 1
+    },
+    "active": {
+     "num": -5,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": null,
+    "candidate": {
+     "num": 15,
+     "den": 8
+    },
+    "active": {
+     "num": 15,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "threshold_invalid",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -1,
+     "den": 4
+    },
+    "candidate": {
+     "num": 13,
+     "den": 8
+    },
+    "active": {
+     "num": 7,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": null,
+    "candidate": {
+     "num": -5,
+     "den": 8
+    },
+    "active": {
+     "num": 11,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "threshold_invalid",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -3,
+     "den": 8
+    },
+    "candidate": {
+     "num": 11,
+     "den": 8
+    },
+    "active": null
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -3,
+     "den": 8
+    },
+    "candidate": null,
+    "active": {
+     "num": 13,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "candidate_missing",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 7,
+     "den": 8
+    },
+    "candidate": {
+     "num": -3,
+     "den": 8
+    },
+    "active": {
+     "num": 5,
+     "den": 4
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 1,
+     "den": 2
+    },
+    "candidate": {
+     "num": -1,
+     "den": 1
+    },
+    "active": {
+     "num": 2,
+     "den": 1
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 3,
+     "den": 4
+    },
+    "candidate": {
+     "num": -1,
+     "den": 1
+    },
+    "active": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": null,
+    "candidate": null,
+    "active": {
+     "num": 15,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "threshold_invalid",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -7,
+     "den": 8
+    },
+    "candidate": {
+     "num": -1,
+     "den": 4
+    },
+    "active": null
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -1,
+     "den": 2
+    },
+    "candidate": {
+     "num": 13,
+     "den": 8
+    },
+    "active": {
+     "num": 1,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 1,
+     "den": 2
+    },
+    "candidate": {
+     "num": -1,
+     "den": 8
+    },
+    "active": {
+     "num": -3,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -1,
+     "den": 8
+    },
+    "candidate": {
+     "num": -1,
+     "den": 2
+    },
+    "active": {
+     "num": 15,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": null,
+    "candidate": null,
+    "active": {
+     "num": 13,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "threshold_invalid",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 1,
+     "den": 2
+    },
+    "candidate": {
+     "num": 7,
+     "den": 8
+    },
+    "active": {
+     "num": 2,
+     "den": 1
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 3,
+     "den": 4
+    },
+    "candidate": {
+     "num": -7,
+     "den": 8
+    },
+    "active": {
+     "num": 1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 3,
+     "den": 4
+    },
+    "candidate": {
+     "num": -1,
+     "den": 1
+    },
+    "active": {
+     "num": -5,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 5,
+     "den": 8
+    },
+    "candidate": {
+     "num": 3,
+     "den": 4
+    },
+    "active": {
+     "num": -5,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 1,
+     "den": 8
+    },
+    "candidate": {
+     "num": -1,
+     "den": 4
+    },
+    "active": {
+     "num": 7,
+     "den": 4
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -1,
+     "den": 1
+    },
+    "candidate": {
+     "num": -1,
+     "den": 4
+    },
+    "active": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 3,
+     "den": 8
+    },
+    "candidate": {
+     "num": 1,
+     "den": 2
+    },
+    "active": {
+     "num": 5,
+     "den": 4
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": null,
+    "candidate": {
+     "num": 1,
+     "den": 1
+    },
+    "active": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "reason": "threshold_invalid",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 1,
+     "den": 2
+    },
+    "candidate": {
+     "num": 3,
+     "den": 2
+    },
+    "active": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -1,
+     "den": 8
+    },
+    "candidate": {
+     "num": -1,
+     "den": 2
+    },
+    "active": {
+     "num": 5,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 0,
+     "den": 1
+    },
+    "candidate": null,
+    "active": {
+     "num": 7,
+     "den": 4
+    }
+   },
+   "expected": {
+    "reason": "candidate_missing",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 1,
+     "den": 2
+    },
+    "candidate": {
+     "num": 5,
+     "den": 8
+    },
+    "active": {
+     "num": 5,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 1,
+     "den": 8
+    },
+    "candidate": {
+     "num": -5,
+     "den": 8
+    },
+    "active": {
+     "num": -1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": null,
+    "candidate": {
+     "num": 1,
+     "den": 8
+    },
+    "active": {
+     "num": -1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "reason": "threshold_invalid",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 3,
+     "den": 8
+    },
+    "candidate": {
+     "num": -1,
+     "den": 4
+    },
+    "active": {
+     "num": -1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 7,
+     "den": 8
+    },
+    "candidate": {
+     "num": 11,
+     "den": 8
+    },
+    "active": {
+     "num": 5,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -1,
+     "den": 2
+    },
+    "candidate": {
+     "num": -1,
+     "den": 1
+    },
+    "active": {
+     "num": -7,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 3,
+     "den": 4
+    },
+    "candidate": {
+     "num": 5,
+     "den": 4
+    },
+    "active": null
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -1,
+     "den": 1
+    },
+    "candidate": null,
+    "active": null
+   },
+   "expected": {
+    "reason": "candidate_missing",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": null,
+    "candidate": {
+     "num": 9,
+     "den": 8
+    },
+    "active": {
+     "num": 5,
+     "den": 4
+    }
+   },
+   "expected": {
+    "reason": "threshold_invalid",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -7,
+     "den": 8
+    },
+    "candidate": {
+     "num": 3,
+     "den": 2
+    },
+    "active": {
+     "num": -3,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -3,
+     "den": 8
+    },
+    "candidate": {
+     "num": 3,
+     "den": 8
+    },
+    "active": {
+     "num": 11,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -1,
+     "den": 2
+    },
+    "candidate": {
+     "num": 1,
+     "den": 8
+    },
+    "active": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -5,
+     "den": 8
+    },
+    "candidate": {
+     "num": 1,
+     "den": 4
+    },
+    "active": {
+     "num": 13,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": null,
+    "candidate": {
+     "num": 0,
+     "den": 1
+    },
+    "active": {
+     "num": 5,
+     "den": 4
+    }
+   },
+   "expected": {
+    "reason": "threshold_invalid",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 7,
+     "den": 8
+    },
+    "candidate": {
+     "num": -1,
+     "den": 8
+    },
+    "active": {
+     "num": -1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -1,
+     "den": 8
+    },
+    "candidate": {
+     "num": 11,
+     "den": 8
+    },
+    "active": {
+     "num": 13,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 0,
+     "den": 1
+    },
+    "candidate": {
+     "num": -3,
+     "den": 8
+    },
+    "active": null
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -5,
+     "den": 8
+    },
+    "candidate": {
+     "num": 7,
+     "den": 8
+    },
+    "active": {
+     "num": 5,
+     "den": 4
+    }
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 7,
+     "den": 8
+    },
+    "candidate": {
+     "num": 5,
+     "den": 4
+    },
+    "active": null
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": null,
+    "candidate": {
+     "num": 1,
+     "den": 2
+    },
+    "active": {
+     "num": 7,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "threshold_invalid",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 3,
+     "den": 8
+    },
+    "candidate": {
+     "num": 1,
+     "den": 1
+    },
+    "active": {
+     "num": -3,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 1,
+     "den": 1
+    },
+    "candidate": {
+     "num": -7,
+     "den": 8
+    },
+    "active": {
+     "num": 7,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -1,
+     "den": 2
+    },
+    "candidate": {
+     "num": 5,
+     "den": 4
+    },
+    "active": null
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 3,
+     "den": 4
+    },
+    "candidate": {
+     "num": 9,
+     "den": 8
+    },
+    "active": {
+     "num": 7,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -7,
+     "den": 8
+    },
+    "candidate": {
+     "num": -7,
+     "den": 8
+    },
+    "active": {
+     "num": 1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": null,
+    "candidate": {
+     "num": 0,
+     "den": 1
+    },
+    "active": {
+     "num": -1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "reason": "threshold_invalid",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 7,
+     "den": 8
+    },
+    "candidate": {
+     "num": 1,
+     "den": 2
+    },
+    "active": {
+     "num": 3,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 3,
+     "den": 8
+    },
+    "candidate": {
+     "num": -1,
+     "den": 2
+    },
+    "active": {
+     "num": 1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -1,
+     "den": 8
+    },
+    "candidate": {
+     "num": -1,
+     "den": 8
+    },
+    "active": {
+     "num": 9,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -7,
+     "den": 8
+    },
+    "candidate": {
+     "num": 2,
+     "den": 1
+    },
+    "active": {
+     "num": -7,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -1,
+     "den": 4
+    },
+    "candidate": {
+     "num": 15,
+     "den": 8
+    },
+    "active": {
+     "num": 13,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 3,
+     "den": 8
+    },
+    "candidate": {
+     "num": 5,
+     "den": 4
+    },
+    "active": {
+     "num": 2,
+     "den": 1
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -1,
+     "den": 2
+    },
+    "candidate": {
+     "num": 7,
+     "den": 4
+    },
+    "active": null
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 1,
+     "den": 2
+    },
+    "candidate": {
+     "num": -1,
+     "den": 4
+    },
+    "active": {
+     "num": -3,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 1,
+     "den": 4
+    },
+    "candidate": {
+     "num": -5,
+     "den": 8
+    },
+    "active": {
+     "num": 7,
+     "den": 4
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 1,
+     "den": 1
+    },
+    "candidate": {
+     "num": -1,
+     "den": 2
+    },
+    "active": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 5,
+     "den": 8
+    },
+    "candidate": {
+     "num": 1,
+     "den": 8
+    },
+    "active": {
+     "num": 7,
+     "den": 4
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -5,
+     "den": 8
+    },
+    "candidate": null,
+    "active": {
+     "num": -1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "reason": "candidate_missing",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": null,
+    "candidate": {
+     "num": 13,
+     "den": 8
+    },
+    "active": {
+     "num": 9,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "threshold_invalid",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 5,
+     "den": 8
+    },
+    "candidate": {
+     "num": 3,
+     "den": 8
+    },
+    "active": {
+     "num": 3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 3,
+     "den": 4
+    },
+    "candidate": null,
+    "active": {
+     "num": -1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "reason": "candidate_missing",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 3,
+     "den": 8
+    },
+    "candidate": null,
+    "active": {
+     "num": 3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "reason": "candidate_missing",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -5,
+     "den": 8
+    },
+    "candidate": {
+     "num": 5,
+     "den": 8
+    },
+    "active": {
+     "num": 7,
+     "den": 4
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 1,
+     "den": 8
+    },
+    "candidate": {
+     "num": 1,
+     "den": 1
+    },
+    "active": {
+     "num": -1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 7,
+     "den": 8
+    },
+    "candidate": {
+     "num": 1,
+     "den": 4
+    },
+    "active": {
+     "num": -3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -1,
+     "den": 2
+    },
+    "candidate": {
+     "num": -7,
+     "den": 8
+    },
+    "active": null
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -1,
+     "den": 2
+    },
+    "candidate": {
+     "num": -3,
+     "den": 4
+    },
+    "active": {
+     "num": 1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 3,
+     "den": 8
+    },
+    "candidate": {
+     "num": 5,
+     "den": 8
+    },
+    "active": {
+     "num": 9,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 1,
+     "den": 4
+    },
+    "candidate": {
+     "num": -5,
+     "den": 8
+    },
+    "active": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -1,
+     "den": 4
+    },
+    "candidate": null,
+    "active": {
+     "num": 3,
+     "den": 2
+    }
+   },
+   "expected": {
+    "reason": "candidate_missing",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -1,
+     "den": 1
+    },
+    "candidate": {
+     "num": 9,
+     "den": 8
+    },
+    "active": {
+     "num": -3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 1,
+     "den": 8
+    },
+    "candidate": {
+     "num": 1,
+     "den": 1
+    },
+    "active": {
+     "num": 13,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 3,
+     "den": 8
+    },
+    "candidate": null,
+    "active": {
+     "num": 1,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "candidate_missing",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -3,
+     "den": 4
+    },
+    "candidate": {
+     "num": 1,
+     "den": 4
+    },
+    "active": {
+     "num": 7,
+     "den": 4
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -1,
+     "den": 1
+    },
+    "candidate": {
+     "num": -1,
+     "den": 1
+    },
+    "active": {
+     "num": -1,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 1,
+     "den": 4
+    },
+    "candidate": null,
+    "active": {
+     "num": 2,
+     "den": 1
+    }
+   },
+   "expected": {
+    "reason": "candidate_missing",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 0,
+     "den": 1
+    },
+    "candidate": {
+     "num": 1,
+     "den": 1
+    },
+    "active": {
+     "num": 1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 3,
+     "den": 4
+    },
+    "candidate": {
+     "num": 0,
+     "den": 1
+    },
+    "active": null
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 1,
+     "den": 8
+    },
+    "candidate": {
+     "num": 3,
+     "den": 8
+    },
+    "active": {
+     "num": 7,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -3,
+     "den": 4
+    },
+    "candidate": null,
+    "active": {
+     "num": -1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "reason": "candidate_missing",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 3,
+     "den": 4
+    },
+    "candidate": {
+     "num": 9,
+     "den": 8
+    },
+    "active": {
+     "num": -1,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 1,
+     "den": 1
+    },
+    "candidate": {
+     "num": 11,
+     "den": 8
+    },
+    "active": {
+     "num": 1,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -7,
+     "den": 8
+    },
+    "candidate": {
+     "num": 9,
+     "den": 8
+    },
+    "active": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -3,
+     "den": 8
+    },
+    "candidate": {
+     "num": 9,
+     "den": 8
+    },
+    "active": null
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -1,
+     "den": 1
+    },
+    "candidate": {
+     "num": -1,
+     "den": 1
+    },
+    "active": {
+     "num": 3,
+     "den": 2
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -5,
+     "den": 8
+    },
+    "candidate": {
+     "num": -1,
+     "den": 1
+    },
+    "active": null
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 5,
+     "den": 8
+    },
+    "candidate": null,
+    "active": {
+     "num": 1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "reason": "candidate_missing",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 3,
+     "den": 4
+    },
+    "candidate": null,
+    "active": {
+     "num": 2,
+     "den": 1
+    }
+   },
+   "expected": {
+    "reason": "candidate_missing",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -1,
+     "den": 1
+    },
+    "candidate": {
+     "num": 9,
+     "den": 8
+    },
+    "active": {
+     "num": 1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -1,
+     "den": 1
+    },
+    "candidate": {
+     "num": 1,
+     "den": 8
+    },
+    "active": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 3,
+     "den": 8
+    },
+    "candidate": {
+     "num": -3,
+     "den": 4
+    },
+    "active": {
+     "num": 13,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 1,
+     "den": 8
+    },
+    "candidate": {
+     "num": 0,
+     "den": 1
+    },
+    "active": {
+     "num": -3,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": null,
+    "candidate": null,
+    "active": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "reason": "threshold_invalid",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 1,
+     "den": 1
+    },
+    "candidate": {
+     "num": 3,
+     "den": 2
+    },
+    "active": {
+     "num": 11,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 1,
+     "den": 2
+    },
+    "candidate": {
+     "num": 5,
+     "den": 8
+    },
+    "active": null
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -3,
+     "den": 8
+    },
+    "candidate": {
+     "num": 9,
+     "den": 8
+    },
+    "active": {
+     "num": -1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -1,
+     "den": 8
+    },
+    "candidate": {
+     "num": 5,
+     "den": 8
+    },
+    "active": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 3,
+     "den": 4
+    },
+    "candidate": {
+     "num": 5,
+     "den": 4
+    },
+    "active": {
+     "num": 5,
+     "den": 4
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -1,
+     "den": 1
+    },
+    "candidate": null,
+    "active": {
+     "num": -7,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "candidate_missing",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 7,
+     "den": 8
+    },
+    "candidate": {
+     "num": 11,
+     "den": 8
+    },
+    "active": {
+     "num": -1,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 3,
+     "den": 4
+    },
+    "candidate": {
+     "num": 5,
+     "den": 8
+    },
+    "active": {
+     "num": -5,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -1,
+     "den": 2
+    },
+    "candidate": {
+     "num": 9,
+     "den": 8
+    },
+    "active": {
+     "num": 5,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -1,
+     "den": 2
+    },
+    "candidate": {
+     "num": 1,
+     "den": 1
+    },
+    "active": null
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -3,
+     "den": 4
+    },
+    "candidate": {
+     "num": -1,
+     "den": 1
+    },
+    "active": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 0,
+     "den": 1
+    },
+    "candidate": {
+     "num": 0,
+     "den": 1
+    },
+    "active": {
+     "num": 15,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 7,
+     "den": 8
+    },
+    "candidate": {
+     "num": -7,
+     "den": 8
+    },
+    "active": {
+     "num": -1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -3,
+     "den": 4
+    },
+    "candidate": {
+     "num": 2,
+     "den": 1
+    },
+    "active": null
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -3,
+     "den": 4
+    },
+    "candidate": {
+     "num": 1,
+     "den": 4
+    },
+    "active": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -3,
+     "den": 4
+    },
+    "candidate": {
+     "num": 7,
+     "den": 4
+    },
+    "active": {
+     "num": 3,
+     "den": 2
+    }
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -1,
+     "den": 4
+    },
+    "candidate": {
+     "num": 3,
+     "den": 4
+    },
+    "active": {
+     "num": -1,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -1,
+     "den": 4
+    },
+    "candidate": {
+     "num": 3,
+     "den": 4
+    },
+    "active": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -1,
+     "den": 1
+    },
+    "candidate": null,
+    "active": {
+     "num": 3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "reason": "candidate_missing",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 7,
+     "den": 8
+    },
+    "candidate": {
+     "num": -1,
+     "den": 8
+    },
+    "active": {
+     "num": 1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": null,
+    "candidate": {
+     "num": -1,
+     "den": 8
+    },
+    "active": null
+   },
+   "expected": {
+    "reason": "threshold_invalid",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 5,
+     "den": 8
+    },
+    "candidate": {
+     "num": -3,
+     "den": 8
+    },
+    "active": {
+     "num": 5,
+     "den": 4
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 3,
+     "den": 8
+    },
+    "candidate": {
+     "num": 11,
+     "den": 8
+    },
+    "active": {
+     "num": 7,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -1,
+     "den": 2
+    },
+    "candidate": {
+     "num": -3,
+     "den": 4
+    },
+    "active": {
+     "num": 11,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 7,
+     "den": 8
+    },
+    "candidate": {
+     "num": 1,
+     "den": 2
+    },
+    "active": {
+     "num": -1,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": null,
+    "candidate": {
+     "num": 3,
+     "den": 8
+    },
+    "active": {
+     "num": 15,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "threshold_invalid",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -5,
+     "den": 8
+    },
+    "candidate": {
+     "num": -1,
+     "den": 2
+    },
+    "active": {
+     "num": -3,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 3,
+     "den": 4
+    },
+    "candidate": {
+     "num": -7,
+     "den": 8
+    },
+    "active": {
+     "num": 2,
+     "den": 1
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 7,
+     "den": 8
+    },
+    "candidate": {
+     "num": 3,
+     "den": 4
+    },
+    "active": {
+     "num": 3,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 5,
+     "den": 8
+    },
+    "candidate": {
+     "num": 3,
+     "den": 2
+    },
+    "active": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -3,
+     "den": 8
+    },
+    "candidate": {
+     "num": 11,
+     "den": 8
+    },
+    "active": {
+     "num": 3,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 1,
+     "den": 8
+    },
+    "candidate": {
+     "num": -7,
+     "den": 8
+    },
+    "active": {
+     "num": 13,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 7,
+     "den": 8
+    },
+    "candidate": {
+     "num": -3,
+     "den": 8
+    },
+    "active": {
+     "num": -3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -1,
+     "den": 2
+    },
+    "candidate": {
+     "num": -1,
+     "den": 2
+    },
+    "active": null
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 1,
+     "den": 4
+    },
+    "candidate": {
+     "num": 11,
+     "den": 8
+    },
+    "active": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -1,
+     "den": 8
+    },
+    "candidate": {
+     "num": 1,
+     "den": 4
+    },
+    "active": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": null,
+    "candidate": {
+     "num": -1,
+     "den": 8
+    },
+    "active": {
+     "num": 5,
+     "den": 4
+    }
+   },
+   "expected": {
+    "reason": "threshold_invalid",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -7,
+     "den": 8
+    },
+    "candidate": null,
+    "active": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "reason": "candidate_missing",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": null,
+    "candidate": {
+     "num": -7,
+     "den": 8
+    },
+    "active": {
+     "num": -3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "reason": "threshold_invalid",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 1,
+     "den": 4
+    },
+    "candidate": {
+     "num": -1,
+     "den": 2
+    },
+    "active": {
+     "num": -1,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -1,
+     "den": 4
+    },
+    "candidate": {
+     "num": 1,
+     "den": 2
+    },
+    "active": {
+     "num": 5,
+     "den": 4
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 1,
+     "den": 1
+    },
+    "candidate": {
+     "num": 1,
+     "den": 4
+    },
+    "active": null
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 1,
+     "den": 2
+    },
+    "candidate": {
+     "num": 1,
+     "den": 8
+    },
+    "active": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -3,
+     "den": 8
+    },
+    "candidate": {
+     "num": 7,
+     "den": 4
+    },
+    "active": {
+     "num": -1,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -1,
+     "den": 2
+    },
+    "candidate": {
+     "num": 5,
+     "den": 4
+    },
+    "active": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -1,
+     "den": 1
+    },
+    "candidate": null,
+    "active": {
+     "num": 3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "reason": "candidate_missing",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 1,
+     "den": 4
+    },
+    "candidate": {
+     "num": 5,
+     "den": 4
+    },
+    "active": {
+     "num": 11,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 1,
+     "den": 2
+    },
+    "candidate": null,
+    "active": null
+   },
+   "expected": {
+    "reason": "candidate_missing",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 1,
+     "den": 2
+    },
+    "candidate": {
+     "num": 3,
+     "den": 4
+    },
+    "active": null
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 0,
+     "den": 1
+    },
+    "candidate": {
+     "num": 7,
+     "den": 4
+    },
+    "active": {
+     "num": 9,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": null,
+    "candidate": null,
+    "active": null
+   },
+   "expected": {
+    "reason": "threshold_invalid",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 1,
+     "den": 2
+    },
+    "candidate": null,
+    "active": {
+     "num": -1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "reason": "candidate_missing",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 3,
+     "den": 8
+    },
+    "candidate": {
+     "num": -3,
+     "den": 8
+    },
+    "active": {
+     "num": -3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 1,
+     "den": 2
+    },
+    "candidate": {
+     "num": 2,
+     "den": 1
+    },
+    "active": {
+     "num": 2,
+     "den": 1
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -3,
+     "den": 4
+    },
+    "candidate": {
+     "num": 0,
+     "den": 1
+    },
+    "active": null
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -7,
+     "den": 8
+    },
+    "candidate": {
+     "num": 9,
+     "den": 8
+    },
+    "active": {
+     "num": -7,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 1,
+     "den": 2
+    },
+    "candidate": {
+     "num": -1,
+     "den": 1
+    },
+    "active": {
+     "num": -1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 3,
+     "den": 4
+    },
+    "candidate": {
+     "num": -1,
+     "den": 1
+    },
+    "active": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -5,
+     "den": 8
+    },
+    "candidate": {
+     "num": 1,
+     "den": 2
+    },
+    "active": {
+     "num": 13,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -3,
+     "den": 4
+    },
+    "candidate": {
+     "num": 9,
+     "den": 8
+    },
+    "active": {
+     "num": 13,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 0,
+     "den": 1
+    },
+    "candidate": {
+     "num": 3,
+     "den": 4
+    },
+    "active": {
+     "num": 13,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": null,
+    "candidate": {
+     "num": 3,
+     "den": 8
+    },
+    "active": {
+     "num": 15,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "threshold_invalid",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 5,
+     "den": 8
+    },
+    "candidate": {
+     "num": 3,
+     "den": 4
+    },
+    "active": {
+     "num": 3,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": null,
+    "candidate": {
+     "num": -1,
+     "den": 4
+    },
+    "active": {
+     "num": 13,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "threshold_invalid",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 0,
+     "den": 1
+    },
+    "candidate": {
+     "num": 13,
+     "den": 8
+    },
+    "active": {
+     "num": -1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -1,
+     "den": 1
+    },
+    "candidate": {
+     "num": 3,
+     "den": 8
+    },
+    "active": {
+     "num": -1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 0,
+     "den": 1
+    },
+    "candidate": {
+     "num": -7,
+     "den": 8
+    },
+    "active": {
+     "num": 1,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 1,
+     "den": 1
+    },
+    "candidate": {
+     "num": -7,
+     "den": 8
+    },
+    "active": {
+     "num": -7,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 1,
+     "den": 1
+    },
+    "candidate": {
+     "num": 1,
+     "den": 1
+    },
+    "active": {
+     "num": 5,
+     "den": 4
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 3,
+     "den": 8
+    },
+    "candidate": {
+     "num": 15,
+     "den": 8
+    },
+    "active": {
+     "num": 5,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 0,
+     "den": 1
+    },
+    "candidate": {
+     "num": -3,
+     "den": 8
+    },
+    "active": {
+     "num": 3,
+     "den": 2
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 0,
+     "den": 1
+    },
+    "candidate": null,
+    "active": {
+     "num": -1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "reason": "candidate_missing",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -5,
+     "den": 8
+    },
+    "candidate": {
+     "num": -1,
+     "den": 8
+    },
+    "active": {
+     "num": -1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 3,
+     "den": 8
+    },
+    "candidate": {
+     "num": -3,
+     "den": 4
+    },
+    "active": {
+     "num": -1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 0,
+     "den": 1
+    },
+    "candidate": {
+     "num": 1,
+     "den": 2
+    },
+    "active": null
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -1,
+     "den": 8
+    },
+    "candidate": {
+     "num": 7,
+     "den": 4
+    },
+    "active": {
+     "num": -1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": null,
+    "candidate": {
+     "num": 11,
+     "den": 8
+    },
+    "active": {
+     "num": 3,
+     "den": 2
+    }
+   },
+   "expected": {
+    "reason": "threshold_invalid",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -3,
+     "den": 4
+    },
+    "candidate": {
+     "num": 1,
+     "den": 1
+    },
+    "active": {
+     "num": -7,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 1,
+     "den": 8
+    },
+    "candidate": {
+     "num": 7,
+     "den": 4
+    },
+    "active": {
+     "num": 9,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -1,
+     "den": 8
+    },
+    "candidate": {
+     "num": 1,
+     "den": 1
+    },
+    "active": {
+     "num": -7,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -5,
+     "den": 8
+    },
+    "candidate": {
+     "num": 1,
+     "den": 1
+    },
+    "active": {
+     "num": 3,
+     "den": 2
+    }
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -1,
+     "den": 4
+    },
+    "candidate": {
+     "num": -3,
+     "den": 8
+    },
+    "active": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": null,
+    "candidate": {
+     "num": -1,
+     "den": 2
+    },
+    "active": {
+     "num": -5,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "threshold_invalid",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": null,
+    "candidate": {
+     "num": -1,
+     "den": 8
+    },
+    "active": null
+   },
+   "expected": {
+    "reason": "threshold_invalid",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 3,
+     "den": 4
+    },
+    "candidate": {
+     "num": -1,
+     "den": 8
+    },
+    "active": {
+     "num": 7,
+     "den": 4
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -1,
+     "den": 8
+    },
+    "candidate": {
+     "num": -1,
+     "den": 8
+    },
+    "active": null
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 1,
+     "den": 1
+    },
+    "candidate": {
+     "num": -1,
+     "den": 4
+    },
+    "active": {
+     "num": -1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -1,
+     "den": 8
+    },
+    "candidate": {
+     "num": 15,
+     "den": 8
+    },
+    "active": {
+     "num": 3,
+     "den": 2
+    }
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -3,
+     "den": 4
+    },
+    "candidate": {
+     "num": 1,
+     "den": 1
+    },
+    "active": {
+     "num": 3,
+     "den": 2
+    }
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 0,
+     "den": 1
+    },
+    "candidate": {
+     "num": 3,
+     "den": 8
+    },
+    "active": {
+     "num": 3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 1,
+     "den": 4
+    },
+    "candidate": {
+     "num": -1,
+     "den": 8
+    },
+    "active": {
+     "num": 3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -7,
+     "den": 8
+    },
+    "candidate": {
+     "num": -1,
+     "den": 1
+    },
+    "active": {
+     "num": -3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -1,
+     "den": 1
+    },
+    "candidate": {
+     "num": -1,
+     "den": 4
+    },
+    "active": {
+     "num": 1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 1,
+     "den": 1
+    },
+    "candidate": null,
+    "active": null
+   },
+   "expected": {
+    "reason": "candidate_missing",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -1,
+     "den": 1
+    },
+    "candidate": null,
+    "active": null
+   },
+   "expected": {
+    "reason": "candidate_missing",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -3,
+     "den": 4
+    },
+    "candidate": {
+     "num": 5,
+     "den": 4
+    },
+    "active": {
+     "num": -1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 5,
+     "den": 8
+    },
+    "candidate": {
+     "num": 1,
+     "den": 2
+    },
+    "active": {
+     "num": 15,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -5,
+     "den": 8
+    },
+    "candidate": {
+     "num": 11,
+     "den": 8
+    },
+    "active": null
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -1,
+     "den": 4
+    },
+    "candidate": {
+     "num": 5,
+     "den": 4
+    },
+    "active": {
+     "num": 3,
+     "den": 2
+    }
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 5,
+     "den": 8
+    },
+    "candidate": {
+     "num": 5,
+     "den": 4
+    },
+    "active": {
+     "num": 2,
+     "den": 1
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 1,
+     "den": 8
+    },
+    "candidate": null,
+    "active": {
+     "num": -3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "reason": "candidate_missing",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 5,
+     "den": 8
+    },
+    "candidate": {
+     "num": 2,
+     "den": 1
+    },
+    "active": {
+     "num": -7,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 1,
+     "den": 2
+    },
+    "candidate": {
+     "num": 3,
+     "den": 2
+    },
+    "active": {
+     "num": -1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 1,
+     "den": 4
+    },
+    "candidate": {
+     "num": 5,
+     "den": 8
+    },
+    "active": {
+     "num": 9,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -3,
+     "den": 8
+    },
+    "candidate": {
+     "num": 3,
+     "den": 2
+    },
+    "active": {
+     "num": 7,
+     "den": 4
+    }
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -7,
+     "den": 8
+    },
+    "candidate": null,
+    "active": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "reason": "candidate_missing",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -3,
+     "den": 8
+    },
+    "candidate": {
+     "num": 0,
+     "den": 1
+    },
+    "active": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 1,
+     "den": 4
+    },
+    "candidate": null,
+    "active": null
+   },
+   "expected": {
+    "reason": "candidate_missing",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": null,
+    "candidate": {
+     "num": 3,
+     "den": 8
+    },
+    "active": {
+     "num": -3,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "threshold_invalid",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 0,
+     "den": 1
+    },
+    "candidate": {
+     "num": 1,
+     "den": 4
+    },
+    "active": {
+     "num": 13,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": null,
+    "candidate": {
+     "num": -1,
+     "den": 4
+    },
+    "active": {
+     "num": 1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "reason": "threshold_invalid",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 1,
+     "den": 8
+    },
+    "candidate": {
+     "num": 13,
+     "den": 8
+    },
+    "active": {
+     "num": 5,
+     "den": 4
+    }
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -5,
+     "den": 8
+    },
+    "candidate": {
+     "num": 3,
+     "den": 4
+    },
+    "active": null
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": null,
+    "candidate": {
+     "num": -3,
+     "den": 4
+    },
+    "active": {
+     "num": 2,
+     "den": 1
+    }
+   },
+   "expected": {
+    "reason": "threshold_invalid",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 7,
+     "den": 8
+    },
+    "candidate": {
+     "num": 11,
+     "den": 8
+    },
+    "active": {
+     "num": 2,
+     "den": 1
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 0,
+     "den": 1
+    },
+    "candidate": {
+     "num": 2,
+     "den": 1
+    },
+    "active": null
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 0,
+     "den": 1
+    },
+    "candidate": {
+     "num": 9,
+     "den": 8
+    },
+    "active": {
+     "num": 7,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 1,
+     "den": 2
+    },
+    "candidate": null,
+    "active": {
+     "num": -1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "reason": "candidate_missing",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -3,
+     "den": 8
+    },
+    "candidate": {
+     "num": 5,
+     "den": 4
+    },
+    "active": {
+     "num": -3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -1,
+     "den": 8
+    },
+    "candidate": null,
+    "active": null
+   },
+   "expected": {
+    "reason": "candidate_missing",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": null,
+    "candidate": {
+     "num": 7,
+     "den": 8
+    },
+    "active": {
+     "num": 5,
+     "den": 4
+    }
+   },
+   "expected": {
+    "reason": "threshold_invalid",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 3,
+     "den": 8
+    },
+    "candidate": {
+     "num": 9,
+     "den": 8
+    },
+    "active": null
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -3,
+     "den": 4
+    },
+    "candidate": null,
+    "active": {
+     "num": 9,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "candidate_missing",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 7,
+     "den": 8
+    },
+    "candidate": {
+     "num": -5,
+     "den": 8
+    },
+    "active": {
+     "num": 1,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -7,
+     "den": 8
+    },
+    "candidate": {
+     "num": 0,
+     "den": 1
+    },
+    "active": {
+     "num": 13,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 7,
+     "den": 8
+    },
+    "candidate": {
+     "num": -1,
+     "den": 1
+    },
+    "active": {
+     "num": -3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 1,
+     "den": 8
+    },
+    "candidate": null,
+    "active": {
+     "num": -1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "reason": "candidate_missing",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": -3,
+     "den": 4
+    },
+    "candidate": {
+     "num": -1,
+     "den": 4
+    },
+    "active": {
+     "num": 3,
+     "den": 8
+    }
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 1,
+     "den": 8
+    },
+    "candidate": {
+     "num": 2,
+     "den": 1
+    },
+    "active": {
+     "num": -1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "reason": "passed",
+    "passed": true
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 0,
+     "den": 1
+    },
+    "candidate": {
+     "num": -3,
+     "den": 8
+    },
+    "active": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  },
+  {
+   "input": {
+    "threshold": {
+     "num": 1,
+     "den": 8
+    },
+    "candidate": {
+     "num": 5,
+     "den": 4
+    },
+    "active": {
+     "num": 7,
+     "den": 4
+    }
+   },
+   "expected": {
+    "reason": "below_threshold",
+    "passed": false
+   }
+  }
+ ],
+ "spec_sha256": "719e4a388d341f577d8090932282a437f73ce9ac46d42e7223aeb8cf45764322"
+}

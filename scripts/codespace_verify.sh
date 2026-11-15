@@ -35,16 +35,16 @@ prepare() {
 
 deps() {
   cd "${CLEAN}" || return 1
-  python3 -m pip install --quiet --upgrade pip
-  python3 -m pip install --quiet torch --index-url https://download.pytorch.org/whl/cpu
-  python3 -m pip install --quiet -r requirements/requirements.txt -r requirements/requirements-dev.txt pytest-cov pytest-xdist build pip-audit
-  python3 -m pip install --quiet -e .
+  # V6.6.7 (#361): the CI locks (CPU torch, the dev tools, build and pip-audit), every file checked by hash
+  python3 -m pip install --quiet --require-hashes -r requirements/lock/ci.txt
+  python3 -m pip install --quiet --require-hashes -r requirements/lock/tools.txt
+  python3 -m pip install --quiet --no-deps -e .
   python3 -m pip show aether-vault | head -2
   python3 --version
 }
 
 suite() { cd "${CLEAN}" && python3 -m pytest -m "not lean_backtest" -ra -n 3 --cov --cov-report=term-missing --cov-report=xml --cov-fail-under=80; }
-lint() { cd "${CLEAN}" && python3 -m pip install --quiet "ruff==0.16.4" && ruff check . && python3 -m py_compile main.py; }
+lint() { cd "${CLEAN}" && python3 -m pip install --quiet --require-hashes -r requirements/lock/tools.txt && ruff check . && python3 -m py_compile main.py; }
 guards() {
   cd "${CLEAN}" && python3 -m pytest -q -p no:cacheprovider tests/test_cli_help_surface.py tests/test_ci_workflows.py tests/test_dockerignore_secrets.py tests/test_lean_runtime_imports.py \
     tests/test_packaging_modules.py tests/test_docs_links.py tests/test_docs_facts.py tests/test_aether_quant_coverage.py tests/test_v550_parity_fixes.py "tests/test_aq_cli.py::test_subsystem_test_files_maps_every_real_test_file_to_exactly_one_bucket"
@@ -80,7 +80,7 @@ wheel() {
 }
 compat() {
   command -v python3.10 > /dev/null && { cd "${CLEAN}" && python3.10 -m compileall -q -x '(^|/)(\.git|\.venv|venv|node_modules|backtests|webui|Aether-quant-Obsidian-Vault|build|dist|\.matplotlib_cache)(/|$)' .; return $?; }
-  python3 -m pip install --quiet vermin || return 1
+  python3 -m pip install --quiet --require-hashes -r requirements/lock/tools.txt || return 1
   cd "${CLEAN}" && vermin -t=3.10- --no-tips --violations -q aether_quant evaluation portfolio features scripts/cycle_daily.py scripts/cycle_decide.py scripts/cycle_lean.py scripts/cycle_retrain.py aq_cli.py train_cross_sectional.py
 }
 parity() {

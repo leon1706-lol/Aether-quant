@@ -16,7 +16,18 @@ import AetherFormal.SessionResolve
 import AetherFormal.HoldoutOnce
 import AetherFormal.AccountOverrides
 import AetherFormal.Authorize
+import AetherFormal.RlSizing
+import AetherFormal.DrawdownGuard
+import AetherFormal.BacktestGate
+import AetherFormal.AutoRollback
+import AetherFormal.PremiaCaps
+import AetherFormal.Rebalance
+import AetherFormal.CashSweep
+import AetherFormal.DynamicTargets
+import AetherFormal.ForexCap
+import AetherFormal.VolTarget
 import Mathlib.Algebra.Order.Field.Rat
+import Mathlib.Data.Rat.Floor
 import Lean.Data.Json
 
 /-!
@@ -670,13 +681,252 @@ def authorizeCases : Gen Json := do
       ("expected", Json.mkObj [("granted", toJson out)])]]
   return file "authorize" ["AetherFormal/Authorize.lean"] cases
 
+/-! ### V6.6.7 targets. Grids are dyadic (den 8 or 16), so the Python's floats are exact at every comparison. -/
+
+def optQ8 (lo hi : Int) (noneOneIn : Nat) : Gen (Option ℚ) := do
+  if (← nextNat noneOneIn) == 0 then return none
+  return some (← randQ lo hi 8)
+
+open RlSizing in
+def rlSizing : Gen Json := do
+  let mut cases : List Json := []
+  for _ in [0:240] do
+    let lo ← optQ8 0 2 10
+    let hi ← optQ8 0 2 10
+    let raw ← randQ (-1) 3 8
+    let (m, ok) := clampMult lo hi raw
+    cases := cases ++ [Json.mkObj [("kind", "clamp"), ("input", Json.mkObj [("min", oqj lo), ("max", oqj hi), ("raw", qj raw)]),
+      ("expected", Json.mkObj [("multiplier", qj m), ("scaled", toJson ok)])]]
+  for _ in [0:240] do
+    let n ← nextNat 12
+    let xs ← genList n (randQ (-2) 2 8)
+    let k ← nextNat 16
+    let w : Int := (k : Int) - 3
+    let tol ← randQ 0 1 8
+    let enabled ← randBool
+    cases := cases ++ [Json.mkObj [("kind", "guard"),
+      ("input", Json.mkObj [("enabled", toJson enabled), ("history", toJson (xs.map qj)), ("window_bars", toJson w), ("tolerance", qj tol)]),
+      ("expected", Json.mkObj [("allows", toJson (guardAllows enabled xs w tol))])]]
+  return file "rl_sizing" ["AetherFormal/RlSizing.lean"] cases
+
+open DrawdownGuard in
+def drawdownGuard : Gen Json := do
+  let mut cases : List Json := [Json.mkObj [("input", Json.mkObj [("returns", Json.arr #[])]), ("expected", Json.mkObj [("drawdown", qj 0)])]]
+  for _ in [0:300] do
+    let n := (← nextNat 10) + 1
+    let rs ← genList n (do
+      let k ← nextNat 30
+      if k == 0 then return (none : Option ℚ)
+      if k == 1 then return some (-1 : ℚ)
+      return some (← randQ (-1) 1 16))
+    cases := cases ++ [Json.mkObj [("input", Json.mkObj [("returns", toJson (rs.map oqj))]),
+      ("expected", Json.mkObj [("drawdown", qj (maxDrawdown rs))])]]
+  return file "drawdown_guard" ["AetherFormal/DrawdownGuard.lean"] cases
+
+open BacktestGate in
+def reasonName : Reason → String
+  | .thresholdInvalid => "threshold_invalid"
+  | .candidateMissing => "candidate_missing"
+  | .belowThreshold => "below_threshold"
+  | .passed => "passed"
+
+open BacktestGate in
+def backtestGate : Gen Json := do
+  let mut cases : List Json := []
+  for _ in [0:300] do
+    let c ← optQ8 (-1) 2 6
+    let a ← optQ8 (-1) 2 6
+    let t ← optQ8 (-1) 1 8
+    let (ok, why) := verdict c a t
+    cases := cases ++ [Json.mkObj [("input", Json.mkObj [("candidate", oqj c), ("active", oqj a), ("threshold", oqj t)]),
+      ("expected", Json.mkObj [("passed", toJson ok), ("reason", toJson (reasonName why))])]]
+  return file "backtest_gate" ["AetherFormal/BacktestGate.lean"] cases
+
+open AutoRollback in
+def rollbackReasonName : AutoRollback.Reason → String
+  | .disabled => "disabled"
+  | .noTrigger => "no_trigger"
+  | .blocked => "blocked"
+  | .triggered => "triggered"
+
+open AutoRollback in
+def autoRollback : Gen Json := do
+  let flagKinds : List String := ["true", "false", "string_true", "one", "missing"]
+  let mut cases : List Json := []
+  for _ in [0:400] do
+    let enabledKind ← pick flagKinds
+    let triggerKinds ← genList 3 (pick flagKinds)
+    let promotion : Option Nat ← do if (← nextNat 6) == 0 then pure none else some <$> nextNat 80
+    let lastRollback : Option Nat ← do if (← nextNat 2) == 0 then pure none else some <$> nextNat 240
+    let requireGate ← randBool
+    let size ← nextNat 4
+    let gateKinds ← genList size (pick ["true", "false", "string_true"])
+    let x : Input := {
+      enabled := enabledKind == "true", fired := triggerKinds.any (· == "true"),
+      runwayOk := (match promotion with | some p => decide (40 ≤ p) | none => false),
+      cooldownOk := (match lastRollback with | some b => decide (120 ≤ b) | none => true),
+      requireGate := requireGate,
+      candidates := (List.range size).zip (gateKinds.map (· == "true")) }
+    let (chosen, why) := choose x
+    cases := cases ++ [Json.mkObj [
+      ("input", Json.mkObj [("enabled", toJson enabledKind), ("triggers", toJson triggerKinds),
+        ("bars_since_promotion", match promotion with | some p => toJson p | none => Json.null),
+        ("bars_since_last_rollback", match lastRollback with | some b => toJson b | none => Json.null),
+        ("require_gate", toJson requireGate), ("gates", toJson gateKinds)]),
+      ("expected", Json.mkObj [("target", match chosen with | some i => toJson i | none => Json.null), ("reason", toJson (rollbackReasonName why))])]]
+  return file "auto_rollback" ["AetherFormal/AutoRollback.lean"] cases
+
+open PremiaCaps in
+def premiaCaps : Gen Json := do
+  let mut cases : List Json := []
+  for _ in [0:250] do
+    let n := (← nextNat 6) + 1
+    let defaultCap ← randQ 0 1 8
+    let cap0 ← randQ 0 1 8
+    let cap1 ← randQ 0 1 8
+    let classCapOf ← genList 3 (do if (← randBool) then some <$> randQ 0 1 8 else pure (none : Option ℚ))
+    let grossCap ← randQ 0 2 8
+    let mut es : List (E ℚ) := []
+    for _ in [0:n] do
+      let w ← randQ (-1) 1 16
+      let cls ← nextNat 3
+      let cap := if cls == 0 then cap0 else if cls == 1 then cap1 else defaultCap
+      es := es ++ [⟨w, w, cls, cap⟩]
+    let classCaps : List (Nat × ℚ) := (List.range 3).filterMap (fun c => (classCapOf.getD c none).map (fun cap => (c, cap)))
+    let out := capAll classCaps grossCap es
+    cases := cases ++ [Json.mkObj [
+      ("input", Json.mkObj [("weights", toJson (es.map (fun e => qj e.w))), ("classes", toJson (es.map (·.cls))),
+        ("default_name_cap", qj defaultCap), ("name_cap_by_class", toJson [qj cap0, qj cap1]),
+        ("class_caps", toJson (classCaps.map (fun p => Json.mkObj [("class", toJson p.1), ("cap", qj p.2)]))), ("gross_cap", qj grossCap)]),
+      ("expected", Json.mkObj [("weights", toJson (out.map (fun e => qj e.w)))])]]
+  return file "premia_caps" ["AetherFormal/PremiaCaps.lean"] cases
+
+open Rebalance in
+def rebalance : Gen Json := do
+  let mut cases : List Json := []
+  for _ in [0:400] do
+    let k ← nextNat 101
+    let held : ℚ := (((k : Int) - 50 : Int) : ℚ)
+    let unit ← pick [(1 : ℚ) / 4, 1 / 2, 1, 2, 4, 8, 16, 64]
+    let nav ← pick [(1024 : ℚ), 2048, 4096, 65536]
+    let wanted ← do if (← nextNat 6) == 0 then pure (0 : ℚ) else randQ (-1) 1 16
+    let lot ← pick [(1 : ℚ), 1 / 4, 1 / 2, 2, 0]
+    let minW ← pick [(0 : ℚ), 1 / 512, 1 / 64]
+    let minUsd ← pick [(0 : ℚ), 4, 16, 128]
+    let out := order held unit nav wanted lot minW minUsd
+    let reduces : Bool := match out with
+      | some d => decide (held ≠ 0) && (decide (d < 0) == decide (0 < held)) && decide (|d| ≤ |held|)
+      | none => false
+    cases := cases ++ [Json.mkObj [
+      ("input", Json.mkObj [("held", qj held), ("unit", qj unit), ("nav", qj nav), ("wanted", qj wanted), ("lot", qj lot),
+        ("min_weight_change", qj minW), ("min_trade_usd", qj minUsd)]),
+      ("expected", Json.mkObj [("delta", oqj out), ("reduces", toJson reduces)])]]
+  return file "rebalance" ["AetherFormal/Rebalance.lean"] cases
+
+open CashSweep in
+def cashSweep : Gen Json := do
+  let mut cases : List Json := []
+  for _ in [0:250] do
+    let l ← randQ (-1) 1 16
+    let s ← randQ (-1) 1 16
+    let m ← randQ 0 1 16
+    let rl ← randQ 0 1 16
+    let rs ← randQ 0 1 16
+    let rm ← randQ 0 1 16
+    let lev ← pick [(1 : ℚ), 2, 4]
+    let mb ← pick [(0 : ℚ), 1 / 8, 1 / 4]
+    let cb ← pick [(0 : ℚ), 1 / 16, 1 / 8]
+    let mw ← randQ 0 1 8
+    cases := cases ++ [Json.mkObj [("kind", "target"),
+      ("input", Json.mkObj [("long", qj l), ("short", qj s), ("margin", qj m), ("reserve_long", qj rl), ("reserve_short", qj rs),
+        ("reserve_margin", qj rm), ("leverage", qj lev), ("margin_buffer", qj mb), ("cash_buffer", qj cb), ("max_weight", qj mw)]),
+      ("expected", Json.mkObj [("weight", qj (target l s m rl rs rm lev mb cb mw))])]]
+  for _ in [0:200] do
+    let value ← randQ 0 4 8
+    let t0 ← randQ (-1) 4 8
+    let s0 ← randQ 0 2 8
+    let total ← randQ (-1) 8 8
+    let sweep ← randQ 0 8 8
+    cases := cases ++ [Json.mkObj [("kind", "advance"),
+      ("input", Json.mkObj [("value", qj value), ("state_total", qj t0), ("state_sweep", qj s0), ("total", qj total), ("sweep", qj sweep)]),
+      ("expected", Json.mkObj [("value", qj (advance value t0 s0 total sweep))])]]
+  for _ in [0:120] do
+    let delta ← randQ (-8) 8 8
+    let price ← randQ 0 16 8
+    let minUsd ← optQ8 (-2) 40 8
+    cases := cases ++ [Json.mkObj [("kind", "resize"),
+      ("input", Json.mkObj [("delta", qj delta), ("price", qj price), ("min_trade_usd", oqj minUsd)]),
+      ("expected", Json.mkObj [("below", toJson (resizeBelow delta price minUsd))])]]
+  return file "cash_sweep" ["AetherFormal/CashSweep.lean"] cases
+
+open DynamicTargets in
+def dynamicTargetsCases : Gen Json := do
+  let tol : ℚ := 1 / 1000000000
+  let mut cases : List Json := []
+  for _ in [0:300] do
+    let n := (← nextNat 5) + 1
+    let floor ← pick [(0 : ℚ), 1 / 8, 1 / 2]
+    let maxGen ← pick [1, 2, 4]
+    let mut scores : List (String × ℚ) := []
+    let mut caps : List (String × ℚ) := []
+    for i in [0:n] do
+      let name := s!"g{i}"
+      scores := scores ++ [(name, ← randQ (-1) 2 8)]
+      if (← randBool) then caps := caps ++ [(name, ← randQ 0 1 8)]
+    let capOf := fun (name : String) => max 0 (min 1 ((caps.lookup name).getD 1))
+    let usable := (scores.map (fun p => (p.1, p.2 - floor))).filter (fun p => decide (0 < p.2))
+    let ranked := usable.mergeSort (fun a b => decide (b.2 < a.2) || (decide (a.2 = b.2) && decide (a.1 < b.1 ∨ a.1 = b.1)))
+    let opens : List (O ℚ) := (ranked.take maxGen).map (fun p => ⟨p.1, p.2, capOf p.1⟩)
+    let filled := fill tol opens.length opens 1
+    let targets := scores.map (fun p => (p.1, (filled.lookup p.1).getD 0))
+    cases := cases ++ [Json.mkObj [("kind", "targets"),
+      ("input", Json.mkObj [("scores", Json.mkObj (scores.map (fun p => (p.1, qj p.2)))), ("caps", Json.mkObj (caps.map (fun p => (p.1, qj p.2)))),
+        ("score_floor", qj floor), ("max_generations", toJson maxGen)]),
+      ("expected", Json.mkObj [("targets", Json.mkObj (targets.map (fun p => (p.1, qj p.2))))])]]
+  for _ in [0:150] do
+    let n := (← nextNat 5) + 1
+    let shares ← genList n (optQ8 (-1) 1 6)
+    cases := cases ++ [Json.mkObj [("kind", "repair"), ("input", Json.mkObj [("shares", toJson (shares.map oqj))]),
+      ("expected", Json.mkObj [("shares", toJson ((repair tol shares).map qj))])]]
+  return file "dynamic_targets" ["AetherFormal/DynamicTargets.lean"] cases
+
+open ForexCap in
+def forexCap : Gen Json := do
+  let mut cases : List Json := []
+  for _ in [0:250] do
+    let t ← optQ8 (-3) 3 10
+    let b ← optQ8 (-1) 1 10
+    cases := cases ++ [Json.mkObj [("input", Json.mkObj [("target", oqj t), ("book", oqj b)]), ("expected", Json.mkObj [("weight", qj (capForex t b))])]]
+  return file "forex_cap" ["AetherFormal/ForexCap.lean"] cases
+
+open VolTarget in
+def volTargetCases : Gen Json := do
+  let mut cases : List Json := []
+  for _ in [0:250] do
+    let n := (← nextNat 5) + 1
+    let ws ← genList n (randQ (-1) 1 8)
+    let risk ← optQ8 1 4 8
+    let target ← pick [(0 : ℚ), 1 / 16, 1 / 8, 1 / 2]
+    let maxLev ← randQ 0 2 8
+    let squares := (ws.map (fun w => w * w)).sum
+    let risk := if squares = 0 then some (0 : ℚ) else risk
+    let out := volTarget ws risk target maxLev
+    cases := cases ++ [Json.mkObj [
+      ("input", Json.mkObj [("weights", toJson (ws.map qj)), ("risk", oqj risk), ("target", qj target), ("max_leverage", qj maxLev)]),
+      ("expected", Json.mkObj [("weights", toJson (out.map qj))])]]
+  return file "vol_target" ["AetherFormal/VolTarget.lean"] cases
+
 def all : List (String × Gen Json) :=
   [("order_gate", orderGate), ("hash_chain", hashChain), ("book_neutrality", bookNeutrality),
    ("book_construction", bookConstruction), ("risk_controls", riskControls), ("kill_switch", killSwitch),
    ("position_sizing", positionSizing), ("cost_model", costModel), ("reconciliation", reconciliation),
    ("sleeve_guard", sleeveGuard), ("json_safety", jsonSafety), ("generation_blend", generationBlend), ("generation_glide", generationGlide),
    ("admission", admission), ("session_resolve", sessionResolve), ("holdout_once", holdoutOnce),
-   ("account_overrides", accountOverrides), ("authorize", authorizeCases)]
+   ("account_overrides", accountOverrides), ("authorize", authorizeCases),
+   -- V6.6.7: appended, so the earlier targets keep their seeds
+   ("rl_sizing", rlSizing), ("drawdown_guard", drawdownGuard), ("backtest_gate", backtestGate), ("auto_rollback", autoRollback),
+   ("premia_caps", premiaCaps), ("rebalance", rebalance), ("cash_sweep", cashSweep), ("dynamic_targets", dynamicTargetsCases),
+   ("forex_cap", forexCap), ("vol_target", volTargetCases)]
 
 end AetherFormal.GenCases
 

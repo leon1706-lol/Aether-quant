@@ -231,3 +231,41 @@ def test_combination_by_hierarchical_risk_parity_runs():
         for spec in SPECS if spec.id in ("lowvol", "fx_mom", "bond_ts")
     }
     assert combine_sleeves(sleeves, panel, method="hrp")
+
+
+# --- V6.6.7 (#372, formal/AetherFormal/PremiaCaps.lean)
+
+def test_v667_weight_settings_refuse_a_negative_or_non_finite_cap():
+    import math
+
+    import pytest
+
+    from portfolio.premia_signals import WeightSettings
+
+    WeightSettings()
+    WeightSettings(name_cap=0.0, gross_cap=0.0, target_vol=0.0)
+    for bad in ({"name_cap": -0.1}, {"gross_cap": math.nan}, {"target_vol": -0.07}, {"class_caps": {"crypto": -1.0}},
+                {"name_cap_by_class": {"crypto": math.inf}}, {"name_cap": True}, {"gross_cap": "1"}):
+        with pytest.raises(ValueError, match="WeightSettings"):
+            WeightSettings(**bad)
+
+
+def test_v667_the_cap_stage_holds_its_caps_and_never_flips_a_sign():
+    import pandas as pd
+    from hypothesis import given, settings
+    from hypothesis import strategies as st
+
+    from portfolio.premia_signals import WeightSettings, _apply_weight_caps
+
+    @settings(max_examples=150, deadline=None)
+    @given(st.lists(st.floats(min_value=-2, max_value=2), min_size=1, max_size=6), st.floats(min_value=0, max_value=1), st.floats(min_value=0, max_value=2))
+    def check(raw, cap, gross_cap):
+        names = [f"t{i}" for i in range(len(raw))]
+        classes = {name: ("crypto" if i % 2 else "equity") for i, name in enumerate(names)}
+        out = _apply_weight_caps(pd.Series(raw, index=names), classes, WeightSettings(name_cap=cap, gross_cap=gross_cap, class_caps={"crypto": cap}, name_cap_by_class={}))
+        assert sum(abs(v) for v in out.values()) <= gross_cap + 1e-9
+        for name, value in out.items():
+            assert abs(value) <= cap + 1e-12 and value * raw[names.index(name)] >= 0.0
+        assert sum(abs(v) for n, v in out.items() if classes[n] == "crypto") <= cap + 1e-9
+
+    check()

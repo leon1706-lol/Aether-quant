@@ -649,6 +649,8 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         "test_aq_accounts_cli.py",
     ],
     "audit": [
+        # V6.6.7: each module's own test file
+        "test_redis_queue.py",
         "test_hash_chain.py", "test_audit_queue.py", "test_postgres_audit.py",
         "test_audit_postgres_worker.py", "test_audit_status_export.py",
     ],
@@ -666,6 +668,8 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         "test_kelly.py", "test_vol_target.py",
     ],
     "portfolio": [
+        # V6.6.7: each module's own test file
+        "test_book_construction.py", "test_hrp_allocation.py",
         "test_portfolio_book_construction.py", "test_options_strategy.py", "test_cash_sweep.py",
         "test_target_weights.py", "test_financing.py", "test_premia_signals.py", "test_daily_target_weights.py",
         "test_options_strategy_multileg.py", "test_options_arbitrage_detector.py",
@@ -689,6 +693,8 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         "test_neutrality.py",
     ],
     "features": [
+        # V6.6.7: each module's own test file
+        "test_training_splits.py", "test_wide_panel.py",
         "test_bond_features.py", "test_derivatives_macro_features.py", "test_macro_features.py",
         "test_technical_indicators.py", "test_train_bond_features.py",
         "test_train_derivatives_macro_features.py", "test_train_macro_features.py",
@@ -706,6 +712,8 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         "test_cross_sectional_norm.py", "test_asof_beta_labels.py",
     ],
     "data-pipeline": [
+        # V6.6.7: each module's own test file
+        "test_bar_synthesis.py", "test_cftc_cot.py", "test_edgar_facts.py", "test_factor_library.py", "test_finra_short_volume.py", "test_sec_form345.py", "test_v2_manifest.py",
         "test_sp500_membership.py", "test_binance_archive.py", "test_wide_info.py", "test_net_retry.py",
         "test_alt_data_v650.py", "test_build_pre2013_root.py", "test_fetch.py", "test_ib_backfill.py", "test_fred_backfill.py", "test_yfinance_backfill.py",
         "test_dividend_backfill.py", "test_factor_file_backfill.py", "test_filing_text.py",
@@ -727,6 +735,8 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         "test_auth.py", "test_auth_io.py", "test_api_auth.py",
     ],
     "ml": [
+        # V6.6.7: each module's own test file
+        "test_gating.py",
         "test_train_cross_sectional.py",
         # V6.0.0 - extra-horizon (rank_60d) targets and heads.
         "test_v600_extra_horizon.py",
@@ -759,6 +769,8 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         "test_train_gate_friendliness.py",
     ],
     "retraining": [
+        # V6.6.7: each module's own test file
+        "test_artifacts.py", "test_orchestrator.py", "test_planning.py", "test_postgres_registry.py", "test_worker.py",
         "test_retraining_artifacts.py", "test_retraining_orchestrator.py", "test_retraining_planning.py",
         "test_retraining_postgres_registry.py", "test_retraining_worker.py", "test_trigger_worker.py",
         "test_triggers.py", "test_vault_client.py", "test_vault_commands.py", "test_vault_contract.py", "test_vault_record.py", "test_lean_backtest.py",
@@ -786,6 +798,8 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         "test_live_readiness.py", "test_live_readiness_io.py", "test_backup_postgres.py",
     ],
     "evaluation": [
+        # V6.6.7: each module's own test file
+        "test_audit_runners.py", "test_benchmark_comparison.py", "test_factor_neutralization_check.py", "test_tranche_book.py", "test_wide_context.py",
         # V6.6.1 - the third round's tools, and generations that hand over.
         "test_model_audit.py", "test_walk_forward_linear.py", "test_research_round.py", "test_alpha_decay.py", "test_generation_registry.py", "test_v664_mutation_ledgers.py", "test_generation_ledger.py",
         "test_glide_calibration.py", "test_cycle_daily.py", "test_research_cycle.py", "test_cycle_retrain.py", "test_aq_cycle_cli.py", "test_cycle_lean.py",
@@ -894,11 +908,17 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         "test_formal_differential_admission.py", "test_formal_differential_session_resolve.py", "test_formal_differential_holdout_once.py", "test_check_axioms.py", "test_formal_no_sorry.py", "test_verification_matrix.py",
         # V6.6.5
         "test_formal_differential_account_overrides.py", "test_formal_differential_authorize.py",
+        # V6.6.7 (#368-#376): ten more specs
+        "test_formal_differential_rl_sizing.py", "test_formal_differential_drawdown_guard.py", "test_formal_differential_backtest_gate.py", "test_formal_differential_auto_rollback.py", "test_formal_differential_premia_caps.py",
+        "test_formal_differential_rebalance.py", "test_formal_differential_cash_sweep.py", "test_formal_differential_dynamic_targets.py", "test_formal_differential_forex_cap.py", "test_formal_differential_vol_target.py",
     ],
     "meta": [
         "test_ci_workflows.py", "test_aq_test_ruff_flag.py", "test_packaging_modules.py", "test_docs_links.py", "test_docs_facts.py",
         # V6.4.3 - the aether_quant library's public surface and quickstart.
         "test_aether_quant_api.py", "test_aether_quant_quickstart.py", "test_aether_quant_coverage.py", "test_install_hooks.py", "test_module_has_test.py", "test_mutation_check.py",
+        # V6.6.7 (#361, #363): the Scorecard guards (hash locks, pins) and the fuzz targets
+        "test_scorecard_pins.py", "test_lock_requirements.py", "test_requirement_locks.py", "test_fuzz_targets.py", "test_fuzz_runner.py",
+        "test_aq_cli_coverage_changed.py", "test_coverage_misses.py", "test_scripts_readme.py",
         "test_ci_scripts.py", "test_codespace_lean_scripts.py", "test_lean_smoke_scripts.py", "test_v644_fixes.py", "test_readme_freshness.py",
         # V6.6.5
         "test_public_docstrings.py",
@@ -1015,9 +1035,108 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
 }
 
 
+_CHANGED_COVERAGE_LIMIT = 40  # more changed modules than this is a phase: run the full `aq test --coverage`
+
+
+def _changed_python_files(run=subprocess.run) -> list[str]:
+    """Tracked .py files outside tests/ that differ from HEAD, plus new ones git would commit (V6.6.7, #367)."""
+    def lines(command: list[str]) -> list[str]:
+        return [line.strip() for line in run(command, cwd=ROOT_DIR, capture_output=True, text=True, check=False).stdout.splitlines() if line.strip()]
+
+    found = lines(["git", "diff", "--name-only", "--diff-filter=ACMR", "HEAD", "--", "*.py"])
+    found += lines(["git", "ls-files", "--others", "--exclude-standard", "--", "*.py"])
+    return sorted({path.replace("\\", "/") for path in found if not path.replace("\\", "/").startswith("tests/")})
+
+
+def _changed_test_files(run=subprocess.run) -> list[str]:
+    def lines(command: list[str]) -> list[str]:
+        return [line.strip() for line in run(command, cwd=ROOT_DIR, capture_output=True, text=True, check=False).stdout.splitlines() if line.strip()]
+
+    found = lines(["git", "diff", "--name-only", "--diff-filter=ACMR", "HEAD", "--", "tests/test_*.py"])
+    found += lines(["git", "ls-files", "--others", "--exclude-standard", "--", "tests/test_*.py"])
+    return sorted({Path(path).name for path in found})
+
+
+def _module_needles(path: str) -> list[str]:
+    """What a test that exercises `path` names: its dotted module, its file path, or (for a script) its stem."""
+    posix = path.replace("\\", "/")
+    stem = posix[:-3] if posix.endswith(".py") else posix
+    needles = [stem.replace("/", "."), posix]
+    if posix.startswith("scripts/") or "/" not in posix:
+        needles.append(f'"{Path(stem).name}"')
+        needles.append(Path(stem).name)
+    return needles
+
+
+def _tests_for_changed(changed: list[str], registered: set[str], grep) -> list[str]:
+    """Registered test files that name a changed module. `grep(needle)` returns the test file names containing it. A test
+    that names a changed module but is in no group is an error: an unregistered test never runs in its subsystem."""
+    chosen: set[str] = set()
+    unregistered: set[str] = set()
+    for path in changed:
+        for needle in _module_needles(path):
+            for name in grep(needle):
+                (chosen if name in registered else unregistered).add(name)
+    if unregistered:
+        raise SystemExit(f"test files outside _SUBSYSTEM_TEST_FILES: {sorted(unregistered)} (register them in aq_cli.py)")
+    return sorted(chosen)
+
+
+def _git_grep_tests(needle: str, run=subprocess.run) -> list[str]:
+    result = run(["git", "grep", "-l", "-F", "--untracked", needle, "--", "tests/test_*.py"], cwd=ROOT_DIR, capture_output=True, text=True, check=False)
+    return [Path(line.strip()).name for line in result.stdout.splitlines() if line.strip()]
+
+
+def _coverage_json_covers(json_path: Path, changed: list[str]) -> bool:
+    """True when a coverage.json written after every changed file shows each of them with no missing line."""
+    if not json_path.exists():
+        return False
+    stamp = json_path.stat().st_mtime
+    if any((ROOT_DIR / path).exists() and (ROOT_DIR / path).stat().st_mtime > stamp for path in changed):
+        return False
+    try:
+        files = {name.replace("\\", "/"): report for name, report in json.loads(json_path.read_text(encoding="utf-8")).get("files", {}).items()}
+    except (OSError, ValueError):
+        return False
+    return all(path in files and not files[path].get("missing_lines") for path in changed)
+
+
+def _run_changed_coverage(*, run=subprocess.run, grep=None, runner=None) -> int:
+    """`aq test --coverage --changed` (V6.6.7, #367): the fast gate before a commit. The tests that name each changed module
+    run under coverage, and every changed file must reach 100%. A fresh full run's coverage.json that already shows them
+    covered passes at once; more than `_CHANGED_COVERAGE_LIMIT` changed modules is a phase, so the full gate is asked for."""
+    changed = _changed_python_files(run)
+    if not changed:
+        print("coverage --changed: no changed module")
+        return 0
+    if _coverage_json_covers(ROOT_DIR / "coverage.json", changed):
+        print(f"coverage --changed: coverage.json is newer than the {len(changed)} changed file(s) and shows them at 100%")
+        return 0
+    if len(changed) > _CHANGED_COVERAGE_LIMIT:
+        print(f"coverage --changed: {len(changed)} changed modules, too many for the fast gate: run `aq test --coverage`")
+        return 1
+    registered = {name for names in _SUBSYSTEM_TEST_FILES.values() for name in names}
+    tests = sorted(set(_tests_for_changed(changed, registered, grep or (lambda needle: _git_grep_tests(needle, run)))) | (set(_changed_test_files(run)) & registered))
+    if not tests:
+        print(f"coverage --changed: no test names {changed}: write one (AGENTS.md 'Coverage: 100% after every commit')")
+        return 1
+    data = ROOT_DIR / ".coverage.changed"
+    data.unlink(missing_ok=True)
+    env = {**os.environ, "COVERAGE_FILE": str(data)}
+    execute = runner or (lambda cmd: run(cmd, cwd=ROOT_DIR, env=env, check=False).returncode)
+    print(f"coverage --changed: {len(changed)} module(s), {len(tests)} test file(s)", flush=True)
+    worst = execute([sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", "-m", "not lean_backtest",
+                     "--cov", "--cov-report=", "--cov-fail-under=0", *[f"tests/{name}" for name in tests]])
+    report = execute([sys.executable, "-m", "coverage", "report", f"--data-file={data}", "--show-missing", "--fail-under=100",
+                      f"--include={','.join(changed)}"])
+    return worst or report
+
+
 def _run_coverage(args: argparse.Namespace) -> int:
     """`aq test --coverage`: one pytest process per registered group, each appending to `.coverage` (a group's own total is
     partial, so its gate is off), then `coverage report` and `coverage json` over the combined data."""
+    if getattr(args, "changed", False):
+        return _run_changed_coverage()
     data = Path(os.environ.get("COVERAGE_FILE") or ROOT_DIR / ".coverage")
     data.unlink(missing_ok=True)
     chosen = [name for name in _SUBSYSTEM_TEST_FILES if getattr(args, name.replace("-", "_"), False)]
@@ -4994,6 +5113,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--coverage", action="store_true",
         help="V6.6.6: every registered group (or the --<subsystem> groups given) in turn under coverage, appending, then the combined "
         "report of every tracked module; fails under pyproject's fail_under (100). One process at a time, for a small PC.",
+    )
+    test_parser.add_argument(
+        "--changed", action="store_true",
+        help="V6.6.7: with --coverage, the fast gate before a commit: the tests that name each changed module (vs HEAD, new "
+        "files included) run under coverage and every changed file must reach 100%%; a fresh full coverage.json that already "
+        "shows them covered passes at once. AGENTS.md 'Coverage: 100%% after every commit'.",
     )
     test_parser.add_argument(
         "--ruff", action="store_true",

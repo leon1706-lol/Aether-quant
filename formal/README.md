@@ -56,6 +56,16 @@ book-construction and neutrality functions).
 | `HoldoutOnce.lean` | `evaluation/research_cells.record_holdout_read` | a holdout is read once: `record_refuses_a_cell_already_read`, `record_adds_the_cells`, `second_read_refused`, `fresh_cells_are_readable`, `families_isolated` |
 | `AccountOverrides.lean` | `execution/accounts.apply_risk_overrides` | an account only tightens (V6.6.5, Problems #349): `lower_never_loosens`, `higher_never_loosens`, `looser_lower_refused`, `looser_higher_refused`, `unset_base_accepts`, `flag_only_off`, `mode_never_raised` |
 | `Authorize.lean` | `monitoring/auth.authorize` | never above a role or outside a scope (V6.6.5, #350): `never_above_role`, `never_outside_scope`, `anonymous_never_writes`, `anonymous_reads_only_when_auth_is_off`, `monotone_in_role` |
+| `RlSizing.lean` | `risk/rl_sizing.py` | V6.6.7 (#368): `clamp_within`, `invalid_bounds_noop` (finding), `nonfinite_low_noop`, `shrink_only`, `guard_off_allows`, `nonpos_window_reads_one_bar` (finding), `window_is_suffix` |
+| `DrawdownGuard.lean` | `evaluation/generation_ledger._max_drawdown` | V6.6.7 (#369): `dd_nonneg`, `dd_le_one`, `dd_mono_append`, `trip_latches`, `nonfinite_trips` (finding) |
+| `BacktestGate.lean` | `retraining/backtest_gate.py` | V6.6.7 (#370): `passes_iff`, `missing_candidate_fails` (finding), `invalid_threshold_fails` (finding), `mono_candidate`, `mono_threshold` |
+| `AutoRollback.lean` | `retraining/auto_rollback.py` | V6.6.7 (#371): `rollback_needs_all`, `disabled_never_rolls_back`, `target_sound`, `target_is_first` |
+| `PremiaCaps.lean` | `portfolio/premia_signals._apply_weight_caps` | V6.6.7 (#372): `clip_good`, `capAll_good` (within its cap, no larger, never flips), `capAll_gross`, `class_cap_after_its_step` |
+| `Rebalance.lean` | `portfolio/target_weights.rebalance_deltas` | V6.6.7 (#373): `no_overshoot`, `reduction_shrinks`, `close_is_reduction`, `through_zero_is_not_a_reduction` (finding), `nav_nonpos_no_order` |
+| `CashSweep.lean` | `portfolio/cash_sweep.py`, `portfolio/class_sleeve.resize_below_minimum` | V6.6.7 (#374): `target_nonneg`, `target_le_max`, `anti_mono_margin`, `anti_mono_reserve_margin`, `value_nonneg` (finding), `nonfinite_minimum_blocks` (finding) |
+| `DynamicTargets.lean` | `portfolio/generation_blend.py` | V6.6.7 (#375): `fill_le_cap`, `fill_names`, `repair_nonneg`, `repair_sum_le` (finding) |
+| `ForexCap.lean` | `risk/forex_risk.cap_forex_target_to_book_weight` | V6.6.7 (#376): `abs_le_book`, `sign_kept`, `shrinks`, `idempotent`, `nonfinite_zero` |
+| `VolTarget.lean` | `risk/vol_target.py` | V6.6.7 (#376): `uniform_scale`, `gross_le_leverage`, `target_zero_flat` (finding) |
 | `Real.lean` | the headline theorems above | restated at `ℝ` |
 
 ## Findings
@@ -69,6 +79,7 @@ book-construction and neutrality functions).
   negative multiplier product** escaped `max_position_weight` on the wrong side; **`trailing_drawdown(lookback=0)`** read
   the whole history. All fixed fail-safe.
 - **Hash-chain truncation** is invisible to `verify_chain`; `expected_tail_hash` anchors it.
+- **V6.6.7:** an RL band with `min > max` amplified a shrink-only size and a window below one bar read the whole history; the generation drawdown guard failed open on a NaN return; a missing candidate return or a NaN threshold passed the retraining gate; the string `"false"` enabled auto-rollback; a negative cap flipped the premia book to shorts; an order through zero was sorted as a reduction; a loss past 100% made the strategy value negative; a damaged generation allocation was kept as it was; a zero volatility target left the book unscaled. All fixed fail-safe with defaults unchanged (Problems #368-#376).
 
 ## Checks beyond the build
 
@@ -82,5 +93,5 @@ book-construction and neutrality functions).
 2. Import it in `AetherFormal.lean` and add a generator to `GenCases.lean` (`all`).
 3. `tests/test_formal_differential_<target>.py`, registered in the `formal` bucket of `aq_cli.py`, and the target in
    `tests/test_formal_cases_drift.py`.
-4. `aq prove --regen-cases`, then `aq test --formal`.
+4. `aq prove --regen-cases` (twice: the second run must leave `git diff` clean), then `aq test --formal`. Add the modelled Python file to `formal.yml`'s `paths`.
 5. A row in the theorem index above, and the target count in `scripts/wheel_smoke.py` (`check_library`'s `formal` check).

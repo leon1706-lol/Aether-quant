@@ -63,3 +63,23 @@ def test_compare_backtests_omits_benchmark_when_ticker_missing_from_candidate():
     result = compare_backtests(active, candidate, config)
 
     assert result["comparison"]["benchmark"] is None
+
+
+# --- V6.6.7 (#370, formal/AetherFormal/BacktestGate.lean)
+
+def test_v667_a_missing_candidate_or_a_bad_threshold_fails():
+    import math
+
+    from retraining.backtest_gate import compare_backtests
+
+    losing = {"backtest": {"strategy": {"total_return": -0.3}}}
+    missing = {"backtest": {"strategy": {}}}
+    nan = {"backtest": {"strategy": {"total_return": math.nan}}}
+    good = {"backtest": {"strategy": {"total_return": 0.1}}}
+    for candidate in (missing, nan):
+        out = compare_backtests(losing, candidate, {})
+        assert out["passed"] is False and out["reasons"] == ["candidate_return_missing"]
+    for threshold in (math.nan, "x", True, None):
+        out = compare_backtests(losing, good, {"min_excess_return_vs_active": threshold})
+        assert out["passed"] is False and out["reasons"][0].startswith("min_excess_return_vs_active_invalid")
+    assert compare_backtests(losing, good, {})["passed"] is True

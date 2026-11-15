@@ -1,0 +1,10 @@
+# Lint, compat, typecheck, bandit, packaging and release tools (--profile tools)
+build>=1.2
+pip-audit>=2.7
+ruff==0.16.4
+vermin==1.9.2
+pyright==1.1.409
+bandit==1.9.4
+sigstore==4.5.1
+cyclonedx-bom==8.0.1
+lxml>=6.1.0  # cyclonedx-python-lib's XML dependency: 5.4.0 has PYSEC-2026-87 (fixed in 6.1.0)

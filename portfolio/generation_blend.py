@@ -215,14 +215,23 @@ def step_toward(shares: Mapping[str, float], targets: Mapping[str, float], fract
     return out
 
 
+def repair_shares(shares: Mapping[str, float]) -> dict[str, float]:
+    """An allocation that is a valid one: a NaN or negative share is zero, and a total above one is scaled down to one
+    (formal/AetherFormal/DynamicTargets.lean, `repair_valid`). V6.6.7 (#375): an invalid allocation used to be returned
+    as it was, so a tripped or dead generation kept its share, and an over-allocated book stayed over-allocated."""
+    numbers = {name: max(0.0, _finite(value, 0.0)) for name, value in shares.items()}
+    total = sum(numbers.values())
+    if total > 1.0 + SHARE_TOLERANCE:
+        numbers = {name: value / total for name, value in numbers.items()}
+    return numbers
+
+
 def dynamic_generation_shares(
     shares: Mapping[str, float], stages: Mapping[str, str], states: Mapping[str, str], evidence: Mapping[str, Mapping], caps: Mapping[str, float], policy: GlidePolicy, *, sessions: int = 1,
 ) -> dict[str, float]:
     """The `dynamic` mode. `evidence` holds, per generation, `ew_sharpe`, `sessions` and `prior`. A generation out of a holding stage, dead or tripped drops to zero at once, whatever its score;
     `winding_down` aims for zero. With no positive score and no generation past `min_evidence_sessions`, nothing is known yet, so shares hold."""
-    numbers = {name: _finite(value, math.nan) for name, value in shares.items()}
-    if any(math.isnan(value) or value < 0.0 for value in numbers.values()) or sum(numbers.values()) > 1.0 + SHARE_TOLERANCE:
-        return {name: _finite(value, 0.0) for name, value in shares.items()}
+    numbers = repair_shares(shares)
     now = {
         name: 0.0 if stage not in HOLDING_STAGES or states.get(name) in DEAD_STATES or states.get(name) == "tripped" else numbers.get(name, 0.0)
         for name, stage in stages.items()

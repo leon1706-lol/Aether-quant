@@ -121,3 +121,16 @@ def test_membership_mask_follows_the_intervals():
     dates = ["2020-01-01", "2020-06-01", "2021-01-01"]
     mask = membership_mask({"AAA": [("2020-02-01", "2021-01-01")]}, dates, ["AAA", "BBB"])
     assert mask["AAA"].tolist() == [False, True, False] and not mask["BBB"].any()
+
+
+# --- V6.6.7 (#363): found by fuzz/targets.py
+
+def test_v667_a_malformed_ledger_entry_refuses_every_read(tmp_path):
+    import pytest
+
+    from evaluation.research_cells import record_holdout_read
+
+    ledger = tmp_path / "ledger.jsonl"
+    ledger.write_text('{"candidate": "x", "cells": "V1"}\n', encoding="utf-8")
+    with pytest.raises(ValueError, match="not a holdout record"):
+        record_holdout_read(ledger, candidate="c", cells=("V1",), digest="d", created_at="t")

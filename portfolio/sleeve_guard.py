@@ -47,8 +47,9 @@ def resolve_sleeve_guard_config(raw: dict[str, Any] | None) -> SleeveGuardConfig
 
 
 def trailing_drawdown(pnl_increments: Sequence[float], lookback_bars: int) -> float:
-    """Largest peak-to-trough fall (a positive number, same unit as the increments) of the cumulative P&L over the last
-    `lookback_bars` increments, measured up to the latest bar. Non-finite increments count as 0. A non-positive
+    """The current drawdown at the latest bar (a positive number, same unit as the increments): the cumulative P&L's
+    running peak over the last `lookback_bars` increments minus where it ends, not the largest fall inside the window
+    (formal/AetherFormal/SleeveGuard.lean). Non-finite increments count as 0. A non-positive
     lookback reads no window (V6.4.3: `xs[-0:]` is the whole history)."""
     if lookback_bars <= 0:
         return 0.0

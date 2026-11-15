@@ -26,7 +26,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 ALLOWLIST = ROOT / "tests" / "data" / "aether_quant_unexported.json"
-LEGACY_CEILING = 288  # the backlog when the gate was added (V6.6.4); only ever lowered
+LEGACY_CEILING = 0  # V6.6.7: the backlog of V6.6.4 (288) is gone, every name exported or explained; it stays 0
 
 
 def shipped_roots(root: Path = ROOT) -> tuple[list[str], list[str]]:

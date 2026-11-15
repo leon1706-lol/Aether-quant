@@ -8,8 +8,36 @@ from aether_quant.formal import load_cases, spec_sha256, targets
 
 FORMAL_ROOT = Path(__file__).resolve().parents[1] / "formal"
 
-EXPECTED_TARGETS = ["account_overrides", "admission", "authorize", "book_construction", "book_neutrality", "cost_model", "generation_blend", "generation_glide", "hash_chain", "holdout_once", "json_safety", "kill_switch",
-                    "order_gate", "position_sizing", "reconciliation", "risk_controls", "session_resolve", "sleeve_guard"]
+EXPECTED_TARGETS = [
+    "account_overrides",
+    "admission",
+    "authorize",
+    "auto_rollback",
+    "backtest_gate",
+    "book_construction",
+    "book_neutrality",
+    "cash_sweep",
+    "cost_model",
+    "drawdown_guard",
+    "dynamic_targets",
+    "forex_cap",
+    "generation_blend",
+    "generation_glide",
+    "hash_chain",
+    "holdout_once",
+    "json_safety",
+    "kill_switch",
+    "order_gate",
+    "position_sizing",
+    "premia_caps",
+    "rebalance",
+    "reconciliation",
+    "risk_controls",
+    "rl_sizing",
+    "session_resolve",
+    "sleeve_guard",
+    "vol_target",
+]
 
 
 def test_every_target_has_a_case_file():

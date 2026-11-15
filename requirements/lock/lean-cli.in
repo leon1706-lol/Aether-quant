@@ -1,0 +1,2 @@
+# The Lean CLI on the DinD Codespace; keep equal to LEAN_CLI_VERSION in scripts/codespace_lean_dind.sh (--profile lean-cli)
+lean==1.0.227

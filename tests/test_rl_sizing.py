@@ -191,3 +191,40 @@ def test_load_rl_sizing_model_valid_file_round_trips(tmp_path):
     model = _valid_model()
     path.write_text(json.dumps(model), encoding="utf-8")
     assert load_rl_sizing_model(path) == model
+
+
+# --- V6.6.7 (#368, formal/AetherFormal/RlSizing.lean)
+
+def _v667_model(raw):
+    from risk.rl_sizing import RL_SIZING_STATE_KEYS
+
+    keys = list(RL_SIZING_STATE_KEYS)
+    return {"state_keys": keys, "actions": [raw], "weights": [[0.0] * len(keys)], "bias": [0.0], "mean": [0.0] * len(keys), "scale": [1.0] * len(keys)}, {key: 0.0 for key in keys}
+
+
+def test_v667_an_inverted_or_non_finite_band_is_a_no_op_never_an_amplified_size():
+    import math
+
+    from risk.rl_sizing import rl_sizing_multiplier
+
+    model, state = _v667_model(0.8)
+    assert rl_sizing_multiplier(model, state, True, 1.2, 1.0) == (1.0, "rl_sizing_invalid_bounds")
+    assert rl_sizing_multiplier(model, state, True, math.nan, 1.0) == (1.0, "rl_sizing_invalid_bounds")
+    assert rl_sizing_multiplier(model, state, True, 0.6, math.inf) == (1.0, "rl_sizing_invalid_bounds")
+    assert rl_sizing_multiplier(model, state, True, "x", 1.0) == (1.0, "rl_sizing_invalid_bounds")
+
+
+def test_v667_the_default_band_is_unchanged():
+    from risk.rl_sizing import DEFAULT_MAX_RL_MULTIPLIER, DEFAULT_MIN_RL_MULTIPLIER, rl_sizing_multiplier
+
+    for raw, expected in ((0.2, 0.6), (0.8, 0.8), (1.7, 1.0)):
+        model, state = _v667_model(raw)
+        assert rl_sizing_multiplier(model, state, True, DEFAULT_MIN_RL_MULTIPLIER, DEFAULT_MAX_RL_MULTIPLIER) == (expected, "rl_sizing_policy_scaled_sizing")
+
+
+def test_v667_a_window_below_one_bar_reads_one_bar_not_the_whole_history():
+    from risk.rl_sizing import rl_shadow_guard_allows
+
+    history = [-1.0, -1.0, 0.5]
+    for window in (0, -3):
+        assert rl_shadow_guard_allows(history, {"enabled": True, "window_bars": window, "tolerance_nav_fraction": 0.1}) is True

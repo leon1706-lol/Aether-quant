@@ -5,10 +5,18 @@ The full record of every phase lives in the repository: [`development/Changelog.
 The latest phases, generated from that file by `aq docs sync`:
 
 <!-- AQ:CHANGELOG_LATEST_START -->
+- [Phase V6.6.7 — The last tidy-up: the Scorecard near its ceiling, fuzzing, coverage after every commit, ten more proofs](https://github.com/leon1706-lol/Aether-quant/blob/main/development/Changelog.md#phase-v667--the-last-tidy-up-the-scorecard-near-its-ceiling-fuzzing-coverage-after-every-commit-ten-more-proofs)
 - [Phase V6.6.6 — Cleanup: the Scorecard sees releases, the public pages stop quoting by hand, coverage measures everything](https://github.com/leon1706-lol/Aether-quant/blob/main/development/Changelog.md#phase-v666--cleanup-the-scorecard-sees-releases-the-public-pages-stop-quoting-by-hand-coverage-measures-everything)
 - [Phase V6.6.5 — Open the door: a five-minute start, a first-class library, a hardened live path](https://github.com/leon1706-lol/Aether-quant/blob/main/development/Changelog.md#phase-v665--open-the-door-a-five-minute-start-a-first-class-library-a-hardened-live-path)
-- [Phase V6.6.4 — Everything open that needs no broker key: a fourth alpha round, the open problems, verification of every kind](https://github.com/leon1706-lol/Aether-quant/blob/main/development/Changelog.md#phase-v664--everything-open-that-needs-no-broker-key-a-fourth-alpha-round-the-open-problems-verification-of-every-kind)
 <!-- AQ:CHANGELOG_LATEST_END -->
+
+**6.6.7: the last tidy-up.**
+
+- **Supply chain.** Every install in CI, the Docker images and the scripts is hash-pinned (`requirements/lock/`), and a new check keeps it that way. torch and pyarrow moved past their advisories.
+- **Fuzzing.** The parsers and guards that take untrusted input are fuzzed with Atheris in CI. The first run found five bugs, including a password that leaked through `@` and a users file that granted every account.
+- **Proofs.** Ten more Lean 4 specs (28 in all) with their differential tests; they closed nine fail-open cases, such as a drawdown guard that never tripped on NaN and an auto-rollback the string "false" switched on.
+- **Coverage.** The 100% gate now has a fast per-commit form (`aq test --coverage --changed`) in the pre-commit hook.
+- **Releases.** Each release's provenance is the build's own attestation, and older releases get theirs attached by `backfill_tag`.
 
 **6.6.6: cleanup.**
 

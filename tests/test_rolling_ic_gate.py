@@ -163,3 +163,18 @@ def test_observed_and_threshold_values_reported_for_every_branch():
     assert result["observed_rolling_mean_ic"] == pytest.approx(0.15)
     assert result["min_rolling_mean_ic"] == pytest.approx(0.05)
     assert result["num_resolved_dates"] == 40
+
+
+# --- V6.6.7 (#377)
+
+def test_v667_a_non_finite_ic_is_named_and_stays_fail_open():
+    import math
+
+    from portfolio.rolling_ic_gate import evaluate_rolling_ic_gate
+
+    config = {"enabled": True, "min_rolling_mean_ic": 0.02, "min_resolved_dates_required": 5}
+    for observed, floor in ((math.nan, 0.02), (0.05, math.nan)):
+        out = evaluate_rolling_ic_gate({"num_resolved_dates": 10, "rolling_mean_ic": observed}, {**config, "min_rolling_mean_ic": floor})
+        assert out["engaged"] is True and out["reason"] == "rolling_ic_nonfinite"
+    assert evaluate_rolling_ic_gate({"num_resolved_dates": 10, "rolling_mean_ic": 0.05}, config)["reason"] == "rolling_ic_above_floor"
+    assert evaluate_rolling_ic_gate({"num_resolved_dates": 10, "rolling_mean_ic": 0.0}, config)["engaged"] is False

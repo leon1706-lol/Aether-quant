@@ -103,6 +103,8 @@ def parse_users(doc: Mapping[str, Any]) -> tuple[User, ...]:
     users: list[User] = []
     seen: set[str] = set()
     for row in rows if isinstance(rows, list) else []:
+        if not isinstance(row, Mapping):
+            raise ValueError(f"a user entry must be an object, got {type(row).__name__}")
         name = str(row.get("name", ""))
         if not _NAME_RE.match(name) or name in seen:
             raise ValueError(f"bad or duplicate user {name!r}")
@@ -110,7 +112,11 @@ def parse_users(doc: Mapping[str, Any]) -> tuple[User, ...]:
         salt, digest = str(row.get("salt", "")), str(row.get("token_hash", ""))
         if not re.fullmatch(r"[0-9a-f]{32}", salt) or not re.fullmatch(r"[0-9a-f]{64}", digest):
             raise ValueError(f"user {name!r} has no valid salt and token hash")
-        accounts = tuple(str(account) for account in row.get("accounts", ["*"])) or ("*",)
+        scope = row.get("accounts", ["*"])
+        # a string would iterate into characters, and "a*" into ("a", "*"): every account (V6.6.7, #363)
+        if not isinstance(scope, list) or not all(isinstance(account, str) for account in scope):
+            raise ValueError(f"user {name!r}: accounts must be a list of account ids")
+        accounts = tuple(scope) or ("*",)
         users.append(User(name, Role.parse(str(row.get("role", "viewer"))), salt, digest, accounts))
     return tuple(users)
 

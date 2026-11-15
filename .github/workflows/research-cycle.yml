@@ -34,7 +34,7 @@ jobs:
         with:
           python-version: "3.11"
       - name: Install the few packages the rule needs
-        run: pip install numpy pandas requests
+        run: python -m pip install --require-hashes -r code/requirements/lock/light.txt
       - name: Check out the ledger branch, creating it the first time
         working-directory: code
         run: |

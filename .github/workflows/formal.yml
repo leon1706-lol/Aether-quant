@@ -15,6 +15,27 @@ on:
       - "evaluation/research_cells.py"
       - "portfolio/generation_blend.py"
       - "risk/kill_switch.py"
+      # V6.6.7: every file a spec models (only seven were listed)
+      - "json_safety.py"
+      - "risk_controls.py"
+      - "execution/accounts.py"
+      - "execution/cost_model.py"
+      - "execution/reconciliation.py"
+      - "monitoring/auth.py"
+      - "portfolio/book_construction.py"
+      - "portfolio/book_neutrality.py"
+      - "portfolio/sleeve_guard.py"
+      - "risk/position_sizing.py"
+      - "risk/rl_sizing.py"
+      - "evaluation/generation_ledger.py"
+      - "retraining/backtest_gate.py"
+      - "retraining/auto_rollback.py"
+      - "portfolio/premia_signals.py"
+      - "portfolio/target_weights.py"
+      - "portfolio/cash_sweep.py"
+      - "portfolio/class_sleeve.py"
+      - "risk/forex_risk.py"
+      - "risk/vol_target.py"
       - "scripts/check_axioms.py"
       - ".github/workflows/formal.yml"
   pull_request:
@@ -45,12 +66,14 @@ jobs:
           cache: "pip"
 
       - name: Install the few packages aq needs to run the proof steps
-        run: pip install numpy pandas pyyaml
+        run: python -m pip install --require-hashes -r requirements/lock/light.txt
 
       - name: Install Lean (elan)
         run: |
-          curl -sSf https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh -o elan-init.sh
-          bash elan-init.sh -y --default-toolchain none
+          # V6.6.7 (#361): the installer at a fixed commit, checked by hash, never master
+          curl -sSf https://raw.githubusercontent.com/leanprover/elan/9605b24b08cf68b78dce0014b6fa01be1f8e2cee/elan-init.sh -o elan-init.sh
+          echo "a620ff1641616222c8d37c54845492004bb84d6877cdbc944dd65c1aa685bf53  elan-init.sh" | sha256sum -c -
+          sh elan-init.sh -y --default-toolchain none
           echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
 
       - name: No sorry in any spec

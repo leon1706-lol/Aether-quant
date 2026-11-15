@@ -1,0 +1,3 @@
+# Every suite job: the app, the dev tools and CPU torch (scripts/lock_requirements.py --profile ci)
+-r ../requirements.txt
+-r ../requirements-dev.txt
