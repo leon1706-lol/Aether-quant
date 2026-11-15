@@ -11,12 +11,12 @@ Pure; operates on an in-memory frame.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING, Any
+
 import numpy as np
 import pandas as pd
 
 from evaluation.gate_audit import daily_rank_ic
-from typing import TYPE_CHECKING, Any
-
 
 if TYPE_CHECKING:
     from collections.abc import Sequence

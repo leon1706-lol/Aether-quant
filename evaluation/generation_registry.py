@@ -12,9 +12,9 @@ import json
 from collections.abc import Mapping
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
+from typing import Any
 
 from audit.hash_chain import GENESIS_HASH, compute_entry_hash, verify_chain
-from typing import Any
 
 # On the book, in order: gaining capital, a settled holder, still earning but falling short of its claim, on its way out. Several generations can sit in these at once.
 STAGES = ("candidate", "frozen", "shadow", "ramping", "active", "fading", "winding_down", "retired", "rejected")
@@ -127,7 +127,7 @@ def _book_stage(stage: str, evidence: AdmissionEvidence) -> str:
     if stage == "active":
         return "fading" if behind or not earning else "active"
     if stage == "fading":
-        if not earning or evidence.decay_state == "decaying" and score is not None and score <= 0.0:
+        if not earning or (evidence.decay_state == "decaying" and score is not None and score <= 0.0):
             return "winding_down"
         return "active" if not behind else "fading"
     return "fading" if earning and evidence.decay_state == "healthy" and score is not None else "winding_down"

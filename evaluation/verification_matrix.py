@@ -116,6 +116,7 @@ SURFACES: tuple[Surface, ...] = (
     _s("ci:docs", "CI: mkdocs build --strict", "the docs site builds", ["CI"], "2 min", "GitHub Actions (site artifact)", "every push"),
     _s("ci:notebooks", "CI: build_notebooks.py --check --execute", "the tutorials run", ["CI"], "6 min", "GitHub Actions", "every push"),
     _s("ci:bandit", "CI: bandit -lll", "no high-severity static finding", ["CI"], "1 min", "GitHub Actions", "every push"),
+    _s("ci:cpp-sanitizers", "CI: cpp_inference_ext under ASan and UBSan", "the C++ kernel has no memory error or undefined behaviour; a canary overflow aborts first", ["CI"], "5 min", "GitHub Actions", "every push"),
     _s("ci:parity-smoke", "CI: parity tests and feature_parity_audit --synthetic-only", "live and offline compute the same features", ["CI"], "1 min", "GitHub Actions", "every push"),
     _s("ci:secret-scan", "CI: gitleaks (blocking on the tree, advisory on history)", "no secret in a tracked file", ["CI"], "10 s", "GitHub Actions", "every push"),
     # --- the other workflows

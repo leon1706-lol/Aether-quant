@@ -183,7 +183,7 @@ def dynamic_targets(scores: Mapping[str, float], caps: Mapping[str, float], poli
     """Each generation's target: proportional to its score above the floor, for the best `max_generations`. What a capped generation can't hold goes to the others, and what none may hold stays in T-bills."""
     usable = {name: _finite(score, math.nan) - policy.score_floor for name, score in scores.items()}
     positive = sorted(((value, name) for name, value in usable.items() if value > 0.0), key=lambda item: (-item[0], item[1]))[: policy.max_generations]
-    targets = {name: 0.0 for name in scores}
+    targets = dict.fromkeys(scores, 0.0)
     open_names = {name: value for value, name in positive}
     remaining = 1.0
     while open_names and remaining > SHARE_TOLERANCE:

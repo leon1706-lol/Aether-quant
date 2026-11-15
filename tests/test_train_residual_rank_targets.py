@@ -8,7 +8,6 @@ import pandas as pd
 
 from train import build_residual_rank_targets, cross_sectional_residualize
 
-
 # ---------------------------------------------------------------------------
 # cross_sectional_residualize - the pure per-date primitive
 # ---------------------------------------------------------------------------
@@ -150,7 +149,7 @@ def _config(**residual_overrides):
 
 
 def test_build_residual_rank_targets_residual_correlates_with_noise_not_beta():
-    frames, sectors, betas, noise_by_ticker, tickers = _synthetic_universe()
+    frames, _sectors, betas, noise_by_ticker, tickers = _synthetic_universe()
     config = _config()
 
     result = build_residual_rank_targets(frames, config)
@@ -158,7 +157,7 @@ def test_build_residual_rank_targets_residual_correlates_with_noise_not_beta():
     rows = []
     for ticker in tickers:
         frame = result[ticker]
-        for date, residual_rank, noise in zip(frame["date"], frame["target_residual_rank_20d"], noise_by_ticker[ticker]):
+        for date, residual_rank, noise in zip(frame["date"], frame["target_residual_rank_20d"], noise_by_ticker[ticker], strict=False):
             if pd.isna(residual_rank):
                 continue
             rows.append({"ticker": ticker, "date": date, "residual_rank": residual_rank, "noise": noise, "beta": betas[ticker]})
@@ -200,14 +199,14 @@ def test_build_residual_rank_targets_all_factors_disabled_matches_plain_rank():
     # equal the plain per-date percentile rank of the raw forward return.
     long_rows = []
     for ticker, frame in frames.items():
-        for date, value in zip(frame["date"], frame["target_return_20d"]):
+        for date, value in zip(frame["date"], frame["target_return_20d"], strict=False):
             long_rows.append({"ticker": ticker, "date": date, "value": value})
     plain = pd.DataFrame(long_rows)
     plain["plain_rank"] = plain.groupby("date")["value"].rank(pct=True)
     plain_lookup = plain.set_index(["ticker", "date"])["plain_rank"].to_dict()
 
     for ticker, frame in result.items():
-        for date, residual_rank in zip(frame["date"], frame["target_residual_rank_20d"]):
+        for date, residual_rank in zip(frame["date"], frame["target_residual_rank_20d"], strict=False):
             if pd.isna(residual_rank):
                 continue
             assert abs(residual_rank - plain_lookup[(ticker, date)]) < 1e-9
@@ -225,7 +224,7 @@ def test_build_residual_rank_targets_thin_date_degrades_to_nan_not_a_crash():
 
     result = build_residual_rank_targets(frames, config)
 
-    for ticker, frame in result.items():
+    for frame in result.values():
         assert frame["target_residual_rank_5d"].isna().all()
         assert frame["target_residual_rank_20d"].isna().all()
 
@@ -249,7 +248,7 @@ def test_build_residual_rank_targets_single_sector_date_does_not_crash():
 
     result = build_residual_rank_targets(frames, config)
 
-    for ticker, frame in result.items():
+    for frame in result.values():
         assert frame["target_residual_rank_20d"].notna().any()
 
 
@@ -262,5 +261,5 @@ def test_build_residual_rank_targets_missing_market_ticker_falls_back_gracefully
 
     # Degrades to market_term == 0 for everyone (never raises) - still
     # produces a well-defined (though market-uninformed) residual rank.
-    for ticker, frame in result.items():
+    for frame in result.values():
         assert frame["target_residual_rank_20d"].notna().any()

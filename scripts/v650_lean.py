@@ -273,7 +273,7 @@ def stage_judge(args) -> int:
     for name, runs in sorted(members.items()):
         phases = {phase: describe(run_dir) for phase, run_dir in sorted(runs["phases"].items())}
         detail[name] = {"phases": phases}
-        def median(key: str) -> float | None:
+        def median(key: str, phases: dict = phases) -> float | None:
             values = [entry[key] for entry in phases.values() if entry.get(key) is not None]
             return float(np.median(values)) if values else None
         entry = {key: median(key) for key in ("lean_sharpe", "strategy_sharpe", "annual_std", "drawdown_pct", "alpha_annual", "alpha_t")}

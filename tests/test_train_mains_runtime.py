@@ -23,7 +23,7 @@ def run(monkeypatch, tmp_path, argv, **world):
 
 
 def test_the_multitask_model_trains_on_random_batches_and_writes_its_version(monkeypatch, tmp_path):
-    paths, code = run(monkeypatch, tmp_path, [], training_overrides={"batch_mode": "random", "ranking_loss": None})
+    _paths, code = run(monkeypatch, tmp_path, [], training_overrides={"batch_mode": "random", "ranking_loss": None})
     version = tmp_path / "ml" / "versions" / "v1"
     metrics = json.loads((version / "multitask_training_metrics.json").read_text(encoding="utf-8"))
     assert code == 0 and (version / "multitask_model.json").exists() and "validation" in metrics and set(FEATURES) == set(json.loads((version / "multitask_feature_schema.json").read_text(encoding="utf-8"))["model_input_names"])

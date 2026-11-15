@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import math
 from dataclasses import asdict, dataclass
+from typing import Any
 
 from .rl_sizing import rl_sizing_multiplier as _rl_sizing_multiplier
-from typing import Any
 
 TRADING_DAYS_PER_YEAR = 252
 

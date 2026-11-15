@@ -45,7 +45,7 @@ class TestFactorExposure:
         assert abs(result["alpha_sharpe"]) < 3.0
 
     def test_returns_all_required_keys(self):
-        book, market, mom, idx = self._make_data()
+        book, market, mom, _idx = self._make_data()
         result = compute_factor_exposure(
             book, market, momentum_factor=mom
         )

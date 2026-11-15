@@ -14,6 +14,7 @@ import json
 import math
 from collections.abc import Mapping, Sequence
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import pandas as pd
@@ -34,7 +35,6 @@ from portfolio.generation_blend import (
     update_generation_shares,
 )
 from portfolio.premia_signals import ResearchPanel, SleeveSpec, WeightSettings, signal_to_weights, sleeve_signal
-from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -292,7 +292,7 @@ def replay_dynamic(
     names = list(rows_by_generation)
     shares = {name: float((initial or {}).get(name, 0.0)) for name in names}
     latest: dict[str, Mapping[str, float]] = {name: {} for name in names}
-    states = {name: (0.0, 0.0, 0.0, 0) for name in names}
+    states = dict.fromkeys(names, (0.0, 0.0, 0.0, 0))
     rows: dict[str, dict[str, float]] = {}
     path: dict[str, dict[str, float]] = {}
     scores: dict[str, dict[str, float]] = {}

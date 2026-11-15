@@ -26,5 +26,5 @@ def test_python_matches_the_lean_model():
         else:
             variance = 0.0 if squares == 0.0 else risk * risk / (252.0 * squares)
         cov = pd.DataFrame(np.eye(len(names)) * variance, index=names, columns=names)
-        out = volatility_target_weights(dict(zip(names, weights)), cov, target_annual_vol=to_float(given["target"]), max_leverage=to_float(given["max_leverage"]))
+        out = volatility_target_weights(dict(zip(names, weights, strict=False)), cov, target_annual_vol=to_float(given["target"]), max_leverage=to_float(given["max_leverage"]))
         assert [out[name] for name in names] == pytest.approx([to_float(w) for w in case["expected"]["weights"]], abs=1e-9), index

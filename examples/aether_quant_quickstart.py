@@ -14,7 +14,7 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from aether_quant import audit, execution, formal, portfolio, research, risk  # noqa: E402
+from aether_quant import audit, execution, formal, portfolio, research, risk
 
 
 def main() -> int:

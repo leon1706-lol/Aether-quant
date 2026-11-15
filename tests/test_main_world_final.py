@@ -147,7 +147,7 @@ def test_the_forex_policy_sizes_the_entry_of_a_sleeve_pair_and_the_shadow_guard_
 
 
 def test_held_futures_and_forex_are_resized_by_explicit_target_weights(monkeypatch, tmp_path):
-    _, algorithm, market, _ = make(monkeypatch, tmp_path, {"phase_v2": {"forex_sleeve": {"enabled": True, "min_trade_usd": 100000000.0}}})
+    _, algorithm, _market, _ = make(monkeypatch, tmp_path, {"phase_v2": {"forex_sleeve": {"enabled": True, "min_trade_usd": 100000000.0}}})
     for ticker, direction in (("ES", "buy"), ("ES", "short"), ("EURUSD", "buy"), ("GBPJPY", "short")):
         symbol, price, payload = payload_for(algorithm, ticker, direction)
         notes = [algorithm._apply_signal(symbol, direction, 0.08, price, payload)]
@@ -167,7 +167,7 @@ def test_held_futures_and_forex_are_resized_by_explicit_target_weights(monkeypat
 
 
 def test_short_exposure_is_counted_for_one_class_only(monkeypatch, tmp_path):
-    _, algorithm, market, _ = make(monkeypatch, tmp_path)
+    _, algorithm, _market, _ = make(monkeypatch, tmp_path)
     for ticker in ("TLT", "AAPL", "GBPJPY"):
         symbol, price, payload = payload_for(algorithm, ticker, "short")
         algorithm._apply_signal(symbol, "short", float(payload["target_weight"]), price, payload)
@@ -175,7 +175,7 @@ def test_short_exposure_is_counted_for_one_class_only(monkeypatch, tmp_path):
 
 
 def test_a_disabled_reconciliation_and_a_repeated_state_write_do_nothing(monkeypatch, tmp_path):
-    _, algorithm, market, _ = make(monkeypatch, tmp_path, {"phase_v2": {"reconciliation": {"enabled": False}}})
+    _, algorithm, _market, _ = make(monkeypatch, tmp_path, {"phase_v2": {"reconciliation": {"enabled": False}}})
     assert algorithm._evaluate_reconciliation() == {"status": "not_applicable", "reason": "reconciliation_disabled"}
     algorithm.last_state_write = algorithm.Time
     algorithm._write_state(mode="runtime", insight="again")
@@ -185,7 +185,7 @@ def test_a_disabled_reconciliation_and_a_repeated_state_write_do_nothing(monkeyp
 
 
 def test_the_observation_equity_csv_writes_only_new_points(monkeypatch, tmp_path):
-    _, algorithm, market, _ = make(monkeypatch, tmp_path, {"phase_v2": {"runtime": {"mode": "observation"}}}, bars=3)
+    _, algorithm, _market, _ = make(monkeypatch, tmp_path, {"phase_v2": {"runtime": {"mode": "observation"}}}, bars=3)
     algorithm._flush_observation_equity_csv()
     algorithm._flush_observation_equity_csv()
     algorithm._equity_curve_flushed_count = len(algorithm._simulated_portfolio.equity_curve)
@@ -225,7 +225,7 @@ def test_a_manual_kill_switch_override_file_replaces_the_switch(monkeypatch, tmp
 
 
 def test_the_shutdown_closes_queue_clients_and_survives_a_cleanup_that_raises(monkeypatch, tmp_path):
-    main, algorithm, market, _ = make(monkeypatch, tmp_path, {"phase_v2": {"diagnostics": {"teardown_cleanup": {"enabled": True}, "teardown_release_models": {"enabled": True}}}})
+    main, algorithm, _market, _ = make(monkeypatch, tmp_path, {"phase_v2": {"diagnostics": {"teardown_cleanup": {"enabled": True}, "teardown_release_models": {"enabled": True}}}})
 
     class Client:
         def close(self):

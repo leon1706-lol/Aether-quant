@@ -36,7 +36,6 @@ from train import (
     write_scaler_artifacts,
 )
 
-
 FEATURE_NAMES = [
     "close_to_close_return_1d",
     "close_to_close_return_5d",
@@ -678,7 +677,7 @@ def test_candidate_output_paths_are_all_under_versions_directory():
 
     version_dir = ML_DIR / "versions" / "abc-123"
     assert paths["version_dir"] == version_dir
-    for key, path in paths.items():
+    for path in paths.values():
         assert version_dir in path.parents or path == version_dir
 
 

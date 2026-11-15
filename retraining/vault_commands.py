@@ -8,6 +8,7 @@ so results are read from a contract rather than from human text.
 """
 
 from __future__ import annotations
+
 from typing import Any
 
 

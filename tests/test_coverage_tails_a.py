@@ -12,7 +12,6 @@ import pytest
 
 from evaluation import alpha_decay, feature_quality_audit, hello_world, ml_cleanup, monte_carlo, rolling_ic_series, walk_forward_linear
 
-
 # ---- ml_cleanup ----------------------------------------------------------------------------------------------------------
 
 

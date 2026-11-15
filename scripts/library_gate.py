@@ -80,9 +80,11 @@ def facade_exports(root: Path = ROOT) -> set[str]:
         for node in ast.walk(tree):
             if isinstance(node, ast.ImportFrom):
                 exported.update(alias.name for alias in node.names)
-            elif isinstance(node, ast.Assign) and any(isinstance(target, ast.Name) and target.id == "__all__" for target in node.targets):
-                if isinstance(node.value, (ast.List, ast.Tuple)):
-                    exported.update(element.value for element in node.value.elts if isinstance(element, ast.Constant) and isinstance(element.value, str))
+            elif (
+                isinstance(node, ast.Assign) and any(isinstance(target, ast.Name) and target.id == "__all__" for target in node.targets)
+                and isinstance(node.value, (ast.List, ast.Tuple))
+            ):
+                exported.update(element.value for element in node.value.elts if isinstance(element, ast.Constant) and isinstance(element.value, str))
     return exported
 
 
@@ -138,7 +140,7 @@ def check(root: Path = ROOT, allow: Mapping | None = None, *, ceiling: int | Non
         if other is not None and set(other) != modules:
             problems.append(f"aether_quant/*.py and {label} disagree: only in files {sorted(modules - set(other))}, only in {label} {sorted(set(other) - modules)}")
     missing = unexported(root, allow)
-    known = set((allow.get("unexported") or {})) | set(allow.get("legacy_names") or [])
+    known = set(allow.get("unexported") or {}) | set(allow.get("legacy_names") or [])
     for name in missing:
         if name not in known:
             problems.append(f"{name} is public but not in aether_quant: export it from a facade, or add it to tests/data/aether_quant_unexported.json under \"unexported\" with a reason")

@@ -58,7 +58,7 @@ class _Cell:
         self.member = pd.DataFrame(True, index=DATES, columns=TICKERS)
         self.member[TICKERS[0]] = False
         self.context = _Context(_table(2))
-        self.sectors = {ticker: "tech" for ticker in TICKERS}
+        self.sectors = dict.fromkeys(TICKERS, "tech")
         self.cell = CELLS["S"]
         self.label = _table(3)
 
@@ -254,7 +254,7 @@ def _crypto_spec_cell(seed: int = 5):
 
 
 def test_a_named_builder_makes_the_trials_table_and_a_gate_can_switch_it_off(tmp_path):
-    cell, days = _crypto_spec_cell()
+    cell, _days = _crypto_spec_cell()
     payload = _payload(tmp_path)
     payload["trials"] = {
         "x01": {"kind": "cross_sectional", "rebalance_every": 20, "builder": "low_vol", "params": {"window": 30}},

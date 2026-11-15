@@ -12,7 +12,6 @@ from features.cross_asset_sensitivity import (
     sensitivity_interaction,
 )
 
-
 # ---------------------------------------------------------------------------
 # rolling_sensitivity
 # ---------------------------------------------------------------------------
@@ -24,7 +23,7 @@ def test_rolling_sensitivity_recovers_a_known_slope():
     macro_changes = rng.normal(scale=1.0, size=n).tolist()
     # asset_return = 2.5 * macro_change + small noise - a strong, recoverable signal.
     noise = rng.normal(scale=0.01, size=n)
-    asset_returns = [2.5 * change + eps for change, eps in zip(macro_changes, noise)]
+    asset_returns = [2.5 * change + eps for change, eps in zip(macro_changes, noise, strict=False)]
 
     beta = rolling_sensitivity(asset_returns, macro_changes, lookback=0, min_observations=30)
 

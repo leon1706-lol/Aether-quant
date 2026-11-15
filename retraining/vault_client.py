@@ -44,7 +44,7 @@ def run_av_command(argv: list[str], cwd: Path | None = None, timeout: int = 120)
             text=True,
             encoding="utf-8",
             errors="replace",
-            timeout=timeout,
+            timeout=timeout, check=False,
         )
     except FileNotFoundError:
         logger.warning("run_av_command: '%s' not found on PATH.", argv[0] if argv else "av")

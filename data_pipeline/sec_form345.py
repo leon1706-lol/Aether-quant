@@ -87,10 +87,10 @@ def opportunistic(trades: pd.DataFrame) -> pd.DataFrame:
     stamp = pd.to_datetime(frame["traded"])
     frame["_year"] = stamp.dt.year
     frame["_month"] = stamp.dt.month
-    seen = set(zip(frame["ticker"], frame["owner"], frame["_year"], frame["_month"]))
+    seen = set(zip(frame["ticker"], frame["owner"], frame["_year"], frame["_month"], strict=False))
     routine = [
         all((ticker, owner, year - back, month) in seen for back in (1, 2, 3))
-        for ticker, owner, year, month in zip(frame["ticker"], frame["owner"], frame["_year"], frame["_month"])
+        for ticker, owner, year, month in zip(frame["ticker"], frame["owner"], frame["_year"], frame["_month"], strict=False)
     ]
     return frame.loc[~np.asarray(routine, dtype=bool), TRADE_COLUMNS]
 

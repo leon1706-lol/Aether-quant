@@ -15,6 +15,7 @@ tested on a synthetic run (tests/test_backtest_audit.py). stdlib only.
 
 from __future__ import annotations
 
+import itertools
 import json
 import math
 import re
@@ -117,7 +118,7 @@ def sharpe_from_equity(
     offline simulators subtract nothing, so the same curve scores ~1.1
     points differently at 1.3% annual volatility. None when undefined."""
     values = [equity for _, equity in daily_equity]
-    returns = [b / a - 1.0 for a, b in zip(values, values[1:]) if a > 0.0]
+    returns = [b / a - 1.0 for a, b in itertools.pairwise(values) if a > 0.0]
     if len(returns) < 2:
         return None
     daily_rf = risk_free_annual / trading_days
@@ -229,7 +230,7 @@ def find_overlapping_orders(
     overlapping_pairs: list[dict] = []
     for (symbol, _direction), entries in windows.items():
         entries.sort()
-        for index, (created, closed, order_id, order_type) in enumerate(entries):
+        for index, (_created, closed, order_id, order_type) in enumerate(entries):
             for other_created, _other_closed, other_id, other_type in entries[index + 1:]:
                 if other_created >= closed:
                     break

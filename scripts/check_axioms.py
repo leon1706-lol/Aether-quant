@@ -79,7 +79,7 @@ def main(argv: list[str] | None = None) -> int:
     probe = FORMAL / "AxiomProbe.lean"
     probe.write_text("import AetherFormal\n\n" + "\n".join(f"#print axioms {name}" for name in names) + "\n", encoding="utf-8", newline="\n")
     try:
-        result = subprocess.run(["lake", "env", "lean", str(probe.name)], cwd=FORMAL, capture_output=True, text=True, timeout=3600)
+        result = subprocess.run(["lake", "env", "lean", str(probe.name)], cwd=FORMAL, capture_output=True, text=True, timeout=3600, check=False)
     finally:
         probe.unlink(missing_ok=True)
     found = parse_axioms(result.stdout)

@@ -102,7 +102,7 @@ def test_the_engine_comparison_correlates_the_engine_with_a_finished_lean_run(mo
     module.RATE_CSV.write_text("date,rate\n2019-01-02,0.02\n", encoding="utf-8")
     monkeypatch.setattr(module, "load_market_panel", lambda root, config: Panel())
     monkeypatch.setattr(module, "load_rate_series", lambda path: ([], []))
-    monkeypatch.setattr(fred, "load_cached_fred_series", lambda: {})
+    monkeypatch.setattr(fred, "load_cached_fred_series", dict)
     monkeypatch.setattr(fx_carry, "fx_carry_3m", lambda ticker, kind, day, series: 0.0)
     nav = pd.Series(1000.0 * (1.0 + np.sin(np.arange(60)) * 0.01).cumprod(), index=DATES)
     monkeypatch.setattr(module, "simulate_target_weights", lambda weights, panel, config, start, end, **kwargs: {
@@ -110,7 +110,7 @@ def test_the_engine_comparison_correlates_the_engine_with_a_finished_lean_run(mo
     run_dir = tmp_path / "backtests" / "r"
     run_dir.mkdir(parents=True)
     stamps = [pd.Timestamp(day, tz="UTC").timestamp() for day in DATES]
-    result = {"charts": {"Strategy Equity": {"series": {"Equity": {"values": [[stamp, value] for stamp, value in zip(stamps, nav.to_numpy() * 1.001)]}}}}}
+    result = {"charts": {"Strategy Equity": {"series": {"Equity": {"values": [[stamp, value] for stamp, value in zip(stamps, nav.to_numpy() * 1.001, strict=False)]}}}}}
     (run_dir / "1.json").write_text(json.dumps(result), encoding="utf-8")
     report = module.compare("v650_x", run_dir)
     assert report["corr_lag0"] > 0.9 and report["engine_fills"] == 3 and report["corr_weekly"] is not None and "annual_gap_bps" in report

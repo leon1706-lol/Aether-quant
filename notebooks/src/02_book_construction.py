@@ -52,7 +52,7 @@ pd.DataFrame({ticker: {"role": alloc.role, "rank": round(alloc.predicted_rank_20
 # %%
 raw = {ticker: (0.3 if alloc.role == "long" else -0.3) for ticker, alloc in book.items()}
 dollar_neutral, steps = neutrality.apply_book_neutrality(
-    raw, sector_by_symbol={ticker: "crypto" for ticker in raw}, dollar_neutral=True, sector_neutral=False, gross_exposure_cap=1.0,
+    raw, sector_by_symbol=dict.fromkeys(raw, "crypto"), dollar_neutral=True, sector_neutral=False, gross_exposure_cap=1.0,
     max_weight_per_name=0.2, sector_max_net_weight=1.0,
 )
 betas = neutrality.estimate_betas(returns.loc[:day], returns["BTCUSD"].loc[:day], window=120).to_dict()

@@ -23,7 +23,7 @@ def test_split_periods_reads_the_configured_windows():
 def test_each_step_switches_only_its_own_flag_on():
     steps = lean_report_steps(CONFIG)
     assert [label for label, _ in steps] == [label for label, _ in LEAN_REPORT_FLAGS]
-    for (_label, flag), (_, overrides) in zip(LEAN_REPORT_FLAGS, steps):
+    for (_label, flag), (_, overrides) in zip(LEAN_REPORT_FLAGS, steps, strict=False):
         assert overrides[flag] is True
         assert sum(1 for _label, name in LEAN_REPORT_FLAGS if overrides[name]) == 1
         assert overrides["lean_report"] is False
@@ -72,6 +72,6 @@ def test_a_target_weights_run_skips_the_tools_that_read_a_book():
     gated = {flag for _, overrides in lean_report_steps({}) for flag, on in overrides.items() if on is True}
     thin = {flag for _, overrides in lean_report_steps({"phase_v2": {"target_weights": {"enabled": True}}}) for flag, on in overrides.items() if on is True}
 
-    assert NEEDS_BOOK_HISTORY <= gated
+    assert gated >= NEEDS_BOOK_HISTORY
     assert not NEEDS_BOOK_HISTORY & thin
     assert "backtest_stats" in thin

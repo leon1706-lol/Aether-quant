@@ -8,8 +8,9 @@ import os
 import subprocess
 import time
 
-import aq_cli
 import pytest
+
+import aq_cli
 
 
 class FakeGit:
@@ -48,6 +49,12 @@ def test_tests_for_changed_refuses_an_unregistered_test():
     assert aq_cli._tests_for_changed(["risk/kelly.py"], {"test_kelly.py", "test_v665_misc.py"}, lambda needle: found.get(needle, [])) == ["test_kelly.py", "test_v665_misc.py"]
     with pytest.raises(SystemExit, match="outside _SUBSYSTEM_TEST_FILES"):
         aq_cli._tests_for_changed(["risk/kelly.py"], {"test_kelly.py"}, lambda needle: found.get(needle, []))
+
+
+def test_tests_for_changed_skips_the_real_lean_run_which_is_in_no_group_by_design():
+    # V6.6.8 (#379): a change to main.py made the gate refuse every commit, because the --lean-only file names main.py
+    found = {"main": ["test_main_wiring.py", "test_lean_backtest_ml_coverage.py"]}
+    assert aq_cli._tests_for_changed(["main.py"], {"test_main_wiring.py"}, lambda needle: found.get(needle, [])) == ["test_main_wiring.py"]
 
 
 def test_git_grep_tests_reads_file_names():

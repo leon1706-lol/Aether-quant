@@ -6,8 +6,16 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 
 from execution.field_test import (
-    CHECKS, FieldTestPlan, field_test_allowed, field_test_log_line, field_test_target, inject_metrics, inject_reconciliation_drift, judge_field_test,
-    parse_field_test_log, resolve_field_test_plan,
+    CHECKS,
+    FieldTestPlan,
+    field_test_allowed,
+    field_test_log_line,
+    field_test_target,
+    inject_metrics,
+    inject_reconciliation_drift,
+    judge_field_test,
+    parse_field_test_log,
+    resolve_field_test_plan,
 )
 
 PLAN = resolve_field_test_plan({"enabled": True, "shock_after_bars": 20, "drawdown_shock_pct": 0.05, "drift_after_bars": 8, "drift_symbol": "BTCUSD", "drift_weight": 0.2})

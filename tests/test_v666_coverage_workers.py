@@ -124,7 +124,7 @@ def test_a_failing_head_row_raises_and_a_failing_later_row_is_dead_lettered(modu
 @pytest.mark.parametrize("module", MODULES)
 def test_a_later_row_that_inserts_is_acknowledged(module, monkeypatch):
     events = [_event(module, number) for number in (1, 2, 3)]
-    worker, client, conn, cursor = _build(module, monkeypatch, events)
+    worker, client, _conn, cursor = _build(module, monkeypatch, events)
     cursor.executemany.side_effect = RuntimeError("batch failed")
     assert worker.run_once() == 3 and not client.xrange("s:dead")
 

@@ -49,7 +49,7 @@ def test_member_pass_resizes_false_keeps_held_weights_between_rebalances():
     assert default.per_date_net_return == explicit.per_date_net_return
 
     def changes(result):
-        return sum(1 for a, b in zip(result.weights_log, result.weights_log[1:])
+        return sum(1 for a, b in zip(result.weights_log, result.weights_log[1:], strict=False)
                    for t in set(a) & set(b) if a[t] != b[t])
 
     assert changes(frozen) < changes(default)

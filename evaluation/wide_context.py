@@ -9,6 +9,7 @@ import json
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
 import pandas as pd
 
@@ -31,7 +32,6 @@ from portfolio.financing import load_rate_series
 from portfolio.premia_signals import ResearchPanel, WeightSettings, known_closes
 from portfolio.target_weights import TargetWeightsConfig, resolve_target_weights_config
 from portfolio.wide_signals import crypto_tables, wide_tables
-from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from collections.abc import Sequence

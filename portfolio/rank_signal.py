@@ -18,6 +18,7 @@ mismatch). Two responsibilities, both pure:
 """
 
 from __future__ import annotations
+
 from typing import Any
 
 

@@ -54,11 +54,10 @@ import torch.nn as nn
 from torch.utils.data import DataLoader, TensorDataset
 
 from features.cross_sectional_inputs import apply_cross_sectional_inputs, expand_input_names, settings_from_config
-
 from train import (
-    add_rank_label_noise,
     HORIZON_HEAD_SPECS,
     AetherNetMultiTaskHorizons,
+    add_rank_label_noise,
     assess_net_performance_quality,
     assess_ranking_quality_from_predictions,
     assess_regression_quality,
@@ -76,10 +75,10 @@ from train import (
     compute_regression_metrics,
     enabled_extra_heads,
     export_multitask_horizons_architecture,
-    horizon_head_specs,
     export_state_dict,
     find_optimal_masked_threshold,
     find_optimal_threshold,
+    horizon_head_specs,
     is_new_best_epoch,
     load_sector_mapping,
     resolve_horizon_head_config,
@@ -552,7 +551,7 @@ def main() -> int:
                 batch_source = (
                     (
                         batch[0].to(device),
-                        {name: tensor.to(device) for name, tensor in zip(target_names_sorted, batch[1:])},
+                        {name: tensor.to(device) for name, tensor in zip(target_names_sorted, batch[1:], strict=False)},
                         None,
                         None,
                     )

@@ -111,7 +111,7 @@ def test_run_once_persists_triggers_and_advances_watermark():
 
 
 def test_run_once_returns_zero_when_no_new_events():
-    conn_mock, cur_mock = _make_conn_mock(new_events=[], window_events=[])
+    conn_mock, _cur_mock = _make_conn_mock(new_events=[], window_events=[])
 
     worker = TriggerWorker(config=_CONFIG, _pg_conn=conn_mock)
     inserted = worker.run_once()
@@ -126,7 +126,7 @@ def test_run_once_evaluates_rolling_window_not_just_incremental_batch():
     from Postgres and evaluate against that instead."""
     new_events = [_sample_event(created_at="2026-07-02T12:00:00+00:00")]
     window_events = [_sample_event(created_at=f"2026-07-02T11:{i:02d}:00+00:00") for i in range(59)] + new_events
-    conn_mock, cur_mock = _make_conn_mock(new_events=new_events, window_events=window_events)
+    conn_mock, _cur_mock = _make_conn_mock(new_events=new_events, window_events=window_events)
 
     worker = TriggerWorker(config=_CONFIG, _pg_conn=conn_mock)
     with patch("performance.trigger_worker.evaluate_all_triggers", wraps=evaluate_all_triggers) as spy:
@@ -181,7 +181,7 @@ def test_run_once_passes_recent_triggers_for_frequency_spike_baseline():
             "retrain_candidate": True,
         }
     ]
-    conn_mock, cur_mock = _make_conn_mock(new_events=new_events, window_events=new_events, trigger_rows=trigger_rows)
+    conn_mock, _cur_mock = _make_conn_mock(new_events=new_events, window_events=new_events, trigger_rows=trigger_rows)
 
     worker = TriggerWorker(config=_CONFIG, _pg_conn=conn_mock)
     with patch("performance.trigger_worker.evaluate_all_triggers", wraps=evaluate_all_triggers) as spy:
@@ -206,7 +206,7 @@ def test_run_once_passes_rank_ic_observations_resolved_from_window_events():
         )
         for i in range(40)
     ]
-    conn_mock, cur_mock = _make_conn_mock(
+    conn_mock, _cur_mock = _make_conn_mock(
         new_events=[window_events[-1]], window_events=window_events
     )
 

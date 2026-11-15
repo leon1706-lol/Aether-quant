@@ -13,8 +13,9 @@ definition for `train.py` and `main.py`: no formula is duplicated.
 
 from __future__ import annotations
 
-from data_pipeline.fred_backfill import series_value_asof
 from typing import TYPE_CHECKING
+
+from data_pipeline.fred_backfill import series_value_asof
 
 if TYPE_CHECKING:
     from datetime import date

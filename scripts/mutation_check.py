@@ -107,7 +107,7 @@ def run_tests(tests: tuple[str, ...], timeout: float) -> bool:
     """True when the tests pass (the change went unnoticed). A timeout or a crash counts as noticed."""
     command = [sys.executable, "-m", "pytest", "-x", "-q", "-p", "no:cacheprovider", "--no-header", *[t for t in tests if (ROOT / t).exists()]]
     try:
-        result = subprocess.run(command, cwd=ROOT, capture_output=True, text=True, timeout=timeout)
+        result = subprocess.run(command, cwd=ROOT, capture_output=True, text=True, timeout=timeout, check=False)
     except subprocess.TimeoutExpired:
         return False
     return result.returncode == 0

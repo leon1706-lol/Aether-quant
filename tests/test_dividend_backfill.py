@@ -14,7 +14,6 @@ from data_pipeline.dividend_backfill import (
     write_dividend_schedule,
 )
 
-
 # ---------------------------------------------------------------------------
 # estimate_next_ex_dividend_date - pure cadence-math
 # ---------------------------------------------------------------------------

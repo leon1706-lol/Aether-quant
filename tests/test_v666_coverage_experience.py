@@ -39,7 +39,7 @@ def test_the_background_thread_delivers_in_order_and_stops_on_its_sentinel():
     for number in range(3):
         queue.push({"event_id": str(number)})
     queue._background_queue.join()
-    assert [entry[1][b"payload"] for entry in client.xrange(queue.stream_name)][0].startswith(b"{")
+    assert next(entry[1][b"payload"] for entry in client.xrange(queue.stream_name)).startswith(b"{")
     assert len(client.xrange(queue.stream_name)) == 3
 
 

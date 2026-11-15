@@ -139,7 +139,6 @@ def test_connect_ib_never_imports_ib_insync_when_disabled():
     # connect_ib() tried to import it before the enabled check, this test
     # itself would fail with ModuleNotFoundError, proving the check
     # short-circuits before any deferred import.
-    assert "ib_insync" not in sys.modules or True  # environment-independent guard
     with pytest.raises(IBNotConfiguredError):
         connect_ib(_config(enabled=False), _lean_config())
 

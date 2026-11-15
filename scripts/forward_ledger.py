@@ -22,14 +22,15 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
+from data_pipeline.public_candles import coinbase_product  # noqa: E402
 from evaluation.forward_ledger import (  # noqa: E402
     COST_BPS_BY_CLASS,
+    NoSessionToRecord,
     append_row,
     decide,
     definition_sha256,
     has_session,
     is_rebalance,
-    NoSessionToRecord,
     last_row_for,
     read_ledger,
     resolve_session,
@@ -37,7 +38,6 @@ from evaluation.forward_ledger import (  # noqa: E402
     session_return,
     turnover,
 )
-from data_pipeline.public_candles import coinbase_product  # noqa: E402
 
 COINBASE_URL = "https://api.exchange.coinbase.com/products/{product}/candles?granularity=86400"
 YAHOO_URL = "https://query1.finance.yahoo.com/v8/finance/chart/{symbol}?range=2y&interval=1d"
@@ -75,7 +75,7 @@ def yahoo_closes(symbol: str, get_json: Callable[[str], object]) -> dict[str, fl
     adjusted = ((indicators.get("adjclose") or [{}])[0].get("adjclose")) or [None] * len(stamps)
     day_of = lambda stamp: datetime.datetime.fromtimestamp(int(stamp), datetime.timezone.utc).strftime("%Y-%m-%d")  # noqa: E731
     closes = {}
-    for stamp, adjusted_close, plain_close in zip(stamps, adjusted, plain):
+    for stamp, adjusted_close, plain_close in zip(stamps, adjusted, plain, strict=False):
         close = plain_close if adjusted_close is None else adjusted_close
         if close is not None:
             closes[day_of(stamp)] = float(close)

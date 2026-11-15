@@ -84,7 +84,7 @@ def default_get_json(url: str, *, timeout: float = 20.0, retries: int = 3, backo
     error: Exception | None = None
     for attempt in range(max(int(retries), 1)):
         try:
-            with urllib.request.urlopen(request, timeout=timeout) as response:  # noqa: S310 (fixed https host)
+            with urllib.request.urlopen(request, timeout=timeout) as response:
                 return json.loads(response.read().decode("utf-8"))
         except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, OSError) as exc:
             error = exc
@@ -136,7 +136,7 @@ def fetch_daily_bars(
                     continue
         try:
             parts = [parse_candles(get_json(candles_url(coinbase_product(ticker), lo, hi))) for lo, hi in candle_windows(start, last_closed)]
-        except Exception:  # noqa: BLE001 - any failure of one coin is named, never fatal
+        except Exception:
             failed.append(ticker)
             continue
         frame = pd.concat([part for part in parts if not part.empty], ignore_index=True) if any(not part.empty for part in parts) else parse_candles([])

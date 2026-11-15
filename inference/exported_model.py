@@ -22,9 +22,9 @@ from __future__ import annotations
 
 import math
 from pathlib import Path
+from typing import Any
 
 import numpy as np
-from typing import Any
 
 # Optional C++/pybind11 accelerator for _linear_batched() below (see
 # cpp_inference/README.md and development/Problems.md #32) - never a hard
@@ -733,7 +733,7 @@ def _conv1d_causal(sequence, weights, bias, dilation: int = 1) -> np.ndarray:
     bias_array = np.asarray(bias, dtype=np.float64)  # (out_channels,)
 
     window, in_channels = sequence_array.shape
-    out_channels, weight_in_channels, kernel_size = weights_array.shape
+    _out_channels, weight_in_channels, kernel_size = weights_array.shape
     if weight_in_channels != in_channels:
         raise ValueError(f"_conv1d_causal: in_channels mismatch ({in_channels} vs weight's {weight_in_channels})")
 
@@ -963,7 +963,7 @@ def _conv1d_causal_batched(sequence_batch, weights, bias, dilation: int = 1) -> 
     bias_array = np.asarray(bias, dtype=np.float64)  # (out_channels,)
 
     num_symbols, window, in_channels = sequence_array.shape
-    out_channels, weight_in_channels, kernel_size = weights_array.shape
+    _out_channels, weight_in_channels, kernel_size = weights_array.shape
     if weight_in_channels != in_channels:
         raise ValueError(f"_conv1d_causal_batched: in_channels mismatch ({in_channels} vs weight's {weight_in_channels})")
 

@@ -23,25 +23,25 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+from execution.secrets_io import secret_env
 from performance.postgres_triggers import ensure_schema as ensure_performance_schema
 from performance.postgres_triggers import fetch_candidate_triggers
 from retraining import planning
 from retraining.artifacts import (
     ACTIVE_ARTIFACT_FILES,
     ALL_TRACKED_FILES,
+    REQUIRED_CANDIDATE_FILES,
     candidate_dir,
     check_required_artifacts,
     compute_artifact_hashes,
     copy_backtest_report_to_active,
     copy_candidate_to_active,
-    REQUIRED_CANDIDATE_FILES,
     restore_active_from_version,
     verify_version_artifacts,
 )
+from retraining.auto_rollback import select_rollback_target
 from retraining.backtest_gate import compare_backtests
 from retraining.lean_backtest import run_lean_backtest
-from retraining.auto_rollback import select_rollback_target
-from retraining.rollback_hardening import compute_degradation_score
 from retraining.postgres_registry import (
     count_experience_events,
     ensure_schema,
@@ -56,11 +56,11 @@ from retraining.postgres_registry import (
     update_model_version_status,
     update_retraining_event_status,
 )
+from retraining.rollback_hardening import compute_degradation_score
 from retraining.status_export import build_status_view, write_status_file
 from retraining.validation_gate import evaluate_validation_gate
 from retraining.vault_client import commit_candidate_to_vault, restore_candidate_from_vault, vault_preflight
 from risk.manual_override import write_manual_trade_lock_override
-from execution.secrets_io import secret_env
 
 logger = logging.getLogger(__name__)
 
@@ -223,7 +223,7 @@ def train(conn, retraining_id: str, version_id: str | None = None, timeout_secon
             cwd=str(ROOT_DIR),
             capture_output=True,
             text=True,
-            timeout=timeout_seconds,
+            timeout=timeout_seconds, check=False,
         )
     except Exception as exc:  # never let a training subprocess crash the orchestrator
         logger.error("train: subprocess failed to launch - %s", exc)
@@ -268,7 +268,7 @@ def train_topology(conn, retraining_id: str, version_id: str, config: dict, time
             cwd=str(ROOT_DIR),
             capture_output=True,
             text=True,
-            timeout=timeout_seconds,
+            timeout=timeout_seconds, check=False,
         )
     except Exception as exc:  # never let a best-effort subprocess crash the orchestrator
         logger.warning("train_topology: subprocess failed to launch for %s - %s", version_id, exc)
@@ -316,7 +316,7 @@ def train_gating(conn, retraining_id: str, version_id: str, config: dict, timeou
             cwd=str(ROOT_DIR),
             capture_output=True,
             text=True,
-            timeout=timeout_seconds,
+            timeout=timeout_seconds, check=False,
         )
     except Exception as exc:  # never let a best-effort subprocess crash the orchestrator
         logger.warning("train_gating: subprocess failed to launch for %s - %s", version_id, exc)
@@ -364,7 +364,7 @@ def train_multitask(conn, retraining_id: str, version_id: str, config: dict, tim
             cwd=str(ROOT_DIR),
             capture_output=True,
             text=True,
-            timeout=timeout_seconds,
+            timeout=timeout_seconds, check=False,
         )
     except Exception as exc:  # never let a best-effort subprocess crash the orchestrator
         logger.warning("train_multitask: subprocess failed to launch for %s - %s", version_id, exc)
@@ -412,7 +412,7 @@ def train_sequence(conn, retraining_id: str, version_id: str, config: dict, time
             cwd=str(ROOT_DIR),
             capture_output=True,
             text=True,
-            timeout=timeout_seconds,
+            timeout=timeout_seconds, check=False,
         )
     except Exception as exc:  # never let a best-effort subprocess crash the orchestrator
         logger.warning("train_sequence: subprocess failed to launch for %s - %s", version_id, exc)
@@ -472,7 +472,7 @@ def train_strategy_selector(
             cwd=str(ROOT_DIR),
             capture_output=True,
             text=True,
-            timeout=timeout_seconds,
+            timeout=timeout_seconds, check=False,
         )
     except Exception as exc:  # never let a best-effort subprocess crash the orchestrator
         logger.warning("train_strategy_selector: subprocess failed to launch for %s - %s", version_id, exc)

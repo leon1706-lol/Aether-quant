@@ -18,7 +18,7 @@ SESSION = DAYS[-1]
 TECH = [f"T{i}" for i in range(8)]
 UTIL = [f"U{i}" for i in range(8)]
 NAMES = TECH + UTIL
-SECTORS = {**{name: "information_technology" for name in TECH}, **{name: "utilities" for name in UTIL}}
+SECTORS = {**dict.fromkeys(TECH, "information_technology"), **dict.fromkeys(UTIL, "utilities")}
 
 
 def _known() -> pd.DataFrame:
@@ -52,7 +52,7 @@ def test_low_accruals_are_held_long_and_high_accruals_short_inside_each_sector()
 def test_a_filing_dated_after_the_session_changes_nothing():
     late = _extended(filed="2026-12-31")
     assert _weights(late) == {}, "a filing the session could not have seen builds no book"
-    both = pd.concat([_extended(), _extended(filed="2026-12-31", accruals={name: 500.0 for name in NAMES})], ignore_index=True)
+    both = pd.concat([_extended(), _extended(filed="2026-12-31", accruals=dict.fromkeys(NAMES, 500.0))], ignore_index=True)
     assert _weights(both) == _weights()
 
 

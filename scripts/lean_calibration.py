@@ -98,7 +98,7 @@ def lean_book_returns(daily_components: dict, daily_equity: list, components: tu
 
 def bucket_to_offline_dates(lean_returns: dict[str, float], offline_dates: list[str]) -> dict[str, float]:
     """Offline return on date D covers (D, next offline date]; Lean's calendar-day P&L is summed into those buckets."""
-    out = {date: 0.0 for date in offline_dates}
+    out = dict.fromkeys(offline_dates, 0.0)
     for date, value in lean_returns.items():
         position = bisect.bisect_left(offline_dates, date) - 1
         if 0 <= position < len(offline_dates):
@@ -171,7 +171,7 @@ def rebalance_phase(first_live_date: str | None, offline_dates: list[str], rebal
 
 
 def compare(lean: dict[str, float], offline_dates: list[str], offline_returns: list[float]) -> dict:
-    offline = dict(zip(offline_dates, offline_returns))
+    offline = dict(zip(offline_dates, offline_returns, strict=False))
     common = [date for date in offline_dates if date in lean]
     a = np.array([offline[date] for date in common])
     b = np.array([lean[date] for date in common])
@@ -225,7 +225,7 @@ def live_book_weights(run: dict, history: list[dict], config: dict) -> dict[str,
 def compare_weights(live: dict[str, dict[str, float]], offline_dates: list[str], offline_weights: list[dict]) -> dict:
     """Offline weights decided on D are held from the next session: compared with live's end-of-day weights there."""
     l1, overlap, live_gross, offline_gross = [], [], [], []
-    for index, date in enumerate(offline_dates[:-1]):
+    for index, _date in enumerate(offline_dates[:-1]):
         held_on = offline_dates[index + 1]
         if held_on not in live:
             continue
@@ -396,7 +396,7 @@ def run_window(window: dict, dataset: Path, config: dict, components: tuple[str,
                 }
             row.update(compare_weights(live_weights, dates, weights))
         else:
-            row.update({"offline_daily_returns": dict(zip(dates, returns)),
+            row.update({"offline_daily_returns": dict(zip(dates, returns, strict=False)),
                         "offline_sharpe": float(np.mean(returns) / np.std(returns) * np.sqrt(252)) if np.std(returns) > 0 else None})
             component_returns = getattr(result, "per_date_component_returns", None) or {}
             if component_returns:

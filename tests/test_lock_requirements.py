@@ -6,6 +6,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
+
 from script_loader import load_script, run_script
 
 lock = load_script("lock_requirements")

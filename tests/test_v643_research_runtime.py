@@ -70,7 +70,7 @@ def test_the_frame_is_read_once_and_merges_cached_labels(chain_world, tmp_path):
 
 
 def test_the_installed_score_comes_from_the_harnesses_and_the_override_restores_them(chain_world):
-    module, chain, _ = chain_world
+    _module, chain, _ = chain_world
     installed = chain.installed_scores()
     assert installed.notna().all() and chain.installed_scores() is not None
     harness = chain.harness("validation")
@@ -83,12 +83,12 @@ def test_the_installed_score_comes_from_the_harnesses_and_the_override_restores_
 
 
 def test_the_s1_score_reads_the_sector_neutral_head(chain_world):
-    module, chain, _ = chain_world
+    _module, chain, _ = chain_world
     assert len(chain.s1_scores(splits=("validation",))) == len(chain.frame())
 
 
 def test_the_phases_are_evenly_spread_and_the_as_live_run_is_memoised(chain_world):
-    module, chain, _ = chain_world
+    _module, chain, _ = chain_world
     assert len(chain.phases()) == 2
     first = chain.as_live("base", "validation", None)
     assert chain.as_live("base", "validation", None) is first and set(first) == {"summary", "daily"}
@@ -99,7 +99,7 @@ def test_the_phases_are_evenly_spread_and_the_as_live_run_is_memoised(chain_worl
 def test_the_ic_report_is_the_research_harness(chain_world, monkeypatch):
     import evaluation.research_harness as harness_module
 
-    module, chain, _ = chain_world
+    _module, chain, _ = chain_world
     monkeypatch.setattr(harness_module, "evaluate_signal", lambda frame, **kwargs: {"splits": {"validation": {"h20": {}}}})
     assert chain.ic(pd.Series(0.0, index=chain.frame().index)) == {"validation": {"h20": {}}}
 
@@ -161,8 +161,8 @@ def test_the_trial_scores_cover_the_whole_grid(chain_world, monkeypatch):
 
 
 def _verdict_stubs(monkeypatch, chain, passes: bool):
-    import evaluation.pbo as pbo
     import evaluation.factor_spanning as spanning
+    import evaluation.pbo as pbo
 
     monkeypatch.setattr(chain, "ic", lambda scores, splits=("validation", "backtest"): {split: {"h20": {"nonoverlap_mean_ic": 0.2 if passes and scores.name == "trial" else 0.0, "hac_t": 3.0 if passes else 0.0, "mean_ic": 0.1}, "h5": {}} for split in splits})
     monkeypatch.setattr(pbo, "probability_of_backtest_overfitting", lambda matrix, blocks: {"pbo": 0.1 if passes else 0.9})

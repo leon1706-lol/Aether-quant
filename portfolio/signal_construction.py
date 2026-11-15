@@ -7,12 +7,12 @@ across dates: a recipe's signs and parts are fixed in the round's rule file befo
 from __future__ import annotations
 
 from collections.abc import Mapping
+from typing import Any
 
 import numpy as np
 import pandas as pd
 
 from portfolio.wide_signals import rank_mean
-from typing import Any
 
 MIN_RESIDUAL_NAMES = 30
 

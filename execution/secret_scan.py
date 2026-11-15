@@ -17,6 +17,7 @@ Only field NAMES are ever returned, never the secret values.
 """
 
 from __future__ import annotations
+
 from typing import Any
 
 # A lean.json key is treated as a secret if it ends with any of these. Covers

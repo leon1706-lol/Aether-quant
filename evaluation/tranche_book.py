@@ -56,7 +56,7 @@ def simulate_tranche_book(frame, *, tranches: int = 1, simulate=simulate_rank_bo
     first = [simulate(frame, **sub) for sub in subs]
     results = first
     if kwargs.get("kill_switch_config"):
-        returns = [dict(zip(result.per_date, result.per_date_net_return)) for result in first]
+        returns = [dict(zip(result.per_date, result.per_date_net_return, strict=False)) for result in first]
         results = []
         for index, sub in enumerate(subs):
             extra = dict(base_extra)
@@ -73,7 +73,7 @@ def combine_tranche_results(results: list[RankBookSimulationResult], *, trading_
     """One result for the summed tranche book: per-date net returns added, Sharpe / drawdown / totals recomputed from the
     sum, turnover / cost / counts added, exposures added, per-component returns added by name."""
     dates = sorted({date for result in results for date in result.per_date})
-    by_tranche = [dict(zip(result.per_date, result.per_date_net_return)) for result in results]
+    by_tranche = [dict(zip(result.per_date, result.per_date_net_return, strict=False)) for result in results]
     net = np.asarray([sum(series.get(date, 0.0) for series in by_tranche) for date in dates], dtype=float)
     cumulative = np.cumprod(1.0 + net) if len(net) else np.asarray([1.0])
     peak = np.maximum.accumulate(cumulative)

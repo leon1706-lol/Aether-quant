@@ -224,7 +224,7 @@ class FakeStrategy:
     @property
     def OptionLegs(self) -> list:
         spec = self._spec()
-        strikes = {role: float(value) for role, value in zip(spec.arg_order, self.args)}
+        strikes = {role: float(value) for role, value in zip(spec.arg_order, self.args, strict=False)}
         expiries = [argument for argument in self.args if isinstance(argument, datetime.datetime)]
         legs = []
         for index, leg in enumerate(spec.legs):
@@ -368,7 +368,7 @@ class FakeLean(PermissiveQC):
         spec = next(item for item in MULTI_LEG_STRATEGY_REGISTRY.values() if item.factory_name == strategy.name)
         chain = self.chains.get(str(strategy.canonical))
         expiries = [argument for argument in strategy.args if isinstance(argument, datetime.datetime)]
-        strikes = {role: value for role, value in zip(spec.arg_order, strategy.args)}
+        strikes = dict(zip(spec.arg_order, strategy.args, strict=False))
         legs = []
         for leg in spec.legs:
             strike = strikes[leg.strike_role]

@@ -58,7 +58,7 @@ def test_a_state_file_that_cannot_be_written_is_reported_not_fatal(monkeypatch, 
 
 
 def test_a_holding_without_an_average_price_leaves_the_entry_price_unset(monkeypatch, tmp_path):
-    _, algorithm, market, _ = build(monkeypatch, tmp_path)
+    _, algorithm, _market, _ = build(monkeypatch, tmp_path)
     symbol = symbol_of(algorithm, "AAPL")
     algorithm.Portfolio.apply(symbol, 10.0, 100.0)
     holding = algorithm.Portfolio[symbol]
@@ -81,7 +81,7 @@ def test_a_holding_without_an_average_price_leaves_the_entry_price_unset(monkeyp
 
 
 def test_the_t_bill_sweep_ignores_a_bar_without_a_usable_price_and_a_weight_that_is_not_finite(monkeypatch, tmp_path):
-    _, algorithm, market, _ = build(monkeypatch, tmp_path)
+    _, algorithm, _market, _ = build(monkeypatch, tmp_path)
     sweep = algorithm._cash_sweep_symbol
     assert sweep is not None
     algorithm.Securities[sweep].Price = 0.0
@@ -103,7 +103,7 @@ def test_a_limit_exit_has_nothing_to_do_for_an_option_record_or_a_flat_position(
 
 
 def test_an_order_without_submission_data_is_measured_from_the_fill_bar_open(monkeypatch, tmp_path):
-    _, algorithm, market, _ = build(monkeypatch, tmp_path, {"phase_v2": {"risk": {"kill_switch": {"slippage_reference": "auto"}}}})
+    _, algorithm, _market, _ = build(monkeypatch, tmp_path, {"phase_v2": {"risk": {"kill_switch": {"slippage_reference": "auto"}}}})
     algorithm.slippage_reference_mode = "auto"
     symbol = symbol_of(algorithm, "AAPL")
     algorithm._expected_cost_by_symbol[str(symbol)] = {"expected_cost_bps": 10.0}
@@ -113,7 +113,7 @@ def test_an_order_without_submission_data_is_measured_from_the_fill_bar_open(mon
 
 
 def test_experts_that_return_nothing_are_named(monkeypatch, tmp_path):
-    main, algorithm, market, _ = build(monkeypatch, tmp_path)
+    main, algorithm, _market, _ = build(monkeypatch, tmp_path)
     monkeypatch.setattr(main, "run_exported_model", lambda *a, **k: None)
     monkeypatch.setattr(main, "run_exported_multitask_model", lambda *a, **k: None)
     pending = []
@@ -162,7 +162,7 @@ def test_observation_mode_flattens_its_simulated_book_when_a_breach_or_a_disable
 
 def test_a_forex_sizing_diagnostic_that_cannot_be_written_is_reported(monkeypatch, tmp_path):
     overrides = {"phase_v2": {"diagnostics": {"forex_order_sizing": {"enabled": True, "output_path": "no_such_folder/x/forex.jsonl"}}}}
-    _, algorithm, market, _ = build(monkeypatch, tmp_path, overrides)
+    _, algorithm, _market, _ = build(monkeypatch, tmp_path, overrides)
     (algorithm.root_path / "blocker").write_text("a file where a folder is needed", encoding="utf-8")
     algorithm.forex_order_sizing_diagnostics_path = algorithm.root_path / "blocker" / "x" / "forex.jsonl"
     algorithm.forex_order_sizing_diagnostics_enabled = True

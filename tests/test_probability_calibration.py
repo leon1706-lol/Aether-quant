@@ -6,8 +6,17 @@ import numpy as np
 import pytest
 
 from evaluation.probability_calibration import (
-    apply_isotonic, apply_temperature, best_threshold_by_class, brier_score, calibration_report, cross_fitted_log_loss,
-    expected_calibration_error, fit_isotonic, fit_temperature, log_loss, reliability_curve,
+    apply_isotonic,
+    apply_temperature,
+    best_threshold_by_class,
+    brier_score,
+    calibration_report,
+    cross_fitted_log_loss,
+    expected_calibration_error,
+    fit_isotonic,
+    fit_temperature,
+    log_loss,
+    reliability_curve,
 )
 
 
@@ -54,7 +63,7 @@ def test_temperature_needs_both_classes_and_enough_rows():
 
 def test_isotonic_is_monotone_and_pools_violators():
     fit = fit_isotonic(np.linspace(0.05, 0.95, 40), np.array([0, 1] * 20, dtype=float))
-    assert all(a <= b + 1e-12 for a, b in zip(fit["y"], fit["y"][1:]))
+    assert all(a <= b + 1e-12 for a, b in zip(fit["y"], fit["y"][1:], strict=False))
     assert len(fit["x"]) < 40
     calibrated = apply_isotonic([0.0, 0.5, 1.0], fit)
     assert calibrated[0] <= calibrated[1] <= calibrated[2]

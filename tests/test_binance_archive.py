@@ -15,8 +15,8 @@ import pytest
 from data_pipeline.binance_archive import (
     base_asset,
     daily_funding,
-    list_symbols,
     liquid_universe,
+    list_symbols,
     months_between,
     parse_funding_zip,
     parse_kline_zip,

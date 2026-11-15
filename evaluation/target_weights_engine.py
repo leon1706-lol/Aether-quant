@@ -17,6 +17,7 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -41,7 +42,6 @@ from portfolio.target_weights import (
     update_missing_bars,
     weights_at_tick,
 )
-from typing import Any
 
 SWEEP_CLASS = "cash_sweep"
 CRYPTO_LOT = 1e-6

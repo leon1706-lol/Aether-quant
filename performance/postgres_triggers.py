@@ -195,7 +195,7 @@ def fetch_triggers_since(conn, since: datetime, limit: int = 10_000) -> list[dic
         "recommended_action",
         "retrain_candidate",
     )
-    return [dict(zip(columns, row)) for row in rows]
+    return [dict(zip(columns, row, strict=False)) for row in rows]
 
 
 def fetch_last_retraining_at(conn) -> datetime | None:
@@ -310,7 +310,7 @@ def fetch_candidate_triggers(conn, limit: int = 50) -> list[dict]:
     )
     results = []
     for row in rows:
-        record = dict(zip(columns, row))
+        record = dict(zip(columns, row, strict=False))
         details = record.pop("details")
         record["details"] = json.loads(details) if isinstance(details, str) else (details or {})
         results.append(record)
@@ -342,4 +342,4 @@ def fetch_latest_trigger(conn) -> dict | None:
         "recommended_action",
         "retrain_candidate",
     )
-    return dict(zip(columns, row))
+    return dict(zip(columns, row, strict=False))

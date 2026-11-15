@@ -3,9 +3,8 @@ score) and the multitask fallback instrumentation."""
 
 import pytest
 
-from retraining.rollback_hardening import compute_degradation_score, select_rollback_target_dry_run
 from retraining.auto_rollback import select_rollback_target
-
+from retraining.rollback_hardening import compute_degradation_score, select_rollback_target_dry_run
 
 DEGRADATION = {
     "kill_switch_tripped": True,
@@ -22,7 +21,7 @@ HISTORY = [{"model_version_id": "v-prior", "metrics": {"validation_gate": {"pass
 
 class TestDegradationScore:
     def test_all_signals_fired_caps_at_one(self):
-        all_on = {k: True for k in ("kill_switch_tripped", "net_sharpe_decay", "rank_ic_decay", "slippage_divergence")}
+        all_on = dict.fromkeys(("kill_switch_tripped", "net_sharpe_decay", "rank_ic_decay", "slippage_divergence"), True)
         assert compute_degradation_score(all_on) == pytest.approx(1.0)
 
     def test_no_signals_scores_zero(self):

@@ -27,9 +27,7 @@ import logging
 import time
 from pathlib import Path
 
-from performance.postgres_triggers import ensure_schema as ensure_performance_schema
-from performance.postgres_triggers import fetch_triggers_since
-
+from execution.secrets_io import secret_env
 from notifications.postgres_telegram import (
     ensure_schema,
     fetch_session_summaries_since,
@@ -38,7 +36,8 @@ from notifications.postgres_telegram import (
 )
 from notifications.telegram_alerts import format_session_summary_alert, format_trigger_alert, should_alert_trigger
 from notifications.telegram_client import TelegramClient
-from execution.secrets_io import secret_env
+from performance.postgres_triggers import ensure_schema as ensure_performance_schema
+from performance.postgres_triggers import fetch_triggers_since
 
 logger = logging.getLogger(__name__)
 

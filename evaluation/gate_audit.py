@@ -108,7 +108,7 @@ def audit_rolling_ic_gate(
     correlation = None
     mean_gap = None
     if len(paired) >= 3:
-        state_values, resolved_values = map(np.asarray, zip(*paired))
+        state_values, resolved_values = map(np.asarray, zip(*paired, strict=False))
         if np.std(state_values) > 0 and np.std(resolved_values) > 0:
             correlation = float(np.corrcoef(state_values, resolved_values)[0, 1])
         mean_gap = float(np.mean(state_values - resolved_values))

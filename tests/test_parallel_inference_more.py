@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 from inference import parallel_inference as pool
-from test_exported_model_fallbacks import INPUTS, SEQUENCE, _broken
 from test_exported_model import _synthetic_model_export, _synthetic_multitask_model_export, _synthetic_sequence_model_export
+from test_exported_model_fallbacks import INPUTS, SEQUENCE, _broken
 
 
 def test_a_worker_with_broken_exports_returns_empty_results():

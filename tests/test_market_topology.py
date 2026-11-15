@@ -845,7 +845,7 @@ def test_mismatched_previous_position_width_is_ignored_not_fatal():
     hand. They must be dropped like an unseen symbol - stacking them into
     numpy alongside correct-width tuples would raise."""
     returns = _three_dimensional_returns()
-    stale_two_dimensional = {symbol: (60.0, 40.0) for symbol in returns}
+    stale_two_dimensional = dict.fromkeys(returns, (60.0, 40.0))
 
     topology = build_market_topology(
         returns,
@@ -938,7 +938,7 @@ def test_vectorised_correlations_match_the_scalar_pearson_for_every_pair(monkeyp
     assert [(n.symbol, n.top_peer_symbols if hasattr(n, "top_peer_symbols") else None) for n in result.nodes] == [
         (n.symbol, n.top_peer_symbols if hasattr(n, "top_peer_symbols") else None) for n in reference.nodes
     ]
-    for fast, slow in zip(result.nodes, reference.nodes):
+    for fast, slow in zip(result.nodes, reference.nodes, strict=False):
         assert math.isclose(fast.correlation_strength, slow.correlation_strength, abs_tol=1e-12)
         assert fast.topology_risk == slow.topology_risk
         assert [round(v, 12) for v in fast.top_peer_returns] == [round(v, 12) for v in slow.top_peer_returns]
@@ -1019,7 +1019,7 @@ def test_the_cache_only_skips_the_embedding_never_the_model_input_fields():
             correlation_stability_tolerance=0.5, correlation_stability_tolerance_percentile=None,
             correlation_change_history=change_history,
         )
-        for fresh_node, cached_node in zip(fresh.to_dict()["nodes"], cached.to_dict()["nodes"]):
+        for fresh_node, cached_node in zip(fresh.to_dict()["nodes"], cached.to_dict()["nodes"], strict=False):
             for key in ("correlation_strength", "top_peer_returns", "topology_risk", "volatility_pressure", "cluster_id"):
                 assert fresh_node[key] == cached_node[key], (end, key)
         previous_positions = {node["symbol"]: (node["x"], node["y"]) for node in cached.to_dict()["nodes"]}

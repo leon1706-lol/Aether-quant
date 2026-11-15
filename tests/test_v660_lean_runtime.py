@@ -22,7 +22,7 @@ class Panel:
         self.dates = list(DATES)
         self.sessions = set(DATES)
         self.tickers = list(tickers)
-        self.asset_class = {ticker: "equity" for ticker in tickers}
+        self.asset_class = dict.fromkeys(tickers, "equity")
         rng = np.random.default_rng(0)
         self.closes = 100.0 * np.exp(np.cumsum(rng.normal(0, 0.01, (len(DATES), len(tickers))), axis=0))
         if stop:
@@ -116,13 +116,14 @@ def test_the_instrument_batch_writes_four_plumbing_runs(module, monkeypatch, tmp
 def _lean_run(path, nav):
     path.mkdir(parents=True)
     stamps = [pd.Timestamp(day, tz="UTC").timestamp() for day in DATES]
-    result = {"charts": {"Strategy Equity": {"series": {"Equity": {"values": [[stamp, value] for stamp, value in zip(stamps, nav)]}}}}, "statistics": {"Total Fees": "$12.00"}}
+    result = {"charts": {"Strategy Equity": {"series": {"Equity": {"values": [[stamp, value] for stamp, value in zip(stamps, nav, strict=False)]}}}}, "statistics": {"Total Fees": "$12.00"}}
     (path / "1.json").write_text(json.dumps(result), encoding="utf-8")
 
 
 def test_the_engine_comparison_judges_the_instrument_run_against_its_gates(module, monkeypatch, tmp_path):
-    from portfolio.target_weights import write_weight_file
     from v650_instrument import target_path_config
+
+    from portfolio.target_weights import write_weight_file
 
     base = json.loads((ROOT / "config.json").read_text(encoding="utf-8"))
     (module.WEIGHTS).mkdir(parents=True)

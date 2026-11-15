@@ -58,7 +58,7 @@ def test_seeded_shuffle_is_deterministic():
     batches_a = build_cross_sectional_date_batches(dates, batch_dates=2, min_group_size=1, shuffle=True, seed=7)
     batches_b = build_cross_sectional_date_batches(dates, batch_dates=2, min_group_size=1, shuffle=True, seed=7)
 
-    for batch_a, batch_b in zip(batches_a, batches_b):
+    for batch_a, batch_b in zip(batches_a, batches_b, strict=False):
         assert np.array_equal(batch_a, batch_b)
 
 
@@ -128,7 +128,7 @@ def test_sampler_iterates_the_same_batches_build_cross_sectional_date_batches_wo
     actual = list(sampler)
 
     assert len(actual) == len(expected)
-    for actual_batch, expected_batch in zip(actual, expected):
+    for actual_batch, expected_batch in zip(actual, expected, strict=False):
         assert actual_batch == expected_batch.tolist()
 
 

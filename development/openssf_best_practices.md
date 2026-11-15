@@ -2,15 +2,11 @@
 
 The OpenSSF Scorecard's CII-Best-Practices check reads the badge level that https://www.bestpractices.dev holds for this repository: none 0, in progress 2, passing 5, silver 7, gold 10.
 
-Registering is a sign-up, so the owner does it. An agent never creates the account (`AGENTS.md`).
+Registering is a sign-up, so the owner did it: project [16720](https://www.bestpractices.dev/projects/16720), registered 2026-11-15, badge in the README beside the Scorecard badge. An agent never signs in or edits the answers (`AGENTS.md`); it reads the project's public JSON (the project page's URL plus `.json`) to check them.
 
-**Steps:**
-1. Sign in at https://www.bestpractices.dev with GitHub.
-2. Choose "Add project" and enter `https://github.com/leon1706-lol/Aether-quant`.
-3. Answer the passing criteria below. Each line names the evidence to paste.
-4. Add the badge it gives you to the README, beside the Scorecard badge.
+Status as of V6.6.8 (2026-11-15): 99% of the passing criteria, "in progress". A criterion the project does not meet is marked so; nothing here is claimed that is not true.
 
-Status as of V6.6.7 (2026-11-14). A criterion the project does not meet is marked so; nothing here is claimed that is not true.
+**Metadata fields** (not criteria, but empty on the site): home page `https://leon1706-lol.github.io/Aether-quant/`, bug-report URL `https://github.com/leon1706-lol/Aether-quant/issues`.
 
 ## Basics
 
@@ -20,7 +16,7 @@ Status as of V6.6.7 (2026-11-14). A criterion the project does not meet is marke
 | `interact` | Met | README, `CONTRIBUTING.md` (how to obtain, give feedback, contribute) |
 | `contribution` | Met | `CONTRIBUTING.md` |
 | `contribution_requirements` | Met | `CONTRIBUTING.md` and `AGENTS.md` "Non-negotiables" (tests, ruff, 100% coverage, docs move with code) |
-| `floss_license` | **Unmet** for the repository as a whole (Met for the library) | `LICENSE` and `LICENSES/`: the library and everything the wheel ships is Apache-2.0 (FLOSS); the trading system (`main.py`, the trainers, models, research scripts) is PolyForm Noncommercial 1.0.0, which forbids commercial use and so is not FLOSS. This is a MUST: while it is Unmet the badge stays "in progress" (2 on the Scorecard check) and cannot reach "passing". Answering Met would be untrue. Only a relicensing of the trading system under an OSI licence (the owner's decision, not a documentation fix) changes it. |
+| `floss_license` | **Unmet** for the repository as a whole (Met for the library) | `LICENSE` and `LICENSES/`: the library and everything the wheel ships is Apache-2.0 (FLOSS); the trading system (`main.py`, the trainers, models, research scripts) is PolyForm Noncommercial 1.0.0, which forbids commercial use and so is not FLOSS. This is a MUST: while it is Unmet the badge stays "in progress" (2 on the Scorecard check) and cannot reach "passing". Answering Met would be untrue. Only a relicensing of the trading system under an OSI licence (the owner's decision, not a documentation fix) changes it. Owner decision 2026-11-15 (#381): the split is kept, and relicensing is listed as a possible future step in the README's Known Limitations. |
 | `floss_license_osi` | Unmet for the whole repository (SUGGESTED, so it does not block) | Apache-2.0 is OSI-approved and covers the published package `aether-quant`; PolyForm Noncommercial 1.0.0 is not OSI-approved |
 | `license_location` | Met | `LICENSE` at the top level, `REUSE.toml` per path |
 | `documentation_basics` | Met | README, `docs/` (https://leon1706-lol.github.io/Aether-quant/), `RUNBOOK.md` |
@@ -73,7 +69,7 @@ Status as of V6.6.7 (2026-11-14). A criterion the project does not meet is marke
 | `tests_documented_added` | Met | `CONTRIBUTING.md`, `AGENTS.md` |
 | `warnings` | Met | ruff (`ruff check .`), `tsc`, oxlint |
 | `warnings_fixed` | Met | CI fails on any ruff finding |
-| `warnings_strict` | Met | ruff, CodeQL, bandit (high severity fails) |
+| `warnings_strict` | Met | ruff with 14 rule sets (E, F, W, PLE, PIE, SIM, PERF, N, UP, PLW, C4, I, B, RUF; `pyproject.toml` `[tool.ruff.lint]`, every exclusion with its reason, pinned by `tests/test_ruff_config.py`, #379); CI `python-lint` fails on any finding; CodeQL; bandit (high severity fails) |
 
 ## Security
 
@@ -105,13 +101,13 @@ Status as of V6.6.7 (2026-11-14). A criterion the project does not meet is marke
 | `static_analysis_fixed` | Met | |
 | `static_analysis_often` | Met | every push |
 | `dynamic_analysis` | Met | Atheris fuzzing (`fuzz/`, `.github/workflows/fuzz.yml`) and hypothesis property tests |
-| `dynamic_analysis_unsafe` | N/A | no memory-unsafe language in the shipped code (the optional C++ accelerator falls back to NumPy) |
+| `dynamic_analysis_unsafe` | Met | the only memory-unsafe code, the optional C++ accelerator `cpp_inference_ext`, is built with AddressSanitizer and UBSan by CI job `cpp-sanitizers` on every push (#380): a canary heap overflow must abort first, then hypothesis property tests (random shapes, dtypes, layouts, NaN and inf) and the exported-model parity run against the sanitized build |
 | `dynamic_analysis_enable_assertions` | Met | the fuzz targets assert invariants; the suite runs with assertions on |
 | `dynamic_analysis_fixed` | Met | the first fuzz run found five robustness bugs, fixed in V6.6.7 (Problems #363) |
 
 ## What stops "passing"
 
-One MUST criterion, `floss_license`, is Unmet by the repository's own licence choice (the trading system is PolyForm Noncommercial). Everything else on this sheet is Met or not applicable, so the badge can only reach "passing" if the owner relicenses the trading system under an OSI-approved licence, or registers a repository that holds only the Apache-2.0 library. Until then it stays "in progress".
+One MUST criterion, `floss_license`, is Unmet by the repository's own licence choice (the trading system is PolyForm Noncommercial), and the SUGGESTED `floss_license_osi` with it. Everything else on this sheet is Met or not applicable (`dynamic_analysis_unsafe` became Met in V6.6.8), so the badge can only reach "passing" if the owner relicenses the trading system under an OSI-approved licence, or registers a repository that holds only the Apache-2.0 library. On 2026-11-15 the owner kept the licence (#381), so it stays "in progress" at 99%.
 
 ## Beyond passing (for later)
 

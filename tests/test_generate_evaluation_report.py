@@ -640,7 +640,7 @@ def test_monte_carlo_loaders_read_curves_when_present_and_degrade_when_not(tmp_p
     (tmp_path / "monte_carlo.json").write_text(json.dumps({"status": "OK"}), encoding="utf-8")
     assert report.load_monte_carlo() == ({"status": "OK"}, None)
     np.savez(tmp_path / "monte_carlo_curves.npz", runs_curves=np.ones((2, 3)))
-    summary, runs = report.load_monte_carlo()
+    _summary, runs = report.load_monte_carlo()
     assert runs.shape == (2, 3)
 
     assert report.load_lean_monte_carlo() == (None, None)

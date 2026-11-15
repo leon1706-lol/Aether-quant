@@ -70,7 +70,7 @@ def build_event_buffer(
     ordered = dataset.sort_values(date_column, kind="stable")
     events: list[dict] = []
     for ticker, date, score, close in zip(
-        ordered[ticker_column], ordered[date_column], ordered[raw_score_column], ordered[close_column]
+        ordered[ticker_column], ordered[date_column], ordered[raw_score_column], ordered[close_column], strict=False
     ):
         if score is None or (isinstance(score, float) and np.isnan(score)):
             continue

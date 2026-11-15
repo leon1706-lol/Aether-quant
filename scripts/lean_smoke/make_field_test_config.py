@@ -15,7 +15,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from make_live_plumbing_config import launcher_config  # noqa: E402
+from make_live_plumbing_config import launcher_config
 
 COINS = ("BTCUSD", "ETHUSD")
 PLAN = {

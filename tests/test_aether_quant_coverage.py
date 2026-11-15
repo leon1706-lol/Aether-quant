@@ -96,7 +96,7 @@ def test_the_gate_imports_nothing_heavy():
     code = "import sys; sys.path.insert(0, 'scripts'); import library_gate; library_gate.check(); print(sorted(m for m in ('torch', 'pandas', 'numpy', 'sklearn') if m in sys.modules))"
     import subprocess
 
-    result = subprocess.run([sys.executable, "-c", code], cwd=ROOT, capture_output=True, text=True, timeout=120)
+    result = subprocess.run([sys.executable, "-c", code], cwd=ROOT, capture_output=True, text=True, timeout=120, check=False)
     assert result.returncode == 0, result.stderr
     assert result.stdout.strip() == "[]"
 

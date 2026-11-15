@@ -83,7 +83,7 @@ def test_importing_the_library_stays_light():
     code = ("import sys, importlib\n"
             f"for name in {MODULES!r}:\n    importlib.import_module('aether_quant.' + name)\n"
             f"print(sorted(m for m in {HEAVY!r} if m in sys.modules))")
-    result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, cwd=str(ROOT), timeout=300)
+    result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, cwd=str(ROOT), timeout=300, check=False)
     assert result.returncode == 0, result.stderr
     assert result.stdout.strip() == "[]"
 

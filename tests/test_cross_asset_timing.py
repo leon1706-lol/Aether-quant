@@ -119,7 +119,7 @@ def _live_replay(frames, types):
     for ticker, frame in frames.items():
         previous_stamp = None
         previous_close = None
-        for stamp, close in zip(frame["date"], frame["close"]):
+        for stamp, close in zip(frame["date"], frame["close"], strict=False):
             if types[ticker] == "forex" and previous_stamp is not None:
                 # Lean's FillForward: the forex market is open Sunday-Friday, so a gap day without a row is a flat bar
                 for offset in range(1, (stamp - previous_stamp).days):
@@ -184,11 +184,11 @@ def test_offline_cross_asset_builders_reproduce_the_live_order_replay_exactly():
             row = topology[ticker].iloc[index]
             assert row["topology_correlation_strength"] == pytest.approx(live["strength"], abs=1e-12)
             assert row[f"topology_risk_{live['risk']}"] == 1.0
-            for name, value in zip(peer_return_feature_names(3), live["peers"]):
+            for name, value in zip(peer_return_feature_names(3), live["peers"], strict=False):
                 assert row[name] == pytest.approx(value, abs=1e-12)
             macro_row = macro[ticker].iloc[index]
             for name, value in zip(
-                ("macro_yield_curve_slope_proxy", "macro_credit_spread_proxy", "macro_crypto_risk_appetite_proxy"), live["macro"]
+                ("macro_yield_curve_slope_proxy", "macro_credit_spread_proxy", "macro_crypto_risk_appetite_proxy"), live["macro"], strict=False
             ):
                 assert macro_row[name] == pytest.approx(value, abs=1e-12)
             assert rank[ticker].iloc[index]["cs_momentum_rank_20"] == pytest.approx(live["rank"], abs=1e-12)

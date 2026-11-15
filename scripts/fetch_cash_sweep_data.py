@@ -10,6 +10,7 @@ equity format, OHLC sanitised) and the same window end as every other zip.
 from __future__ import annotations
 
 import argparse
+import itertools
 import json
 import sys
 from datetime import date
@@ -41,7 +42,7 @@ def main() -> int:
         print(f"{ticker}: Yahoo returned nothing")
         return 1
     closes = [float(row["close"]) for row in rows]
-    worst = max(abs(after / before - 1.0) for before, after in zip(closes, closes[1:]))
+    worst = max(abs(after / before - 1.0) for before, after in itertools.pairwise(closes))
     print(f"{ticker}: {len(rows)} rows {rows[0]['date']}..{rows[-1]['date']}, {widened} OHLC rows widened, "
           f"largest daily move {worst:.4%}")
     target = ROOT_DIR / sweep["data_path"]

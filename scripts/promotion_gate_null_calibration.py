@@ -85,11 +85,8 @@ def main() -> int:
     for name, (a, b) in ERA_RANGES.items():
         mask = np.zeros(n_dates, dtype=bool)
         for i, d in enumerate(dates):
-            if a <= d <= b:
-                if name != "rest" or not any(
-                    ea <= d <= eb for (ea, eb) in list(ERA_RANGES.values())[:-1]
-                ):
-                    mask[i] = valid_dates[i]
+            if a <= d <= b and (name != "rest" or not any(ea <= d <= eb for (ea, eb) in list(ERA_RANGES.values())[:-1])):
+                mask[i] = valid_dates[i]
         era_masks.append(mask)
 
     def era_negative_count(ic: np.ndarray) -> int:
@@ -110,7 +107,7 @@ def main() -> int:
     rng = np.random.default_rng(42)
     t_null, neg_null = [], []
     T_work = T.copy()
-    for perm in range(N_PERMS):
+    for _perm in range(N_PERMS):
         for i in range(n_dates):
             if valid_dates[i]:
                 row = T_work[i]

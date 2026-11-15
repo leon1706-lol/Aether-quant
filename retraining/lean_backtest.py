@@ -50,7 +50,7 @@ def run_lean_backtest(version_dir: Path, config: dict) -> dict:
             cwd=str(version_dir),
             capture_output=True,
             text=True,
-            timeout=timeout_seconds,
+            timeout=timeout_seconds, check=False,
         )
     except FileNotFoundError:
         return {"ran": False, "ok": None, "output_path": None, "error": "lean_binary_not_found"}

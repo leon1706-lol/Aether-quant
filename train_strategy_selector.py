@@ -58,9 +58,9 @@ from pathlib import Path
 import numpy as np
 from sklearn.linear_model import LogisticRegression
 
+from execution.secrets_io import secret_env
 from inference.strategy_selector_inference import FEATURE_KEYS
 from performance.postgres_triggers import fetch_recent_events
-from execution.secrets_io import secret_env
 
 LOGGER = logging.getLogger("aether_quant.train_strategy_selector")
 ROOT = Path(__file__).resolve().parent
@@ -160,7 +160,7 @@ def fit_strategy_scorers(
         model.fit(matrix, targets)
 
         scorers[strategy_name] = {
-            "weights": {key: float(weight) for key, weight in zip(FEATURE_KEYS, model.coef_[0])},
+            "weights": {key: float(weight) for key, weight in zip(FEATURE_KEYS, model.coef_[0], strict=False)},
             "bias": float(model.intercept_[0]),
         }
         per_strategy_metrics.append(

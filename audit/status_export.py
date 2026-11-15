@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from json_safety import atomic_write_json
+
 from .hash_chain import verify_chain
 from .postgres_audit import fetch_all_events_ordered, fetch_recent_events
 

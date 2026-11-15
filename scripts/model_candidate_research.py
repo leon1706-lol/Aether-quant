@@ -182,7 +182,7 @@ def main() -> int:
                 for directory in dirs:
                     single = {kind: predict_kind(frame, [directory], kind, window)}
                     # a member is scored with the other kind's ensemble as the fallback, as live would serve it
-                    for other, other_dirs in members.items():
+                    for other in members:
                         if other != kind:
                             single[other] = predictions[other]
                     singles[directory] = score(frame, single, config)

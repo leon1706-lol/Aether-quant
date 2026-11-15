@@ -3,9 +3,9 @@ rank on the day is the comparable part. Pure pandas, no I/O."""
 
 from __future__ import annotations
 
-import pandas as pd
 from typing import TYPE_CHECKING
 
+import pandas as pd
 
 if TYPE_CHECKING:
     from collections.abc import Sequence

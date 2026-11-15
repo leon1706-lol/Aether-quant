@@ -101,9 +101,9 @@ def run_symbol_inference(
     already has."""
     from inference.exported_model import (
         run_exported_model,
+        run_exported_models_batched,
         run_exported_multitask_model,
         run_exported_multitask_models_batched,
-        run_exported_models_batched,
         run_exported_sequence_multitask_model,
     )
 
@@ -138,7 +138,7 @@ def run_symbol_inference(
     expert_list = [expert_exports.get(name) for name in expert_names]
     if any(expert_list):
         expert_results = run_exported_models_batched(expert_list, inputs, stack_cache=exports.get("expert_stack_cache"))
-        result["expert_probabilities"] = dict(zip(expert_names, expert_results))
+        result["expert_probabilities"] = dict(zip(expert_names, expert_results, strict=False))
 
     multitask = exports.get("multitask")
     if multitask:
@@ -153,7 +153,7 @@ def run_symbol_inference(
         emt_results = run_exported_multitask_models_batched(
             expert_multitask_list, inputs, stack_cache=exports.get("expert_multitask_stack_cache")
         )
-        for name, one_result in zip(expert_names, emt_results):
+        for name, one_result in zip(expert_names, emt_results, strict=False):
             result["expert_multitask_magnitudes"][name] = one_result.get("magnitude") if one_result else None
             result["expert_multitask_volatilities"][name] = one_result.get("volatility") if one_result else None
 

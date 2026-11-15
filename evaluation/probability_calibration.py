@@ -9,9 +9,9 @@ violators). `best_threshold_by_class` picks a per-class decision threshold by ba
 from __future__ import annotations
 
 import math
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
-from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from collections.abc import Sequence

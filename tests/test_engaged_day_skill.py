@@ -7,7 +7,12 @@ import pandas as pd
 import pytest
 
 from evaluation.engaged_day_skill import (
-    engaged_vs_all, engaged_window_returns, gate_labels, l1_verdict, sharpe, subset_skill,
+    engaged_vs_all,
+    engaged_window_returns,
+    gate_labels,
+    l1_verdict,
+    sharpe,
+    subset_skill,
 )
 
 DATES = [str(day.date()) for day in pd.bdate_range("2023-01-02", periods=60)]

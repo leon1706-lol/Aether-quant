@@ -90,7 +90,7 @@ jobs:
       - name: Install ruff (hash-locked tools)
         run: python -m pip install --require-hashes -r requirements/lock/tools.txt
 
-      - name: Ruff check (E/F ruleset calibrated in pyproject.toml)
+      - name: Ruff check (rule sets in pyproject.toml)
         run: ruff check .
 
       - name: Syntax-check main.py
@@ -312,6 +312,55 @@ jobs:
         run: |
           python -m pip install --require-hashes -r requirements/lock/compat.txt
           vermin -t=3.10- --no-tips --violations -q aether_quant analyzer audit data_pipeline evaluation execution experience experts features inference liquidity moe monitoring notifications performance portfolio regime retraining risk topology aq_cli.py docs_facts.py json_safety.py performance_probe.py risk_controls.py generate_backtest_report.py generate_evaluation_report.py scripts/cycle_daily.py scripts/forward_ledger.py
+
+  # V6.6.8 (#380): the one memory-unsafe module, cpp_inference_ext (C++), built with AddressSanitizer and UBSan. A canary
+  # heap overflow must abort first (proof the instrumentation is live); then hypothesis drives random shapes, dtypes,
+  # layouts and non-finite values through the kernel, and the exported-model parity runs against the sanitized build.
+  # The runner's gcc ships libasan and libubsan; python itself is not instrumented, so the ASan runtime is preloaded.
+  cpp-sanitizers:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: requirements/lock/sanitize.txt
+
+      - name: Install the build and test set (hash-locked)
+        run: python -m pip install --require-hashes -r requirements/lock/sanitize.txt
+
+      - name: Canary - a sanitized heap overflow must abort
+        run: |
+          AQ_SANITIZE=address,undefined AQ_ASAN_CANARY=1 python -m pip wheel --no-deps --no-build-isolation -w "$RUNNER_TEMP/canary" ./cpp_inference_ext
+          python -m pip install --no-deps "$RUNNER_TEMP"/canary/*.whl
+          rm -rf ./cpp_inference_ext/build
+          set +e
+          LD_PRELOAD="$(gcc -print-file-name=libasan.so)" ASAN_OPTIONS=detect_leaks=0 \
+            timeout -s KILL 120 python -c "import cpp_inference; cpp_inference.asan_canary()" 2> "$RUNNER_TEMP/canary.log"
+          status=$?
+          set -e
+          cat "$RUNNER_TEMP/canary.log"
+          python -m pip uninstall -y cpp_inference
+          test "$status" -ne 0
+          grep -q "heap-buffer-overflow" "$RUNNER_TEMP/canary.log"
+
+      - name: Build the extension with ASan and UBSan
+        run: |
+          AQ_SANITIZE=address,undefined python -m pip wheel --no-deps --no-build-isolation -w "$RUNNER_TEMP/wheel" ./cpp_inference_ext
+          python -m pip install --no-deps "$RUNNER_TEMP"/wheel/*.whl
+
+      - name: Kernel properties and exported-model parity under the sanitizers
+        env:
+          AQ_REQUIRE_CPP_INFERENCE: "1"
+          ASAN_OPTIONS: detect_leaks=0:abort_on_error=1:detect_stack_use_after_return=1:check_initialization_order=1
+          UBSAN_OPTIONS: print_stacktrace=1:halt_on_error=1
+        run: |
+          # libstdc++ is preloaded too: python is a C program, so without it ASan's __cxa_throw interceptor has no real function to call and aborts on the kernel's first C++ exception (the shape checks)
+          LD_PRELOAD="$(gcc -print-file-name=libasan.so) $(gcc -print-file-name=libstdc++.so.6)" python -m pytest -p no:cacheprovider -q \
+            tests/test_cpp_inference_kernel.py tests/test_exported_model.py
 
   # V5.5.0 - Docker is never built with Lean in CI (the 40 GB base image does
   # not fit a hosted runner), but everything checkable without it is checked.

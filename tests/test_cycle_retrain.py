@@ -150,7 +150,7 @@ def test_a_codespace_still_shutting_down_is_waited_for_and_never_pushed_to():
     def runner(command, **_):
         calls.append(command)
         if command[2] == "list":
-            return SimpleNamespace(returncode=0, stdout='[{"name": "c", "state": "%s"}]' % next(states), stderr="")
+            return SimpleNamespace(returncode=0, stdout=f'[{{"name": "c", "state": "{next(states)}"}}]', stderr="")
         return SimpleNamespace(returncode=0, stdout="", stderr="")
 
     wait_until_reachable("c", runner=runner, sleep=lambda _: None)
@@ -256,6 +256,7 @@ def test_a_refit_of_a_frozen_procedure_adds_its_vintage_once_and_a_candidate_add
     import json
 
     from cycle_retrain import register_vintage
+
     from evaluation.generation_registry import Generation, lifecycle_is_intact, load_registry, save_registry
 
     registry, lifecycle = tmp_path / "registry.json", tmp_path / "lifecycle.jsonl"

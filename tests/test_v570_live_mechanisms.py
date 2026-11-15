@@ -10,8 +10,8 @@ from evaluation.live_parity import (
     build_as_live_kwargs,
     build_hrp_raw_weights_fn,
     build_impact_inputs_fn,
-    build_live_member_weight_fn,
     build_live_mechanisms,
+    build_live_member_weight_fn,
 )
 from evaluation.rank_book_simulator import simulate_rank_book
 from portfolio.book_construction import BookAllocation

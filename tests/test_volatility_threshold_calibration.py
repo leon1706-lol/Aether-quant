@@ -20,7 +20,7 @@ def _frame(daily_vol_by_ticker: dict[str, float], days=120, seed=11) -> pd.DataF
     rows = []
     for ticker, daily_vol in daily_vol_by_ticker.items():
         closes = 100.0 * np.cumprod(1.0 + rng.normal(0.0, daily_vol, days))
-        rows.extend({"date": d, "ticker": ticker, "close": c} for d, c in zip(dates, closes))
+        rows.extend({"date": d, "ticker": ticker, "close": c} for d, c in zip(dates, closes, strict=False))
     return pd.DataFrame(rows)
 
 

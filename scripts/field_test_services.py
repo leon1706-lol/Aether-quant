@@ -49,7 +49,7 @@ def chain_report(conn) -> dict:
 def service(command: str | None, name: str) -> bool:
     if not command:
         return False
-    result = subprocess.run(command.format(service=name), shell=True, capture_output=True, text=True, timeout=120)
+    result = subprocess.run(command.format(service=name), shell=True, capture_output=True, text=True, timeout=120, check=False)
     return result.returncode == 0
 
 

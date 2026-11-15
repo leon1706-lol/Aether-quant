@@ -64,5 +64,5 @@ def test_the_builder_parses_percent_cells():
 
 @pytest.mark.skipif(os.environ.get("AQ_RUN_NOTEBOOKS") != "1", reason="set AQ_RUN_NOTEBOOKS=1 (about 4 minutes); CI's notebooks job runs them")
 def test_every_notebook_runs():
-    result = subprocess.run([sys.executable, str(ROOT / "scripts" / "build_notebooks.py"), "--check", "--execute"], capture_output=True, text=True, timeout=3600)
+    result = subprocess.run([sys.executable, str(ROOT / "scripts" / "build_notebooks.py"), "--check", "--execute"], capture_output=True, text=True, timeout=3600, check=False)
     assert result.returncode == 0, result.stdout[-2000:] + result.stderr[-4000:]

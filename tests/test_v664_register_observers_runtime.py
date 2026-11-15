@@ -10,8 +10,9 @@ import pytest
 
 sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parents[1] / "scripts"))
 
-import v664_register_observers as observers  # noqa: E402
-from evaluation.generation_registry import Generation, load_registry, save_registry  # noqa: E402
+import v664_register_observers as observers
+
+from evaluation.generation_registry import Generation, load_registry, save_registry
 
 
 def _candles(count, close, volume):

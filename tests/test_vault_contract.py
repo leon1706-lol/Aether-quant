@@ -102,7 +102,7 @@ def test_unreachable_push_is_reported_as_queued_not_as_success_or_failure(repo):
 def test_status_does_not_report_a_committed_candidate_as_deleted(repo):
     assert commit_candidate_to_vault("v1", ["ml/versions/v1"], {}, _config(), cwd=repo)["ok"]
 
-    status = subprocess.run([AV, "--output", "json", "status"], cwd=repo, capture_output=True, text=True, encoding="utf-8")
+    status = subprocess.run([AV, "--output", "json", "status"], cwd=repo, capture_output=True, text=True, encoding="utf-8", check=False)
 
     assert '"deleted": []' in status.stdout, status.stdout
 

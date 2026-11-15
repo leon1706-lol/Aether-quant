@@ -147,7 +147,7 @@ def main() -> int:
             pending_shares = int(target * equity_by_date.get(date, equity) / price)
 
     series = load_backtest_series(next(path for path in run_dir.glob("*.json") if path.stem.isdigit()))
-    previous_equity = {date: value for (date, value) in zip(dates[1:], [v for _, v in daily_equity[:-1]])}
+    previous_equity = dict(zip(dates[1:], [v for _, v in daily_equity[:-1]], strict=False))
     extra = {}
     from datetime import date as _date
 

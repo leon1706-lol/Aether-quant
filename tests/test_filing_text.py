@@ -17,7 +17,7 @@ def test_hashed_counts_are_stable_and_count_repeats():
     assert first == ft.hashed_counts(["alpha", "beta", "alpha"])
     assert sorted(first.values()) == [1, 2]
     assert ft.hashed_counts(["alpha"], buckets=1 << 18) == ft.hashed_counts(["alpha"])
-    assert list(ft.hashed_counts(["alpha"]).keys())[0] == int.from_bytes(__import__("hashlib").blake2b(b"alpha", digest_size=4).digest(), "big") % (1 << 18)
+    assert next(iter(ft.hashed_counts(["alpha"]).keys())) == int.from_bytes(__import__("hashlib").blake2b(b"alpha", digest_size=4).digest(), "big") % (1 << 18)
 
 
 def test_cosine_by_hand_and_the_empty_cases():

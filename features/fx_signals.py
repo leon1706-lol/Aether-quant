@@ -52,11 +52,11 @@ def ts_momentum_score(closes: Sequence[float], lookbacks: Sequence[int] = DEFAUL
 def _zscores(values: Mapping[str, float]) -> dict[str, float]:
     finite = {key: float(value) for key, value in values.items() if value is not None and math.isfinite(float(value))}
     if len(finite) < 2:
-        return {key: 0.0 for key in finite}
+        return dict.fromkeys(finite, 0.0)
     mean = sum(finite.values()) / len(finite)
     std = math.sqrt(sum((value - mean) ** 2 for value in finite.values()) / (len(finite) - 1))
     if std <= 0.0 or not math.isfinite(std):
-        return {key: 0.0 for key in finite}
+        return dict.fromkeys(finite, 0.0)
     return {key: (value - mean) / std for key, value in finite.items()}
 
 
@@ -95,8 +95,8 @@ def ts_momentum_series(closes: pd.Series, lookbacks: Sequence[int] = DEFAULT_MOM
     """ts_momentum_score() evaluated at every position of a close series (a pandas Series), vectorised for research
     over thousands of rows: position i equals ts_momentum_score(closes[:i + 1]). NaN where the scalar returns None.
     pandas is imported here so the live path never pays for it."""
-    import numpy as np  # noqa: PLC0415
-    import pandas as pd  # noqa: PLC0415
+    import numpy as np
+    import pandas as pd
 
     values = pd.Series(closes, dtype=float)
     logs = np.log(values.where(values > 0))

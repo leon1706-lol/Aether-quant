@@ -32,7 +32,7 @@ def _sample_row(event_id="00000000-0000-0000-0000-000000000001"):
 
 
 def test_fetch_recent_events_maps_columns_correctly():
-    conn_mock, cur_mock = _make_conn_mock([_sample_row()])
+    conn_mock, _cur_mock = _make_conn_mock([_sample_row()])
 
     rows = fetch_recent_events(conn_mock)
 

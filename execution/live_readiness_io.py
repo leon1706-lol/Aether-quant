@@ -34,7 +34,7 @@ def _latest(root: Path, pattern: str) -> Path | None:
 def forward_rows_from_branch(root: Path) -> list[dict]:
     """The generations' ledger on the `forward-ledger` branch (local copy; `aq cycle status` fetches it). Empty when absent."""
     try:
-        result = subprocess.run(["git", "show", "forward-ledger:forward/generations.jsonl"], cwd=root, capture_output=True, text=True, encoding="utf-8", timeout=30)
+        result = subprocess.run(["git", "show", "forward-ledger:forward/generations.jsonl"], cwd=root, capture_output=True, text=True, encoding="utf-8", timeout=30, check=False)
     except (OSError, subprocess.SubprocessError):
         return []
     return [json.loads(line) for line in result.stdout.splitlines() if line.strip()] if result.returncode == 0 else []

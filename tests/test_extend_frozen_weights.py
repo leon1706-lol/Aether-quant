@@ -17,10 +17,10 @@ def test_frozen_rows_stay_and_only_later_rows_are_added():
 
 
 def test_main_writes_the_extended_copy_and_its_hash(tmp_path, monkeypatch, capsys):
-    from portfolio.target_weights import load_weight_file, write_weight_file
-
     import v650_lean
     import v650_research
+
+    from portfolio.target_weights import load_weight_file, write_weight_file
 
     module = load_script("extend_frozen_weights")
     source = tmp_path / "frozen.csv"

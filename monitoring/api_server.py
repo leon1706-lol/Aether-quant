@@ -12,35 +12,35 @@ a hash-chained action log. Without a users file the reads stay open, as before, 
 """
 
 import csv
+import hashlib
+import json
+import os
+import threading
+from datetime import datetime, timezone
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Body, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+
 # StaticFiles raises Starlette's HTTPException, of which fastapi's is a
 # *subclass* - catching the fastapi one would miss it entirely.
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from json_safety import load_json_lenient
 from monitoring.assets_status import build_assets_status_from_disk
+from monitoring.auth import Role, User, authorize, verify_token
+from monitoring.auth_io import auth_required, load_users, users_file
 from monitoring.evaluation_state import build_evaluation_state, build_generations_state
 from monitoring.neural_network_state import build_neural_network_state
 from monitoring.strategy_catalog import build_strategy_catalog
-import hashlib
-import json
-import os
-import threading
-from datetime import datetime, timezone
-from fastapi import Body, Request
-from fastapi.responses import JSONResponse
-from monitoring.auth import Role, User, authorize, verify_token
-from monitoring.auth_io import auth_required, load_users, users_file
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
 # V6.6.5 (#344): AQ_DASHBOARD_ROOT points every read at another tree (the demo data in monitoring/demo, which the
 # `dashboard` image serves); unset, the paths are the repo's own, as before. AQ_DASHBOARD_DEMO=1 labels the feed as demo.
 DATA_ROOT = Path(os.environ.get("AQ_DASHBOARD_ROOT") or ROOT_DIR).resolve()
-CUSTOM_ROOT = DATA_ROOT != ROOT_DIR.resolve()
+CUSTOM_ROOT = ROOT_DIR.resolve() != DATA_ROOT
 DEMO = os.environ.get("AQ_DASHBOARD_DEMO", "") == "1"
 VISUALIZATION_DIR = DATA_ROOT / "visualization"
 GRAFANA_DIR = VISUALIZATION_DIR / "grafana"
@@ -135,8 +135,8 @@ def _read_csv_as_rows(path: Path) -> list[dict]:
     try:
         with path.open("r", encoding="utf-8", newline="") as f:
             return list(csv.DictReader(f))
-    except OSError:
-        raise HTTPException(status_code=404, detail=f"{path.name} not found")
+    except OSError as error:
+        raise HTTPException(status_code=404, detail=f"{path.name} not found") from error
 
 
 @app.get("/api/health")
@@ -205,7 +205,7 @@ def _append_action(record: dict) -> dict:
         from audit import LIVE_MODE_TRANSITION, AuditQueue, build_audit_event
 
         AuditQueue(enabled=True, stream_name="aether:audit").push(build_audit_event(LIVE_MODE_TRANSITION, record, actor=str(record.get("user") or "api")))
-    except Exception:  # noqa: BLE001 - the local chain is the record; the stream is best effort
+    except Exception:
         pass
     return entry
 

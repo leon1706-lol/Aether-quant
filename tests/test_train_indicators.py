@@ -25,7 +25,6 @@ from train import (
     engineer_features,
 )
 
-
 FEATURE_NAMES = [
     "close_to_close_return_1d",
     "close_to_close_return_5d",

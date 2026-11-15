@@ -80,7 +80,7 @@ def test_the_defaults_are_the_documented_thresholds_in_config_json():
     from pathlib import Path
 
     config = json.loads((Path(__file__).resolve().parents[1] / "config.json").read_text(encoding="utf-8"))
-    assert DEFAULT_THRESHOLDS == config["phase_v2"]["live_readiness"]["thresholds"]
+    assert config["phase_v2"]["live_readiness"]["thresholds"] == DEFAULT_THRESHOLDS
     assert DEFAULT_THRESHOLDS["forward_sessions_min"] == 60 and DEFAULT_THRESHOLDS["paper_trading_days_min"] == 120
     assert DEFAULT_THRESHOLDS["paper_rebalances_min"] == 6 and DEFAULT_THRESHOLDS["field_test_max_age_days"] == 90
     assert DEFAULT_THRESHOLDS["backup_max_age_days"] == 7 and DEFAULT_THRESHOLDS["verification_max_age_days"] == 30

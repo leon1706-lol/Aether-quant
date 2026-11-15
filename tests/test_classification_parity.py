@@ -18,7 +18,7 @@ def _calls(probabilities, truth):
 
 
 def _offline(calls, values):
-    return {(day, ticker): value for day, ticker, value in zip(calls["dates"], calls["tickers"], values)}
+    return {(day, ticker): value for day, ticker, value in zip(calls["dates"], calls["tickers"], values, strict=False)}
 
 
 def test_identical_probabilities_are_within_tolerance():

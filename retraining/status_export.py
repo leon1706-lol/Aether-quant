@@ -12,14 +12,14 @@ from __future__ import annotations
 
 import argparse
 import json
-
-from json_safety import atomic_write_json
 import logging
 from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any
 from uuid import UUID
 
+from execution.secrets_io import secret_env
+from json_safety import atomic_write_json
 from performance.postgres_triggers import fetch_latest_trigger
 from retraining.auto_rollback import select_rollback_target
 from retraining.postgres_registry import (
@@ -29,7 +29,6 @@ from retraining.postgres_registry import (
     fetch_latest_retraining_event,
     fetch_rollback_candidates,
 )
-from execution.secrets_io import secret_env
 
 logger = logging.getLogger(__name__)
 

@@ -4,7 +4,7 @@ The owner's live brief for what to do next; rewritten as objectives change (hist
 `development/Changelog.md` and `development/Problems.md`).
 
 -----
-# Current objective: V6.6.7 — last tidy-up before the alpha search: the Scorecard near its ceiling, coverage after every commit, ten more proofs
+# Previous objective: V6.6.7 — last tidy-up before the alpha search: the Scorecard near its ceiling, coverage after every commit, ten more proofs
 
 **State (2026-11-15): COMPLETE and pushed (`a976e04`, then `87d0ddd` V6.6.7.1: CI, Fuzz, CodeQL, Pages and Scorecard all green).** Left for you: tag `v6.6.7` and the two backfills (below). Plan: `C:\Users\Blackhead\.claude\plans\now-please-make-in-jaunty-axolotl.md`. Problems #361-#378, Changelog "Phase V6.6.7".
 
@@ -23,18 +23,25 @@ The owner's live brief for what to do next; rewritten as objectives change (hist
 **Then yours:** tag `v6.6.7` and push the tag; run `gh workflow run release.yml -f backfill_tag=v6.6.5` and again with `v6.6.4` (Signed-Releases 8 to 10); send the best-practices project number so the badge goes into the README; rebuild the Docker images (`Dockerfile.lean` now installs from a hash lock, so your next `aq backtest` is its first proof).
 
 -----
-# Next objective: V6.6.8 — close the gaps V6.6.7 left open
+# Current objective: V6.6.8 — close the gaps V6.6.7 left open
 
-**Why.** After V6.6.7 the Scorecard reads 8.5 and the OpenSSF Best Practices form (project registered 2026-11-15) has a few criteria Unmet or open. This phase closes every one that code or a decision can close, so each can be ticked. Guardrails as always: PC only, no Codespace, no `aq backtest`, no sign-ups; a live-path change ships with its parity test and the 100% coverage gate stays green after every step.
+**State (2026-11-15): COMPLETE, uncommitted (you commit).** Plan: `C:\Users\Blackhead\.claude\plans\please-now-for-the-logical-walrus.md`. Problems #379-#381, Changelog "Phase V6.6.8". The OpenSSF Best Practices badge stays **"in progress" at 99%** by your decision: `floss_license` is a MUST and the trading system stays PolyForm Noncommercial (README Known Limitations lists relicensing as a possible future step, #381).
 
-- [ ] **A. Stricter lint (`warnings_strict`).** ruff runs only `E` and `F`. Enable the sets one at a time, each step green on `aq test` with coverage at 100%. Findings measured 2026-11-15: `W` 1, `PLE` 1 (a zero-width space in `scripts/order_events_audit.py`), `PIE` 20, `SIM` 81, `PERF` 55, `N` 60, `UP` 157, `PLW` 116, `C4` 244, `I` 326, `B` 324 (touches the live path: run the main-world tests and the parity tests), `RUF` 787 (mostly auto-fixable). Done when `select` carries them all or each exclusion has a one-line reason in `pyproject.toml`; then answer `warnings_strict` Met.
-- [ ] **B. The C++ accelerator under sanitizers (`dynamic_analysis_unsafe`).** `cpp_inference_ext` is memory-unsafe code with a NumPy fallback. Add a Linux CI job that builds it with AddressSanitizer and UBSan and runs its tests and the exported-model parity (it cannot be proved on the Windows PC, so the first CI run is the proof), or decide to retire the extension. Then answer Met.
-- [ ] **C. The licence (your decision): `floss_license`, `floss_license_osi`, Scorecard License 9.** The trading system is PolyForm Noncommercial, which is not FLOSS, so the badge cannot reach "passing". Options: keep it (the badge stays "in progress", worth 2 points), relicense the trading system under an OSI-approved licence, or register a repository that holds only the Apache-2.0 library. Relicensing is worth about +0.14 on the Scorecard; record the decision in the Changelog either way.
-- [ ] **D. Re-answer on the best-practices site once V6.6.7.1 is on `main`:** `vulnerability_report_private` Met (private reporting is on), `interact` and `contribution` (CONTRIBUTING.md is on `main`), and add the badge to the README.
-- [ ] **E. Leftovers from V6.6.7:** the vault regeneration and `aq verify --quick` as one command (stopped for memory; run them with the other apps closed).
-- [ ] **F. Hand the owner the answers.** When A to E are done, give the owner the updated best-practices answers, one copy-ready line per criterion that changed (`warnings_strict`, `dynamic_analysis_unsafe`, `floss_license` and `floss_license_osi` as the licence decision in C leaves them, `vulnerability_report_private`, `interact`, and anything the site's wording has moved), plus the Scorecard figure after the tag and backfills. Say in the same message whether the badge can now be submitted as "passing" or stays "in progress", and why.
-- **Submit now, edit later (decided 2026-11-15).** "Submit" on bestpractices.dev only saves the answers; they stay editable, and a registered project already counts as "in progress" (2 points) on the Scorecard. Waiting for V6.6.8 gains nothing, so submit today and re-answer the changed criteria in F.
-- **Not closable by code, so not on the list:** Code-Review 0 (needs a second reviewer), Contributors 0 (needs contributors from three organisations), Branch-Protection 9 (the ceiling with your bypass) and SAST 9 (older direct-push commits; it rises as commits land through checked paths). The realistic Scorecard ceiling without a second person is about 8.7.
+**Done:**
+- [x] **A. Stricter lint (#379).** ruff runs 14 sets (E, F, W, PLE, PIE, SIM, PERF, N, UP, PLW, C4, I, B, RUF) at target py310; every exclusion has its reason in `pyproject.toml`, pinned by `tests/test_ruff_config.py`. `warnings_strict` Met.
+- [x] **B. The C++ accelerator under sanitizers (#380).** CI job `cpp-sanitizers` (a canary that must abort, hypothesis kernel tests, exported-model parity, `libasan` and `libstdc++` preloaded). Replayed in Docker on the PC first, which caught two flaws in the first draft. **Partial until its first green run on `main`;** then `dynamic_analysis_unsafe` is Met.
+- [x] **C. The licence (#381).** Kept; recorded.
+- [x] **D.** The answer sheet is updated (`development/openssf_best_practices.md`); the site's own answers are yours to edit.
+- [x] **E.** `aq verify --quick` all green; vault regenerated.
+- [x] **F.** Copy-ready answers handed over in the session's last message.
+
+**Verified (2026-11-15):** `ruff check .` clean; the full `aq test --coverage` ran all 16 groups green over 48,167 statements at **100%**; `aq verify --quick` green; `scripts/scorecard_pins.py` 0; the sanitizer job replayed green in Docker. The OpenSSF Scorecard reads **8.7**.
+
+**Then yours:**
+1. Commit and push. Watch the first `cpp-sanitizers` run (`gh run list --workflow ci.yml --limit 1`): its canary log must show `heap-buffer-overflow`. On green, set #380 to 🟢 and answer `dynamic_analysis_unsafe` Met. If it fails, the log names the line.
+2. On bestpractices.dev, fill the two empty metadata fields (home page `https://leon1706-lol.github.io/Aether-quant/`, bug-report URL `https://github.com/leon1706-lol/Aether-quant/issues`) and re-answer `warnings_strict` and `dynamic_analysis_unsafe` (lines in the session's last message).
+3. Tag `v6.6.7` / `v6.6.8` as you decide, and rebuild the Docker images (no behaviour changed; the lint sweep touched most files).
+4. No `aq backtest` is needed: the live path changed only by behaviour-neutral rewrites (`main.py`: one nested `if` merged and two `dict.fromkeys`; its tests and the parity tests pass).
 
 -----
 # V6.6.5 — open the door: a 5-minute start, a first-class library, a hardened live path

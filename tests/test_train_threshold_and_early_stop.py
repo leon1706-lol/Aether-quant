@@ -88,7 +88,7 @@ def test_find_optimal_threshold_respects_band_bounds_and_scores_faithfully():
     targets = torch.cat([torch.ones(100), torch.zeros(100)])
     criterion = nn.BCEWithLogitsLoss()
 
-    threshold, metrics = find_optimal_threshold(logits, targets, criterion, "mcc", 0.05, 0.95, 91)
+    _threshold, metrics = find_optimal_threshold(logits, targets, criterion, "mcc", 0.05, 0.95, 91)
 
     assert 0.15 <= metrics["positive_rate"] <= 0.85
     assert metrics["mcc"] > 0.8  # well-separated data should score close to perfect

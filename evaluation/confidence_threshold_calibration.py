@@ -96,7 +96,7 @@ def calibrate_confidence_threshold(
     for _date, group in dataset.groupby(date_column, sort=True):
         raw_scores = {
             str(ticker): float(score)
-            for ticker, score in zip(group[ticker_column], group[raw_score_column])
+            for ticker, score in zip(group[ticker_column], group[raw_score_column], strict=False)
             if score is not None and not (isinstance(score, float) and np.isnan(score))
         }
         normalized = cross_sectional_rank_scores(raw_scores)
@@ -118,7 +118,7 @@ def calibrate_confidence_threshold(
 
         forward_return_by_ticker = {
             str(ticker): float(value)
-            for ticker, value in zip(group[ticker_column], group[forward_return_column])
+            for ticker, value in zip(group[ticker_column], group[forward_return_column], strict=False)
             if value is not None and not (isinstance(value, float) and np.isnan(value))
         }
 

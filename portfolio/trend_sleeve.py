@@ -35,7 +35,7 @@ class TrendSleeveConfig:
     @property
     def history_needed(self) -> int:
         """Closes a symbol needs before it can carry a signal and a volatility."""
-        return max(max(signal_lookbacks(self.signal)), self.vol_window) + 1
+        return max(*signal_lookbacks(self.signal), self.vol_window) + 1
 
 
 def signal_lookbacks(signal: str) -> tuple[int, ...]:

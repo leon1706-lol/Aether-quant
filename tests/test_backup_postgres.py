@@ -20,8 +20,8 @@ def _module():
 
 
 def test_help_and_dry_run():
-    assert subprocess.run([sys.executable, str(SCRIPT), "--help"], capture_output=True, text=True, timeout=60).returncode == 0
-    result = subprocess.run([sys.executable, str(SCRIPT), "--dry-run", "--docker"], capture_output=True, text=True, timeout=60)
+    assert subprocess.run([sys.executable, str(SCRIPT), "--help"], capture_output=True, text=True, timeout=60, check=False).returncode == 0
+    result = subprocess.run([sys.executable, str(SCRIPT), "--dry-run", "--docker"], capture_output=True, text=True, timeout=60, check=False)
     assert result.returncode == 0 and "pg_dump --format=custom" in result.stdout
 
 

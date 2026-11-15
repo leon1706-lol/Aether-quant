@@ -60,7 +60,7 @@ def write_series(path: Path, dates: list[datetime.date], seed: int, *, equity: b
     rng = np.random.default_rng(seed + 50)
     lines, raw = [], {}
     previous = closes[0]
-    for date, close in zip(dates, closes):
+    for date, close in zip(dates, closes, strict=False):
         open_, high, low, close = world.bar(float(close), float(previous), rng)
         previous = close
         volume = float(abs(rng.normal(2_000_000, 300_000)))

@@ -157,7 +157,7 @@ def test_regime_gate_leaves_no_signal_when_btc_is_below_its_average_and_the_book
 
     from portfolio.premia_signals import XS, ResearchPanel, WeightSettings, signal_to_weights
 
-    panel = ResearchPanel(known, {name: "crypto" for name in known.columns}, {}, {})
+    panel = ResearchPanel(known, dict.fromkeys(known.columns, "crypto"), {}, {})
     weights = signal_to_weights(gated, panel, kind=XS, rebalance_every=5, settings=WeightSettings(), start=index[100], end=index[-1])
     assert weights[index[-1] if index[-1] in weights else max(weights)] == {}, "an empty signal row is a flat book"
 
@@ -200,7 +200,7 @@ def test_a_crypto_signal_generation_decides_through_the_ledger_and_other_familie
         "params": {"signal": {"builder": "breadth_timing", "params": {"window": 50, "floor": 0.5}}},
     }
     wide = pd.concat([KNOWN, _panel(9).rename(columns=lambda name: f"X{name}")], axis=1)
-    classes = {coin: "crypto" for coin in wide.columns}
+    classes = dict.fromkeys(wide.columns, "crypto")
     panel = ResearchPanel(wide, classes, {}, {})
     day = wide.index[-1]
     weights = decide_generation(definition, panel, day)

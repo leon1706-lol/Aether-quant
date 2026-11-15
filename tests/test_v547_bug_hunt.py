@@ -16,7 +16,7 @@ import pytest
 from analyzer.market_analyzer import _clamp01
 from data_pipeline.bar_synthesis import pad_sequence_history
 from execution.reconciliation import reconcile_positions  # noqa: F401  (covered in #117 file)
-from experience import PostgresWorker, ExperienceQueue
+from experience import ExperienceQueue, PostgresWorker
 from liquidity.market_liquidity import build_liquidity_decision
 from moe.gating import ExpertGateWeight, _performance_score, _weighted_blend
 from notifications.telegram_alerts import format_session_summary_alert
@@ -28,7 +28,6 @@ from retraining.artifacts import (
 )
 from retraining.backtest_gate import compare_backtests
 from retraining.validation_gate import evaluate_validation_gate
-
 
 # ---------------------------------------------------------------------------
 # #120 - pipeline integrity (Redis producers + Postgres workers + writers)
@@ -116,7 +115,7 @@ def test_experience_producer_sanitizes_nan_and_numpy_scalars():
 def test_poison_row_no_longer_wedges_the_batch():
     good = _sample_event(event_id="00000000-0000-0000-0000-00000000000a")
     poison = _sample_event(event_id="00000000-0000-0000-0000-00000000000b")
-    worker, client, conn_mock, cur_mock = _fake_worker([good, poison])
+    worker, client, _conn_mock, cur_mock = _fake_worker([good, poison])
 
     # The batch insert fails (the JSONB-rejected row); the per-row fallback
     # then succeeds for the good row and fails for the poison one.

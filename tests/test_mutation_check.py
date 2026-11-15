@@ -111,6 +111,7 @@ def test_a_red_baseline_measures_nothing_and_an_unrestored_file_stops(monkeypatc
     assert mc.check_file("m.py", ("t.py",), limit=2, seed=1, timeout=1.0)["error"].startswith("the tests do not pass")
 
     import pathlib
+
     import pytest
 
     real_write = pathlib.Path.write_text

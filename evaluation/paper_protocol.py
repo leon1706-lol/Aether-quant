@@ -124,7 +124,7 @@ def reference_bands(table: dict, rebalances: list[dict], slippage_by_date: dict,
     days = sorted(table)
     samples: dict[str, list[float]] = defaultdict(list)
     count = 0
-    for index in range(0, len(dates) - window_rebalances + 1):
+    for index in range(len(dates) - window_rebalances + 1):
         # a window = W rebalances and the days up to (excluding) the next rebalance: a whole number of cadences
         following = index + window_rebalances
         end = days[bisect_left(days, dates[following]) - 1] if following < len(dates) else None
@@ -182,7 +182,11 @@ def paper_metrics_for_run_dir(run_dir, config: dict, root, *, start: str | None 
 
     from evaluation.backtest_audit import CASH_SWEEP_CLASS, class_by_ticker_from_config, daily_equity_from_chart, load_backtest_run
     from evaluation.lean_attribution import (
-        closes_for_universe, daily_ticker_pnl, fills_from_order_events, find_book_history_for_run, quote_to_usd_rate,
+        closes_for_universe,
+        daily_ticker_pnl,
+        fills_from_order_events,
+        find_book_history_for_run,
+        quote_to_usd_rate,
     )
 
     root = Path(root)

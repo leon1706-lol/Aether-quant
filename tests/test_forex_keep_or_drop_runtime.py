@@ -42,7 +42,7 @@ def test_a_variant_name_is_the_sleeve_keys_it_stands_for(module):
 class Harness:
     def __init__(self, splits, dataset_path):
         rng = np.random.default_rng(6)
-        self.asset_class_by_ticker = {ticker: "forex" for ticker in TICKERS} | {"SPY": "equity"}
+        self.asset_class_by_ticker = dict.fromkeys(TICKERS, "forex") | {"SPY": "equity"}
         rows = [{"date": date, "ticker": ticker, "close": 1.0 + 0.01 * index + rng.normal(0, 0.002), "live_rank_score": rng.random(), "fx_carry_3m": 0.01 * (index - 2) + rng.normal(0, 0.001),
                  "target_return_20d": rng.normal(0, 0.01)} for date in DATES for index, ticker in enumerate(TICKERS + ["SPY"])]
         self.frame = pd.DataFrame(rows)

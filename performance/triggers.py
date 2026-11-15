@@ -16,6 +16,7 @@ import statistics
 import uuid
 from collections import Counter
 from datetime import date, datetime, timedelta, timezone
+from typing import Any
 
 from experience.observation_metrics import (
     simulated_max_drawdown,
@@ -23,7 +24,6 @@ from experience.observation_metrics import (
     simulated_win_loss,
 )
 from performance.rank_ic_monitor import compute_production_rank_ic
-from typing import Any
 
 SEVERITIES = ("info", "warning", "critical")
 TRIGGER_TYPES = (
@@ -147,9 +147,7 @@ def _is_retrain_candidate(trigger_type: str, severity: str) -> bool:
         return True
     if severity == "critical":
         return True
-    if trigger_type in _MODEL_QUALITY_TRIGGERS and severity == "warning":
-        return True
-    return False
+    return trigger_type in _MODEL_QUALITY_TRIGGERS and severity == "warning"
 
 
 def _latest_mode(events: list[dict]) -> str:
@@ -861,10 +859,10 @@ def evaluate_all_triggers(
             "triggers": [],
             "summary": {
                 "active_trigger_count": 0,
-                "severity_distribution": {severity: 0 for severity in SEVERITIES},
+                "severity_distribution": dict.fromkeys(SEVERITIES, 0),
                 "retrain_candidate": False,
                 "latest_trigger": None,
-                "trigger_type_counts": {trigger_type: 0 for trigger_type in TRIGGER_TYPES},
+                "trigger_type_counts": dict.fromkeys(TRIGGER_TYPES, 0),
             },
         }
 
@@ -943,8 +941,8 @@ def evaluate_all_triggers(
             min_t_stat=float(config.get("rank_ic_decay_min_t_stat", 2.0)),
         )
 
-    severity_distribution = {severity: 0 for severity in SEVERITIES}
-    trigger_type_counts = {trigger_type: 0 for trigger_type in TRIGGER_TYPES}
+    severity_distribution = dict.fromkeys(SEVERITIES, 0)
+    trigger_type_counts = dict.fromkeys(TRIGGER_TYPES, 0)
     for trigger in triggers:
         severity_distribution[trigger["severity"]] = severity_distribution.get(trigger["severity"], 0) + 1
         trigger_type_counts[trigger["trigger_type"]] = trigger_type_counts.get(trigger["trigger_type"], 0) + 1

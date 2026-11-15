@@ -37,7 +37,7 @@ def test_apply_writes_the_zip_beside_the_universe(tmp_path, monkeypatch, capsys)
     calls = _patch(monkeypatch, [_bar(date(2026, 9, 29), 91.0), _bar(date(2026, 9, 30), 91.5)])
     monkeypatch.setattr(module.sys, "argv", ["x", "--apply"])
     assert module.main() == 0
-    target, ticker, count = calls["write"]
+    target, _ticker, count = calls["write"]
     assert target.is_relative_to(tmp_path) and target.parent.is_dir() and count == 2 and "written" in capsys.readouterr().out
 
 

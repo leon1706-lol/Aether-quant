@@ -25,10 +25,11 @@ import os
 import time
 from typing import Any
 
-from .hash_chain import GENESIS_HASH, canonical_timestamp, compute_entry_hash
-from .status_export import build_audit_status_view, write_status_file
 from execution.secrets import redact_url
 from execution.secrets_io import secret_env
+
+from .hash_chain import GENESIS_HASH, canonical_timestamp, compute_entry_hash
+from .status_export import build_audit_status_view, write_status_file
 
 logger = logging.getLogger(__name__)
 
@@ -325,7 +326,7 @@ class PostgresWorker:
                     raise
                 self._redis.xack(self.stream_name, self.group_name, ids_good[0])
                 persisted = 1
-                for msg_id, row in zip(ids_good[1:], rows[1:]):
+                for msg_id, row in zip(ids_good[1:], rows[1:], strict=False):
                     try:
                         with self._conn.cursor() as cur:
                             cur.execute(_INSERT_SQL, row)

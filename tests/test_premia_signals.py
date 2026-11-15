@@ -31,7 +31,7 @@ def _panel(rows: int = 700, seed: int = 3) -> ResearchPanel:
     dates = pd.bdate_range("2018-01-01", periods=rows).strftime("%Y-%m-%d").tolist()
     tickers = list(EQUITY + BOND + FOREX + CRYPTO)
     closes = 100.0 * np.exp(np.cumsum(rng.normal(0.0002, 0.01, size=(rows, len(tickers))), axis=0))
-    asset_class = {**{t: "equity" for t in EQUITY}, **{t: "bond" for t in BOND}, **{t: "forex" for t in FOREX}, **{t: "crypto" for t in CRYPTO}}
+    asset_class = {**dict.fromkeys(EQUITY, "equity"), **dict.fromkeys(BOND, "bond"), **dict.fromkeys(FOREX, "forex"), **dict.fromkeys(CRYPTO, "crypto")}
     known = known_closes(dates, tickers, closes, asset_class, set(dates))
     fred = {
         key: pd.Series(rng.normal(level, 0.2, size=rows), index=dates)
@@ -156,7 +156,7 @@ def _frame():
     rng = np.random.default_rng(0)
     data = rng.normal(size=(600, 6))
     data[:100, 5] = np.nan
-    return pd.DataFrame(data, index=dates, columns=["A", "B", "C", "D", "E", "F"]), {t: "equity" for t in "ABCDEF"}
+    return pd.DataFrame(data, index=dates, columns=["A", "B", "C", "D", "E", "F"]), dict.fromkeys("ABCDEF", "equity")
 
 
 def test_asset_block_null_is_deterministic_keeps_availability_and_moves_values():

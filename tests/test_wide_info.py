@@ -271,9 +271,9 @@ def test_routine_needs_the_same_month_in_each_of_three_prior_years():
         _trade("O", "2017-03-10"), _trade("O", "2019-03-10"),
     ])
     kept = sec_form345.opportunistic(trades)
-    assert ("R", "2019-03-10") not in set(zip(kept["owner"], kept["traded"]))
-    assert ("R", "2018-03-10") in set(zip(kept["owner"], kept["traded"])), "routine is only known from the fourth year"
-    assert ("O", "2019-03-10") in set(zip(kept["owner"], kept["traded"]))
+    assert ("R", "2019-03-10") not in set(zip(kept["owner"], kept["traded"], strict=False))
+    assert ("R", "2018-03-10") in set(zip(kept["owner"], kept["traded"], strict=False)), "routine is only known from the fourth year"
+    assert ("O", "2019-03-10") in set(zip(kept["owner"], kept["traded"], strict=False))
 
 
 def test_a_later_trade_cannot_change_an_earlier_classification():

@@ -183,7 +183,7 @@ def test_status_and_auto_rollback_assemble_their_inputs(monkeypatch):
 def test_the_command_line_runs_the_named_stage_and_closes_the_connection(monkeypatch, capsys, stage, extra, function):
     conn = MagicMock()
     monkeypatch.setattr(sys, "argv", ["orchestrator", stage, *extra])
-    monkeypatch.setattr(orch, "_load_retraining_config", lambda: {})
+    monkeypatch.setattr(orch, "_load_retraining_config", dict)
     monkeypatch.setattr(orch, "connect", lambda: conn)
     monkeypatch.setattr(orch, function, lambda *a, **k: {"stage": stage})
     orch.main()

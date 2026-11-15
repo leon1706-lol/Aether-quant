@@ -13,6 +13,7 @@ should fire automatically instead of waiting for a human to run
 """
 
 from __future__ import annotations
+
 from typing import Any
 
 

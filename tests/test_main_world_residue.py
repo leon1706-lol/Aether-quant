@@ -66,7 +66,7 @@ def test_a_world_without_experts_or_optional_models_runs_on_the_baseline_alone(m
 
 
 def test_the_sequence_pass_returns_nothing_without_history_and_reports_a_failing_model(monkeypatch, tmp_path):
-    main, algorithm, market, _ = make(monkeypatch, tmp_path)
+    main, algorithm, _market, _ = make(monkeypatch, tmp_path)
     symbol = symbol_of(algorithm, "AAPL")
     inputs = algorithm._build_model_input(symbol)["model_inputs"]
     algorithm.symbol_feature_history.pop(symbol, None)
@@ -82,7 +82,7 @@ def test_experts_that_return_nothing_are_named_in_the_per_symbol_and_the_batched
             path = root / "ml" / "expert_models" / name / "multitask_model.json"
             path.write_text(json.dumps({"model": {}, "export": world.multitask_export(30)}), encoding="utf-8")
 
-    main, algorithm, market, _ = make(monkeypatch, tmp_path, prepare=prepare)
+    main, algorithm, _market, _ = make(monkeypatch, tmp_path, prepare=prepare)
     monkeypatch.setattr(main, "run_exported_models_batched", lambda exports, inputs, stack_cache=None: [None] * len(exports))
     monkeypatch.setattr(main, "run_exported_multitask_models_batched", lambda exports, inputs, stack_cache=None: [None] * len(exports))
     monkeypatch.setattr(main, "run_exported_models_across_symbols", lambda exports, rows, stack_cache=None: [[None] * len(exports) for _ in rows])
@@ -103,7 +103,7 @@ def test_a_zero_price_inside_the_window_and_a_symbol_with_no_spread_estimate_fal
         payload["context_feature_names"] = payload["context_feature_names"] + ["asset_AAPL"]
         path.write_text(json.dumps(payload), encoding="utf-8")
 
-    main, algorithm, market, _ = make(monkeypatch, tmp_path, {"phase_v2": {"liquidity": {"spread_estimation": {"enabled": True, "min_bars": 10_000}}}}, prepare=prepare)
+    _main, algorithm, _market, _ = make(monkeypatch, tmp_path, {"phase_v2": {"liquidity": {"spread_estimation": {"enabled": True, "min_bars": 10_000}}}}, prepare=prepare)
     symbol = symbol_of(algorithm, "AAPL")
     assert algorithm._build_model_input(symbol)["ready"] is True
     window = algorithm.symbol_windows[symbol]
@@ -120,7 +120,7 @@ def test_a_zero_price_inside_the_window_and_a_symbol_with_no_spread_estimate_fal
 
 
 def test_a_missing_sweep_price_and_a_non_finite_weight_leave_the_sweep_alone(monkeypatch, tmp_path):
-    main, algorithm, market, _ = make(monkeypatch, tmp_path)
+    main, algorithm, _market, _ = make(monkeypatch, tmp_path)
     sweep = algorithm._cash_sweep_symbol
     algorithm.Securities[sweep].Price = float("nan")
     algorithm._update_cash_sweep()
@@ -132,7 +132,7 @@ def test_a_missing_sweep_price_and_a_non_finite_weight_leave_the_sweep_alone(mon
 
 
 def test_a_bond_sleeve_without_a_config_a_guard_for_a_disabled_class_and_a_chain_of_an_untracked_future(monkeypatch, tmp_path):
-    _, algorithm, market, _ = make(monkeypatch, tmp_path, {"phase_v2": {"sleeve_guards": {"forex": {"enabled": True}, "crypto_graduates": {"enabled": True}}, "forex_sleeve": {"enabled": False}}})
+    _, algorithm, _market, _ = make(monkeypatch, tmp_path, {"phase_v2": {"sleeve_guards": {"forex": {"enabled": True}, "crypto_graduates": {"enabled": True}}, "forex_sleeve": {"enabled": False}}})
     algorithm.bond_sleeve_config = None
     algorithm._update_bond_sleeve({})
     algorithm._update_sleeve_guards()
@@ -149,7 +149,7 @@ def test_a_bond_sleeve_without_a_config_a_guard_for_a_disabled_class_and_a_chain
 
 def test_limit_order_edge_cases_a_zero_quantity_a_failed_cancel_and_an_exit_that_rests(monkeypatch, tmp_path):
     overrides = {"phase_v2": {"limit_orders": {"enabled": True, "exit_asset_classes": ["crypto", "equity"], "asset_classes": ["equity", "crypto", "option"]}}}
-    _, algorithm, market, _ = make(monkeypatch, tmp_path, overrides)
+    _, algorithm, _market, _ = make(monkeypatch, tmp_path, overrides)
     symbol = symbol_of(algorithm, "AAPL")
     key = str(symbol)
     price = float(algorithm.Securities[symbol].Price)
@@ -178,7 +178,7 @@ def send(algorithm, symbol, key, decision, price):
 
 
 def test_a_held_single_leg_option_is_resized_in_place_at_its_cap_and_through_limits(monkeypatch, tmp_path):
-    _, algorithm, market, _ = make(monkeypatch, tmp_path, {"phase_v2": {"limit_orders": {"enabled": True, "asset_classes": ["option"]}}})
+    _, algorithm, _market, _ = make(monkeypatch, tmp_path, {"phase_v2": {"limit_orders": {"enabled": True, "asset_classes": ["option"]}}})
     symbol, key, rows = option_scene(algorithm)
     nav = float(algorithm.Portfolio.TotalPortfolioValue)
     price = float(rows[0]["underlying_price"])
@@ -193,7 +193,7 @@ def test_a_held_single_leg_option_is_resized_in_place_at_its_cap_and_through_lim
 
 
 def test_a_held_multi_leg_position_is_compared_resized_and_scaled_at_its_cap_and_through_limits(monkeypatch, tmp_path):
-    _, algorithm, market, _ = make(monkeypatch, tmp_path, {"phase_v2": {"limit_orders": {"enabled": True, "asset_classes": ["option"]}}})
+    _, algorithm, _market, _ = make(monkeypatch, tmp_path, {"phase_v2": {"limit_orders": {"enabled": True, "asset_classes": ["option"]}}})
     symbol, key, rows = option_scene(algorithm)
     nav = float(algorithm.Portfolio.TotalPortfolioValue)
     price = float(rows[0]["underlying_price"])
@@ -218,7 +218,7 @@ def test_a_held_multi_leg_position_is_compared_resized_and_scaled_at_its_cap_and
 
 
 def test_a_covered_call_rests_as_a_combo_with_its_equity_leg(monkeypatch, tmp_path):
-    _, algorithm, market, _ = make(monkeypatch, tmp_path, {"phase_v2": {"options_risk": {"enabled_strategy_names": ["covered_call"]}, "limit_orders": {"enabled": True, "asset_classes": ["option"]}}})
+    _, algorithm, _market, _ = make(monkeypatch, tmp_path, {"phase_v2": {"options_risk": {"enabled_strategy_names": ["covered_call"]}, "limit_orders": {"enabled": True, "asset_classes": ["option"]}}})
     aapl = algorithm.ticker_to_symbol["AAPL"]
     algorithm.Portfolio.apply(aapl, 300.0, float(algorithm.Securities[aapl].Price))
     algorithm._manage_covered_protective_positions()
@@ -227,7 +227,7 @@ def test_a_covered_call_rests_as_a_combo_with_its_equity_leg(monkeypatch, tmp_pa
 
 
 def test_early_returns_of_the_option_outcome_and_the_assignment_sweep(monkeypatch, tmp_path):
-    _, algorithm, market, _ = make(monkeypatch, tmp_path)
+    _, algorithm, _market, _ = make(monkeypatch, tmp_path)
     key = str(symbol_of(algorithm, "AAPL_OPT"))
     algorithm._emit_option_strategy_outcome_if_pending(key)
     algorithm.simulated_option_strategy_entries_by_symbol_key[key] = {"strategy_name": "not_a_strategy"}

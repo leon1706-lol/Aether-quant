@@ -114,8 +114,8 @@ def test_status_is_written_and_the_chain_decides_the_exit(cycle, monkeypatch, ca
 
 
 def test_a_stage_changes_only_by_rule_or_to_take_risk_off(cycle, monkeypatch, capsys):
-    import evaluation.generation_registry as registry_module
     import evaluation.generation_ledger as ledger_module
+    import evaluation.generation_registry as registry_module
 
     monkeypatch.setattr(aq_cli, "_cycle_ledger_rows", lambda args: [])
     monkeypatch.setattr(ledger_module, "judge_generations", lambda rows: {"chain_valid": True, "generations": {}, "latest_allocation": {"shares": {"g0001": 0.0, "g0002": 0.5}}})
@@ -157,7 +157,7 @@ def test_the_schedule_is_shown_or_installed_only_where_the_ram_allows(cycle, mon
     assert aq_cli._cycle_schedule(_ns(schedule_command="install", **base)) == 2 and "refusing to schedule" in capsys.readouterr().err
     monkeypatch.setattr(research_cycle, "ram_preflight", lambda host: {"ok": True})
     ran = []
-    monkeypatch.setattr(aq_cli.subprocess, "run", lambda command, cwd: ran.append(command) or SimpleNamespace(returncode=0))
+    monkeypatch.setattr(aq_cli.subprocess, "run", lambda command, cwd, check: ran.append(command) or SimpleNamespace(returncode=0))
     assert aq_cli._cycle_schedule(_ns(schedule_command="install", **{**base, "platform": "windows"})) == 0
     assert (cycle.root / "ml" / "cycle" / "schedule.xml").exists() and ran
     assert aq_cli._cycle_schedule(_ns(schedule_command="install", **{**base, "platform": None})) == 0 and aq_cli._cycle_schedule(_ns(schedule_command="install", **{**base, "dry_run": True})) == 0
@@ -165,7 +165,7 @@ def test_the_schedule_is_shown_or_installed_only_where_the_ram_allows(cycle, mon
 
 def test_retrain_and_the_script_commands_pass_their_arguments_on(cycle, monkeypatch):
     ran = []
-    monkeypatch.setattr(aq_cli.subprocess, "run", lambda command, cwd: ran.append(command) or SimpleNamespace(returncode=0))
+    monkeypatch.setattr(aq_cli.subprocess, "run", lambda command, cwd, check: ran.append(command) or SimpleNamespace(returncode=0))
     base = dict(host="local", if_due=False, procedure=None, smoke=False, dry_run=False)
     assert aq_cli._cycle_retrain(_ns(**base)) == 2
     assert aq_cli._cycle_retrain(_ns(**{**base, "procedure": "k06", "dry_run": True})) == 0 and "--dry-run" in ran[-1] and "--procedure" in ran[-1]

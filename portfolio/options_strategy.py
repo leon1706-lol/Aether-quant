@@ -29,7 +29,6 @@ import math
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-
 if TYPE_CHECKING:
     from datetime import date
 
@@ -1305,7 +1304,7 @@ def select_ladder_legs(
     # distance from the anchor strike, e.g. "middle" then "higher" for
     # bear_call_ladder) - zip against the 2 nearest outer candidates by
     # strike distance, honoring that ordering.
-    for leg, row in zip(other_legs, outer_candidates[:2]):
+    for leg, row in zip(other_legs, outer_candidates[:2], strict=False):
         result[leg.role] = row
     return result
 

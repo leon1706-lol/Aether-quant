@@ -124,7 +124,7 @@ def calibrate_book_confidence_spread(
             continue
         raw_scores = {
             str(ticker): float(score)
-            for ticker, score in zip(group[ticker_column], group[raw_score_column])
+            for ticker, score in zip(group[ticker_column], group[raw_score_column], strict=False)
             if score is not None and not (isinstance(score, float) and np.isnan(score))
         }
         normalized = cross_sectional_rank_scores(raw_scores)

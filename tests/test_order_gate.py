@@ -7,10 +7,10 @@ from execution import (
     classify_order_status,
     is_real_order_placement,
     liquidity_cost_fraction,
+    resolve_cash_sweep_order_permission,
     resolve_fill_slippage,
     resolve_fill_slippage_source,
     resolve_limit_order_timeout_action,
-    resolve_cash_sweep_order_permission,
     resolve_limit_price,
     resolve_order_permission,
     resolve_runtime_mode,
@@ -577,7 +577,7 @@ def test_exit_route_needs_a_configured_class_and_a_non_risk_reason():
     assert resolve_exit_order_route("equity", "rotation", ["crypto"]) == "market"
     for risk_reason in ("trailing_stop_triggered", "sleeve_guard", "kill_switch", None):
         assert resolve_exit_order_route("crypto", risk_reason, ["crypto"]) == "market"
-    assert LIMIT_EXIT_REASONS == {"model_sell", "rotation", "max_holding_age_exceeded"}
+    assert {"model_sell", "rotation", "max_holding_age_exceeded"} == LIMIT_EXIT_REASONS
 
 
 def test_a_per_class_limit_setting_falls_back_to_the_global_value():

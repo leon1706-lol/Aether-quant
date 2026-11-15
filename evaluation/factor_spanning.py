@@ -8,9 +8,10 @@ intercept (alpha) is what the signal earns beyond the factors. Pure numpy/pandas
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING, Any
+
 import numpy as np
 import pandas as pd
-from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -27,10 +28,10 @@ def build_factor_scores(frame: pd.DataFrame, *, ticker_column: str = "ticker", d
     daily = ordered.groupby(ticker_column)["close_to_close_return_1d"]
     momentum = daily.transform(lambda s: s.shift(21).rolling(231, min_periods=231).sum())
     out["f_mom_12_1"] = momentum.reindex(frame.index)
-    out["f_mom_20"] = frame["momentum_20d"] if "momentum_20d" in frame else np.nan
+    out["f_mom_20"] = frame.get("momentum_20d", np.nan)
     out["f_rev_5"] = -frame["close_to_close_return_5d"] if "close_to_close_return_5d" in frame else np.nan
     out["f_lowvol"] = -frame["rolling_volatility_20d"] if "rolling_volatility_20d" in frame else np.nan
-    out["f_high52"] = frame["dist_52w_high"] if "dist_52w_high" in frame else np.nan
+    out["f_high52"] = frame.get("dist_52w_high", np.nan)
     ranks = out[["f_mom_12_1", "f_high52", "f_lowvol", "f_rev_5"]].groupby(frame[date_column]).rank(pct=True)
     out["f_composite"] = ranks.mean(axis=1, skipna=True)
     return out
@@ -95,7 +96,7 @@ def factor_spanning(signal_returns: pd.Series, factor_returns: pd.DataFrame, *, 
         "alpha_daily": float(coefficients[0]),
         "alpha_annual": float(coefficients[0] * periods_per_year),
         "alpha_t": float(t_stats[0]),
-        "betas": {name: float(value) for name, value in zip(factors, coefficients[1:])},
-        "betas_t": {name: float(value) for name, value in zip(factors, t_stats[1:])},
+        "betas": {name: float(value) for name, value in zip(factors, coefficients[1:], strict=False)},
+        "betas_t": {name: float(value) for name, value in zip(factors, t_stats[1:], strict=False)},
         "r2": float(1.0 - (residuals**2).sum() / total) if total > 0 else 0.0,
     }

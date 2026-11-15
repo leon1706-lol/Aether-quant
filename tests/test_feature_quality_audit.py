@@ -11,7 +11,7 @@ from evaluation.feature_quality_audit import feature_quality, permutation_ic_dro
 def _frame(seed: int = 5) -> pd.DataFrame:
     rng = np.random.default_rng(seed)
     rows = []
-    for split, days in (("train", range(0, 40)), ("validation", range(40, 60)), ("backtest", range(60, 80))):
+    for split, days in (("train", range(40)), ("validation", range(40, 60)), ("backtest", range(60, 80))):
         for day in days:
             for name in range(12):
                 kind = "forex" if name < 4 else "equity"

@@ -20,7 +20,7 @@ def test_load_sector_mapping_reads_the_real_reference_file():
 
 def test_load_sector_mapping_covers_102_of_103_universe_tickers():
     # V5.1 Phase 0 (Problems.md #75): AAA stays intentionally unmapped (ambiguous legacy ticker, observation-only). V6.6.4 (#311): EOSUSD left the universe, 104 -> 103.
-    with open("config.json", "r", encoding="utf-8") as f:
+    with open("config.json", encoding="utf-8") as f:
         config = json.load(f)
     universe_tickers = [asset["ticker"] for asset in config["phase1"]["universe"]["assets"]]
     mapping = load_sector_mapping(config)

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Mapping, Sequence
+from typing import Any
 
 import numpy as np
 
@@ -23,7 +24,6 @@ from portfolio.generation_blend import (
     ew_update,
     update_generation_shares,
 )
-from typing import Any
 
 TRADING_DAYS = 252
 FALLBACK_POLICY = "fixed_252"

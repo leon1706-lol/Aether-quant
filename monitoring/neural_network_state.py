@@ -39,6 +39,7 @@ explicitly via `excluded` rather than left silent.
 
 from __future__ import annotations
 
+import itertools
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -360,9 +361,9 @@ def _build_network_summary(
         )
 
     layers, node_layers, heads_node_layers = _parse_network_export(payload["export"])
-    total_edges = sum(a * b for a, b in zip(node_layers, node_layers[1:]))
+    total_edges = sum(a * b for a, b in itertools.pairwise(node_layers))
     total_edges += sum(
-        a * b for head_layers in heads_node_layers.values() for a, b in zip(head_layers, head_layers[1:])
+        a * b for head_layers in heads_node_layers.values() for a, b in itertools.pairwise(head_layers)
     )
 
     return NetworkSummary(

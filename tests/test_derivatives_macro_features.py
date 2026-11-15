@@ -10,7 +10,6 @@ from features.derivatives_macro_features import (
     options_put_call_ratio,
 )
 
-
 # ---------------------------------------------------------------------------
 # futures_term_structure_slope
 # ---------------------------------------------------------------------------

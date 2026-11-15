@@ -117,7 +117,7 @@ def test_readme_documents_no_phantom_flags():
     renamed/dropped flag can't leave stale docs behind."""
     all_parsers = _all_subparsers()
     known = set()
-    for name, parser in all_parsers.items():
+    for parser in all_parsers.values():
         known |= _flags_of(parser)
 
     allowlist = {

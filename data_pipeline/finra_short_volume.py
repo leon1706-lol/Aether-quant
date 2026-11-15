@@ -29,7 +29,7 @@ def parse_day(text: str, wanted: dict[str, str] | None = None) -> dict[str, floa
     total = pd.to_numeric(frame["TotalVolume"], errors="coerce")
     usable = total.gt(0.0) & short.notna()
     out: dict[str, float] = {}
-    for symbol, ratio in zip(frame.loc[usable, "Symbol"], (short[usable] / total[usable]).to_numpy()):
+    for symbol, ratio in zip(frame.loc[usable, "Symbol"], (short[usable] / total[usable]).to_numpy(), strict=False):
         name = wanted.get(symbol) if wanted is not None else symbol
         if name is not None:
             out[name] = float(ratio)

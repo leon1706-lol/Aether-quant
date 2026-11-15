@@ -37,7 +37,7 @@ def volatility_target_weights(weights: Mapping[str, float], cov: pd.DataFrame, *
     w = np.where(np.isfinite(w), w, 0.0)
     cap = float(max_leverage)
     if not names or not math.isfinite(cap) or target == 0.0:
-        return {name: 0.0 for name in names}
+        return dict.fromkeys(names, 0.0)
     matrix = cov.loc[names, names].to_numpy(float)
     variance = float(w @ matrix @ w) * float(annualization) if np.all(np.isfinite(matrix)) else float("nan")
     scale = target / math.sqrt(variance) if math.isfinite(variance) and variance > 0.0 and math.isfinite(target) and target > 0.0 else 1.0
@@ -45,4 +45,4 @@ def volatility_target_weights(weights: Mapping[str, float], cov: pd.DataFrame, *
     gross = float(np.abs(scaled).sum())
     if gross > cap and gross > 0.0:
         scaled = scaled * (cap / gross)
-    return {name: float(value) for name, value in zip(names, scaled)}
+    return {name: float(value) for name, value in zip(names, scaled, strict=False)}

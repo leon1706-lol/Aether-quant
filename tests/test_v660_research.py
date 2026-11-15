@@ -216,7 +216,7 @@ def test_the_blend_is_a_rank_mean_of_what_exists(tmp_path, monkeypatch):
     for name, values in (("m2", [1.0, 2.0]), ("m4", [2.0, 1.0])):
         pd.DataFrame({"date": ["2012-01-03"] * 2, "ticker": ["A", "B"], "score": values}).to_csv(scores / f"{name}.csv", index=False)
     monkeypatch.setattr(module, "ML_SCORES", scores)
-    monkeypatch.setattr(module, "check_rules", lambda: {})
+    monkeypatch.setattr(module, "check_rules", dict)
     assert module.stage_blend(None) == 0
     assert pd.read_csv(scores / "m5.csv")["score"].tolist() == [0.75, 0.75]
 

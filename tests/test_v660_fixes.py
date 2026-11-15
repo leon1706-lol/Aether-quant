@@ -59,7 +59,7 @@ def test_strategy_excess_takes_the_risk_free_return_off_the_net_capital_invested
     )
     gap = (result["strategy"] - result["strategy_excess"]).iloc[5:]
     # 36.5% a year is 0.1% a calendar day; the book is about fully invested
-    calendar_days = pd.Series([(pd.Timestamp(b) - pd.Timestamp(a)).days for a, b in zip(gap.index[:-1], gap.index[1:])], index=gap.index[1:])
+    calendar_days = pd.Series([(pd.Timestamp(b) - pd.Timestamp(a)).days for a, b in zip(gap.index[:-1], gap.index[1:], strict=False)], index=gap.index[1:])
     assert (gap.iloc[1:] / calendar_days).mean() == pytest.approx(0.001, rel=0.05)
 
 

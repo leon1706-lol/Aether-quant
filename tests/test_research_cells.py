@@ -54,7 +54,7 @@ def test_names_in_cell_never_mix_sides():
 
 
 def test_selection_cells_are_free_and_the_rest_need_the_freeze(tmp_path):
-    assert FREE_CELLS == {"TA", "S", "SV", "CS"}
+    assert {"TA", "S", "SV", "CS"} == FREE_CELLS
     for name in FREE_CELLS:
         assert assert_cell_open(name, None, None).name == name
     for name in ("V1", "V2", "V3", "CV", "P"):

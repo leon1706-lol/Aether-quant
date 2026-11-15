@@ -30,6 +30,7 @@ bounded-max-loss sub-model, not the naked one).
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 from portfolio.options_strategy import (
     MULTI_LEG_STRATEGY_REGISTRY,
@@ -38,7 +39,6 @@ from portfolio.options_strategy import (
     _legs_tuple_from_roles,
     select_strategy_legs,
 )
-from typing import Any
 
 
 @dataclass(frozen=True)

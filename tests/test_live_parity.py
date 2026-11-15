@@ -244,7 +244,7 @@ def test_lag_predictions_shifts_only_the_requested_tickers():
 
 
 def test_late_bar_asset_classes_are_forex_and_crypto():
-    assert LATE_BAR_ASSET_CLASSES == {"forex", "crypto"}
+    assert {"forex", "crypto"} == LATE_BAR_ASSET_CLASSES
 
 
 def test_candidate_metadata_defaults_unknown_tickers_to_eligible():

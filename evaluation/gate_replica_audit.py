@@ -60,7 +60,7 @@ def lean_trades(fills: Iterable, tickers: set[str] | None = None, *, tolerance: 
 def offline_trades(dates: Sequence[str], weights_log: Sequence[Mapping[str, float]], *, tolerance: float = 1e-9) -> list[dict]:
     """[{date, ticker, kind}] from the simulator's post-rebalance weights per date."""
     out, previous = [], {}
-    for date, weights in zip(dates, weights_log):
+    for date, weights in zip(dates, weights_log, strict=False):
         weights = weights or {}
         for ticker in sorted(set(previous) | set(weights)):
             kind = _kind(float(previous.get(ticker, 0.0)), float(weights.get(ticker, 0.0)), tolerance)
@@ -84,8 +84,8 @@ def trade_profile(trades: Sequence[Mapping], rebalance_dates: Iterable[str], ses
             rebalance.add(str(date)[:10])
             continue
         rebalance.update(ordered[index:index + lag_sessions + 1])
-    counts = {kind: 0 for kind in KINDS}
-    off = {kind: 0 for kind in KINDS}
+    counts = dict.fromkeys(KINDS, 0)
+    off = dict.fromkeys(KINDS, 0)
     last_index: dict[str, int] = {}
     gaps: list[int] = []
     for trade in sorted(trades, key=lambda item: (item["date"], item["ticker"])):

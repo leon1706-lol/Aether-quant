@@ -33,8 +33,8 @@ import argparse
 import json
 import re
 import sys
-from collections.abc import Iterator
 import zipfile
+from collections.abc import Iterator
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 

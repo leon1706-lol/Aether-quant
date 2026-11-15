@@ -96,7 +96,7 @@ def test_the_whole_chain_runs_on_branch_a(research, monkeypatch, tmp_path, adopt
 
 def test_branch_b_freezes_the_gates_and_scores_ungated_only(research, monkeypatch, tmp_path):
     report = _run(research, monkeypatch, tmp_path, branch="B", stages=["head", "gate"], candidates={"installed": {}})
-    assert "skipped" in report["gate"] and report["head"]["h1"] is None or report["head"]["variants"]["H2"]
+    assert ("skipped" in report["gate"] and report["head"]["h1"] is None) or report["head"]["variants"]["H2"]
 
 
 def test_the_branch_comes_from_the_calibration_file_when_not_given(research, monkeypatch, tmp_path):

@@ -267,7 +267,7 @@ def test_l10_adopts_through_a_patch_when_the_factor_shift_is_small(monkeypatch):
 
 def test_false_lock_summary_uses_the_unlocked_books_forward_returns():
     days = [f"2024-01-{day:02d}" for day in range(1, 29)]
-    strong = {day: 0.02 for day in days[1:12]}  # the unlocked book rallies on days 2-12
+    strong = dict.fromkeys(days[1:12], 0.02)  # the unlocked book rallies on days 2-12
     returns = {day: strong.get(day, 0.0) for day in days}
     entry = {"locked_dates_lists": [days[:5], days[20:25]], "locked_dates_by_phase": [5, 5]}
     out = research.false_lock_summary({"validation": entry}, {"validation": [returns, returns]})

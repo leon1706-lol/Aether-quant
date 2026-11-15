@@ -7,7 +7,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
-from topology_sizing_research import PEER_DISTANCE, decide  # noqa: E402
+from topology_sizing_research import PEER_DISTANCE, decide
 
 
 def _summary(backtest: float, validation: float, drawdown: float = -0.05) -> dict:

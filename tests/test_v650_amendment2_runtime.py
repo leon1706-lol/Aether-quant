@@ -80,7 +80,7 @@ def test_the_pbo_runs_on_the_common_window(module, monkeypatch):
 
 def test_the_pre2013_runs_are_the_frozen_candidate_and_its_placebos(module, monkeypatch):
     monkeypatch.setattr(module, "check_freeze", lambda: {"survivors": ["w01", "w02"], "method": "hrp"})
-    monkeypatch.setattr(module, "_base", lambda: {})
+    monkeypatch.setattr(module, "_base", dict)
     monkeypatch.setattr(module, "pre2013_context", lambda base: (_context(), {"universe": 1}))
     monkeypatch.setattr(module, "candidate_rows", lambda definition, context, **kwargs: {"d": {}})
     monkeypatch.setattr(module, "make_run", lambda name, rows, window, config, **kwargs: {"name": name})
@@ -167,16 +167,17 @@ def test_the_earnings_pool_is_frozen_in_the_vault_before_its_runs_are_written(mo
     vault.record = lambda name, paths, values: {"ok": True, "commit": "abc"}
     monkeypatch.setattr(module, "eps_context", lambda: (_context(), _eps()))
     monkeypatch.setattr(module, "eps_rows", lambda spec_, context, **kwargs: {"d": {}})
-    monkeypatch.setattr(module, "_base", lambda: {})
+    monkeypatch.setattr(module, "_base", dict)
     monkeypatch.setattr(module, "make_run", lambda name, rows, window, base: {"name": name})
     assert module.stage_eps_pool(SimpleNamespace()) == 0
     assert len(json.loads((module.OUT / "eps_pool_runs.json").read_text(encoding="utf-8"))) == module.PHASES + 1
 
 
 def test_a_finished_pool_run_is_described_by_its_strategy_and_alpha(module, tmp_path, monkeypatch):
-    import evaluation.alpha_proof as alpha_proof
     import v650_instrument
     import v650_lean
+
+    import evaluation.alpha_proof as alpha_proof
 
     run_dir = tmp_path / "backtests" / "v650_pool_x_p0"
     _equity_result(run_dir, orders=[{"time": pd.Timestamp("2019-01-03 20:00", tz="UTC").timestamp(), "status": "filled", "symbolValue": "BIL", "fillQuantity": 1, "fillPrice": 10.0},
@@ -192,7 +193,7 @@ def test_a_finished_pool_run_is_described_by_its_strategy_and_alpha(module, tmp_
     monkeypatch.setattr(alpha_proof, "to_sessions", lambda series, index: series)
     monkeypatch.setattr(alpha_proof, "sharpe", lambda values, annualization: 1.1)
     stats = module.describe_run(run_dir)
-    assert stats["strategy_sharpe"] == 1.1 and stats["complete"] is True and stats["last_fill"] == "2019-01-03" or stats["last_fill"] is not None
+    assert (stats["strategy_sharpe"] == 1.1 and stats["complete"] is True and stats["last_fill"] == "2019-01-03") or stats["last_fill"] is not None
 
 
 def test_the_earnings_judgement_adds_the_survivor_to_the_round_one_pool(module, tmp_path, monkeypatch):

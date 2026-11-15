@@ -71,7 +71,7 @@ def _find_quantconnect_lean_binary() -> str | None:
         if candidate != on_path and not Path(candidate).exists():
             continue
         try:
-            result = subprocess.run([candidate, "--version"], capture_output=True, text=True, timeout=30)
+            result = subprocess.run([candidate, "--version"], capture_output=True, text=True, timeout=30, check=False)
         except (FileNotFoundError, OSError, subprocess.TimeoutExpired):
             continue
         version_output = (result.stdout or "") + (result.stderr or "")
@@ -143,7 +143,7 @@ def state_after_backtest() -> dict:
         cwd=str(REPO_ROOT),
         capture_output=True,
         text=True,
-        timeout=LEAN_BACKTEST_TIMEOUT_SECONDS,
+        timeout=LEAN_BACKTEST_TIMEOUT_SECONDS, check=False,
     )
     if result.returncode != 0:
         pytest.fail(f"lean backtest . failed (exit {result.returncode}):\n{result.stderr or result.stdout}")

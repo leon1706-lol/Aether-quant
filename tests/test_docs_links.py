@@ -72,7 +72,7 @@ def _ignored_batch(relatives: list[str]) -> None:
         return
     try:
         completed = subprocess.run(
-            ["git", "check-ignore", "--stdin"], cwd=ROOT, input="\n".join(pending).encode("utf-8"), capture_output=True, timeout=60
+            ["git", "check-ignore", "--stdin"], cwd=ROOT, input="\n".join(pending).encode("utf-8"), capture_output=True, timeout=60, check=False
         )  # bytes: Windows text mode would send "\r\n", and git would read each path but the last with a trailing "\r"
         ignored = {line.strip() for line in completed.stdout.decode("utf-8", errors="replace").splitlines()}
     except (OSError, subprocess.SubprocessError):
@@ -91,7 +91,7 @@ def _is_gitignored(path: Path) -> bool:
     return _IGNORED_CACHE[relative]
 
 
-@functools.lru_cache(maxsize=None)
+@functools.cache
 def _names(directory: Path) -> frozenset[str]:
     return frozenset(os.listdir(directory))
 

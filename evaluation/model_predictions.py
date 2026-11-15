@@ -253,7 +253,7 @@ def _predict_heads_batched(
         for start in range(0, len(row_indices), BATCH_CHUNK_ROWS):
             chunk = row_indices[start : start + BATCH_CHUNK_ROWS]
             outputs = run_exported_multitask_model_rows(model_export, feature_matrix[chunk].tolist())
-            for row_index, row_outputs in zip(chunk, outputs):
+            for row_index, row_outputs in zip(chunk, outputs, strict=False):
                 for head in heads:
                     predictions[head][row_index] = row_outputs.get(head, np.nan)
         return predictions
@@ -262,7 +262,7 @@ def _predict_heads_batched(
         chunk = row_indices[start : start + BATCH_CHUNK_ROWS]
         windows = build_sequence_windows(dataset, feature_names, window_size, ticker_column, row_positions=chunk)
         outputs = run_exported_sequence_multitask_model_batched(model_export, windows.tolist())
-        for row_index, row_outputs in zip(chunk, outputs):
+        for row_index, row_outputs in zip(chunk, outputs, strict=False):
             for head in heads:
                 predictions[head][row_index] = (row_outputs or {}).get(head, np.nan)
     return predictions

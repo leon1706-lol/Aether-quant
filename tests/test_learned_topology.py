@@ -128,9 +128,9 @@ def test_apply_learned_topology_returns_stable_schema_with_model():
         topology, _sample_symbol_features(topology), {}, _sample_model(), _sample_feature_schema()
     )
 
-    assert _REQUIRED_TOP_LEVEL_KEYS <= set(result.keys())
+    assert set(result.keys()) >= _REQUIRED_TOP_LEVEL_KEYS
     for node in result["nodes"]:
-        assert _REQUIRED_NODE_KEYS <= set(node.keys())
+        assert set(node.keys()) >= _REQUIRED_NODE_KEYS
     assert result["topology_source"] in TOPOLOGY_SOURCES
 
 
@@ -138,9 +138,9 @@ def test_apply_learned_topology_returns_stable_schema_without_model():
     topology = _sample_deterministic_topology()
     result = apply_learned_topology(topology, {}, None, None, None)
 
-    assert _REQUIRED_TOP_LEVEL_KEYS <= set(result.keys())
+    assert set(result.keys()) >= _REQUIRED_TOP_LEVEL_KEYS
     for node in result["nodes"]:
-        assert _REQUIRED_NODE_KEYS <= set(node.keys())
+        assert set(node.keys()) >= _REQUIRED_NODE_KEYS
     assert result["topology_source"] in TOPOLOGY_SOURCES
 
 
@@ -328,7 +328,7 @@ def test_z_offset_scales_proportionally_with_the_raised_3d_cap():
     result_2d = apply_learned_topology(topology, features, {}, model, _sample_feature_schema(), max_offset_z=0.1)
     result_3d = apply_learned_topology(topology, features, {}, model, _sample_feature_schema(), max_offset_z=6.0)
 
-    for node_2d, node_3d in zip(result_2d["nodes"], result_3d["nodes"]):
+    for node_2d, node_3d in zip(result_2d["nodes"], result_3d["nodes"], strict=False):
         base = original_by_symbol[node_2d["symbol"]]
         shift_2d = node_2d["z"] - base["z"]
         shift_3d = node_3d["z"] - base["z"]

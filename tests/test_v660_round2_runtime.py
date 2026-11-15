@@ -58,7 +58,7 @@ def module(monkeypatch, tmp_path):
 def _cell(module):
     known = pd.DataFrame(100.0 + np.arange(80)[:, None] + np.arange(40)[None, :], index=DATES, columns=TICKERS)
     extras = {name: known.copy() for name in ("w03", "w04", "w06", "w09", "w10", "w11", "w14", "w15")}
-    panel = SimpleNamespace(known=known, extras=extras, asset_class={ticker: "crypto" for ticker in TICKERS[:12]})
+    panel = SimpleNamespace(known=known, extras=extras, asset_class=dict.fromkeys(TICKERS[:12], "crypto"))
     market = SimpleNamespace(sessions=DATES)
     context = Context(panel=panel, config=Config(), market=market)
     window = SimpleNamespace(start=DATES[0], end=DATES[-1], split=DATES[40], name="S", universe="equity")
@@ -79,7 +79,7 @@ def test_the_rules_are_written_once_hashed_and_checked(module, capsys):
 
 
 def _ready(module, monkeypatch):
-    monkeypatch.setattr(module, "check_rules_r2", lambda: {})
+    monkeypatch.setattr(module, "check_rules_r2", dict)
     cell = _cell(module)
     monkeypatch.setattr(module, "load_cells", lambda specs: {"S": cell})
     return cell
@@ -124,7 +124,7 @@ def test_the_placebo_stage_tests_only_the_trials_that_reached_it(module, monkeyp
 
 
 def test_the_gate_names_why_a_trial_failed_early(module, monkeypatch, capsys):
-    monkeypatch.setattr(module, "check_rules_r2", lambda: {})
+    monkeypatch.setattr(module, "check_rules_r2", dict)
     good = {"sharpe": 1.0, "sharpe_first_half": 1.0, "sharpe_second_half": 1.0, "live_names": {"median": 1000.0}, "ic": {"nonoverlap_t": 3.0}}
     module.write_json(module.SCORES_R2, {"r01": good, "r02": {**good, "live_names": {"median": 0.0}}, "r03": {**good, "sharpe": 0.1}, "r04": {**good, "ic": {"nonoverlap_t": 0.1}}})
     pd.DataFrame({"r01": np.sin(np.arange(80)) * 0.01}, index=DATES).to_parquet(module.DAILY_R2)
@@ -139,7 +139,7 @@ def test_the_gate_names_why_a_trial_failed_early(module, monkeypatch, capsys):
 def test_pbo_pools_round_one_and_round_two_columns(module, monkeypatch, capsys):
     import evaluation.pbo as pbo
 
-    monkeypatch.setattr(module, "check_rules_r2", lambda: {})
+    monkeypatch.setattr(module, "check_rules_r2", dict)
     columns_one = list(module.PBO_COLUMNS[:2])
     pd.DataFrame({name: np.sin(np.arange(80) + i) * 0.01 for i, name in enumerate(columns_one)}, index=DATES).to_parquet(module.DAILY)
     pd.DataFrame({"r01": np.cos(np.arange(80)) * 0.01}, index=DATES).to_parquet(module.DAILY_R2)
@@ -169,26 +169,27 @@ def test_the_report_only_stage_measures_ic_and_costs(module, monkeypatch):
 
 
 def _venue_world(module, monkeypatch):
-    import evaluation.premia_research as premia
-    import portfolio.premia_signals as signals
     import v660_verdict
 
+    import evaluation.premia_research as premia
+    import portfolio.premia_signals as signals
+
     known = pd.DataFrame(100.0 + np.arange(80)[:, None] + np.arange(14)[None, :], index=DATES, columns=[*module.IB_COINS, "EOSUSD", "XLMUSD", "ETCUSD", "ZECUSD", "TRXUSD", "SOLUSD"])
-    panel = SimpleNamespace(known=known, asset_class={column: "crypto" for column in known.columns})
+    panel = SimpleNamespace(known=known, asset_class=dict.fromkeys(known.columns, "crypto"))
     context = SimpleNamespace(panel=panel, market=SimpleNamespace(sessions=DATES), config=None, sweep=None, rf_dates=None, rf_rates=None, carry=None, settings=None)
     monkeypatch.setattr(premia, "build_context", lambda root, base: context)
     monkeypatch.setattr(signals, "sleeve_signal", lambda spec, panel_: known.copy())
     monkeypatch.setattr(signals, "signal_to_weights", lambda table, panel_, **kwargs: [{"BTCUSD": 0.1}])
     fees = []
     monkeypatch.setattr(module, "simulate_target_weights", lambda weights, market, config, start, end, **kwargs: fees.append(kwargs["fee_fn"]) or {"strategy_excess": pd.Series(np.sin(np.arange(80)) * 0.01, index=DATES), "fees": 12.0, "gross": pd.Series(0.5, index=DATES)})
-    monkeypatch.setattr(module, "base_config", lambda: {})
+    monkeypatch.setattr(module, "base_config", dict)
     assert v660_verdict.INSTALLED is not None
     return fees
 
 
 def test_the_venue_studies_price_the_installed_sleeve_at_other_fees(module, monkeypatch):
     fees = _venue_world(module, monkeypatch)
-    monkeypatch.setattr(module, "check_rules_r2", lambda: {})
+    monkeypatch.setattr(module, "check_rules_r2", dict)
     assert module.stage_ib_subset(SimpleNamespace()) == 0
     report = json.loads(module.IB_SUBSET.read_text(encoding="utf-8"))
     assert set(report["2014-12..2026-11"]) == {"12_coins_coinbase_fees", "11_coins_without_eos_coinbase_fees", "8_ib_coins_coinbase_fees", "8_ib_coins_ib_fees"}

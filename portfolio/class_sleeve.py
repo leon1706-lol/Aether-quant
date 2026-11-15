@@ -76,7 +76,7 @@ def build_class_sleeve_weights(
         per_name = (gross_budget / 2.0) / len(legs)
         if cap is not None:
             per_name = min(per_name, cap)
-        weights.update({symbol: sign * per_name for symbol in legs})
+        weights.update(dict.fromkeys(legs, sign * per_name))
     return weights
 
 

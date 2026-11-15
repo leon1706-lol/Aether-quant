@@ -127,7 +127,7 @@ def _jsonb(value: Any) -> str:
 
 
 def _row_to_dict(row: tuple, columns: tuple[str, ...]) -> dict:
-    return dict(zip(columns, row))
+    return dict(zip(columns, row, strict=False))
 
 
 def model_version_to_row(version: dict) -> dict[str, Any]:

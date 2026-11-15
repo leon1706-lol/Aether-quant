@@ -88,7 +88,7 @@ def test_config_json_ships_flip_fraction_rule():
 
 
 def test_t_and_ci_gates_still_apply_in_flip_fraction_mode():
-    non_overlapping, bootstrap, per_era = _base_inputs()
+    _non_overlapping, bootstrap, per_era = _base_inputs()
     weak = {"t_stat": 1.2, "mean_ic": 0.02}
     result = train.assess_ranking_quality(weak, bootstrap, per_era, _config("flip_fraction", 0.5))
     assert "non_overlapping_t_stat_below_gate" in result["failures"]

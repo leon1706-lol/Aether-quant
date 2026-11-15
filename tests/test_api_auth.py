@@ -10,11 +10,11 @@ import pytest
 pytest.importorskip("fastapi")
 pytest.importorskip("httpx")
 
-from fastapi.testclient import TestClient  # noqa: E402
+from fastapi.testclient import TestClient
 
-from audit.hash_chain import verify_chain  # noqa: E402
-from monitoring.auth import Role, make_user  # noqa: E402
-from monitoring.auth_io import save_users  # noqa: E402
+from audit.hash_chain import verify_chain
+from monitoring.auth import Role, make_user
+from monitoring.auth_io import save_users
 
 
 @pytest.fixture
@@ -50,7 +50,7 @@ def _auth(token):
 
 
 def test_without_users_reads_are_open_and_writes_are_closed(api):
-    _, client, tokens, _, _ = api
+    _, client, _tokens, _, _ = api
     assert client.get("/api/health").json()["auth"] == "off"
     assert client.get("/api/state").status_code == 200
     assert client.post("/api/accounts/default/trade-lock", json={"locked": True}).status_code == 403
@@ -69,7 +69,7 @@ def test_with_users_every_route_but_health_needs_a_token(api):
 
 
 def test_lock_needs_an_operator_unlock_an_admin_and_each_is_chained(api):
-    module, client, tokens, users, root = api
+    _module, client, tokens, users, root = api
     save_users(users)
     assert client.post("/api/accounts/default/trade-lock", json={"locked": True}, headers=_auth(tokens["viewer"])).status_code == 403
     locked = client.post("/api/accounts/default/trade-lock", json={"locked": True}, headers=_auth(tokens["operator"]))

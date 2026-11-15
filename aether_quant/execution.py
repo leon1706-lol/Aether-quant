@@ -2,58 +2,12 @@
 in formal/AetherFormal/{OrderGate,CostModel,Reconciliation}.lean), plus accounts, secrets, the field test and the
 paper-to-live scorecard (V6.6.5)."""
 
-from execution.cost_model import (
-    NetEdgeDecision,
-    build_net_edge_decision,
-    estimate_round_trip_cost_bps,
-    expected_edge_bps,
-    expected_fill_fee_bps,
-)
-from execution.order_gate import (
-    resolve_fill_slippage,
-    resolve_order_permission,
-    resolve_risk_exit_permission,
-    resolve_runtime_mode,
-    resolve_slippage_bps,
-    slippage_amount,
-)
-from execution.reconciliation import ReconciliationReport, reconcile_positions
-from execution.paper_readiness import evaluate_broker_config, evaluate_live_broker_config, evaluate_live_risk_posture, evaluate_observation_readiness, evaluate_paper_broker_config, evaluate_velocity_decision
-from execution.secret_scan import find_populated_secret_fields, is_secret_field, is_tracked_env_secret
-
-from execution.order_gate import (
-    classify_order_status,
-    compute_fill_slippage_divergence_bps,
-    is_real_order_placement,
-    liquidity_cost_fraction,
-    resolve_cash_sweep_order_permission,
-    resolve_combo_limit_price,
-    resolve_exit_order_route,
-    resolve_fill_slippage_source,
-    resolve_limit_order_timeout_action,
-    resolve_limit_price,
-    resolve_limit_setting_by_class,
-    resolve_pending_order_action,
-    should_clear_pending_limit_order,
-    should_skip_for_open_order,
-    simulate_fill,
-    slippage_reference_price,
-)
-from execution.cost_model import (
-    commission_bps_by_ticker,
-    commission_terms_for_security_type,
-    fee_override_for_security_type,
-    min_commission_usd_by_ticker,
-    route_aware_fee_bps,
-    route_aware_per_side_fee_bps,
-)
-
 # V6.6.5 (#348, #349, #351, #352): accounts, secrets, the field test's injectors and judge, the paper-to-live scorecard
 from execution.accounts import (
-    Account,
-    AccountTaggedQueue,
     DEFAULT_ACCOUNT,
     OVERRIDE_KEYS,
+    Account,
+    AccountTaggedQueue,
     account_output_paths,
     account_state_dir,
     apply_risk_overrides,
@@ -62,18 +16,18 @@ from execution.accounts import (
     resolve_account,
     tag_audit_event,
 )
-from execution.secrets import (
-    SECRET_NAMES,
-    ResolvedSecret,
-    SecretRef,
-    SecretValue,
-    default_refs,
-    env_prefix,
-    parse_ref,
-    redact,
-    redact_url,
-    resolve_secret,
-    secret_status,
+from execution.cost_model import (
+    NetEdgeDecision,
+    build_net_edge_decision,
+    commission_bps_by_ticker,
+    commission_terms_for_security_type,
+    estimate_round_trip_cost_bps,
+    expected_edge_bps,
+    expected_fill_fee_bps,
+    fee_override_for_security_type,
+    min_commission_usd_by_ticker,
+    route_aware_fee_bps,
+    route_aware_per_side_fee_bps,
 )
 from execution.field_test import (
     FieldTestPlan,
@@ -94,6 +48,46 @@ from execution.live_readiness import (
     live_mode_allowed,
     render_markdown,
     resolve_thresholds,
+)
+from execution.order_gate import (
+    classify_order_status,
+    compute_fill_slippage_divergence_bps,
+    is_real_order_placement,
+    liquidity_cost_fraction,
+    resolve_cash_sweep_order_permission,
+    resolve_combo_limit_price,
+    resolve_exit_order_route,
+    resolve_fill_slippage,
+    resolve_fill_slippage_source,
+    resolve_limit_order_timeout_action,
+    resolve_limit_price,
+    resolve_limit_setting_by_class,
+    resolve_order_permission,
+    resolve_pending_order_action,
+    resolve_risk_exit_permission,
+    resolve_runtime_mode,
+    resolve_slippage_bps,
+    should_clear_pending_limit_order,
+    should_skip_for_open_order,
+    simulate_fill,
+    slippage_amount,
+    slippage_reference_price,
+)
+from execution.paper_readiness import evaluate_broker_config, evaluate_live_broker_config, evaluate_live_risk_posture, evaluate_observation_readiness, evaluate_paper_broker_config, evaluate_velocity_decision
+from execution.reconciliation import ReconciliationReport, reconcile_positions
+from execution.secret_scan import find_populated_secret_fields, is_secret_field, is_tracked_env_secret
+from execution.secrets import (
+    SECRET_NAMES,
+    ResolvedSecret,
+    SecretRef,
+    SecretValue,
+    default_refs,
+    env_prefix,
+    parse_ref,
+    redact,
+    redact_url,
+    resolve_secret,
+    secret_status,
 )
 
 __all__ = [

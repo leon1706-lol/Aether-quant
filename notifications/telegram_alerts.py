@@ -11,6 +11,7 @@ I/O layer and notifications/telegram_client.py for the outbound HTTP call.
 """
 
 from __future__ import annotations
+
 from typing import Any
 
 SEVERITY_EMOJI = {"info": "ℹ️", "warning": "⚠️", "critical": "\U0001f6a8"}

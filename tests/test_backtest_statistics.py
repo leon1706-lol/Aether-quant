@@ -135,7 +135,7 @@ def _write_zip(path: Path, bars) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     rows = "\n".join(
         f"{day.replace('-', '')} 00:00,{int(o * 10000)},{int(max(o, c) * 10000)},{int(min(o, c) * 10000)},{int(c * 10000)},1000"
-        for day, (o, c) in zip(DATES, bars)
+        for day, (o, c) in zip(DATES, bars, strict=False)
     )
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w") as archive:
@@ -163,7 +163,7 @@ def synthetic(tmp_path):
     result = {
         "statistics": {"Sharpe Ratio": "0.5", "Total Fees": "$3.00", "Start Equity": "1000", "End Equity": "1030"},
         "charts": {
-            "Strategy Equity": {"series": {"Equity": {"values": [[_stamp(d), v, v, v, v] for d, v in zip(DATES, nav)]}}},
+            "Strategy Equity": {"series": {"Equity": {"values": [[_stamp(d), v, v, v, v] for d, v in zip(DATES, nav, strict=False)]}}},
             "Benchmark": {"series": {"Benchmark": {"values": [[_stamp(d), 400.0 + 3 * i + (i % 2)] for i, d in enumerate(DATES)]}}},
         },
         "orders": {

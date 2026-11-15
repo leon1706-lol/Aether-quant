@@ -107,7 +107,7 @@ def test_the_crypto_ic_uses_the_shared_helper(module, monkeypatch):
 
 def _score_stub(monkeypatch, module, sharpe=1.0):
     cell = _cell(module)
-    monkeypatch.setattr(module, "load_cells", lambda specs: {name: cell for name in ("S", "CS", "CV")})
+    monkeypatch.setattr(module, "load_cells", lambda specs: dict.fromkeys(("S", "CS", "CV"), cell))
     monkeypatch.setattr(module, "_signal_for", lambda spec, cell_: cell_.context.panel.known if spec.id != "w02" else None)
     monkeypatch.setattr(module, "live_names_per_rebalance", lambda table, every: {"median": 10.0, "minimum": 5.0})
     monkeypatch.setattr(module, "score_sleeve", lambda spec, context, **kwargs: {"sharpe": sharpe, "sharpe_first_half": 0.9, "sharpe_second_half": 1.1, "turnover": 2.0,

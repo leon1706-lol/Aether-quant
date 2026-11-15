@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import math
 from datetime import date
+from typing import TYPE_CHECKING, Any
 
 from portfolio.options_strategy import (
     MULTI_LEG_STRATEGY_REGISTRY,
@@ -36,8 +37,6 @@ from portfolio.options_strategy import (
     _net_vega_and_delta_per_unit,
     select_strategy_legs,
 )
-from typing import TYPE_CHECKING, Any
-
 
 if TYPE_CHECKING:
     from collections.abc import Iterable

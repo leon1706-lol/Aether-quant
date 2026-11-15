@@ -127,7 +127,7 @@ def test_a_leaked_password_is_reported(monkeypatch):
 
     monkeypatch.setattr(targets, "redact_url", leaky)
     data = _search("redact", lambda d: targets._plain_password(*_url_parts(d)))
-    user, password, host = _url_parts(data)
+    _user, password, _host = _url_parts(data)
     with pytest.raises(AssertionError) as caught:
         targets.fuzz_secret_refs(data)
     assert password in caught.value.args[0][1], "the assertion that fired is the leak check, carrying the masked URL"

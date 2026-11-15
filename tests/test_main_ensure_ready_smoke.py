@@ -56,7 +56,7 @@ def algorithm():
     patcher.setitem(sys.modules, "AlgorithmImports", stub)
     patcher.delitem(sys.modules, "main", raising=False)
     patcher.chdir(ROOT)
-    import main  # noqa: PLC0415 - must come after the stub is installed
+    import main
 
     instance = main.AetherQuantAlgorithm()
     instance._write_state = lambda *args, **kwargs: None  # never write visualization/state.json from a test

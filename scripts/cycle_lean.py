@@ -74,10 +74,10 @@ def frozen_rule_rows(panel, *, start: str, end: str) -> dict:
 
 
 def stage_make() -> int:
+    from build_wide_root import wide_config
     from v650_instrument import target_path_config
     from v660_lean import WIDE_PATH, write_run
 
-    from build_wide_root import wide_config
     from evaluation.generation_ledger import replay_handover
     from evaluation.target_weights_engine import load_market_panel
     from portfolio.generation_blend import GlidePolicy
@@ -117,10 +117,10 @@ def stage_make() -> int:
 
 def stage_make3() -> int:
     """R-BLEND2's run: three generations at once under the dynamic mode, each one's evidence from its own simulated returns. On the training Codespace: the panel holds a few hundred names."""
+    from build_wide_root import wide_config
     from v650_instrument import target_path_config
     from v660_lean import WIDE_PATH, write_run
 
-    from build_wide_root import wide_config
     from evaluation.generation_ledger import replay_dynamic
     from evaluation.premia_research import weights_for
     from evaluation.target_weights_engine import load_market_panel, simulate_target_weights

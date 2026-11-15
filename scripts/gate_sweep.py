@@ -180,7 +180,7 @@ def main() -> int:
         min_universe_size=20,
     )
     base_result = simulate_rank_book(scored, **sim_kwargs)
-    per_date_returns = dict(zip(base_result.per_date, base_result.per_date_net_return))
+    per_date_returns = dict(zip(base_result.per_date, base_result.per_date_net_return, strict=False))
     dates_sorted = sorted(per_date_returns)
     print(f"base sim: net_sharpe={getattr(base_result, 'net_sharpe', None)}", flush=True)
 

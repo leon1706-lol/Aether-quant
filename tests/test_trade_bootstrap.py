@@ -5,7 +5,12 @@ from __future__ import annotations
 import pytest
 
 from evaluation.trade_bootstrap import (
-    bootstrap_mean_pnl, leave_one_name_out, pnl_by_name, repeatable, round_trips_from_closed_trades, top_k_share,
+    bootstrap_mean_pnl,
+    leave_one_name_out,
+    pnl_by_name,
+    repeatable,
+    round_trips_from_closed_trades,
+    top_k_share,
 )
 
 

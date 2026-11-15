@@ -39,7 +39,7 @@ def main_module():
     patcher = pytest.MonkeyPatch()
     patcher.setitem(sys.modules, "AlgorithmImports", stub)
     patcher.delitem(sys.modules, "main", raising=False)
-    import main  # noqa: PLC0415
+    import main
 
     yield main
     sys.modules.pop("main", None)
@@ -117,7 +117,7 @@ def test_forex_sensitivity_betas_use_real_bars_dated_by_the_bar(main_module):
     frame["close_to_close_return_1d"] = frame["close"].pct_change()
     rng = np.random.default_rng(3)
     days = pd.date_range("2019-03-01", "2019-12-31")
-    fred = {name: [{"date": day.date(), "value": float(value)} for day, value in zip(days, np.cumsum(rng.normal(0, 1, len(days))))]
+    fred = {name: [{"date": day.date(), "value": float(value)} for day, value in zip(days, np.cumsum(rng.normal(0, 1, len(days))), strict=False)]
             for name in DRIVERS.values()}
     sensitivity = {"enabled": True, "lookback_days": 40, "min_observations": 15, "drivers": DRIVERS}
     config = {"phase1": {"features": {"cross_asset_sensitivity": sensitivity}}}

@@ -136,7 +136,7 @@ def test_standardize_states_zero_mean_unit_variance():
 
 def test_standardize_states_constant_column_does_not_divide_by_zero():
     states = np.array([[5.0, 1.0], [5.0, 2.0], [5.0, 3.0]])
-    standardized, mean, scale = standardize_states(states)
+    standardized, _mean, scale = standardize_states(states)
     assert np.all(np.isfinite(standardized))
     assert scale[0] == 1.0  # fallback for the zero-variance column
     assert np.allclose(standardized[:, 0], 0.0)
@@ -364,7 +364,7 @@ def test_select_penalty_weight_reports_when_nothing_beats_constant_one(monkeypat
     _stub_long_model(monkeypatch)
     frame = _synthetic_frame(120, signal_strength=0.0)  # pure noise: shrinking can only cost
 
-    result = select_penalty_weight(frame, **{k: v for k, v in _SWEEP_COMMON.items()}, candidate_weights=[1.0, 2.0, 3.0], min_fit_rows=50)
+    result = select_penalty_weight(frame, **dict(_SWEEP_COMMON.items()), candidate_weights=[1.0, 2.0, 3.0], min_fit_rows=50)
 
     assert result["reason"] == "selected_by_holdout_margin"
     assert result["selected"] in (1.0, 2.0, 3.0)

@@ -61,6 +61,7 @@ def test_one_failing_coin_does_not_void_the_others():
 
 def test_a_session_with_a_failed_coin_it_does_not_hold_is_still_ok(tmp_path):
     import forward_ledger
+
     from test_forward_ledger import DEFINITION, _fake_api
 
     held_only_btc = {**DEFINITION, "initial_weights": {"BTCUSD": 0.1}, "anchor_date": "2024-09-27", "rebalance_every": 50}
@@ -80,6 +81,7 @@ def test_a_session_with_a_failed_coin_it_does_not_hold_is_still_ok(tmp_path):
 
 def test_a_scheduled_run_with_no_session_to_write_exits_non_zero(tmp_path, monkeypatch):
     import forward_ledger
+
     from test_forward_ledger import _candidates, _fake_api
 
     monkeypatch.setattr(forward_ledger, "_get_json", _fake_api())

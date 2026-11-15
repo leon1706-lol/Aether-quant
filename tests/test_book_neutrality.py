@@ -75,7 +75,7 @@ def test_sector_bucket_over_max_net_weight_is_shrunk_not_amplified():
     # Two Tech names both long (no offsetting short in the bucket) - net
     # exceeds a tight cap, so the whole bucket is shrunk toward it. Signs
     # and relative per-name weights are preserved, never erased.
-    weights, diagnostics = _neutralize(
+    weights, _diagnostics = _neutralize(
         {"A": 0.10, "B": 0.08},
         sectors={"A": "Tech", "B": "Tech"},
         dollar_neutral=False,
@@ -96,9 +96,9 @@ def test_sector_neutral_equal_weighted_monolithic_role_bucket_is_shrunk_not_eras
     # The old demean-to-zero implementation drove every member to exactly
     # 0.0 here, silently erasing the entire leg. It must now only be
     # shrunk toward the cap, never erased.
-    weights, diagnostics = _neutralize(
+    weights, _diagnostics = _neutralize(
         {"F1": -0.15, "F2": -0.15, "F3": -0.15, "F4": -0.15, "F5": -0.15, "F6": -0.15},
-        sectors={s: "Forex" for s in ("F1", "F2", "F3", "F4", "F5", "F6")},
+        sectors=dict.fromkeys(("F1", "F2", "F3", "F4", "F5", "F6"), "Forex"),
         dollar_neutral=False,
         sector_max_net_weight=0.05,
     )
@@ -117,7 +117,7 @@ def test_sector_max_net_weight_zero_skips_sector_neutral_instead_of_erasing_book
     # never erase the book.
     weights, diagnostics = _neutralize(
         {"F1": -0.10, "F2": -0.10, "F3": -0.10},
-        sectors={s: "Forex" for s in ("F1", "F2", "F3")},
+        sectors=dict.fromkeys(("F1", "F2", "F3"), "Forex"),
         dollar_neutral=False,
         sector_max_net_weight=0.0,
     )
@@ -130,7 +130,7 @@ def test_sector_max_net_weight_zero_skips_sector_neutral_instead_of_erasing_book
 def test_sector_max_net_weight_negative_also_skips_sector_neutral():
     weights, diagnostics = _neutralize(
         {"F1": -0.10, "F2": -0.10},
-        sectors={s: "Forex" for s in ("F1", "F2")},
+        sectors=dict.fromkeys(("F1", "F2"), "Forex"),
         dollar_neutral=False,
         sector_max_net_weight=-1.0,
     )
@@ -194,7 +194,7 @@ def test_result_is_independent_of_input_dict_iteration_order():
 
 
 def test_diagnostics_report_pre_and_post_gross_and_net():
-    weights, diagnostics = _neutralize(
+    _weights, diagnostics = _neutralize(
         {"L1": 0.12, "S1": -0.12},
         sectors={"L1": "Tech", "S1": "Fin"},
     )

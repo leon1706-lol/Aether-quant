@@ -34,7 +34,7 @@ G1 = Generation(id="g1", kind="rule", tier="installed", stage="active", born=DAY
 
 def _candles(seed: int) -> list:
     closes = 100.0 * np.exp(np.cumsum(np.random.default_rng(seed).normal(0.001, 0.02, len(DAYS))))
-    return [[int(datetime.datetime.fromisoformat(f"{day}T00:00:00+00:00").timestamp()), 0, 0, 0, float(close), 0] for day, close in zip(reversed(DAYS), reversed(closes))]
+    return [[int(datetime.datetime.fromisoformat(f"{day}T00:00:00+00:00").timestamp()), 0, 0, 0, float(close), 0] for day, close in zip(reversed(DAYS), reversed(closes), strict=False)]
 
 
 def _yahoo(seed: int, days=DAYS) -> dict:

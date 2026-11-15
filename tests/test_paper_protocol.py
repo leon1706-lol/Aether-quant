@@ -5,7 +5,14 @@ from __future__ import annotations
 import pytest
 
 from evaluation.paper_protocol import (
-    METRICS, MIN_REBALANCES, WARMUP_REASON, band_check, daily_table, live_rebalances, metrics_for_window, reference_bands,
+    METRICS,
+    MIN_REBALANCES,
+    WARMUP_REASON,
+    band_check,
+    daily_table,
+    live_rebalances,
+    metrics_for_window,
+    reference_bands,
 )
 
 DAYS = [f"2024-02-{day:02d}" for day in range(1, 21)]
@@ -22,8 +29,8 @@ def _table():
                                  fills=1 if index % 5 == 0 else 0, notional=1000.0 if index % 5 == 0 else 0.0),
                    "BIL": _entry(pnl=0.5, position=20.0)}
         ticker_pnl[day] = entries
-    nav = {day: 10_000.0 for day in DAYS}
-    closes = {"AAA": {day: 100.0 for day in DAYS}, "BIL": {day: 50.0 for day in DAYS}}
+    nav = dict.fromkeys(DAYS, 10000.0)
+    closes = {"AAA": dict.fromkeys(DAYS, 100.0), "BIL": dict.fromkeys(DAYS, 50.0)}
     return daily_table(ticker_pnl, nav, closes, {t: sorted(s) for t, s in closes.items()}, {"BIL"})
 
 

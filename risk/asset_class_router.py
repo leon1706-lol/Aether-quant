@@ -25,15 +25,18 @@ the PositionSizingDecision stay completely unaffected.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING, Any
+
 from risk.forex_risk import ForexSizingDecision, build_forex_position_sizing
 from risk.futures_risk import FuturesSizingDecision, build_futures_position_sizing
 from risk.position_sizing import PositionSizingDecision, build_dynamic_position_sizing
-from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from datetime import date, datetime
     from pathlib import Path
 
+from portfolio.options_arbitrage_detector import build_arbitrage_position_sizing
+from portfolio.options_margin_sizing import build_margin_position_sizing
 from portfolio.options_strategy import (
     MULTI_LEG_STRATEGY_REGISTRY,
     build_multi_leg_position_sizing,
@@ -44,8 +47,6 @@ from portfolio.options_strategy import (
     rerank_enabled_strategies_by_score,
     strategies_for_volatility_view,
 )
-from portfolio.options_arbitrage_detector import build_arbitrage_position_sizing
-from portfolio.options_margin_sizing import build_margin_position_sizing
 
 FUTURES_OPTIONS_SENTINEL_VOLATILITY_REGIME = "not_applicable_non_volatility_sizing"
 
@@ -237,7 +238,7 @@ def route_multi_leg_option_sizing(
     max_margin_utilization: float,
     pct_of_underlying_value: float,
     min_pct_of_underlying_value: float,
-    current_date: date=None,
+    current_date: date | None = None,
     risk_free_rate: float = 0.045,
     arbitrage_detector_enabled: bool = False,
     min_mispricing_bps: float = 15.0,
@@ -598,7 +599,4 @@ def asset_listed_on_venue(ticker: str, on_date: date | datetime | str, listing_d
     delisted = entry.get("delisted")
     if delisted and day >= str(delisted)[:10]:
         return False
-    for window in entry.get("suspended") or ():
-        if len(window) == 2 and str(window[0])[:10] <= day < str(window[1])[:10]:
-            return False
-    return True
+    return not any(len(window) == 2 and str(window[0])[:10] <= day < str(window[1])[:10] for window in entry.get("suspended") or ())

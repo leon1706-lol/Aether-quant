@@ -7,13 +7,13 @@ untested at the unit level, mirroring how train.py's own end-to-end run is
 not unit-tested either.
 """
 
+from topology.learned_topology import FEATURE_KEYS
 from train_topology import (
     build_feature_vector,
     derive_realized_outcomes,
     fit_prototypes,
     topology_candidate_output_paths,
 )
-from topology.learned_topology import FEATURE_KEYS
 
 
 def _event(**overrides) -> dict:

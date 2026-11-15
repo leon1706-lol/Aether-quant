@@ -38,11 +38,12 @@ existing caller (performance/trigger_worker.py, tests/test_rank_ic_monitor.py).
 
 from __future__ import annotations
 
+from typing import Any
+
 from evaluation.rank_ic_core import (
     aggregate_rank_ic_observations,
     resolve_realized_rank_ic_observations,
 )
-from typing import Any
 
 
 def compute_realized_rank_ic_observations(events: list[dict], horizon_days: int = 20) -> list[dict]:

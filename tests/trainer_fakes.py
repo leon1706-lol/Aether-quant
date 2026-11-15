@@ -31,7 +31,7 @@ def make_frame(*, seed: int = 0, train_dates: int = 30, other_dates: int = 14) -
             signal = float(features[0]) * 0.3 + (ranks[index] - 0.5)
             row = {"date": date, "ticker": ticker, "split": split, "training_eligible": True, "security_type": "equity", "close": 100.0 + index + day * 0.1, "open": 100.0 + index, "high": 101.0 + index,
                    "low": 99.0 + index, "volume": 1_000_000.0 + 1000 * index}
-            row.update({name: float(value) for name, value in zip(FEATURES, features)})
+            row.update({name: float(value) for name, value in zip(FEATURES, features, strict=False)})
             row["target_return_1d"] = float(0.01 * signal + rng.normal(0, 0.01))
             row["target_direction"] = float(row["target_return_1d"] > 0)
             row["target_volatility_next_day"] = float(abs(rng.normal(0.015, 0.005)))

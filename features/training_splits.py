@@ -3,9 +3,10 @@ ranked inputs. Moved unchanged from `train.py` and `train_cross_sectional.py`, w
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING, Any
+
 import numpy as np
 import pandas as pd
-from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from numpy.typing import ArrayLike

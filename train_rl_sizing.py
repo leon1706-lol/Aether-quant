@@ -304,7 +304,7 @@ def build_bandit_rows(
 
     for _, ticker_frame in frame.groupby("ticker", sort=False):
         ticker_frame = ticker_frame.sort_values("date")
-        prior_action_weight = {action: 0.0 for action in action_set}
+        prior_action_weight = dict.fromkeys(action_set, 0.0)
         for _, row in ticker_frame.iterrows():
             forward_return = row.get("target_return_1d")
             if pd.isna(forward_return):

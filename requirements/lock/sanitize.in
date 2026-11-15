@@ -1,0 +1,8 @@
+# The cpp-sanitizers CI job (--profile sanitize): build cpp_inference_ext with ASan and UBSan, then run its tests
+pybind11>=2.10
+setuptools>=77.0
+wheel>=0.43
+numpy>=1.24.0
+pandas>=2.0.0
+pytest>=9.0.3
+hypothesis>=6.100

@@ -13,14 +13,14 @@ Project layout (scripts/lean_smoke/run_main_option_scenarios.sh): the repo's mai
     assign  #61  the assignment sweep over a held short call, then the same position held to its expiry with the auto-close off
 """
 
-from AlgorithmImports import *  # noqa: F403
-
 import dataclasses
 import json
 from builtins import Exception
 from pathlib import Path
 
 import aq_main
+from AlgorithmImports import *  # noqa: F403
+
 from portfolio.options_margin_sizing import build_margin_position_sizing
 from portfolio.options_strategy import MULTI_LEG_STRATEGY_REGISTRY, build_multi_leg_position_sizing, build_vertical_spread_position_sizing
 

@@ -51,7 +51,7 @@ def test_is_sticky_reason_none_not_sticky():
 
 
 def test_replay_no_trips_on_flat_positive_returns():
-    returns = {date: 0.001 for date in _DATES}
+    returns = dict.fromkeys(_DATES, 0.001)
     records = replay_kill_switch_over_dataset(
         _DATES, returns, _kill_switch_config(), max_daily_drawdown_pct=0.03, max_total_drawdown_pct=0.12
     )
@@ -109,7 +109,7 @@ def test_replay_kill_switch_trip_is_sticky():
     total_drawdown_limit_breached - must stay locked across subsequent
     flat/positive-return dates."""
     dates = [f"2020-01-{day:02d}" for day in range(1, 8)]
-    returns = {date: -0.3 for date in dates[:3]}
+    returns = dict.fromkeys(dates[:3], -0.3)
     for date in dates[3:]:
         returns[date] = 0.02
     records = replay_kill_switch_over_dataset(
@@ -155,7 +155,7 @@ def test_replay_return_history_deque_respects_evaluation_bars_window():
     rolling-Sharpe calculation - a large negative return old enough to
     fall out of the window must stop influencing later trip decisions."""
     dates = [f"2020-01-{day:02d}" for day in range(1, 11)]
-    returns = {date: 0.001 for date in dates}
+    returns = dict.fromkeys(dates, 0.001)
     returns[dates[0]] = -0.9
     records = replay_kill_switch_over_dataset(
         dates,

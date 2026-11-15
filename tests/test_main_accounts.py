@@ -43,7 +43,7 @@ def _ready_algorithm(monkeypatch, env: dict[str, str]):
         monkeypatch.delenv(key, raising=False)
     for key, value in env.items():
         monkeypatch.setenv(key, value)
-    import main  # noqa: PLC0415
+    import main
 
     instance = main.AetherQuantAlgorithm()
     instance._write_state = lambda *args, **kwargs: None
@@ -66,7 +66,7 @@ def _ready_algorithm(monkeypatch, env: dict[str, str]):
 
 
 def test_the_default_account_changes_nothing(monkeypatch):
-    main, algorithm = _ready_algorithm(monkeypatch, {})
+    _main, algorithm = _ready_algorithm(monkeypatch, {})
     config = json.loads((ROOT / "config.json").read_text(encoding="utf-8"))
     assert algorithm._account.is_default
     assert algorithm.state_path == ROOT / "visualization" / "state.json" and algorithm.grafana_dir == ROOT / "visualization" / "grafana"
@@ -79,7 +79,7 @@ def test_the_default_account_changes_nothing(monkeypatch):
 def test_a_named_account_tightens_and_namespaces(monkeypatch, tmp_path):
     registry = tmp_path / "accounts.json"
     registry.write_text((ROOT / "accounts.example.json").read_text(encoding="utf-8"), encoding="utf-8")
-    main, algorithm = _ready_algorithm(monkeypatch, {"AQ_ACCOUNT": "paper-b", "AQ_ACCOUNTS_FILE": str(registry)})
+    _main, algorithm = _ready_algorithm(monkeypatch, {"AQ_ACCOUNT": "paper-b", "AQ_ACCOUNTS_FILE": str(registry)})
     assert algorithm._account.id == "paper-b"
     assert algorithm.state_path == ROOT / "state" / "accounts" / "paper-b" / "visualization" / "state.json"
     assert algorithm._override_config_path == ROOT / "state" / "accounts" / "paper-b" / "overrides.json"

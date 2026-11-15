@@ -53,10 +53,29 @@ py::array_t<double> linear_batched(
     return result;
 }
 
+#ifdef AQ_ASAN_CANARY
+// Built only by CI's cpp-sanitizers job (setup.py, AQ_ASAN_CANARY=1): one read past a heap buffer, so a job that sees
+// AddressSanitizer abort here has proved the instrumentation is live before it trusts a clean run of the real kernel.
+// The read goes through a non-inlined helper so UBSan's object-size check cannot see the buffer's length: only
+// AddressSanitizer reports it, which is the instrumentation this canary proves.
+__attribute__((noinline)) int read_at(const int* values, int index) { return values[index]; }
+
+int asan_canary() {
+    int* buffer = new int[4]();
+    volatile int index = 4;
+    int value = read_at(buffer, index);
+    delete[] buffer;
+    return value;
+}
+#endif
+
 PYBIND11_MODULE(cpp_inference, m) {
     m.doc() = "Optional C++/pybind11 accelerator for inference/exported_model.py's batched linear layer";
     m.def(
         "linear_batched", &linear_batched,
         "Batched linear layer: weights (N,out,in) @ input (N,in) + bias (N,out) -> (N,out)"
     );
+#ifdef AQ_ASAN_CANARY
+    m.def("asan_canary", &asan_canary, "Deliberate heap-buffer-overflow (sanitizer canary builds only)");
+#endif
 }

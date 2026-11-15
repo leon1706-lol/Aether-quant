@@ -144,7 +144,7 @@ def resolve_secret(
             elif keyring_get is not None:
                 service, _, user = ref.target.partition("/")
                 value = keyring_get(service, user)
-        except Exception:  # noqa: BLE001 - an unreadable source is a missing source
+        except Exception:
             value = None
         if value:
             return ResolvedSecret(name, SecretValue(value), str(ref))

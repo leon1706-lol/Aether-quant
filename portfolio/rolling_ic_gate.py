@@ -58,8 +58,9 @@ verification result to either one cleanly.
 from __future__ import annotations
 
 import math
-from evaluation.rank_ic_core import aggregate_rank_ic_observations, resolve_realized_rank_ic_observations
 from typing import Any
+
+from evaluation.rank_ic_core import aggregate_rank_ic_observations, resolve_realized_rank_ic_observations
 
 # Same "this condition can never fire" sentinel convention as
 # risk/kill_switch.py::_NEVER_BELOW - enabling this gate must never, by

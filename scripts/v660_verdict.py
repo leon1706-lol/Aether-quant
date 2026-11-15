@@ -29,7 +29,7 @@ from evaluation.premia_research import annual_sharpe, max_drawdown, weights_for 
 from evaluation.research_cells import CELLS, freeze_digest_of, write_freeze  # noqa: E402
 from evaluation.target_weights_engine import simulate_target_weights  # noqa: E402
 from evaluation.wide_context import crypto_cell  # noqa: E402
-from portfolio.premia_signals import SleeveSpec, TS, signal_to_weights, sleeve_signal  # noqa: E402
+from portfolio.premia_signals import TS, SleeveSpec, signal_to_weights, sleeve_signal  # noqa: E402
 
 OUT = ROOT / "ml" / "evaluation" / "v660"
 FREEZE = OUT / "freeze_crypto1.json"

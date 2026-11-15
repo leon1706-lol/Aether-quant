@@ -12,10 +12,9 @@ from __future__ import annotations
 
 import itertools
 import math
-
-import numpy as np
 from typing import TYPE_CHECKING, Any
 
+import numpy as np
 
 if TYPE_CHECKING:
     from numpy.typing import ArrayLike
@@ -42,9 +41,9 @@ def probability_of_backtest_overfitting(returns: ArrayLike, *, blocks: int = 16,
     matrix = np.nan_to_num(matrix, nan=0.0)
     num_rows, num_trials = matrix.shape
     edges = np.linspace(0, num_rows, blocks + 1).astype(int)
-    block_sums = np.array([matrix[a:b].sum(axis=0) for a, b in zip(edges[:-1], edges[1:])])
-    block_sq = np.array([(matrix[a:b] ** 2).sum(axis=0) for a, b in zip(edges[:-1], edges[1:])])
-    block_n = np.array([b - a for a, b in zip(edges[:-1], edges[1:])], dtype=float)
+    block_sums = np.array([matrix[a:b].sum(axis=0) for a, b in itertools.pairwise(edges)])
+    block_sq = np.array([(matrix[a:b] ** 2).sum(axis=0) for a, b in itertools.pairwise(edges)])
+    block_n = np.array([b - a for a, b in itertools.pairwise(edges)], dtype=float)
 
     lambdas, is_best, oos_of_best = [], [], []
     for chosen in itertools.combinations(range(blocks), blocks // 2):

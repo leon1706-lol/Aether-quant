@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+import itertools
 import math
 import random
 from pathlib import Path
@@ -54,8 +55,8 @@ def test_the_owners_ladder():
 
 def test_the_ladder_never_moves_capital_backward():
     path = _glide({"old": 0.70, "new": 0.30}, 300)
-    assert all(later["new"] >= earlier["new"] - 1e-12 for earlier, later in zip(path, path[1:]))
-    assert all(later["old"] <= earlier["old"] + 1e-12 for earlier, later in zip(path, path[1:]))
+    assert all(later["new"] >= earlier["new"] - 1e-12 for earlier, later in itertools.pairwise(path))
+    assert all(later["old"] <= earlier["old"] + 1e-12 for earlier, later in itertools.pairwise(path))
 
 
 def test_a_generation_below_its_retire_share_is_gone_and_its_capital_passes_on():
@@ -141,7 +142,7 @@ def test_shares_stay_in_bounds_whatever_happens():
     for _ in range(2000):
         raw = [rng.random() for _ in names]
         total = sum(raw) / rng.uniform(0.2, 1.0)
-        shares = {name: value / total for name, value in zip(names, raw)}
+        shares = {name: value / total for name, value in zip(names, raw, strict=False)}
         stages = {name: rng.choice(["active", "ramping", "fading", "winding_down", "shadow", "retired"]) for name in names}
         states = {name: rng.choice(["healthy", "watch", "decaying", "dead", "tripped"]) for name in names}
         caps = {name: rng.choice([0.3, 1.0]) for name in names}
@@ -184,7 +185,7 @@ def test_nothing_jumps_a_new_generation_included():
     path = _glide_dynamic({"old": 1.0, "new": 0.0}, STAGES, evidence, 400)
     step = 1.0 - 0.5 ** (1.0 / 63.0)
     assert path[1]["new"] <= step + 1e-12 and path[1]["new"] > 0.0
-    biggest = max(abs(later[name] - earlier[name]) for earlier, later in zip(path, path[1:]) for name in STAGES)
+    biggest = max(abs(later[name] - earlier[name]) for earlier, later in itertools.pairwise(path) for name in STAGES)
     assert biggest <= step + 1e-12, "the ladder's first step is 30% of the book"
 
 
@@ -193,7 +194,7 @@ def test_a_generation_that_stops_earning_fades_out_and_its_capital_passes_on():
     path = _glide_dynamic({"old": 0.7, "new": 0.3}, {"old": "fading", "new": "ramping"}, evidence, 600)
     assert path[-1] == pytest.approx({"old": 0.0, "new": 1.0}, abs=0.01), "a share nears its target and never overshoots"
     falling = [row["old"] for row in path]
-    assert all(later <= earlier + 1e-12 for earlier, later in zip(falling, falling[1:]))
+    assert all(later <= earlier + 1e-12 for earlier, later in itertools.pairwise(falling))
     assert not any(0.0 < row["old"] < DYNAMIC.retire_share for row in path)
 
 
@@ -261,7 +262,7 @@ def test_dynamic_shares_stay_in_bounds_whatever_happens():
     for _ in range(1500):
         raw = [rng.random() for _ in names]
         total = sum(raw) / rng.uniform(0.2, 1.0)
-        shares = {name: value / total for name, value in zip(names, raw)}
+        shares = {name: value / total for name, value in zip(names, raw, strict=False)}
         stages = {name: rng.choice(["active", "ramping", "fading", "winding_down", "shadow", "retired"]) for name in names}
         states = {name: rng.choice(["healthy", "watch", "decaying", "dead", "tripped"]) for name in names}
         evidence = {name: _record(rng.choice([None, rng.uniform(-2.0, 2.0)]), sessions=rng.randint(0, 800), prior=rng.uniform(-0.5, 1.0)) for name in names}

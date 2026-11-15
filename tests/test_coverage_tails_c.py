@@ -17,7 +17,7 @@ def test_a_market_analysis_decision_serialises_to_a_plain_dict():
 import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
 
-from evaluation import confidence_threshold_calibration, rank_signal_calibration, research_harness, tranche_book, trade_bootstrap  # noqa: E402
+from evaluation import confidence_threshold_calibration, rank_signal_calibration, research_harness, trade_bootstrap, tranche_book  # noqa: E402
 
 
 def test_a_closed_trade_with_a_non_numeric_amount_is_not_a_round_trip():

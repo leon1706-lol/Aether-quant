@@ -1,12 +1,3 @@
-from .triggers import (
-    TRIGGER_TYPES,
-    cluster_drift_trigger,
-    evaluate_all_triggers,
-    model_topology_disagreement_trigger,
-    topology_regime_mismatch_trigger,
-    topology_uncertainty_trigger,
-    trigger_frequency_spike,
-)
 from .postgres_triggers import (
     ensure_schema,
     fetch_candidate_triggers,
@@ -21,6 +12,15 @@ from .postgres_triggers import (
     trigger_to_row,
 )
 from .trigger_worker import TriggerWorker
+from .triggers import (
+    TRIGGER_TYPES,
+    cluster_drift_trigger,
+    evaluate_all_triggers,
+    model_topology_disagreement_trigger,
+    topology_regime_mismatch_trigger,
+    topology_uncertainty_trigger,
+    trigger_frequency_spike,
+)
 
 __all__ = [
     "TRIGGER_TYPES",

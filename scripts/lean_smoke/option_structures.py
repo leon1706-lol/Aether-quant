@@ -6,15 +6,15 @@ Results are one `SMOKE_JSON {...}` debug line per structure. Fills and margin he
 proves the calls work, not what IB would do.
 """
 
-from AlgorithmImports import *  # noqa: F403
-
 import json
 from datetime import datetime
 
+from AlgorithmImports import *  # noqa: F403
+
+from features.options_greeks import compute_greeks, implied_volatility
 from portfolio.options_arbitrage_detector import select_arbitrage_signal
 from portfolio.options_assignment_risk import assignment_risk_flag, assignment_risk_score, extrinsic_value
 from portfolio.options_strategy import MULTI_LEG_STRATEGY_REGISTRY, select_single_leg_contract, select_strategy_legs
-from features.options_greeks import compute_greeks, implied_volatility
 
 RISK_FREE = 0.01
 # AAPL's dividend in the sample window, $3.29 a share before its 7-for-1 split of 2014-06-09 (ex 2014-08-07). The chain is priced

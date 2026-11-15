@@ -86,7 +86,7 @@ def build_definition(trial: str, tickers: list[str], anchor: str) -> dict:
         params["top_k"] = top_k
     return {
         "id": f"obs_{trial}", "kind": kind, "family": "crypto_signal", "universe": ["crypto"], "rebalance_every": every, "params": params, "tickers": list(tickers),
-        "asset_class": {ticker: "crypto" for ticker in tickers}, "anchor_date": anchor, "cost_class": "crypto", "initial_weights": {}, "settings": dict(CRYPTO_SETTINGS),
+        "asset_class": dict.fromkeys(tickers, "crypto"), "anchor_date": anchor, "cost_class": "crypto", "initial_weights": {}, "settings": dict(CRYPTO_SETTINGS),
         "data_sources": ["Coinbase public candles", "Yahoo chart API"],
     }
 

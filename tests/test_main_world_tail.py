@@ -62,7 +62,7 @@ def decide(algorithm, ticker, signal, *, confidence=0.9, weight=0.08, **kwargs):
 
 @pytest.mark.parametrize("ticker,direction", [("ES", "buy"), ("ES", "short"), ("EURUSD", "buy"), ("GBPJPY", "short")])
 def test_a_held_futures_or_forex_position_is_kept_resized_or_left_in_its_deadband(monkeypatch, tmp_path, ticker, direction):
-    _, algorithm, market = build(monkeypatch, tmp_path, {"phase_v2": {"forex_sleeve": {"enabled": True, "min_trade_usd": 100000000.0}, "portfolio_book": {"forex_resize_min_fraction": 0.5}}})
+    _, algorithm, _market = build(monkeypatch, tmp_path, {"phase_v2": {"forex_sleeve": {"enabled": True, "min_trade_usd": 100000000.0}, "portfolio_book": {"forex_resize_min_fraction": 0.5}}})
     notes = [decide(algorithm, ticker, direction)]
     notes.append(decide(algorithm, ticker, direction))
     notes.append(decide(algorithm, ticker, direction, weight=0.12))
@@ -77,7 +77,7 @@ def test_a_held_futures_or_forex_position_is_kept_resized_or_left_in_its_deadban
 
 @pytest.mark.parametrize("ticker,direction", [("ES", "buy"), ("ES", "short"), ("EURUSD", "buy"), ("GBPJPY", "short"), ("AAPL", "buy"), ("SPY", "short")])
 def test_a_second_order_for_a_held_name_rests_as_a_limit_when_limits_are_on(monkeypatch, tmp_path, ticker, direction):
-    _, algorithm, market = build(monkeypatch, tmp_path, {"phase_v2": {"limit_orders": {"enabled": True, "asset_classes": ["equity", "crypto", "bond", "future", "forex"]}}})
+    _, algorithm, _market = build(monkeypatch, tmp_path, {"phase_v2": {"limit_orders": {"enabled": True, "asset_classes": ["equity", "crypto", "bond", "future", "forex"]}}})
     first = decide(algorithm, ticker, direction)
     algorithm.fill_limit_orders()
     algorithm.flush_events()
@@ -104,7 +104,7 @@ def test_short_exposure_is_counted_per_class_and_caps_a_further_short(monkeypatc
 
 def test_a_margin_structure_counts_its_margin_as_the_options_exposure(monkeypatch, tmp_path):
     overrides = {"phase_v2": {"options_risk": {"enabled": True, "multi_leg_strategies_enabled": True, "margin_family": {"enabled": True}, "enabled_strategy_names": list(MULTI_LEG_STRATEGY_REGISTRY)}}}
-    _, algorithm, market = build(monkeypatch, tmp_path, overrides, extra=(OPTION,))
+    _, algorithm, _market = build(monkeypatch, tmp_path, overrides, extra=(OPTION,))
     from portfolio.options_margin_sizing import build_margin_position_sizing
 
     symbol = symbol_of(algorithm, "AAPL_OPT")
@@ -170,7 +170,7 @@ def test_a_failing_subscription_for_the_sweep_ticker_is_reported(monkeypatch, tm
 
 
 def test_model_inference_that_raises_is_reported_and_missing_models_return_nothing(monkeypatch, tmp_path):
-    main, algorithm, market = build(monkeypatch, tmp_path)
+    main, algorithm, _market = build(monkeypatch, tmp_path)
     monkeypatch.setattr(main, "run_exported_multitask_model", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("bad multitask")))
     monkeypatch.setattr(main, "run_exported_sequence_multitask_model", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("bad sequence")))
     symbol = symbol_of(algorithm, "AAPL")
@@ -214,7 +214,7 @@ def test_a_failing_slippage_tracker_or_an_unknown_order_event_changes_nothing(mo
 
 
 def test_an_option_chain_asset_without_an_underlying_or_a_subscription_has_no_rows(monkeypatch, tmp_path):
-    _, algorithm, market = build(monkeypatch, tmp_path, extra=(FUTURE, OPTION, {"ticker": "ORPHAN", "security_type": "option", "asset_class": "option", "market": "usa", "data_path": "x"}), overrides={"phase_v2": {"options_risk": {"enabled": True}}})
+    _, algorithm, _market = build(monkeypatch, tmp_path, extra=(FUTURE, OPTION, {"ticker": "ORPHAN", "security_type": "option", "asset_class": "option", "market": "usa", "data_path": "x"}), overrides={"phase_v2": {"options_risk": {"enabled": True}}})
     assert algorithm._build_options_chains_payload(SimpleNamespace(option_chains={})) is not None
     algorithm.phase1["universe"]["assets"].append({"ticker": "GHOST", "security_type": "option", "asset_class": "option", "underlying_ticker": "GHOST", "market": "usa"})
     assert algorithm._build_options_chains_payload(SimpleNamespace(option_chains={}))["GHOST"] == []

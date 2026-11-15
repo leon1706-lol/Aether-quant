@@ -25,7 +25,7 @@ def _context():
     dates = pd.bdate_range("2018-01-01", periods=400).strftime("%Y-%m-%d").tolist()
     tickers = ["A", "B", "C", "D", "E"]
     closes = 100.0 * np.exp(np.cumsum(rng.normal(0.0003, 0.01, size=(400, 5)), axis=0))
-    classes = {ticker: "equity" for ticker in tickers}
+    classes = dict.fromkeys(tickers, "equity")
     panel = ResearchPanel(known_closes(dates, tickers, closes, classes, set(dates)), classes)
     return SimpleNamespace(panel=panel)
 

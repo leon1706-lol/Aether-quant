@@ -24,7 +24,7 @@ def _valid_model(actions=(0.6, 0.8, 1.0)) -> dict:
 
 
 def _valid_state() -> dict:
-    return {key: 0.0 for key in RL_SIZING_STATE_KEYS}
+    return dict.fromkeys(RL_SIZING_STATE_KEYS, 0.0)
 
 
 # ---------------------------------------------------------------------------
@@ -142,7 +142,7 @@ def test_rl_sizing_multiplier_never_negative_or_zero():
     n_features = len(RL_SIZING_STATE_KEYS)
     model["weights"] = [[0.0] * n_features, [0.0] * n_features, [10.0] * n_features]  # favors action index 2
     model["bias"] = [0.0, 0.0, 0.0]
-    state = {key: 1.0 for key in RL_SIZING_STATE_KEYS}
+    state = dict.fromkeys(RL_SIZING_STATE_KEYS, 1.0)
 
     multiplier, _ = rl_sizing_multiplier(model, state, rl_sizing_enabled=True, min_rl_multiplier=0.6, max_rl_multiplier=1.0)
 
@@ -199,7 +199,7 @@ def _v667_model(raw):
     from risk.rl_sizing import RL_SIZING_STATE_KEYS
 
     keys = list(RL_SIZING_STATE_KEYS)
-    return {"state_keys": keys, "actions": [raw], "weights": [[0.0] * len(keys)], "bias": [0.0], "mean": [0.0] * len(keys), "scale": [1.0] * len(keys)}, {key: 0.0 for key in keys}
+    return {"state_keys": keys, "actions": [raw], "weights": [[0.0] * len(keys)], "bias": [0.0], "mean": [0.0] * len(keys), "scale": [1.0] * len(keys)}, dict.fromkeys(keys, 0.0)
 
 
 def test_v667_an_inverted_or_non_finite_band_is_a_no_op_never_an_amplified_size():

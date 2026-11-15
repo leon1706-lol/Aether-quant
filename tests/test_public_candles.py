@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import itertools
 import math
 import subprocess
 import sys
@@ -39,7 +40,7 @@ def test_product_names():
 def test_windows_cover_the_range_without_overlap_or_gaps():
     windows = candle_windows(date(2021, 1, 1), date(2023, 6, 30))
     assert windows[0][0] == date(2021, 1, 1) and windows[-1][1] == date(2023, 6, 30)
-    for (_, stop), (start, _) in zip(windows, windows[1:]):
+    for (_, stop), (start, _) in itertools.pairwise(windows):
         assert start == stop + timedelta(days=1)
     assert all((stop - start).days + 1 <= 299 for start, stop in windows)
     assert candle_windows(date(2022, 1, 2), date(2022, 1, 1)) == []
@@ -138,5 +139,5 @@ def test_the_bundled_sample_matches_its_readme_and_loads():
 
 
 def test_the_sample_check_script_agrees():
-    result = subprocess.run([sys.executable, str(ROOT / "scripts" / "build_hello_sample.py"), "--check"], capture_output=True, text=True, timeout=120)
+    result = subprocess.run([sys.executable, str(ROOT / "scripts" / "build_hello_sample.py"), "--check"], capture_output=True, text=True, timeout=120, check=False)
     assert result.returncode == 0, result.stdout + result.stderr

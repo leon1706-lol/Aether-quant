@@ -8,11 +8,11 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from evaluation.benchmark_comparison import close_pivot_from_frame, run_all_baselines
 from evaluation.public_benchmarks import (
     compute_60_40_baseline,
     compute_sp500_baseline,
 )
-from evaluation.benchmark_comparison import close_pivot_from_frame, run_all_baselines
 
 
 def _closes_from_daily_returns(daily_returns: dict[str, list[float]], start: float = 100.0) -> pd.DataFrame:

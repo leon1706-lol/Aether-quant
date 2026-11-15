@@ -165,7 +165,7 @@ def macd_histogram_normalized(closes: list[float], fast: int = 12, slow: int = 2
 
     fast_ema = _ema_series(closes, fast)
     slow_ema = _ema_series(closes, slow)
-    macd_line = [fast_value - slow_value for fast_value, slow_value in zip(fast_ema, slow_ema)]
+    macd_line = [fast_value - slow_value for fast_value, slow_value in zip(fast_ema, slow_ema, strict=False)]
     signal_line = _ema_series(macd_line, signal)
     histogram = macd_line[-1] - signal_line[-1]
     return histogram / closes[-1]

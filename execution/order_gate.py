@@ -575,6 +575,4 @@ def is_real_order_placement(execution_note: str, orders_allowed: bool) -> bool:
         return False
     if execution_note in _NO_OP_EXECUTION_NOTES:
         return False
-    if execution_note.endswith(_NO_OP_EXECUTION_NOTE_SUFFIXES):
-        return False
-    return True
+    return not execution_note.endswith(_NO_OP_EXECUTION_NOTE_SUFFIXES)

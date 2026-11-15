@@ -27,7 +27,7 @@ def read_secret_file(path: str) -> str | None:
 def _keyring():
     try:
         import keyring  # type: ignore[import-not-found]
-    except Exception:  # noqa: BLE001 - absent, or a broken backend: no keyring
+    except Exception:
         return None
     return keyring
 
@@ -38,7 +38,7 @@ def keyring_get(service: str, user: str) -> str | None:
         return None
     try:
         return module.get_password(service, user)
-    except Exception:  # noqa: BLE001 - a locked or missing backend is "not stored"
+    except Exception:
         return None
 
 
@@ -60,7 +60,7 @@ def keyring_delete(name: str, account_id: str | None = None) -> bool:
     try:
         module.delete_password(KEYRING_SERVICE, user)
         return True
-    except Exception:  # noqa: BLE001 - nothing stored
+    except Exception:
         return False
 
 

@@ -9,7 +9,6 @@ import shutil
 from pathlib import Path
 from types import SimpleNamespace
 
-
 import aq_cli
 from script_loader import ROOT
 

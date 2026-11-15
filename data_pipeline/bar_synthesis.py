@@ -9,7 +9,6 @@ from __future__ import annotations
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any
 
-
 if TYPE_CHECKING:
     from collections.abc import Callable
 
@@ -38,7 +37,7 @@ def _first_attribute(source, names: tuple[str, ...], default):
     for name in names:
         try:
             value = getattr(source, name)
-        except Exception:  # noqa: BLE001 - a Lean proxy may raise on a missing member
+        except Exception:
             continue
         if value is not None and not callable(value):
             return value

@@ -150,7 +150,7 @@ def _valid_shares(draw):
     raw = [draw(st.floats(0.0, 1.0)) for _ in keys]
     total = sum(raw)
     scale = 1.0 / total if total > 1.0 else 1.0
-    return {key: value * scale for key, value in zip(keys, raw)}
+    return {key: value * scale for key, value in zip(keys, raw, strict=False)}
 
 
 @PROFILE
@@ -213,7 +213,7 @@ def test_a_changed_future_value_changes_no_earlier_weight_row(seed, cut):
     coins = ["BTCUSD", "ETHUSD", "AAAUSD", "BBBUSD", "CCCUSD"]
     known = pd.DataFrame(100.0 * np.exp(np.cumsum(rng.normal(0, 0.03, (220, 5)), axis=0)), index=days, columns=coins)
     signal = known.pct_change(20, fill_method=None)
-    classes = {coin: "crypto" for coin in coins}
+    classes = dict.fromkeys(coins, "crypto")
     base = signal_to_weights(signal, ResearchPanel(known, classes, {}, {}), kind="cross_sectional", rebalance_every=5, settings=WeightSettings(), start=days[60], end=days[-1], top_k=3)
     changed_known = known.copy()
     changed_known.iloc[cut:] *= rng.uniform(0.3, 3.0, (220 - cut, 5))

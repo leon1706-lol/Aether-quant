@@ -202,7 +202,7 @@ def test_duplicate_event_id_does_not_raise():
     ON CONFLICT DO NOTHING is enforced by the SQL, not the worker layer.
     """
     event = _sample_event()
-    worker, client, conn_mock, cur_mock = _fake_worker(events=[event])
+    worker, client, _conn_mock, cur_mock = _fake_worker(events=[event])
     worker.run_once()
     client.xadd(_STREAM, {"payload": json.dumps(event)})
     worker.run_once()  # must not raise
@@ -211,7 +211,7 @@ def test_duplicate_event_id_does_not_raise():
 
 def test_malformed_event_goes_to_deadletter():
     client = fakeredis.FakeRedis()
-    conn_mock, cur_mock = _make_conn_mock()
+    conn_mock, _cur_mock = _make_conn_mock()
     client.xgroup_create(_STREAM, _GROUP, id="0", mkstream=True)
     client.xadd(_STREAM, {"payload": b"not valid json {{{"})
     worker = PostgresWorker(
@@ -259,7 +259,7 @@ def test_postgres_failure_leaves_messages_pending():
 
 
 def test_worker_returns_zero_when_stream_empty():
-    worker, client, conn_mock, cur_mock = _fake_worker(events=[])
+    worker, _client, _conn_mock, cur_mock = _fake_worker(events=[])
     count = worker.run_once()
     assert count == 0
     cur_mock.executemany.assert_not_called()

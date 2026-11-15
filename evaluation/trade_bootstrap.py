@@ -7,9 +7,9 @@ total with each name left out in turn.
 
 from __future__ import annotations
 
-import numpy as np
 from typing import TYPE_CHECKING, Any
 
+import numpy as np
 
 if TYPE_CHECKING:
     from numpy.typing import ArrayLike

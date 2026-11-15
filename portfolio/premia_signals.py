@@ -282,7 +282,7 @@ def _raw_weights(row: pd.Series, kind: str, volatility: pd.Series, asset_class: 
         return pd.Series(dtype=float)
     if kind == XS:
         pieces = []
-        for _, members in live.groupby(lambda ticker: asset_class.get(ticker)):
+        for _, members in live.groupby(asset_class.get):
             if len(members) < 4:
                 continue
             ranks = members.rank(pct=True) - (len(members) + 1) / (2.0 * len(members))
@@ -301,7 +301,7 @@ def _raw_weights(row: pd.Series, kind: str, volatility: pd.Series, asset_class: 
         # Ranks stay centred within a class, so knowing a name's group still earns nothing (#259), but a class's gross follows its breadth: a
         # 15-name sector gets the conviction per name of a 60-name one, not the same budget spread over a quarter of the names.
         pieces = []
-        for _, members in live.groupby(lambda ticker: asset_class.get(ticker)):
+        for _, members in live.groupby(asset_class.get):
             if len(members) >= 4:
                 pieces.append(members.rank(pct=True) - (len(members) + 1) / (2.0 * len(members)))
         return pd.concat(pieces) if pieces else pd.Series(dtype=float)

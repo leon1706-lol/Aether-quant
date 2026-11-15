@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pytest
+
 from script_loader import load_script, run_script
 
 pins = load_script("scorecard_pins")

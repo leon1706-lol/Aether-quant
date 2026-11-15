@@ -57,7 +57,7 @@ def verdict(tmp_path, monkeypatch):
     monkeypatch.setattr(module, "ROOT", root)
     monkeypatch.setattr(module, "OUT", out)
     monkeypatch.setattr(module, "FREEZE", out / "freeze_crypto1.json")
-    monkeypatch.setattr(module, "check_rules", lambda: {})
+    monkeypatch.setattr(module, "check_rules", dict)
     monkeypatch.setattr(module, "write_freeze", lambda path, payload: path.write_text(json.dumps(payload), encoding="utf-8"))
     monkeypatch.setattr(module, "freeze_digest_of", lambda path: "digest")
     monkeypatch.setattr(module, "crypto_cell", lambda root, base, name, **kwargs: _cell(name=name))
@@ -113,8 +113,9 @@ def test_breaks_rescore_without_the_spliced_coins(verdict, monkeypatch):
     (out / "r_crypto1.json").write_text(json.dumps({"sharpe": -0.06}), encoding="utf-8")
     monkeypatch.setattr(module, "ALL_SPECS", [SimpleNamespace(id="c1", track="C"), SimpleNamespace(id="w1", track="W")])
     monkeypatch.setattr(module, "load_cells", lambda specs: {"CS": _cell()})
-    import evaluation.premia_research as research
     import v660_research
+
+    import evaluation.premia_research as research
 
     monkeypatch.setattr(v660_research, "_signal_for", lambda spec, cell: cell.context.panel.known.copy())
     seen = []

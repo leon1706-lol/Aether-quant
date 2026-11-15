@@ -19,7 +19,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from evaluation.rank_ic_core import newey_west_t_stat  # noqa: E402
+from evaluation.rank_ic_core import newey_west_t_stat
 
 DEFAULT_HEADS = ("rank_5d", "rank_20d")
 HORIZON_DAYS = {"rank_5d": 5, "rank_20d": 20}

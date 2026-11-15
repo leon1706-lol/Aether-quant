@@ -42,7 +42,7 @@ def momentum_baseline(
                 longs = sorted_vals.head(top_n).index.tolist()
                 shorts = sorted_vals.tail(bottom_n).index.tolist()
                 w = 1.0 / max(top_n, 1)
-                held_weights = {t: w for t in longs}
+                held_weights = dict.fromkeys(longs, w)
                 for t in shorts:
                     held_weights[t] = -w
 
@@ -99,7 +99,7 @@ def mean_reversion_baseline(
                 longs = sorted_vals.head(top_n).index.tolist()
                 shorts = sorted_vals.tail(bottom_n).index.tolist()
                 w = 1.0 / max(top_n, 1)
-                held_weights = {t: w for t in longs}
+                held_weights = dict.fromkeys(longs, w)
                 for t in shorts:
                     held_weights[t] = -w
         # Accrue NEXT day's close-to-close return on the held book (same

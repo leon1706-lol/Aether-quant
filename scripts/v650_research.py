@@ -22,6 +22,8 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "scripts"))
 
+from v650_trials import ALL_SPECS, COMBINATION_IDS  # noqa: E402
+
 from evaluation.premia_research import (  # noqa: E402
     annual_sharpe,
     build_context,
@@ -37,7 +39,6 @@ from evaluation.premia_research import (  # noqa: E402
 )
 from evaluation.trial_ledger import append_trial  # noqa: E402
 from portfolio.premia_signals import ResearchPanel, combine_sleeves, sleeve_signal  # noqa: E402
-from v650_trials import ALL_SPECS, COMBINATION_IDS  # noqa: E402
 
 OUT = ROOT / "ml" / "evaluation" / "v650"
 SCORES = OUT / "selection_scores.json"
@@ -101,7 +102,7 @@ def stage_score(args) -> int:
         stored = pd.read_parquet(DAILY)
         frames = {column: stored[column].dropna() for column in stored.columns}
     for spec in ALL_SPECS:
-        if spec.track not in args.tracks or spec.id in scores and not args.force:
+        if spec.track not in args.tracks or (spec.id in scores and not args.force):
             continue
         table = spec.params.get("table")
         if table is not None and table not in context.panel.extras:
@@ -189,7 +190,7 @@ def stage_combine(args) -> int:
         signal = sleeve_signal(spec, context.panel)
         sleeves[name] = weights_for(spec, context, signal, start=start, end=end, phase_offset=phase_offsets(spec.rebalance_every)[0])
     results = {}
-    for name, method in zip(COMBINATION_IDS, ("inverse_vol", "hrp")):
+    for name, method in zip(COMBINATION_IDS, ("inverse_vol", "hrp"), strict=False):
         rows = combine_sleeves(sleeves, context.panel, method=method, settings=context.settings, start=start, end=end)
         strategy = context.simulate(rows, start, end)["strategy"]
         results[name] = {"sharpe": annual_sharpe(strategy), "first_half": annual_sharpe(strategy[strategy.index < split]),

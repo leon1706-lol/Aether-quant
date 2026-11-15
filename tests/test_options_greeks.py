@@ -12,7 +12,6 @@ from features.options_greeks import (
     vega,
 )
 
-
 # ---------------------------------------------------------------------------
 # bs_price - Hull's textbook example (Options, Futures, and Other
 # Derivatives): S=42, K=40, r=0.10, sigma=0.20, T=0.5, no dividend.

@@ -107,7 +107,7 @@ def test_harnesses_are_pooled_and_a_candidate_spec_redirects_the_models(research
 def test_the_legacy_probability_is_swapped_only_inside_the_block(research, ctx):
     harness, _t, _c = ctx.harness("validation")
     original = harness.frame[research_fakes.LEGACY_COLUMN].copy()
-    keys = list(zip(harness.frame["date"], harness.frame["ticker"]))
+    keys = list(zip(harness.frame["date"], harness.frame["ticker"], strict=False))
     with ctx.legacy_override(harness, {keys[0]: 0.99}):
         assert harness.frame[research_fakes.LEGACY_COLUMN].iloc[0] == 0.99 and harness.lagged_frame[research_fakes.LEGACY_COLUMN].iloc[0] == 0.99
     assert harness.frame[research_fakes.LEGACY_COLUMN].equals(original)
@@ -195,7 +195,7 @@ def test_the_main_group_frame_follows_the_rank_groups(research, ctx):
 
 
 def test_the_engaged_equity_ic_can_score_a_legacy_probability(research, ctx, monkeypatch):
-    monkeypatch.setattr(research, "engaged_labels", lambda ctx, harness, config: {day: True for day in research_fakes.DATES})
+    monkeypatch.setattr(research, "engaged_labels", lambda ctx, harness, config: dict.fromkeys(research_fakes.DATES, True))
     own = research.equity_engaged_ic(ctx, "validation", {}, None)
     probabilities = {(day, ticker): 0.5 + 0.01 * index for index, day in enumerate(research_fakes.DATES) for ticker in research_fakes.EQUITY}
     legacy = research.equity_engaged_ic(ctx, "validation", {}, None, probabilities)

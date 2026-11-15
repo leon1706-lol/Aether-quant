@@ -63,8 +63,8 @@ def sleeve_run(frame, base: dict, *, per_side: int, gross: float, rebalance: int
         raw_weights_fn=lambda allocations, date: build_forex_sleeve_weights(allocations, gross),
         normalize_to_percentile=True, live_weighting=False, sector_by_ticker={}, sector_neutral=False, dollar_neutral=True,
         entry_lag_bars=1, cost_bps_per_side=1.0, commission_bps=fee_bps,
-        commission_bps_by_ticker={ticker: fee_bps for ticker in tickers},
-        min_commission_usd_by_ticker={ticker: min_usd for ticker in tickers},
+        commission_bps_by_ticker=dict.fromkeys(tickers, fee_bps),
+        min_commission_usd_by_ticker=dict.fromkeys(tickers, min_usd),
         assumed_portfolio_value_usd=NAV, member_weight_fn=deadband,
     )
     return simulate_rank_book(frame, **kwargs)

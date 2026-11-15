@@ -100,7 +100,7 @@ def test_aq_hello_offline_runs_and_writes_files(tmp_path):
     began = time.perf_counter()
     result = subprocess.run(
         [sys.executable, "-c", "import aq_cli; aq_cli.main()", "hello", "--offline", "--json", str(tmp_path / "h.json"), "--html", str(tmp_path / "h.html")],
-        cwd=tmp_path, env=env, capture_output=True, text=True, timeout=600,
+        cwd=tmp_path, env=env, capture_output=True, text=True, timeout=600, check=False,
     )
     elapsed = time.perf_counter() - began
     assert result.returncode == 0, result.stderr[-3000:]

@@ -9,14 +9,14 @@ and the decay over horizons. Pure; no I/O.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING, Any
+
 import numpy as np
 import pandas as pd
 
 from evaluation.gate_audit import daily_rank_ic
 from evaluation.rank_book_simulator import summarize_metric_stability
 from evaluation.rank_ic_core import newey_west_t_stat
-from typing import TYPE_CHECKING, Any
-
 
 if TYPE_CHECKING:
     from collections.abc import Sequence

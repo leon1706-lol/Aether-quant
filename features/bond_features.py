@@ -48,6 +48,7 @@ place these values are actually visible (dashboard/state), same as before.
 """
 
 from __future__ import annotations
+
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -192,7 +193,7 @@ def empirical_duration_beta(
 def _scalar_duration_beta(etf_daily_returns, delta_10yr_yield_daily, min_observations: int) -> float | None:
     paired = [
         (x, y)
-        for x, y in zip(etf_daily_returns, delta_10yr_yield_daily)
+        for x, y in zip(etf_daily_returns, delta_10yr_yield_daily, strict=False)
         if x is not None and y is not None
     ]
     if len(paired) < min_observations:
@@ -202,7 +203,7 @@ def _scalar_duration_beta(etf_daily_returns, delta_10yr_yield_daily, min_observa
     ys = [float(pair[0]) for pair in paired]
     mean_x = sum(xs) / len(xs)
     mean_y = sum(ys) / len(ys)
-    covariance = sum((x - mean_x) * (y - mean_y) for x, y in zip(xs, ys))
+    covariance = sum((x - mean_x) * (y - mean_y) for x, y in zip(xs, ys, strict=False))
     variance_x = sum((x - mean_x) ** 2 for x in xs)
     # An exact `== 0.0` check is not robust here: for a mathematically
     # constant xs, whether mean_x/variance_x round to exactly 0.0 depends on
@@ -291,7 +292,7 @@ def rolling_duration_beta_series(
     covariance_sum = sum_xy - count * mean_x * mean_y
     variance_sum = sum_xx - count * mean_x * mean_x
     out: list[float | None] = []
-    for n, cov, var in zip(count.to_numpy(), covariance_sum.to_numpy(), variance_sum.to_numpy()):
+    for n, cov, var in zip(count.to_numpy(), covariance_sum.to_numpy(), variance_sum.to_numpy(), strict=False):
         if not np.isfinite(n) or n < min_observations or not np.isfinite(var) or var < 1e-12:
             out.append(None)
         else:

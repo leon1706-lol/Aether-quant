@@ -20,7 +20,7 @@ def _ns(**kwargs):
 
 
 def test_run_returns_the_exit_code_of_the_child(monkeypatch):
-    monkeypatch.setattr(aq_cli.subprocess, "run", lambda cmd, cwd: SimpleNamespace(returncode=3))
+    monkeypatch.setattr(aq_cli.subprocess, "run", lambda cmd, cwd, check: SimpleNamespace(returncode=3))
     assert aq_cli._run(["x"]) == 3
 
 
@@ -118,9 +118,9 @@ def test_the_strategy_selector_installs_its_artifacts_or_leaves_ml_alone(tmp_pat
 
 
 def test_test_command_runs_ruff_first_and_the_coverage_mode(monkeypatch, capsys):
-    monkeypatch.setattr(aq_cli.subprocess, "run", lambda cmd: SimpleNamespace(returncode=1))
+    monkeypatch.setattr(aq_cli.subprocess, "run", lambda cmd, check: SimpleNamespace(returncode=1))
     assert aq_cli.cmd_test(_ns(ruff=True)) == 1 and "ruff check failed" in capsys.readouterr().out
-    monkeypatch.setattr(aq_cli.subprocess, "run", lambda cmd: SimpleNamespace(returncode=0))
+    monkeypatch.setattr(aq_cli.subprocess, "run", lambda cmd, check: SimpleNamespace(returncode=0))
     monkeypatch.setattr(aq_cli, "_run_coverage", lambda args: 17)
     assert aq_cli.cmd_test(_ns(ruff=True, coverage=True)) == 17
 
@@ -196,8 +196,9 @@ def test_the_secret_scan_reports_an_unreadable_lean_json(tmp_path, monkeypatch, 
 
 
 def test_the_audit_log_filters_by_date_and_says_when_nothing_matches(monkeypatch, capsys):
-    import audit
     import psycopg
+
+    import audit
 
     conn = MagicMock()
     monkeypatch.setattr(aq_cli, "secret_env", lambda name, default="": "postgresql://x")

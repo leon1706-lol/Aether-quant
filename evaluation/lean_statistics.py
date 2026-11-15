@@ -157,7 +157,7 @@ def with_extra_daily_returns(
 ) -> list[float]:
     """Counterfactual daily performance: each day's return plus `extra_by_date[day]` (e.g. a sweep's weight x its
     T-bill return, as a fraction of NAV). Additive in return space, which is exact to first order for a small sleeve."""
-    return [value + float(extra_by_date.get(day, 0.0)) for value, day in zip(performance, performance_dates)]
+    return [value + float(extra_by_date.get(day, 0.0)) for value, day in zip(performance, performance_dates, strict=False)]
 
 
 def statistics_table(result_path: str | Path, rate_files: dict[str, str | Path], day_counts: Sequence[int] = (252, 365)) -> dict[str, Any]:

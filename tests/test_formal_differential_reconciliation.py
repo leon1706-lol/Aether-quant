@@ -20,9 +20,9 @@ def test_python_matches_the_lean_model():
         report = reconcile_positions(expected_by, actual_by, weight_tolerance=to_float(given["weight_tolerance"]),
                                      value_tolerance_usd=to_float(given["value_tolerance_usd"]),
                                      portfolio_value=to_float(given["portfolio_value"]))
-        classes = {symbol: "matched" for symbol in report.matched}
+        classes = dict.fromkeys(report.matched, "matched")
         for name in ("drifted", "orphan_broker", "missing_broker"):
             classes.update({entry["symbol"]: name for entry in getattr(report, name)})
-        for row, want in zip(given["rows"], expected["classes"]):
+        for row, want in zip(given["rows"], expected["classes"], strict=False):
             assert classes[f"N{row['sym']}"] == want, (index, row["sym"])
         assert report.max_abs_weight_drift == pytest.approx(to_float(expected["max_abs_weight_drift"]), abs=1e-12), index

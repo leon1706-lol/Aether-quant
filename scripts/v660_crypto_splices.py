@@ -23,9 +23,8 @@ OUT = ROOT / "ml" / "evaluation" / "v660" / "crypto_price_breaks.json"
 
 
 def closes_of(path: Path) -> dict[str, float]:
-    with zipfile.ZipFile(path) as archive:
-        with archive.open(archive.namelist()[0]) as handle:
-            rows = list(csv.reader(io.TextIOWrapper(handle, encoding="utf-8")))
+    with zipfile.ZipFile(path) as archive, archive.open(archive.namelist()[0]) as handle:
+        rows = list(csv.reader(io.TextIOWrapper(handle, encoding="utf-8")))
     return {f"{row[0][:4]}-{row[0][4:6]}-{row[0][6:8]}": float(row[4]) for row in rows}
 
 

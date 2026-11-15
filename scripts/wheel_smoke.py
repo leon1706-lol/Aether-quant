@@ -63,7 +63,7 @@ def check_imports() -> tuple[list[str], list[str]]:
                 failures.append(f"{name}: missing first-party module {error.name!r} - add it to pyproject.toml")
             else:
                 tolerated.append(f"{name}: optional third-party dependency {error.name!r} not installed")
-        except Exception as error:  # noqa: BLE001 - any other import-time crash is also a smoke failure
+        except Exception as error:
             failures.append(f"{name}: import raised {type(error).__name__}: {error}")
     return failures, tolerated
 
@@ -72,7 +72,7 @@ def subcommand_names() -> list[str]:
     import aq_cli
 
     parser = aq_cli.build_parser()
-    for action in parser._actions:  # noqa: SLF001 - argparse exposes no public subparser registry
+    for action in parser._actions:
         choices = getattr(action, "choices", None)
         if isinstance(choices, dict) and choices:
             return sorted(choices)
@@ -84,7 +84,7 @@ def check_help(names: list[str]) -> list[str]:
     for name in names:
         result = subprocess.run(
             [sys.executable, "-c", f"import sys, aq_cli; sys.argv = ['aq', {name!r}, '--help']; aq_cli.main()"],
-            capture_output=True, text=True, timeout=120,
+            capture_output=True, text=True, timeout=120, check=False,
         )
         if result.returncode != 0:
             failures.append(f"aq {name} --help exited {result.returncode}: {(result.stderr or result.stdout).strip()[-300:]}")
@@ -134,7 +134,7 @@ def check_library() -> list[str]:
         try:
             if not check(importlib.import_module(f"aether_quant.{name}")):
                 failures.append(f"aether_quant.{name}: smoke call returned an unexpected value")
-        except Exception as error:  # noqa: BLE001 - any failure of the installed library is a smoke failure
+        except Exception as error:
             failures.append(f"aether_quant.{name}: {type(error).__name__}: {error}")
     return failures
 

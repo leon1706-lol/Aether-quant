@@ -12,7 +12,7 @@ from types import SimpleNamespace
 import pytest
 
 import lean_world as world
-from lean_fakes import Market, FakeSymbol
+from lean_fakes import FakeSymbol, Market
 
 TICKERS = ("SPY", "AAPL", "MSFT", "TLT", "BTCUSD", "EURUSD", "GBPJPY")
 BASE = {"phase_v2": {"target_weights": {"enabled": False}, "rolling_ic_gate": {"enabled": False}, "limit_orders": {"enabled": False},

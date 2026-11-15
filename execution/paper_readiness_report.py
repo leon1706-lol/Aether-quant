@@ -12,8 +12,6 @@ phase_v2.runtime.mode to "paper".
 from __future__ import annotations
 
 import json
-
-from json_safety import atomic_write_json
 import logging
 import sys
 from datetime import datetime, timezone
@@ -21,8 +19,9 @@ from pathlib import Path
 
 from execution.paper_readiness import evaluate_observation_readiness, evaluate_paper_broker_config, evaluate_velocity_decision
 from execution.paper_readiness_io import fetch_observation_mode_events
-from experience.observation_metrics import compute_observation_summary
 from execution.secrets_io import secret_env
+from experience.observation_metrics import compute_observation_summary
+from json_safety import atomic_write_json
 
 logger = logging.getLogger(__name__)
 

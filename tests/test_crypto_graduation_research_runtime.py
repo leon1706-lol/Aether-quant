@@ -27,7 +27,7 @@ def module(monkeypatch, tmp_path):
 class Harness:
     def __init__(self, split, use_cache, dataset_path):
         self.split = split
-        self.asset_class_by_ticker = {ticker: "crypto" for ticker in CRYPTO} | {"SPY": "equity"}
+        self.asset_class_by_ticker = dict.fromkeys(CRYPTO, "crypto") | {"SPY": "equity"}
         self.metadata = {ticker: {"trading_eligible": ticker != "XRPUSD"} for ticker in CRYPTO} | {"SPY": {"trading_eligible": True}}
         self.frame = pd.DataFrame({"ticker": CRYPTO[:4] + ["SPY"]})
         self.core_crypto = frozenset({"BTCUSD"})

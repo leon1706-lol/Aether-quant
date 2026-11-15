@@ -19,8 +19,9 @@ for data that isn't itself part of the per-bar runtime state.
 
 from __future__ import annotations
 
-from portfolio.options_strategy import MULTI_LEG_STRATEGY_REGISTRY
 from typing import Any
+
+from portfolio.options_strategy import MULTI_LEG_STRATEGY_REGISTRY
 
 
 def build_strategy_catalog() -> dict[str, Any]:

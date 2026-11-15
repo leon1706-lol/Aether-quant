@@ -227,10 +227,10 @@ def main() -> int:
             summary["locked_dates_by_phase"] = [len(row["locked_dates"]) for row in per_phase]
             if stability and split == "backtest":
                 picked = phases[:: max(1, len(phases) // STABILITY_PHASES)][:STABILITY_PHASES]
-                locked = {phase: row["locked_dates"] for phase, row in zip(phases, per_phase)}
+                locked = {phase: row["locked_dates"] for phase, row in zip(phases, per_phase, strict=False)}
                 tasks = [(phase, seed) for phase in picked for seed in NOISE_SEEDS]
                 perturbed = map_tasks(tasks, args.workers)
-                overlaps = [jaccard(locked[phase], row["locked_dates"]) for (phase, _seed), row in zip(tasks, perturbed)]
+                overlaps = [jaccard(locked[phase], row["locked_dates"]) for (phase, _seed), row in zip(tasks, perturbed, strict=False)]
                 summary["stability_jaccard_median"] = statistics.median(overlaps)
                 summary["stability_jaccards"] = overlaps
             out[split] = summary

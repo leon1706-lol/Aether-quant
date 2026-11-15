@@ -12,11 +12,11 @@ from script_loader import load_script
 def test_a_function_needs_every_parameter_and_the_return_typed(monkeypatch):
     module = load_script("type_completeness")
 
-    def complete(x: int, *, y: "list[int]" = None) -> int: ...  # noqa: E704
+    def complete(x: int, *, y: list[int] | None = None) -> int: ...
 
-    def bare(x: dict, y) -> list: ...  # noqa: E704
+    def bare(x: dict, y) -> list: ...
 
-    def no_return(x: int): ...  # noqa: E704
+    def no_return(x: int): ...
 
     assert module._problems_of_function(complete) == []
     assert module._problems_of_function(bare) == ["parameter x is a bare dict", "parameter y has no annotation", "return is a bare list"]
@@ -41,17 +41,17 @@ def test_a_class_is_judged_on_its_public_members_and_its_own_init():
             return 1
 
         @classmethod
-        def build(cls, z) -> "Plain":
+        def build(cls, z) -> Plain:
             return cls(z)
 
-        def _private(self, q): ...  # noqa: E704
+        def _private(self, q): ...
 
     @dataclasses.dataclass
     class Generated:
         value: int
 
     class Proto(typing.Protocol):
-        def __init__(self, a): ...  # noqa: E704
+        def __init__(self, a): ...
 
     assert module._problems_of_class(Plain) == ["__init__: parameter x has no annotation", "__init__: no return annotation", "size: no return annotation", "build: parameter z has no annotation"]
     assert module._problems_of_class(Generated) == [] and module._problems_of_class(Proto) == []

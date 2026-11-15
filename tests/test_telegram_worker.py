@@ -150,7 +150,7 @@ def test_run_once_sends_only_triggers_at_or_above_min_severity():
 
 def test_run_once_sends_session_summary_alerts():
     summary = _sample_session_summary()
-    conn_mock, cur_mock = _make_conn_mock(triggers=[], session_summaries=[summary])
+    conn_mock, _cur_mock = _make_conn_mock(triggers=[], session_summaries=[summary])
     client = _FakeTelegramClient()
     worker = TelegramWorker(config=_CONFIG, _pg_conn=conn_mock, _telegram_client=client)
 

@@ -139,7 +139,7 @@ def main() -> int:
     def variant(name: str, *, exit_limit: bool, sweep_key: str, graduates_on: bool = True, caps=(0.01, 0.05)) -> dict:
         exit_rate = mean_side(sweep_key, "sell")
         fee = fee_per_side(True, exit_limit, ENTRY_FILL_RATE_BT2, exit_rate)
-        fee_map = {ticker: fee for ticker in crypto_all}
+        fee_map = dict.fromkeys(crypto_all, fee)
         out = {}
         for split, (harness, topology_fn) in harnesses.items():
             use_topology(harness, topology_fn)

@@ -36,7 +36,6 @@ sys.path.insert(0, str(ROOT_DIR))
 
 import train  # noqa: E402
 
-
 SPLIT_FILE_NAMES = {"train": "train_dataset.csv", "validation": "validation_dataset.csv", "backtest": "backtest_dataset.csv"}
 
 
@@ -87,7 +86,7 @@ def main() -> int:
 
     holdout_config, dropped = train.build_holdout_config(config, args.root, args.start, args.end)
     print(f"assets kept: {len(holdout_config['phase1']['universe']['assets'])}, dropped (no holdout zip): {dropped}")
-    dataset, metadata = train.build_feature_dataset(holdout_config)
+    dataset, _metadata = train.build_feature_dataset(holdout_config)
     dataset = train.apply_asset_quality_flags(dataset, manifest["asset_quality"])
     dataset = train.apply_scaler_stats(dataset, scaler_stats)
     dataset, _ = train.add_asset_context_features(dataset, [asset["ticker"] for asset in holdout_config["phase1"]["universe"]["assets"]])

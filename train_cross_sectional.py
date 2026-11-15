@@ -26,7 +26,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from features.training_splits import FIRST_TEST_YEAR, PURGE_DAYS, TARGET, annual_windows, centred_label, rank_inputs  # noqa: F401
+from features.training_splits import FIRST_TEST_YEAR, PURGE_DAYS, TARGET, annual_windows, centred_label, rank_inputs
 
 LOGGER = logging.getLogger("train_cross_sectional")
 EARLY_STOP_GAP_SESSIONS = 22
@@ -37,9 +37,9 @@ GBM_VARIANTS = {"a": {"max_depth": 3, "learning_rate": 0.03, "max_iter": 300}, "
 def load_frame(dataset: Path, config: dict, schema: dict) -> tuple[pd.DataFrame, list[str]]:
     from features.cross_sectional_inputs import asset_class_by_ticker
 
-    features = [name for name in schema["scaled_feature_names"]]
+    features = list(schema["scaled_feature_names"])
     usecols = ["date", "ticker", TARGET, *features]
-    frame = pd.read_csv(dataset, usecols=usecols, dtype={name: "float32" for name in [TARGET, *features]})
+    frame = pd.read_csv(dataset, usecols=usecols, dtype=dict.fromkeys([TARGET, *features], "float32"))
     frame["date"] = frame["date"].astype(str).str[:10]
     classes = asset_class_by_ticker(config)
     frame["_class"] = frame["ticker"].astype(str).map(lambda ticker: classes.get(ticker, "unknown"))
@@ -187,7 +187,7 @@ def fit_predict_set_transformer(
     with torch.no_grad():
         for batch in _date_batches(test, features, class_index):
             scores = model(batch["x"], batch["c"]).squeeze(0).numpy()
-            for index, value in zip(batch["index"], scores):
+            for index, value in zip(batch["index"], scores, strict=False):
                 predictions[positions[index]] = float(value)
     return predictions
 

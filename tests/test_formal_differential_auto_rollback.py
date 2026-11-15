@@ -16,7 +16,7 @@ def test_python_matches_the_lean_model():
         config = {"require_prior_gate_pass": given["require_gate"]}
         if given["enabled"] != "missing":
             config["enabled"] = VALUES[given["enabled"]]
-        signals = {name: VALUES[kind] for name, kind in zip(TRIGGERS, given["triggers"]) if kind != "missing"}
+        signals = {name: VALUES[kind] for name, kind in zip(TRIGGERS, given["triggers"], strict=False) if kind != "missing"}
         signals["bars_since_promotion"] = given["bars_since_promotion"]
         signals["bars_since_last_rollback"] = given["bars_since_last_rollback"]
         history = [{"model_version_id": f"v{i}", "metrics": {"validation_gate": {"passed": VALUES[kind]}}} for i, kind in enumerate(given["gates"])]

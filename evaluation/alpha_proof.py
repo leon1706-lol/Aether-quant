@@ -17,10 +17,10 @@ from __future__ import annotations
 import json
 import math
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import pandas as pd
-from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
@@ -59,7 +59,7 @@ def strategy_daily_returns(run: dict[str, Any], config: dict[str, Any], root: Pa
     sweep_by_day = {day: sum(e["pnl"] - e["fee"] for t, e in tickers.items() if t in sweep) for day, tickers in ticker_pnl.items()}
     carry = _interval_sums(sweep_by_day, dates)
     returns = {}
-    for index, (before, after, sweep_pnl) in enumerate(zip(nav, nav[1:], carry), start=1):
+    for index, (before, after, sweep_pnl) in enumerate(zip(nav, nav[1:], carry, strict=False), start=1):
         if before > 0.0:
             returns[dates[index]] = ((after - before) - sweep_pnl) / before
     return pd.Series(returns, dtype=float).sort_index()
@@ -290,6 +290,6 @@ def alpha_proof_report(run_dir: Path, config: dict[str, Any], root: Path, *, tri
     periods["fresh"]["judgeable"] = sessions_after_freeze >= FORWARD_MIN_SESSIONS
     periods["fresh"]["forward_judgeable"] = periods["fresh"]["judgeable"]
     report = {"run": run_dir.name, "config": str(snapshot) if snapshot else "config.json", "annualization": annualization,
-              "benchmarks": [c for c in benchmarks.columns], "periods": periods}
+              "benchmarks": list(benchmarks.columns), "periods": periods}
     report["r_alpha1"] = r_alpha1(report)
     return report

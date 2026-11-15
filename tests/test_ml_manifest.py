@@ -7,7 +7,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
-from ml_manifest import manifest_lines  # noqa: E402
+from ml_manifest import manifest_lines
 
 
 def test_manifest_lists_top_level_models_and_experts_only(tmp_path):

@@ -7,6 +7,7 @@ executing. The degradation score is a continuous 0-1 weighted composite of
 all trigger severities, giving more signal than the binary flags alone."""
 
 from __future__ import annotations
+
 from typing import Any
 
 

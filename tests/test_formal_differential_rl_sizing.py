@@ -21,7 +21,7 @@ def _value(rational):
 
 
 def test_python_matches_the_lean_model():
-    state = {key: 0.0 for key in RL_SIZING_STATE_KEYS}
+    state = dict.fromkeys(RL_SIZING_STATE_KEYS, 0.0)
     for index, case in enumerate(load_cases("rl_sizing")["cases"]):
         given, expected = case["input"], case["expected"]
         if case["kind"] == "clamp":

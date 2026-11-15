@@ -28,11 +28,10 @@ from __future__ import annotations
 
 import bisect
 from collections import defaultdict
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import pandas as pd
-from typing import TYPE_CHECKING, Any
-
 
 if TYPE_CHECKING:
     from numpy.typing import ArrayLike
@@ -171,7 +170,7 @@ def resolve_realized_rank_ic_observations(events: list[dict], horizon_days: int 
     for event in usable:
         origin_date = str(event["created_at"])[:10]
         dated_closes_by_ticker[event["ticker"]].append((origin_date, float(event["close_price"])))
-    for ticker, dated_closes in dated_closes_by_ticker.items():
+    for dated_closes in dated_closes_by_ticker.values():
         dated_closes.sort(key=lambda entry: entry[0])
 
     resolved: list[dict] = []

@@ -31,15 +31,24 @@ import joblib
 import numpy as np
 import pandas as pd
 import torch
+from sklearn.preprocessing import StandardScaler
+from torch import nn
+from torch.utils.data import DataLoader, Sampler, TensorDataset
+
+from data_pipeline.fred_backfill import ALT_DATA_PUBLICATION_LAG_DAYS, load_cached_fred_series, series_change_asof, series_value_asof
+from evaluation.model_predictions import predict_head
+from evaluation.rank_book_simulator import capacity_curve, simulate_rank_book, stress_test_costs, summarize_metric_stability
+from evaluation.rank_ic_core import rank_ic_from_arrays
+from execution.cost_model import commission_bps_by_ticker
 from experts import EXPERT_DEFINITIONS, build_expert_dataset_manifest, write_expert_dataset_artifacts
 from features import (
     CREDIT_SPREAD_LEVEL_NEUTRAL,
     CROSS_ASSET_SENSITIVITY_FEATURE_NAMES,
-    YIELD_CURVE_CURVATURE_NEUTRAL,
-    YIELD_CURVE_LEVEL_NEUTRAL,
     FINANCIAL_CONDITIONS_CHANGE_NEUTRAL,
     IMPLIED_VOL_TERM_STRUCTURE_NEUTRAL,
     IMPLIED_VOLATILITY_LEVEL_NEUTRAL,
+    YIELD_CURVE_CURVATURE_NEUTRAL,
+    YIELD_CURVE_LEVEL_NEUTRAL,
     analytic_convexity,
     analytic_modified_duration,
     average_true_range_pct,
@@ -57,7 +66,6 @@ from features import (
     implied_vol_term_structure,
     implied_volatility,
     implied_volatility_level,
-    load_sector_mapping as _features_load_sector_mapping,
     macd_histogram_normalized,
     nearest_yield_curve_point,
     options_implied_vol_skew,
@@ -70,8 +78,9 @@ from features import (
     yield_curve_level,
     yield_curve_slope_proxy,
 )
-from execution.cost_model import commission_bps_by_ticker
-from json_safety import atomic_write_json, load_json_lenient
+from features import (
+    load_sector_mapping as _features_load_sector_mapping,
+)
 from features.bond_features import resolve_bond_duration_beta_mode, rolling_duration_beta_series
 from features.cross_asset_timing import (
     CrossAssetTimeline,
@@ -80,22 +89,13 @@ from features.cross_asset_timing import (
     resolve_forex_lean_holidays,
 )
 from features.fx_carry import FX_CARRY_FEATURE_NAME, FX_RATE_PUBLICATION_LAG_DAYS, fx_carry_3m
-from data_pipeline.fred_backfill import load_cached_fred_series, series_change_asof, series_value_asof
-from data_pipeline.fred_backfill import ALT_DATA_PUBLICATION_LAG_DAYS
-from evaluation.model_predictions import predict_head
-from evaluation.rank_book_simulator import capacity_curve, simulate_rank_book, stress_test_costs, summarize_metric_stability
-from evaluation.rank_ic_core import rank_ic_from_arrays
+from json_safety import atomic_write_json, load_json_lenient
 from liquidity import estimate_high_low_spread
 from liquidity.market_liquidity import TYPICAL_SPREAD_BY_TYPE
+from performance_probe import install_sigterm_witness
 from regime import build_model_input_regime_vector
-from sklearn.preprocessing import StandardScaler
 from topology import build_market_topology
 from topology.market_topology import ELEVATED_VOLATILITY_THRESHOLD, resolve_elevated_volatility_thresholds
-from torch import nn
-from torch.utils.data import DataLoader, Sampler, TensorDataset
-
-
-from performance_probe import install_sigterm_witness  # noqa: E402
 
 LOGGER = logging.getLogger("aether_quant.train")
 ROOT = Path(__file__).resolve().parent
@@ -1422,7 +1422,7 @@ def build_bond_features_by_date(
         if is_bond and "close" in result.columns:
             dates_sorted = result["date"].tolist()
             closes_sorted = result["close"].tolist()
-            for row_date, close_price in zip(dates_sorted, closes_sorted):
+            for row_date, close_price in zip(dates_sorted, closes_sorted, strict=False):
                 coupon_rate = assumed_coupon_rate
                 if coupon_rate is None:
                     coupon_rate = nearest_yield_curve_point(
@@ -1649,7 +1649,7 @@ def build_cross_asset_sensitivity_features(
             else [None] * len(dates_sorted)
         )
 
-        for driver_key, friendly_name in drivers.items():
+        for driver_key in drivers:
             level_by_date = level_by_date_by_driver[driver_key]
             levels_sorted = [level_by_date.get(d) for d in dates_sorted]
             deltas_sorted: list[float | None] = [None] * len(levels_sorted)
@@ -1747,8 +1747,8 @@ def build_derivatives_macro_features_by_date(asset_frames: dict[str, pd.DataFram
         key=lambda ticker: assets_by_ticker[ticker].get("contract_month") or ticker,
     )
     if len(futures_members) >= 2:
-        front_by_date = dict(zip(asset_frames[futures_members[0]]["date"], asset_frames[futures_members[0]]["close"]))
-        next_by_date = dict(zip(asset_frames[futures_members[1]]["date"], asset_frames[futures_members[1]]["close"]))
+        front_by_date = dict(zip(asset_frames[futures_members[0]]["date"], asset_frames[futures_members[0]]["close"], strict=False))
+        next_by_date = dict(zip(asset_frames[futures_members[1]]["date"], asset_frames[futures_members[1]]["close"], strict=False))
         for current_date in set(front_by_date) | set(next_by_date):
             term_structure_by_date[current_date] = futures_term_structure_slope(
                 front_by_date.get(current_date), next_by_date.get(current_date)
@@ -1763,7 +1763,7 @@ def build_derivatives_macro_features_by_date(asset_frames: dict[str, pd.DataFram
         if _asset_class(ticker) == "option" and assets_by_ticker.get(ticker, {}).get("underlying_ticker") == options_ref
     ]
     if option_members and options_ref in asset_frames:
-        underlying_close_by_date = dict(zip(asset_frames[options_ref]["date"], asset_frames[options_ref]["close"]))
+        underlying_close_by_date = dict(zip(asset_frames[options_ref]["date"], asset_frames[options_ref]["close"], strict=False))
         member_rows = {}
         for ticker in option_members:
             asset = assets_by_ticker[ticker]
@@ -1774,8 +1774,8 @@ def build_derivatives_macro_features_by_date(asset_frames: dict[str, pd.DataFram
                 continue
             expiry_date = pd.Timestamp(expiry).date()
             frame = asset_frames[ticker]
-            volume_by_date = dict(zip(frame["date"], frame["volume"])) if "volume" in frame.columns else {}
-            close_by_date = dict(zip(frame["date"], frame["close"]))
+            volume_by_date = dict(zip(frame["date"], frame["volume"], strict=False)) if "volume" in frame.columns else {}
+            close_by_date = dict(zip(frame["date"], frame["close"], strict=False))
             member_rows[ticker] = {"right": right, "strike": strike, "expiry_date": expiry_date, "volume_by_date": volume_by_date, "close_by_date": close_by_date}
 
         all_dates = set(underlying_close_by_date)
@@ -1891,7 +1891,7 @@ def _asof_betas(frame: pd.DataFrame, market_daily_by_date: dict) -> list[float]:
 def _market_daily_by_date(market_frame: pd.DataFrame | None) -> dict:
     if market_frame is None or "close_to_close_return_1d" not in market_frame.columns:
         return {}
-    return dict(zip(market_frame["date"], market_frame["close_to_close_return_1d"]))
+    return dict(zip(market_frame["date"], market_frame["close_to_close_return_1d"], strict=False))
 
 
 def load_sector_mapping(config: dict) -> dict[str, str]:
@@ -1981,7 +1981,7 @@ def build_residual_rank_targets(asset_frames: dict[str, pd.DataFrame], config: d
     if asof and market_frame is not None:
         market_daily = _market_daily_by_date(market_frame)
         for ticker, frame in updated_frames.items():
-            asof_beta_by_ticker_date.update(zip(zip([ticker] * len(frame), frame["date"]), _asof_betas(frame, market_daily)))
+            asof_beta_by_ticker_date.update(zip(zip([ticker] * len(frame), frame["date"], strict=False), _asof_betas(frame, market_daily), strict=False))
 
     for horizon_days in (5, 20):
         return_column = f"target_return_{horizon_days}d"
@@ -1990,7 +1990,7 @@ def build_residual_rank_targets(asset_frames: dict[str, pd.DataFrame], config: d
         beta_by_ticker: dict[str, float] = {}
         market_return_by_date: dict = {}
         if use_market and market_frame is not None and return_column in market_frame.columns:
-            market_return_by_date = dict(zip(market_frame["date"], market_frame[return_column]))
+            market_return_by_date = dict(zip(market_frame["date"], market_frame[return_column], strict=False))
             for ticker, frame in updated_frames.items():
                 asset_returns = [None if pd.isna(value) else float(value) for value in frame[return_column]]
                 market_returns = [
@@ -2002,7 +2002,7 @@ def build_residual_rank_targets(asset_frames: dict[str, pd.DataFrame], config: d
 
         long_rows = []
         for ticker, frame in updated_frames.items():
-            for current_date, return_value in zip(frame["date"], frame[return_column]):
+            for current_date, return_value in zip(frame["date"], frame[return_column], strict=False):
                 if pd.isna(return_value):
                     continue
                 long_rows.append({"ticker": ticker, "date": current_date, "return": float(return_value)})
@@ -2016,7 +2016,7 @@ def build_residual_rank_targets(asset_frames: dict[str, pd.DataFrame], config: d
 
         long_frame = pd.DataFrame(long_rows)
         if use_market and asof:
-            long_frame["beta"] = [asof_beta_by_ticker_date.get(key, 0.0) for key in zip(long_frame["ticker"], long_frame["date"])]
+            long_frame["beta"] = [asof_beta_by_ticker_date.get(key, 0.0) for key in zip(long_frame["ticker"], long_frame["date"], strict=False)]
         else:
             long_frame["beta"] = long_frame["ticker"].map(beta_by_ticker).fillna(0.0) if use_market else 0.0
         long_frame["market_return"] = (
@@ -2031,11 +2031,11 @@ def build_residual_rank_targets(asset_frames: dict[str, pd.DataFrame], config: d
             size_by_ticker_date: dict = {}
             for ticker, frame in updated_frames.items():
                 if size_proxy_column in frame.columns:
-                    for current_date, size_value in zip(frame["date"], frame[size_proxy_column]):
+                    for current_date, size_value in zip(frame["date"], frame[size_proxy_column], strict=False):
                         size_by_ticker_date[(ticker, current_date)] = size_value
             long_frame["size_proxy"] = [
                 size_by_ticker_date.get((ticker, current_date), np.nan)
-                for ticker, current_date in zip(long_frame["ticker"], long_frame["date"])
+                for ticker, current_date in zip(long_frame["ticker"], long_frame["date"], strict=False)
             ]
             grouped_size = long_frame.groupby("date")["size_proxy"]
             size_std = grouped_size.transform("std").replace(0.0, np.nan)
@@ -2202,7 +2202,7 @@ def build_cross_sectional_rank_targets(asset_frames: dict[str, pd.DataFrame], co
         market_frame = updated_frames.get(market_ticker)
         beta_neutral_rank_lookup: dict = {}
         if market_frame is not None and return_column in market_frame.columns:
-            market_return_by_date = dict(zip(market_frame["date"], market_frame[return_column]))
+            market_return_by_date = dict(zip(market_frame["date"], market_frame[return_column], strict=False))
             residual_rows = []
             for ticker, frame in updated_frames.items():
                 dates = frame["date"].tolist()
@@ -2216,7 +2216,7 @@ def build_cross_sectional_rank_targets(asset_frames: dict[str, pd.DataFrame], co
                 else:
                     beta = empirical_duration_beta(asset_returns, market_returns, min_observations=beta_min_observations)
                     row_betas = [beta if beta is not None else 0.0] * len(dates)
-                for current_date, asset_return, market_return, beta in zip(dates, asset_returns, market_returns, row_betas):
+                for current_date, asset_return, market_return, beta in zip(dates, asset_returns, market_returns, row_betas, strict=False):
                     if asset_return is None or market_return is None:
                         continue
                     residual_rows.append(
@@ -3198,7 +3198,7 @@ class AetherNetSequenceMultiTask(nn.Module):
     def forward(self, sequence: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         # sequence: (batch, window, input_dim) -> Conv1d wants channels-first.
         current = sequence.transpose(1, 2)  # (batch, input_dim, window)
-        for layer_index, conv in enumerate(self.conv_layers):
+        for _layer_index, conv in enumerate(self.conv_layers):
             dilation = conv.dilation[0]
             pad_left = (self.kernel_size - 1) * dilation
             current = nn.functional.pad(current, (pad_left, 0))
@@ -3277,7 +3277,7 @@ class AetherNetSequenceMultiTaskHorizons(nn.Module):
 
     def forward(self, sequence: torch.Tensor) -> dict[str, torch.Tensor]:
         current = sequence.transpose(1, 2)  # (batch, input_dim, window)
-        for conv, layer_norm in zip(self.conv_layers, self.layer_norms):
+        for conv, layer_norm in zip(self.conv_layers, self.layer_norms, strict=False):
             dilation = conv.dilation[0]
             pad_left = (self.kernel_size - 1) * dilation
             current = nn.functional.pad(current, (pad_left, 0))
@@ -7039,7 +7039,7 @@ def _run_walk_forward_trainer(
             cwd=str(ROOT),
             capture_output=True,
             text=True,
-            timeout=timeout_seconds,
+            timeout=timeout_seconds, check=False,
         )
     except Exception as exc:  # never let a best-effort subprocess crash the walk-forward run
         LOGGER.warning("walk-forward: %s subprocess failed to launch for %s - %s", script_name, version_id, exc)

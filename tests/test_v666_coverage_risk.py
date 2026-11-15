@@ -52,7 +52,7 @@ def _model():
 
 
 def test_a_model_whose_action_row_is_the_wrong_length_is_malformed():
-    state = {key: 0.0 for key in RL_SIZING_STATE_KEYS}
+    state = dict.fromkeys(RL_SIZING_STATE_KEYS, 0.0)
     assert rl_sizing_multiplier(_model(), state, True) == (1.0, "rl_sizing_malformed_model")
 
 

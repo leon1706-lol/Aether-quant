@@ -101,12 +101,12 @@ def test_event_to_row_chains_to_given_prev_hash():
 
 
 def test_fetch_latest_hash_returns_genesis_on_empty_table():
-    conn_mock, cur_mock = _make_conn_mock(latest_hash=None)
+    conn_mock, _cur_mock = _make_conn_mock(latest_hash=None)
     assert fetch_latest_hash(conn_mock) == GENESIS_HASH
 
 
 def test_fetch_latest_hash_returns_tail_hash():
-    conn_mock, cur_mock = _make_conn_mock(latest_hash="b" * 64)
+    conn_mock, _cur_mock = _make_conn_mock(latest_hash="b" * 64)
     assert fetch_latest_hash(conn_mock) == "b" * 64
 
 
@@ -138,7 +138,7 @@ def test_run_once_persists_batch_and_chains_correctly():
 
 def test_run_once_continues_existing_chain():
     events = [_sample_event()]
-    worker, client, conn_mock, cur_mock = _fake_worker(events=events, latest_hash="c" * 64)
+    worker, _client, _conn_mock, cur_mock = _fake_worker(events=events, latest_hash="c" * 64)
 
     worker.run_once()
 
@@ -148,7 +148,7 @@ def test_run_once_continues_existing_chain():
 
 def test_malformed_event_goes_to_deadletter():
     client = fakeredis.FakeRedis()
-    conn_mock, cur_mock = _make_conn_mock()
+    conn_mock, _cur_mock = _make_conn_mock()
     client.xgroup_create(_STREAM, _GROUP, id="0", mkstream=True)
     client.xadd(_STREAM, {"payload": b"not valid json {{{"})
     worker = PostgresWorker(
@@ -196,7 +196,7 @@ def test_postgres_failure_leaves_messages_pending():
 
 
 def test_worker_returns_zero_when_stream_empty():
-    worker, client, conn_mock, cur_mock = _fake_worker(events=[])
+    worker, _client, _conn_mock, cur_mock = _fake_worker(events=[])
     count = worker.run_once()
     assert count == 0
     cur_mock.executemany.assert_not_called()
@@ -317,7 +317,7 @@ def _events(count: int):
 
 
 def test_messages_read_during_an_outage_are_replayed_after_it():
-    worker, client, conn_mock, cur_mock = _fake_worker(events=_events(4))
+    worker, client, _conn_mock, cur_mock = _fake_worker(events=_events(4))
     cur_mock.executemany.side_effect = RuntimeError("server closed the connection unexpectedly")
     cur_mock.execute.side_effect = RuntimeError("server closed the connection unexpectedly")
     with pytest.raises(RuntimeError):
@@ -352,7 +352,7 @@ def test_a_new_worker_with_the_same_consumer_name_picks_up_what_a_dead_one_left(
 def test_a_batch_that_keeps_failing_for_a_reason_that_is_not_the_connection_is_dead_lettered_not_retried_forever():
     from audit.postgres_worker import MAX_REPLAY_FAILURES
 
-    worker, client, conn_mock, cur_mock = _fake_worker(events=_events(2))
+    worker, client, _conn_mock, cur_mock = _fake_worker(events=_events(2))
     cur_mock.executemany.side_effect = ValueError("value too long for type character varying(30)")
     cur_mock.execute.side_effect = ValueError("value too long for type character varying(30)")
     for _ in range(MAX_REPLAY_FAILURES + 1):
@@ -364,7 +364,7 @@ def test_a_batch_that_keeps_failing_for_a_reason_that_is_not_the_connection_is_d
 def test_a_long_outage_never_dead_letters_anything():
     from audit.postgres_worker import MAX_REPLAY_FAILURES
 
-    worker, client, conn_mock, cur_mock = _fake_worker(events=_events(2))
+    worker, client, _conn_mock, cur_mock = _fake_worker(events=_events(2))
     cur_mock.executemany.side_effect = RuntimeError("terminating connection due to administrator command")
     cur_mock.execute.side_effect = RuntimeError("terminating connection due to administrator command")
     for _ in range(MAX_REPLAY_FAILURES * 4):
@@ -375,7 +375,7 @@ def test_a_long_outage_never_dead_letters_anything():
 
 def test_a_failing_dashboard_export_never_loses_the_committed_rows(_patch_status_export):
     _patch_status_export.side_effect = OSError("disk full")
-    worker, client, conn_mock, cur_mock = _fake_worker(events=[_sample_event()])
+    worker, client, conn_mock, _cur_mock = _fake_worker(events=[_sample_event()])
     assert worker.run_once() == 1
     conn_mock.commit.assert_called()
     assert client.xpending(_STREAM, _GROUP)["pending"] == 0

@@ -18,7 +18,7 @@ DEMO = ROOT / "monitoring" / "demo"
 
 
 def test_a_rebuild_reproduces_the_tracked_demo_files(tmp_path):
-    result = subprocess.run([sys.executable, str(ROOT / "scripts" / "build_dashboard_demo.py"), "--out", str(tmp_path)], capture_output=True, text=True, timeout=900)
+    result = subprocess.run([sys.executable, str(ROOT / "scripts" / "build_dashboard_demo.py"), "--out", str(tmp_path)], capture_output=True, text=True, timeout=900, check=False)
     assert result.returncode == 0, result.stderr[-3000:]
     built = sorted(path.relative_to(tmp_path).as_posix() for path in tmp_path.rglob("*") if path.is_file())
     tracked = sorted(path.relative_to(DEMO).as_posix() for path in DEMO.rglob("*") if path.is_file())
@@ -68,4 +68,4 @@ def test_without_the_variable_the_paths_are_the_repos_own():
     import monitoring.api_server as api_server
 
     module = importlib.reload(api_server)
-    assert module.DATA_ROOT == module.ROOT_DIR.resolve() and not module.CUSTOM_ROOT and module.VISUALIZATION_DIR == module.DATA_ROOT / "visualization"
+    assert module.ROOT_DIR.resolve() == module.DATA_ROOT and not module.CUSTOM_ROOT and module.VISUALIZATION_DIR == module.DATA_ROOT / "visualization"

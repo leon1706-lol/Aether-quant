@@ -52,16 +52,16 @@ def compare_values(live: dict[str, dict], offline: dict[str, float | None], floo
     live_values = [value for _, value, _ in pairs]
     offline_values = [value for _, _, value in pairs]
     mean_live, mean_offline = sum(live_values) / len(pairs), sum(offline_values) / len(pairs)
-    covariance = sum((a - mean_live) * (b - mean_offline) for a, b in zip(live_values, offline_values))
+    covariance = sum((a - mean_live) * (b - mean_offline) for a, b in zip(live_values, offline_values, strict=False))
     spread = math.sqrt(sum((a - mean_live) ** 2 for a in live_values) * sum((b - mean_offline) ** 2 for b in offline_values))
-    same_side = sum(1 for a, b in zip(live_values, offline_values) if (a >= floor) == (b >= floor))
+    same_side = sum(1 for a, b in zip(live_values, offline_values, strict=False) if (a >= floor) == (b >= floor))
     worst = sorted(pairs, key=lambda item: -abs(item[1] - item[2]))[:5]
     return {
         "dates": len(pairs),
         "correlation": covariance / spread if spread > 0 else None,
         "mean_live": mean_live,
         "mean_offline": mean_offline,
-        "mean_abs_difference": sum(abs(a - b) for a, b in zip(live_values, offline_values)) / len(pairs),
+        "mean_abs_difference": sum(abs(a - b) for a, b in zip(live_values, offline_values, strict=False)) / len(pairs),
         "same_side_of_floor_share": same_side / len(pairs),
         "floor": floor,
         "largest_differences": [{"date": d, "live": a, "offline": b} for d, a, b in worst],

@@ -78,7 +78,7 @@ def field_test_target(plan: FieldTestPlan, bar_index: int) -> dict[str, float] |
     """The target row to apply on exactly bar `order_after_bars`, else None (one decision per run)."""
     if not plan.enabled or not plan.target_weights or plan.order_after_bars <= 0 or bar_index != plan.order_after_bars:
         return None
-    return {ticker: weight for ticker, weight in plan.target_weights}
+    return dict(plan.target_weights)
 
 
 def field_test_log_line(event: str, bar_index: int, **fields: object) -> str:

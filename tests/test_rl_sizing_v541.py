@@ -104,7 +104,7 @@ def test_a_model_trained_for_another_key_list_is_refused_and_a_skip_action_is_ho
         "state_keys": keys, "actions": [0.0, 1.0], "mean": [0.0] * len(keys), "scale": [1.0] * len(keys),
         "weights": [[0.0] * len(keys), [0.0] * len(keys)], "bias": [1.0, 0.0],  # always prefers action 0.0 (skip)
     }
-    state = {key: 0.0 for key in keys}
+    state = dict.fromkeys(keys, 0.0)
     assert rl_sizing_multiplier(model, state, True, 0.0, 1.5, expected_state_keys=keys) == (0.0, "rl_sizing_policy_scaled_sizing")
     assert rl_sizing_multiplier(model, state, True, 0.0, 1.5)[1] == "rl_sizing_state_key_mismatch"  # default list differs
     assert rl_sizing_multiplier(model, state, True, 0.6, 1.0, expected_state_keys=keys)[0] == 0.6  # clamped by the band

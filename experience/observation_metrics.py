@@ -10,8 +10,9 @@ not which function to call.
 
 from __future__ import annotations
 
-import numpy as np
 from typing import Any
+
+import numpy as np
 
 SIGNALS = ("buy", "sell", "hold")
 ACTIONS = ("observe", "simulate", "trade", "reduce_risk", "retrain_candidate")
@@ -24,7 +25,7 @@ def count_observations(events: list[dict]) -> int:
 
 def signal_distribution(events: list[dict]) -> dict[str, int]:
     """How many observation-mode events carried each signal."""
-    counts = {signal: 0 for signal in SIGNALS}
+    counts = dict.fromkeys(SIGNALS, 0)
     for event in events:
         signal = event.get("signal")
         if signal in counts:
@@ -34,7 +35,7 @@ def signal_distribution(events: list[dict]) -> dict[str, int]:
 
 def action_distribution(events: list[dict]) -> dict[str, int]:
     """How many observation-mode events took each action."""
-    counts = {action: 0 for action in ACTIONS}
+    counts = dict.fromkeys(ACTIONS, 0)
     for event in events:
         action = event.get("action")
         if action in counts:

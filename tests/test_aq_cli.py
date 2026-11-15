@@ -229,7 +229,7 @@ def test_train_walk_forward_is_mutually_exclusive_with_dataset_only():
     parser = aq_cli.build_parser()
     try:
         parser.parse_args(["train", "--walk-forward", "--dataset-only"])
-        assert False, "expected SystemExit from argparse mutual exclusion"
+        raise AssertionError("expected SystemExit from argparse mutual exclusion")
     except SystemExit:
         pass
 
@@ -238,7 +238,7 @@ def test_train_flags_are_mutually_exclusive():
     parser = aq_cli.build_parser()
     try:
         parser.parse_args(["train", "--dataset-only", "--init-only"])
-        assert False, "expected SystemExit from argparse mutual exclusion"
+        raise AssertionError("expected SystemExit from argparse mutual exclusion")
     except SystemExit:
         pass
 
@@ -803,6 +803,7 @@ def test_ensure_local_lean_engine_image_skips_build_when_cached():
         cwd=str(aq_cli.ROOT_DIR),
         stdout=aq_cli.subprocess.DEVNULL,
         stderr=aq_cli.subprocess.DEVNULL,
+        check=False,
     )
     run_mock.assert_not_called()
 
@@ -1103,7 +1104,7 @@ def test_webui_runs_npm_run_dev_in_webui_dir():
     run_mock = MagicMock(return_value=0)
     _parse_and_dispatch(["webui"], run_mock)
 
-    args, kwargs = run_mock.call_args
+    args, _kwargs = run_mock.call_args
     assert args[0][-2:] == ["run", "dev"]
 
 
@@ -1164,7 +1165,7 @@ def test_retrain_rejects_unknown_stage():
     parser = aq_cli.build_parser()
     try:
         parser.parse_args(["retrain", "not_a_real_stage"])
-        assert False, "expected SystemExit for an invalid stage choice"
+        raise AssertionError("expected SystemExit for an invalid stage choice")
     except SystemExit:
         pass
 
@@ -1234,7 +1235,7 @@ def test_trade_lock_requires_exactly_one_flag():
     parser = aq_cli.build_parser()
     try:
         parser.parse_args(["trade-lock"])
-        assert False, "expected SystemExit when no trade-lock flag is given"
+        raise AssertionError("expected SystemExit when no trade-lock flag is given")
     except SystemExit:
         pass
 
@@ -1300,7 +1301,7 @@ def test_kill_switch_requires_exactly_one_flag():
     parser = aq_cli.build_parser()
     try:
         parser.parse_args(["kill-switch"])
-        assert False, "expected SystemExit when no kill-switch flag is given"
+        raise AssertionError("expected SystemExit when no kill-switch flag is given")
     except SystemExit:
         pass
 
@@ -1426,7 +1427,7 @@ def test_fetch_rejects_unsupported_asset_class():
     parser = aq_cli.build_parser()
     try:
         parser.parse_args(["fetch", "derivative", "--ticker", "X", "--start", "2020-01-01", "--end", "2020-02-01"])
-        assert False, "expected SystemExit - 'derivative' not supported until V3"
+        raise AssertionError("expected SystemExit - 'derivative' not supported until V3")
     except SystemExit:
         pass
 
@@ -1435,7 +1436,7 @@ def test_fetch_rejects_non_iso_dates():
     parser = aq_cli.build_parser()
     try:
         parser.parse_args(["fetch", "stock", "--ticker", "AAPL", "--start", "02.02.2017", "--end", "2018-01-01"])
-        assert False, "expected SystemExit for a non-ISO-8601 date"
+        raise AssertionError("expected SystemExit for a non-ISO-8601 date")
     except SystemExit:
         pass
 
@@ -1549,7 +1550,7 @@ def test_fetch_futures_disconnects_ib_even_if_fetch_raises():
     ):
         try:
             args.func(args)
-            assert False, "expected RuntimeError to propagate"
+            raise AssertionError("expected RuntimeError to propagate")
         except RuntimeError:
             pass
 
@@ -2168,7 +2169,7 @@ def test_config_preset_apply_dry_run_writes_nothing(tmp_path, capsys):
 def test_config_preset_apply_writes_every_key_and_sets_active(tmp_path, capsys):
     config_path = _config_fixture(tmp_path)
 
-    exit_code, captured = _run_config(config_path, ["preset", "--apply", "aggressive"], capsys)
+    exit_code, _captured = _run_config(config_path, ["preset", "--apply", "aggressive"], capsys)
 
     assert exit_code == 0
     updated = json.loads(config_path.read_text(encoding="utf-8"))
@@ -2234,7 +2235,7 @@ def test_config_preset_mutually_exclusive_flags_rejected():
     parser = aq_cli.build_parser()
     try:
         parser.parse_args(["config", "preset", "--list", "--show", "aggressive"])
-        assert False, "expected SystemExit for mutually exclusive preset flags"
+        raise AssertionError("expected SystemExit for mutually exclusive preset flags")
     except SystemExit:
         pass
 
@@ -3410,7 +3411,7 @@ def _setup_two_run_reconcile_fixture(tmp_path, monkeypatch, extra_book_config=No
 
 
 def test_evaluate_reconcile_book_history_defaults_to_most_recent_run_only(tmp_path, capsys, monkeypatch):
-    book_history_path, run_0_dates, run_1_dates = _setup_two_run_reconcile_fixture(tmp_path, monkeypatch)
+    book_history_path, _run_0_dates, run_1_dates = _setup_two_run_reconcile_fixture(tmp_path, monkeypatch)
 
     parser = aq_cli.build_parser()
     args = parser.parse_args(
@@ -3429,7 +3430,7 @@ def test_evaluate_reconcile_book_history_defaults_to_most_recent_run_only(tmp_pa
 
 
 def test_evaluate_reconcile_book_history_replay_hysteresis_also_run_isolated(tmp_path, capsys, monkeypatch):
-    book_history_path, run_0_dates, run_1_dates = _setup_two_run_reconcile_fixture(
+    book_history_path, _run_0_dates, run_1_dates = _setup_two_run_reconcile_fixture(
         tmp_path, monkeypatch, extra_book_config={"hysteresis_rank_margin": 0.3}
     )
 
@@ -3454,7 +3455,7 @@ def test_evaluate_reconcile_book_history_replay_hysteresis_also_run_isolated(tmp
 
 
 def test_evaluate_reconcile_book_history_run_index_selects_older_run(tmp_path, capsys, monkeypatch):
-    book_history_path, run_0_dates, run_1_dates = _setup_two_run_reconcile_fixture(tmp_path, monkeypatch)
+    book_history_path, run_0_dates, _run_1_dates = _setup_two_run_reconcile_fixture(tmp_path, monkeypatch)
 
     parser = aq_cli.build_parser()
     args = parser.parse_args(
@@ -3473,7 +3474,7 @@ def test_evaluate_reconcile_book_history_run_index_selects_older_run(tmp_path, c
 
 
 def test_evaluate_reconcile_book_history_negative_run_index_normalizes(tmp_path, capsys, monkeypatch):
-    book_history_path, run_0_dates, run_1_dates = _setup_two_run_reconcile_fixture(tmp_path, monkeypatch)
+    book_history_path, run_0_dates, _run_1_dates = _setup_two_run_reconcile_fixture(tmp_path, monkeypatch)
 
     parser = aq_cli.build_parser()
     args = parser.parse_args(
@@ -3492,7 +3493,7 @@ def test_evaluate_reconcile_book_history_negative_run_index_normalizes(tmp_path,
 
 
 def test_evaluate_reconcile_book_history_run_index_out_of_range_errors(tmp_path, capsys, monkeypatch):
-    book_history_path, run_0_dates, run_1_dates = _setup_two_run_reconcile_fixture(tmp_path, monkeypatch)
+    book_history_path, _run_0_dates, _run_1_dates = _setup_two_run_reconcile_fixture(tmp_path, monkeypatch)
 
     parser = aq_cli.build_parser()
     args = parser.parse_args(
@@ -3894,7 +3895,7 @@ def test_evaluate_calibrate_volatility_threshold_suggests_a_crypto_override(tmp_
         rows += [
             {"date": d, "ticker": ticker, "split": "backtest", "close": float(c), "target_return_1d": 0.0,
              "f1": 0.0, "f2": 0.0, "liquidity_log_dollar_volume": 15.0}
-            for d, c in zip(dates, closes)
+            for d, c in zip(dates, closes, strict=False)
         ]
     pd.DataFrame(rows).to_csv(ml_dir / "datasets" / "full_dataset.csv", index=False)
     config = _evaluate_config()

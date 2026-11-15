@@ -72,8 +72,6 @@ from pathlib import Path
 ROOT_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT_DIR))
 
-from scripts.profile_inference import summarize_durations  # noqa: E402
-
 from analyzer import build_market_analysis_decision  # noqa: E402
 from features.technical_indicators import (  # noqa: E402
     average_true_range_pct,
@@ -88,6 +86,7 @@ from liquidity import build_liquidity_decision  # noqa: E402
 from moe import build_gating_decision  # noqa: E402
 from regime import build_market_regime_vector  # noqa: E402
 from risk.asset_class_router import route_multi_leg_option_sizing  # noqa: E402
+from scripts.profile_inference import summarize_durations  # noqa: E402
 from topology import apply_learned_topology, build_market_topology  # noqa: E402
 
 OUTPUT_PATH = Path(__file__).resolve().parent / "profile_subsystems_output.txt"

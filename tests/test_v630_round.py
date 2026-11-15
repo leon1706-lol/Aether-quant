@@ -64,4 +64,4 @@ def test_the_simulator_threads_the_band_like_a_bar_by_bar_replay():
     plain = [evaluate_kill_switch({"recent_bar_returns": returns[:end]}, dict(config, release_rolling_sharpe=None)).tripped
              for end in range(10, len(returns) + 1)]
     assert sum(latched) >= sum(plain)
-    assert all(a or not b for a, b in zip(latched, plain))  # every plain trip is also a banded one
+    assert all(a or not b for a, b in zip(latched, plain, strict=False))  # every plain trip is also a banded one

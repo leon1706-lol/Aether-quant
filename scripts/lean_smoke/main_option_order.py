@@ -10,13 +10,13 @@ The project holds the repo's main.py as `aq_main.py` and this file as main.py. I
 one algorithm class here. `SMOKE_JSON {...}` lines report what happened.
 """
 
-from AlgorithmImports import *  # noqa: F403
-
 import dataclasses
 import json
 from builtins import Exception
 
 import aq_main
+from AlgorithmImports import *  # noqa: F403
+
 from portfolio.options_strategy import build_vertical_spread_position_sizing
 
 

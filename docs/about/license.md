@@ -10,3 +10,5 @@ Aether Quant is under two licenses, by path. `REUSE.toml` in the repository maps
 So an institution can use, change and ship the library commercially under Apache-2.0, with its patent grant and the `NOTICE` file. The trading system stays noncommercial; a commercial license for it is available on request through the repository's GitHub page. Releases up to 6.6.4 were entirely under PolyForm Noncommercial.
 
 Contributions take the license of the path they change (inbound equals outbound).
+
+Because the trading system's license is not OSI-approved, the repository as a whole is not FLOSS, and its OpenSSF Best Practices badge stays "in progress" (`floss_license` is a MUST). The owner kept the split on 2026-11-15; relicensing the trading system under an OSI license is a possible future step, listed under the README's Known Limitations.

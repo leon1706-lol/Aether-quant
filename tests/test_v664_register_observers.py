@@ -51,11 +51,11 @@ def test_a_stablecoin_is_left_out_by_name_or_by_a_price_pinned_to_one_dollar():
 
 
 def test_a_definition_is_a_crypto_signal_with_a_runnable_shape():
-    from evaluation.generation_ledger import decide_generation
-    from portfolio.premia_signals import ResearchPanel
-
     import numpy as np
     import pandas as pd
+
+    from evaluation.generation_ledger import decide_generation
+    from portfolio.premia_signals import ResearchPanel
 
     tickers = [f"C{i:02d}USD" for i in range(12)]
     definition = observers.build_definition("x14", tickers, "2026-11-06")
@@ -64,7 +64,7 @@ def test_a_definition_is_a_crypto_signal_with_a_runnable_shape():
     rng = np.random.default_rng(2)
     known = pd.DataFrame(100.0 * np.exp(np.cumsum(rng.normal(0.001, 0.03, (300, 12)), axis=0)), index=days, columns=tickers)
     known["BTCUSD"] = known["C00USD"]
-    panel = ResearchPanel(known, {name: "crypto" for name in known.columns}, {}, {})
+    panel = ResearchPanel(known, dict.fromkeys(known.columns, "crypto"), {}, {})
     weights = decide_generation(definition, panel, days[-1])
     assert all(weight >= 0.0 for weight in weights.values()) and sum(abs(weight) for weight in weights.values()) <= 0.15 + 1e-9
 

@@ -138,7 +138,7 @@ def rule_weights(closes: pd.DataFrame, *, start: str, end: str, params: dict[str
     rule_params = dict(params or HELLO_RULE["params"])  # type: ignore[arg-type]
     spec = SleeveSpec(str(HELLO_RULE["id"]), "hello", str(HELLO_RULE["kind"]), str(HELLO_RULE["family"]), tuple(HELLO_RULE["universe"]),  # type: ignore[arg-type]
                       int(rebalance_every or HELLO_RULE["rebalance_every"]), rule_params)  # type: ignore[call-overload]
-    panel = ResearchPanel(known, {ticker: "crypto" for ticker in closes.columns})
+    panel = ResearchPanel(known, dict.fromkeys(closes.columns, "crypto"))
     rows = signal_to_weights(sleeve_signal(spec, panel), panel, kind=spec.kind, rebalance_every=spec.rebalance_every, settings=WeightSettings(), start=start, end=end)
     # Built row by row: pandas 2 `from_dict` drops a date whose dict is empty, pandas 3 keeps it. An empty decision (no live
     # coin) means hold nothing, as `simulate_target_weights` and the forward ledger read it.
@@ -165,7 +165,7 @@ def load_closes(*, offline: bool = False, start: str = "2022-01-01", end: str | 
     first = date.fromisoformat(start) - timedelta(days=200)
     try:
         bars, failed = fetch_daily_bars(list(sample.columns), first, last, get_json=get_json or default_get_json, cache_dir=cache_dir)
-    except Exception as exc:  # noqa: BLE001 - any network failure falls back to the sample
+    except Exception as exc:
         bars, failed = {}, [f"network: {exc}"]
     if bars and "BTCUSD" in bars and not failed:
         cache = "cache off" if cache_dir is None else f"cache {cache_dir}"
@@ -296,7 +296,7 @@ def _svg_curve(series: list[pd.Series], colors: list[str], width: int = 720, hei
     low, high = (float(values.min()), float(values.max())) if values.size else (0.0, 1.0)
     span = high - low or 1.0
     paths = []
-    for curve, color in zip(series, colors):
+    for curve, color in zip(series, colors, strict=False):
         data = curve.to_numpy(float)
         steps = max(len(data) - 1, 1)
         points = " ".join(f"{i / steps * width:.1f},{height - (value - low) / span * height:.1f}" for i, value in enumerate(data) if math.isfinite(value))

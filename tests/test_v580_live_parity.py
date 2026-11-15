@@ -41,7 +41,7 @@ def main_module():
     patcher = pytest.MonkeyPatch()
     patcher.setitem(sys.modules, "AlgorithmImports", stub)
     patcher.delitem(sys.modules, "main", raising=False)
-    import main  # noqa: PLC0415
+    import main
 
     yield main
     sys.modules.pop("main", None)
@@ -74,7 +74,7 @@ def test_train_rolling_column_equals_main_live_value_on_every_row(main_module):
     dates = [datetime.date(2020, 1, 1) + timedelta(days=i) for i in range(len(closes))]
     frame = pd.DataFrame({"date": pd.to_datetime(dates), "close": closes})
     frame["close_to_close_return_1d"] = frame["close"].pct_change()
-    fred = {"treasury_10yr": [{"date": d, "value": v} for d, v in zip(dates, levels)]}
+    fred = {"treasury_10yr": [{"date": d, "value": v} for d, v in zip(dates, levels, strict=False)]}
     config = {
         "phase1": {
             "features": {"bond_duration_beta": {"mode": "rolling"}},
@@ -91,7 +91,7 @@ def test_train_rolling_column_equals_main_live_value_on_every_row(main_module):
     algorithm.long_bar_history_size = 260
     algorithm.symbol_long_windows = {"TLT": deque(maxlen=260)}
     algorithm.symbol_treasury_10yr_history = {"TLT": deque(maxlen=260)}
-    for index, (close, level) in enumerate(zip(closes, levels)):
+    for index, (close, level) in enumerate(zip(closes, levels, strict=False)):
         algorithm.bar_index = index
         algorithm.symbol_long_windows["TLT"].append(close)
         algorithm.symbol_treasury_10yr_history["TLT"].append(level)
@@ -248,7 +248,7 @@ def _bond_sleeve_algorithm(main_module, **overrides):
         setattr(algorithm, name, value)
     algorithm._sleeve_guard_state = {"bond": {"increments": deque(maxlen=11), "last_level": None, "suspended_until": None,
                                               "active": True, "reason": "", "drawdown": 0.0}}
-    scores = dict(zip(bonds, [0.9, 0.8, 0.5, 0.45, 0.2, 0.1]))
+    scores = dict(zip(bonds, [0.9, 0.8, 0.5, 0.45, 0.2, 0.1], strict=False))
     state = {b: {"raw_rank_score": s, "symbol": b} for b, s in scores.items()}
     state["AMZN"] = {"raw_rank_score": 0.99, "symbol": "AMZN"}
     return algorithm, state
@@ -483,7 +483,7 @@ def test_bond_sleeve_can_rank_by_momentum_like_the_research(main_module):
     # the model scores in `state` would pick TLT/IEF long; momentum must pick the rising names instead
     algorithm._update_bond_sleeve(state)
     roles = {s: a.role for s, a in algorithm._bond_sleeve_allocations.items()}
-    assert roles.get("TLT") == "long" and roles.get("IEF") == "short" or roles.get("AGG") == "short"
+    assert (roles.get("TLT") == "long" and roles.get("IEF") == "short") or roles.get("AGG") == "short"
     assert "HYG" not in roles  # fewer than 121 closes: no momentum score, left out rather than scored 0
 
 

@@ -182,16 +182,16 @@ def rl_sizing_multiplier(
             return 1.0, "rl_sizing_malformed_model"
 
         standardized = []
-        for key, mean_value, scale_value in zip(state_keys, mean, scale):
+        for key, mean_value, scale_value in zip(state_keys, mean, scale, strict=False):
             raw = float(state[key])
             denominator = float(scale_value) if float(scale_value) != 0.0 else 1.0
             standardized.append((raw - float(mean_value)) / denominator)
 
         scores = []
-        for action_weights, action_bias in zip(weights, bias):
+        for action_weights, action_bias in zip(weights, bias, strict=False):
             if len(action_weights) != len(standardized):
                 return 1.0, "rl_sizing_malformed_model"
-            score = float(action_bias) + sum(w * x for w, x in zip(action_weights, standardized))
+            score = float(action_bias) + sum(w * x for w, x in zip(action_weights, standardized, strict=False))
             scores.append(score)
 
         # V5.5.0 (Problems.md #117): a NaN/inf score used to fall through to

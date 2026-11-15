@@ -10,6 +10,8 @@ Conventions match the rest of this repo's train.py test coverage: no test
 classes, module-level helpers, plain dicts/tensors.
 """
 
+import itertools
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -26,7 +28,6 @@ from train import (
     purged_embargoed_folds,
     split_into_non_overlapping_eras,
 )
-
 
 # ---------------------------------------------------------------------------
 # bootstrap_ic_confidence_interval
@@ -179,7 +180,7 @@ def test_split_into_non_overlapping_eras_covers_full_range_without_gaps():
     assert eras[0][0] == dates.min()
     assert eras[-1][1] == dates.max()
     # Each era must start exactly one day after the previous one ends.
-    for (_, prev_end), (next_start, _) in zip(eras, eras[1:]):
+    for (_, prev_end), (next_start, _) in itertools.pairwise(eras):
         assert next_start == prev_end + pd.Timedelta(1, unit="D")
 
 

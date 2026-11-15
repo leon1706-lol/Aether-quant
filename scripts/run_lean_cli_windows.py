@@ -42,6 +42,5 @@ tempfile.mkdtemp = _docker_readable_mkdtemp
 
 from lean.main import main  # noqa: E402  (patch must happen before import)
 
-
 if __name__ == "__main__":
     main()

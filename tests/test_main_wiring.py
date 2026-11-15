@@ -38,7 +38,7 @@ def main_module():
     patcher = pytest.MonkeyPatch()
     patcher.setitem(sys.modules, "AlgorithmImports", stub)
     patcher.delitem(sys.modules, "main", raising=False)
-    import main  # noqa: PLC0415 - must happen after the stub is installed
+    import main
 
     yield main
     sys.modules.pop("main", None)
@@ -752,7 +752,7 @@ def _sleeve_algorithm(main_module, **overrides):
 
 
 def _pass1(pairs):
-    scores = dict(zip(pairs, [0.9, 0.8, 0.5, 0.45, 0.2, 0.1]))
+    scores = dict(zip(pairs, [0.9, 0.8, 0.5, 0.45, 0.2, 0.1], strict=False))
     state = {pair: {"raw_rank_score": score, "symbol": pair} for pair, score in scores.items()}
     state["AMZN"] = {"raw_rank_score": 0.99, "symbol": "AMZN"}  # an equity never joins the forex pool
     return state

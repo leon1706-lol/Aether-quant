@@ -166,7 +166,7 @@ def test_option_orders_rest_as_limits_and_resolve_by_events(monkeypatch, tmp_pat
 
 
 def test_observation_mode_records_the_simulated_option_position(monkeypatch, tmp_path):
-    algorithm, market = build(monkeypatch, tmp_path, overrides={"phase_v2": {"runtime": {"mode": "observation"}}})
+    algorithm, _market = build(monkeypatch, tmp_path, overrides={"phase_v2": {"runtime": {"mode": "observation"}}})
     try:
         symbol = option_symbol(algorithm)
         key = str(symbol)

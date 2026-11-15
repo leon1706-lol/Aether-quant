@@ -44,7 +44,7 @@ def replay(tmp_path, monkeypatch):
     positions = {D[0]: {"AAA": {"position": 100}}, D[1]: {"BBB": {"position": -40}, "CCC": {"position": 7}, "ZERO": {"position": 0}}, D[2]: {}, D[3]: {}, D[4]: {}, D[5]: {}}
     monkeypatch.setattr(attribution, "daily_ticker_pnl", lambda fills, closes, dates, forex: positions)
     bil = {D[0]: 100.0, D[1]: 100.1, D[3]: 100.2, D[4]: 100.3, D[5]: 100.4}
-    spy = {day: 400.0 for day in D[:5]}
+    spy = dict.fromkeys(D[:5], 400.0)
     monkeypatch.setattr(attribution, "read_daily_closes", lambda path, scale: spy if path.name == "spy.zip" else bil)
     monkeypatch.setattr(sweep, "resolve_cash_sweep_config", lambda raw: {"data_path": "data/bil.zip", "cost_bps_per_side": 1.0, "min_trade_weight": 0.05})
     targets = iter([0.5, 0.5, 0.1, 0.1])

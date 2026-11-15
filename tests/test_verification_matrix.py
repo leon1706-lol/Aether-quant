@@ -78,7 +78,7 @@ def test_the_quick_set_is_what_a_small_machine_runs_and_each_entry_is_a_real_com
 
 
 def test_aq_verify_lists_the_table_and_runs_through_a_fake_runner(tmp_path):
-    result = subprocess.run([sys.executable, str(ROOT / "aq_cli.py"), "verify", "--list"], cwd=ROOT, capture_output=True, text=True, timeout=120)
+    result = subprocess.run([sys.executable, str(ROOT / "aq_cli.py"), "verify", "--list"], cwd=ROOT, capture_output=True, text=True, timeout=120, check=False)
     assert result.returncode == 0 and "| Surface |" in result.stdout and "`library_gate`" in result.stdout
     calls = []
 

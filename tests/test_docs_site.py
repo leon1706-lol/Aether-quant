@@ -18,7 +18,7 @@ CODE = re.compile(r"```python\n(.*?)```", re.S)
 
 
 def test_reference_pages_and_nav_match_the_facades():
-    result = subprocess.run([sys.executable, str(ROOT / "scripts" / "build_docs.py"), "--check"], capture_output=True, text=True, timeout=300)
+    result = subprocess.run([sys.executable, str(ROOT / "scripts" / "build_docs.py"), "--check"], capture_output=True, text=True, timeout=300, check=False)
     assert result.returncode == 0, result.stderr
     facades = sorted(path.stem for path in (ROOT / "aether_quant").glob("*.py") if not path.stem.startswith("_"))
     assert sorted(path.stem for path in (DOCS / "reference").glob("*.md") if path.stem != "index") == facades
@@ -38,7 +38,7 @@ def test_every_guide_example_runs(page, monkeypatch):
     assert blocks, f"{page.name} has no runnable example"
     monkeypatch.syspath_prepend(str(ROOT))
     for block in blocks:
-        exec(compile(block, str(page), "exec"), {"__name__": "__docs__"})  # noqa: S102 - the docs' own examples
+        exec(compile(block, str(page), "exec"), {"__name__": "__docs__"})
 
 
 def test_generated_blocks_have_their_markers():
@@ -50,5 +50,5 @@ def test_generated_blocks_have_their_markers():
 @pytest.mark.skipif(os.environ.get("AQ_BUILD_DOCS") != "1", reason="set AQ_BUILD_DOCS=1 (needs the docs extra); CI's docs job builds the site")
 def test_the_site_builds_strictly(tmp_path):
     subprocess.run([sys.executable, str(ROOT / "scripts" / "build_docs.py")], check=True, timeout=300)
-    result = subprocess.run([sys.executable, "-m", "mkdocs", "build", "--strict", "--site-dir", str(tmp_path / "site")], cwd=ROOT, capture_output=True, text=True, timeout=900)
+    result = subprocess.run([sys.executable, "-m", "mkdocs", "build", "--strict", "--site-dir", str(tmp_path / "site")], cwd=ROOT, capture_output=True, text=True, timeout=900, check=False)
     assert result.returncode == 0, result.stdout[-3000:] + result.stderr[-3000:]

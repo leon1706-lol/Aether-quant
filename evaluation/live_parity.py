@@ -17,6 +17,7 @@ contract as the rest of the `evaluation` package.
 from __future__ import annotations
 
 import bisect
+import itertools
 import math
 from pathlib import Path
 
@@ -76,7 +77,8 @@ def forex_tick_holds_fill_forward_bar(tick_date: str, previous_row_date: str | N
     closes at the tick's midnight) is an open day - not a Saturday, not a Lean market holiday - with no dataset row. That
     covers Sunday before Monday and a weekday the zip has no bar for (2025-12-25, 2026-01-01); generalises the V6.0.0
     Monday-only rule (V6.1.0)."""
-    from datetime import date as _date, timedelta
+    from datetime import date as _date
+    from datetime import timedelta
 
     held = _date.fromisoformat(str(tick_date)[:10]) - timedelta(days=1)
     if held.weekday() == 5 or held.toordinal() in holidays:
@@ -92,9 +94,7 @@ def late_bar_offline_row(
     if previous_row is None:
         return None
     merged = dict(previous_row)
-    for name, value in (same_row or {}).items():
-        if str(name).startswith(same_row_prefixes):
-            merged[name] = value
+    merged.update({name: value for name, value in (same_row or {}).items() if str(name).startswith(same_row_prefixes)})
     return merged
 ROOT_DIR = Path(__file__).resolve().parents[1]
 
@@ -490,7 +490,7 @@ def build_impact_inputs_fn(
     if not {"rolling_volatility_20d", "liquidity_log_dollar_volume"} <= set(frame.columns):
         return lambda symbol, date: None  # a frame without the liquidity columns charges no per-name impact
     for ticker, date, volatility, log_dollar_volume in zip(
-        frame[ticker_column], frame[date_column], frame["rolling_volatility_20d"], frame["liquidity_log_dollar_volume"]
+        frame[ticker_column], frame[date_column], frame["rolling_volatility_20d"], frame["liquidity_log_dollar_volume"], strict=False
     ):
         adv = math.expm1(_finite(log_dollar_volume))
         if adv <= 0.0:
@@ -538,7 +538,7 @@ def build_live_mechanisms(
             rl_model = load_rl_sizing_model(Path(rl_model_path) if rl_model_path else ROOT_DIR / "ml" / "rl_sizing_model.json")
             if "target_return_1d" in frame.columns:
                 daily_returns_by_date = {}
-                for date, ticker, value in zip(frame["date"].astype(str), frame["ticker"].astype(str), frame["target_return_1d"]):
+                for date, ticker, value in zip(frame["date"].astype(str), frame["ticker"].astype(str), frame["target_return_1d"], strict=False):
                     if value == value:
                         daily_returns_by_date.setdefault(date[:10], {})[ticker] = float(value)
         mechanisms["member_weight_fn"] = build_live_member_weight_fn(
@@ -742,7 +742,7 @@ def build_cash_sweep_kwarg(config: dict, root_dir, *, force_enabled: bool = Fals
     if not closes:
         return None
     dates = sorted(closes)
-    forward = {day: closes[after] / closes[day] - 1.0 for day, after in zip(dates, dates[1:]) if closes[day] > 0}
+    forward = {day: closes[after] / closes[day] - 1.0 for day, after in itertools.pairwise(dates) if closes[day] > 0}
     legacy, bond, forex = phase_v2.get("legacy_sleeve", {}), phase_v2.get("bond_sleeve", {}), phase_v2.get("forex_risk", {})
     other = float(legacy.get("max_gross_exposure", 0.0)) if legacy.get("enabled") else 0.0
     neutral = (float(bond.get("gross_budget", 0.0)) if bond.get("enabled") else 0.0) + (

@@ -8,7 +8,6 @@ from portfolio.options_assignment_risk import (
     extrinsic_value,
 )
 
-
 # ---------------------------------------------------------------------------
 # extrinsic_value
 # ---------------------------------------------------------------------------
@@ -174,7 +173,7 @@ def test_assignment_risk_score_decays_with_time_distance():
 
 def test_assignment_risk_score_bounded_zero_to_one():
     for extrinsic in (0.0001, 0.5, 1.0, 2.0, 10.0):
-        for days in range(0, 6):
+        for days in range(6):
             score = assignment_risk_score(1.3, "call", extrinsic, 1.0, days, 5)
             assert 0.0 <= score <= 1.0
 

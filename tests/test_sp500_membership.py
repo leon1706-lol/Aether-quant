@@ -152,9 +152,8 @@ def test_wide_config_lists_names_and_keeps_project_crypto():
 
 
 def test_fetch_adjusted_and_raw_applies_the_adjustment_ratio(monkeypatch):
-    import pandas as pd
-
     import build_wide_root
+    import pandas as pd
 
     frame = pd.DataFrame(
         {"Open": [100.0], "High": [110.0], "Low": [90.0], "Close": [100.0], "Adj Close": [50.0], "Volume": [1000.0]},

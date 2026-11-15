@@ -16,7 +16,6 @@ import train
 import train_world as world
 from test_train_pipeline_runtime import WALK_FORWARD, built, in_process_trainers, run  # noqa: F401  (the module-scoped dataset fixture)
 
-
 # ---- ranking gates -----------------------------------------------------------------------------------------------------
 
 
@@ -54,7 +53,7 @@ def test_the_baseline_refuses_a_dataset_without_eligible_rows_or_without_all_thr
 def expert_frame(rows=(120, 40, 40), seed=0):
     rng = np.random.default_rng(seed)
     parts = []
-    for split, count in zip(("train", "validation", "backtest"), rows):
+    for split, count in zip(("train", "validation", "backtest"), rows, strict=False):
         x = rng.normal(size=(count, 3))
         signal = x[:, 0] * 0.5 + rng.normal(scale=0.5, size=count)
         parts.append(pd.DataFrame({"f1": x[:, 0], "f2": x[:, 1], "f3": x[:, 2], "split": split, "target_direction": (signal > 0).astype(float), "target_return_1d": signal * 0.01,
@@ -88,7 +87,7 @@ def test_the_expert_multitask_head_skips_without_targets_or_rows_and_keeps_untra
 # ---- the pipeline, from the cached dataset ----------------------------------------------------------------------------
 
 
-def test_the_full_run_logs_observation_only_assets_and_a_second_inventory_run_reads_the_trained_context(monkeypatch, tmp_path, built):  # noqa: F811
+def test_the_full_run_logs_observation_only_assets_and_a_second_inventory_run_reads_the_trained_context(monkeypatch, tmp_path, built):
     dataset, metadata = built
     trimmed = dataset[~((dataset["ticker"] == "ETHUSD") & dataset["split"].isin(["train", "validation"]))].copy()
     root, code = run(monkeypatch, tmp_path, (trimmed, metadata), [])
@@ -96,17 +95,17 @@ def test_the_full_run_logs_observation_only_assets_and_a_second_inventory_run_re
     context = train.load_existing_training_context()
     assert context["metrics"] and context["strategy_report"] and context["scaled_feature_names"] and 0.0 <= context["threshold"] <= 1.0
     monkeypatch.setattr(sys, "argv", ["train", "--init-only"])
-    assert train.main() == 0 and (root / "visualization").exists() or True
+    assert (train.main() == 0 and (root / "visualization").exists()) or True
 
 
-def test_expert_artifacts_written_outside_the_project_are_recorded_by_absolute_path(monkeypatch, tmp_path, built):  # noqa: F811
+def test_expert_artifacts_written_outside_the_project_are_recorded_by_absolute_path(monkeypatch, tmp_path, built):
     root = world.build_root(tmp_path)
     world.repoint(monkeypatch, train, root)
     dataset, metadata = built
     config = train.load_project_config()
     asset_quality = train.build_asset_quality(config, dataset, metadata)
     dataset = train.apply_asset_quality_flags(dataset.copy(), asset_quality)
-    dataset, scaler, clip = train.fit_and_apply_scaler(dataset, config["phase1"]["features"]["input_set"])
+    dataset, _scaler, _clip = train.fit_and_apply_scaler(dataset, config["phase1"]["features"]["input_set"])
     dataset, _ = train.add_asset_context_features(dataset, [asset["ticker"] for asset in config["phase1"]["universe"]["assets"]])
     dataset, _ = train.add_asset_class_context_features(dataset, train.asset_class_by_ticker_from_config(config))
     manifest = train.build_dataset_manifest(config, dataset, train.build_phase_inventory(config, train.summarize_data_tree()), metadata, asset_quality)
@@ -124,7 +123,7 @@ def window_dirs(root):
     return sorted(root.glob("ml/versions/*/window_*"))
 
 
-def test_walk_forward_scores_each_window_net_of_costs_and_a_resumed_run_reuses_the_finished_windows(monkeypatch, tmp_path, built, capsys):  # noqa: F811
+def test_walk_forward_scores_each_window_net_of_costs_and_a_resumed_run_reuses_the_finished_windows(monkeypatch, tmp_path, built, capsys):
     overrides = {"phase_v2": {"retraining": {"walk_forward": {**WALK_FORWARD["phase_v2"]["retraining"]["walk_forward"], "train_multitask": True, "train_sequence": True, "net_performance": True}}},
                  "phase1": {"target": {"ranking": {"net_performance": {"top_n": 2, "bottom_n": 2, "rebalance_every_bars": 5}}}}}
     root = world.build_root(tmp_path, **overrides)
@@ -143,8 +142,8 @@ def test_walk_forward_scores_each_window_net_of_costs_and_a_resumed_run_reuses_t
     assert len(calls) == first_calls  # every window was already complete
 
 
-def test_walk_forward_tolerates_a_trainer_that_cannot_launch_and_one_that_writes_nothing(monkeypatch, tmp_path, built, capsys):  # noqa: F811
-    root = world.build_root(tmp_path, **WALK_FORWARD, **{})
+def test_walk_forward_tolerates_a_trainer_that_cannot_launch_and_one_that_writes_nothing(monkeypatch, tmp_path, built, capsys):
+    root = world.build_root(tmp_path, **WALK_FORWARD)
     world.repoint(monkeypatch, train, root)
     dataset, metadata = built
     monkeypatch.setattr(train, "build_feature_dataset", lambda config: (dataset.copy(), copy.deepcopy(metadata)))
@@ -166,7 +165,7 @@ def test_the_net_book_of_a_window_is_skipped_without_a_backtest_split_or_usable_
     assert train._load_walk_forward_window_result("none", 0) is None
 
 
-def test_a_window_scored_on_the_multitask_model_alone_omits_its_net_book_when_the_simulation_has_no_result(monkeypatch, tmp_path, built, capsys):  # noqa: F811
+def test_a_window_scored_on_the_multitask_model_alone_omits_its_net_book_when_the_simulation_has_no_result(monkeypatch, tmp_path, built, capsys):
     overrides = {"phase_v2": {"retraining": {"walk_forward": {**WALK_FORWARD["phase_v2"]["retraining"]["walk_forward"], "train_multitask": True, "net_performance": True}}}}
     root = world.build_root(tmp_path, **overrides)
     world.repoint(monkeypatch, train, root)
@@ -187,7 +186,7 @@ def test_train_runs_as_a_script_and_refuses_a_candidate_without_a_version(monkey
         runpy.run_path(str(train.__file__), run_name="__main__")
 
 
-def test_an_undertrained_baseline_and_expert_keep_their_initial_weights_and_a_diverging_multitask_head_stops(monkeypatch, tmp_path, built):  # noqa: F811
+def test_an_undertrained_baseline_and_expert_keep_their_initial_weights_and_a_diverging_multitask_head_stops(monkeypatch, tmp_path, built):
     overrides = {"phase3": {"training": {"epochs": 2}}, "phase_v2": {"expert_models": {"training": {"learning_rate": 50.0}}}}
     root, code = run(monkeypatch, tmp_path, built, [], config_overrides=overrides)
     assert code == 0 and (root / "ml" / "model_weights.json").exists()

@@ -14,7 +14,6 @@ import ast
 import json
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 MAIN_PATH = ROOT / "main.py"
 LEAN_CONFIG_PATH = ROOT / "lean.json"

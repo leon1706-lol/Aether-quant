@@ -158,7 +158,7 @@ from time import perf_counter as _perf_counter
 # The star import also exports .NET's System.Exception, a subclass of Python's: `except Exception` then lets every Python error
 # through. The builtin catches both, which is what each fail-safe block in this file means (shown in a Lean run,
 # scripts/lean_smoke/exception_scope.py).
-from builtins import Exception  # noqa: A004
+from builtins import Exception
 # V5.3.5 (development/Problems.md #102) - a genuinely light, direct
 # submodule import (not routed through portfolio/__init__.py, though that
 # package is itself safe today) so a future addition there can never
@@ -2294,14 +2294,18 @@ class AetherQuantAlgorithm(QCAlgorithm):
             # never happened, corrupting every technical indicator/sequence-
             # model input that reads these windows.
             lean_bar = bar  # what Lean delivered (the bar probe logs it; a flattened fill-forward bar replaces `bar`)
-            if has_fresh_bar_this_tick and self.forex_fill_forward_mode == "flat" and getattr(bar, "is_fill_forward", False):
-                if self._is_forex_symbol(symbol_key) and self.symbol_windows[symbol]:
-                    bar = SimpleNamespace(
-                        **flatten_fill_forward_bar({}, self.symbol_windows[symbol][-1]["close"]), is_fill_forward=True
-                    )
-            if has_fresh_bar_this_tick and self.forex_fill_forward_mode == "flat" and self._is_forex_symbol(symbol_key):
-                if not getattr(bar, "is_fill_forward", False):
-                    self._append_real_forex_bar(symbol, bar)
+            if (
+                has_fresh_bar_this_tick and self.forex_fill_forward_mode == "flat" and getattr(bar, "is_fill_forward", False)
+                and self._is_forex_symbol(symbol_key) and self.symbol_windows[symbol]
+            ):
+                bar = SimpleNamespace(
+                    **flatten_fill_forward_bar({}, self.symbol_windows[symbol][-1]["close"]), is_fill_forward=True
+                )
+            if (
+                has_fresh_bar_this_tick and self.forex_fill_forward_mode == "flat" and self._is_forex_symbol(symbol_key)
+                and not getattr(bar, "is_fill_forward", False)
+            ):
+                self._append_real_forex_bar(symbol, bar)
             if has_fresh_bar_this_tick:
                 self._accumulate_rl_excess(symbol, float(bar.close))
                 self.symbol_long_windows[symbol].append(float(bar.close))
@@ -2524,14 +2528,14 @@ class AetherQuantAlgorithm(QCAlgorithm):
                             )
                             for member, index in _zip_longest(self.sequence_ensemble, self._sequence_member_indexes)
                         ]
-                        batched_results = [average_head_outputs(list(row)) for row in zip(*per_member)]
+                        batched_results = [average_head_outputs(list(row)) for row in zip(*per_member, strict=False)]
                     else:
                         batched_results = run_exported_sequence_multitask_model_batched(
                             self.sequence_model,
                             [select_sequence_inputs(sequence, self._sequence_input_index) for sequence in batch_sequences]
                             if self._sequence_input_index is not None else batch_sequences,
                         )
-                    precomputed_sequence_results = dict(zip(batch_symbol_keys, batched_results))
+                    precomputed_sequence_results = dict(zip(batch_symbol_keys, batched_results, strict=False))
 
             baseline_rows: dict[str, float] = {}
             multitask_rows: dict[str, dict] = {}
@@ -2539,7 +2543,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 flat_inputs = [item["feature_payload"]["model_inputs"] for item in pending]
                 flat_keys = [str(item["symbol"]) for item in pending]
                 try:
-                    baseline_rows = dict(zip(flat_keys, run_exported_model_rows(self.model_export, flat_inputs)))
+                    baseline_rows = dict(zip(flat_keys, run_exported_model_rows(self.model_export, flat_inputs), strict=False))
                 except Exception as error:
                     self.Debug(f"Batched baseline inference failed ({error}) - using the per-symbol path this tick")
                 if self.multitask_model:
@@ -2551,12 +2555,12 @@ class AetherQuantAlgorithm(QCAlgorithm):
                                 )
                                 for member, index in _zip_longest(self.multitask_ensemble, self._multitask_member_indexes)
                             ]
-                            multitask_rows = dict(zip(flat_keys, (average_head_outputs(list(row)) for row in zip(*member_rows))))
+                            multitask_rows = dict(zip(flat_keys, (average_head_outputs(list(row)) for row in zip(*member_rows, strict=False)), strict=False))
                         else:
                             multitask_inputs = flat_inputs if self._multitask_input_index is None else [
                                 select_model_inputs(row, self._multitask_input_index) for row in flat_inputs
                             ]
-                            multitask_rows = dict(zip(flat_keys, run_exported_multitask_model_rows(self.multitask_model, multitask_inputs)))
+                            multitask_rows = dict(zip(flat_keys, run_exported_multitask_model_rows(self.multitask_model, multitask_inputs), strict=False))
                     except Exception as error:
                         self.Debug(f"Batched multitask inference failed ({error}) - using the per-symbol path this tick")
 
@@ -3006,7 +3010,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
         pass1_items = list(pass1_state.items())
         if self.portfolio_book_enabled and book_allocations:
             def _book_conviction_sort_key(item: tuple[str, dict]) -> float:
-                symbol_key, state = item
+                symbol_key, _state = item
                 allocation = book_allocations.get(symbol_key)
                 if allocation is None:
                     return -1.0
@@ -4789,7 +4793,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
         # Regime/topology one-hots - unscaled, same treatment as the asset
         # context flags below (already-bounded [0,1], no StandardScaler
         # needed). Matches train.py::_categorical_feature_names() exactly.
-        categorical_values = {feature_name: 0.0 for feature_name in self.categorical_feature_names}
+        categorical_values = dict.fromkeys(self.categorical_feature_names, 0.0)
         for label, key in (
             ("bullish", "regime_trend_bullish"),
             ("bearish", "regime_trend_bearish"),
@@ -4819,7 +4823,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
             if key in categorical_values and topology_payload.get("topology_risk") == label:
                 categorical_values[key] = 1.0
 
-        context_values = {feature_name: 0.0 for feature_name in self.context_feature_names}
+        context_values = dict.fromkeys(self.context_feature_names, 0.0)
         asset = self.asset_lookup[str(symbol)]
         ticker_key = f"asset_{asset['ticker']}"
         if ticker_key in context_values:
@@ -4881,8 +4885,8 @@ class AetherQuantAlgorithm(QCAlgorithm):
         cost, see development/Problems.md."""
         model_exports = [self.expert_model_exports.get(expert_name) for expert_name in EXPERT_NAMES]
         results = run_exported_models_batched(model_exports, inputs, stack_cache=self.expert_models_stack_cache)
-        probabilities = dict(zip(EXPERT_NAMES, results))
-        for expert_name, model_export, result in zip(EXPERT_NAMES, model_exports, results):
+        probabilities = dict(zip(EXPERT_NAMES, results, strict=False))
+        for expert_name, model_export, result in zip(EXPERT_NAMES, model_exports, results, strict=False):
             if model_export and result is None:
                 self.Debug(f"Expert inference failed for {expert_name}")
         return probabilities
@@ -4900,15 +4904,15 @@ class AetherQuantAlgorithm(QCAlgorithm):
         )
         probabilities: dict[str, dict] = {}
         magnitudes_and_volatilities: dict[str, tuple[dict, dict]] = {}
-        for key, flat_row, multitask_row in zip(keys, flat_results, multitask_results):
-            probabilities[key] = dict(zip(EXPERT_NAMES, flat_row))
-            for expert_name, export, result in zip(EXPERT_NAMES, flat_exports, flat_row):
+        for key, flat_row, multitask_row in zip(keys, flat_results, multitask_results, strict=False):
+            probabilities[key] = dict(zip(EXPERT_NAMES, flat_row, strict=False))
+            for expert_name, export, result in zip(EXPERT_NAMES, flat_exports, flat_row, strict=False):
                 if export and result is None:
                     self.Debug(f"Expert inference failed for {expert_name}")
-            magnitudes = {name: (result.get("magnitude") if result else None) for name, result in zip(EXPERT_NAMES, multitask_row)}
-            volatilities = {name: (result.get("volatility") if result else None) for name, result in zip(EXPERT_NAMES, multitask_row)}
+            magnitudes = {name: (result.get("magnitude") if result else None) for name, result in zip(EXPERT_NAMES, multitask_row, strict=False)}
+            volatilities = {name: (result.get("volatility") if result else None) for name, result in zip(EXPERT_NAMES, multitask_row, strict=False)}
             magnitudes_and_volatilities[key] = (magnitudes, volatilities)
-            for expert_name, export, result in zip(EXPERT_NAMES, multitask_exports, multitask_row):
+            for expert_name, export, result in zip(EXPERT_NAMES, multitask_exports, multitask_row, strict=False):
                 if export and result is None:
                     self.Debug(f"Expert multitask inference failed for {expert_name}")
         return probabilities, magnitudes_and_volatilities
@@ -4947,7 +4951,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
 
         magnitudes: dict[str, float | None] = {}
         volatilities: dict[str, float | None] = {}
-        for expert_name, model_export, result in zip(EXPERT_NAMES, model_exports, results):
+        for expert_name, model_export, result in zip(EXPERT_NAMES, model_exports, results, strict=False):
             magnitudes[expert_name] = result.get("magnitude") if result else None
             volatilities[expert_name] = result.get("volatility") if result else None
             if model_export and result is None:
@@ -6436,7 +6440,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
         unchanged from V4.4."""
         spec = MULTI_LEG_STRATEGY_REGISTRY[strategy_name]
         factory = getattr(OptionStrategies, spec.factory_name)
-        strikes_by_role = {leg.strike_role: strike for leg, strike in zip(spec.legs, strikes)}
+        strikes_by_role = {leg.strike_role: strike for leg, strike in zip(spec.legs, strikes, strict=False)}
         strike_args = [strikes_by_role[role] for role in spec.arg_order]
         if spec.has_expiry_pair:
             near_expiration = datetime.fromisoformat(expiries[0])
@@ -6858,7 +6862,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
         if spec is None:
             return None
         held_rows_by_role = {}
-        for leg_spec, leg_symbol in zip(spec.legs, record["legs"]):
+        for leg_spec, leg_symbol in zip(spec.legs, record["legs"], strict=False):
             row = self._option_chain_row_for_contract(symbol_key, leg_symbol)
             if row is None:
                 return None
@@ -7033,7 +7037,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
         target_strikes = [leg.strike for leg in options_decision.legs]
         nearest_record = min(
             comparable_records,
-            key=lambda record: sum(abs(a - b) for a, b in zip(record["strikes"], target_strikes)) / len(target_strikes),
+            key=lambda record: sum(abs(a - b) for a, b in zip(record["strikes"], target_strikes, strict=False)) / len(target_strikes),
         )
         resized_decision = self._resize_multi_leg_record(symbol_key, nearest_record)
         if resized_decision is None:
@@ -7140,7 +7144,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
             return
 
         legs_by_role: dict[str, dict] = {}
-        for leg_spec, leg_symbol in zip(spec.legs, entry["leg_symbols"]):
+        for leg_spec, leg_symbol in zip(spec.legs, entry["leg_symbols"], strict=False):
             chain_row = self._option_chain_row_for_contract(symbol_key, leg_symbol)
             if chain_row is not None:
                 legs_by_role[leg_spec.role] = chain_row
@@ -8551,7 +8555,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 spec = MULTI_LEG_STRATEGY_REGISTRY.get(record["strategy_name"])
                 if spec is None:
                     continue
-                for leg_spec, leg_symbol, leg_strike in zip(spec.legs, record["legs"], record["strikes"]):
+                for leg_spec, leg_symbol, leg_strike in zip(spec.legs, record["legs"], record["strikes"], strict=False):
                     if leg_spec.right != "call" or leg_spec.side != "short":
                         continue
                     chain_row = self._option_chain_row_for_contract(symbol_key, leg_symbol)
@@ -8767,7 +8771,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 continue
 
             fell_back = False
-            for ticket, target_symbol in zip(pending["tickets"], pending["target_symbols"]):
+            for ticket, target_symbol in zip(pending["tickets"], pending["target_symbols"], strict=False):
                 status = classify_order_status(getattr(ticket.Status, "name", str(ticket.Status)))
                 # V5.3.1 (development/Problems.md #34/#96) - the actual
                 # decision (cancel? fall back, and for how much?) now lives

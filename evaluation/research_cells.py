@@ -22,11 +22,11 @@ import json
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import pandas as pd
 
 from data_pipeline.sp500_membership import canonical_issuer
-from typing import Any
 
 SALT = "aq-v660-names"
 BENCHMARK_TICKERS = ("SPY", "AGG")

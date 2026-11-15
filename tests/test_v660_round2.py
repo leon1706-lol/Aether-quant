@@ -12,8 +12,8 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
-from v660_round2 import IB_COINS, SENSITIVITY, TRIALS, band_of, ic_by_group, spec_of  # noqa: E402
-from v660_trials import PBO_COLUMNS, W  # noqa: E402
+from v660_round2 import IB_COINS, SENSITIVITY, TRIALS, band_of, ic_by_group, spec_of
+from v660_trials import PBO_COLUMNS, W
 
 
 def test_every_round_two_trial_builds_from_a_round_one_table_and_never_reuses_a_round_one_id():
@@ -61,7 +61,7 @@ def test_rank_ic_by_group_skips_dates_with_too_few_names():
 def test_round_two_refuses_to_run_without_its_hashed_rules(tmp_path, monkeypatch):
     import v660_round2
 
-    monkeypatch.setattr(v660_round2, "check_rules", lambda: {})
+    monkeypatch.setattr(v660_round2, "check_rules", dict)
     monkeypatch.setattr(v660_round2, "RULES_R2", tmp_path / "rules_r2.json")
     monkeypatch.setattr(v660_round2, "RULES_R2_SHA", tmp_path / "rules_r2.sha256")
     (tmp_path / "rules_r2.json").write_text("{}", encoding="utf-8")

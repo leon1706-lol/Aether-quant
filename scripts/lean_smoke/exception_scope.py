@@ -1,9 +1,9 @@
 """Does `except Exception` catch a Python error behind Lean's star import? (V6.5.0) One SMOKE_JSON line, then the run ends."""
 
-from AlgorithmImports import *  # noqa: F403
-
 import builtins
 import json
+
+from AlgorithmImports import *  # noqa: F403
 
 
 class ExceptionScopeSmoke(QCAlgorithm):  # noqa: F405
@@ -19,7 +19,7 @@ class ExceptionScopeSmoke(QCAlgorithm):  # noqa: F405
         }
         try:
             try:
-                None.Symbol
+                None.Symbol  # noqa: B018  # raises AttributeError on purpose
             except Exception:  # the star import's Exception, as main.py has it
                 report["star_exception_catches_python_error"] = True
         except BaseException as error:

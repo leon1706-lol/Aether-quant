@@ -19,7 +19,6 @@ from train import (
     export_multitask_architecture,
 )
 
-
 FEATURE_NAMES = [
     "close_to_close_return_1d",
     "close_to_close_return_5d",

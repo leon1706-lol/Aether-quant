@@ -26,7 +26,7 @@ _COLUMNS = (
 
 
 def _row_to_dict(row: tuple) -> dict[str, Any]:
-    out = dict(zip(_COLUMNS, row))
+    out = dict(zip(_COLUMNS, row, strict=False))
     out["created_at"] = canonical_timestamp(out["created_at"])  # the text the row was hashed as (Problems #339)
     return out
 

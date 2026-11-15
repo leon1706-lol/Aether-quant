@@ -147,11 +147,11 @@ def test_build_derivatives_macro_features_by_date_options_put_call_ratio_and_iv_
     expiry = "2026-06-19"
     call_prices = [
         bs_price(spot, 510, (date.fromisoformat(expiry) - d.date()).days / 365.0, 0.045, 0.20, 0.0, "call")
-        for spot, d in zip(spy_spot, dates)
+        for spot, d in zip(spy_spot, dates, strict=False)
     ]
     put_prices = [
         bs_price(spot, 490, (date.fromisoformat(expiry) - d.date()).days / 365.0, 0.045, 0.20, 0.0, "put")
-        for spot, d in zip(spy_spot, dates)
+        for spot, d in zip(spy_spot, dates, strict=False)
     ]
     asset_frames = {
         "SPY": pd.DataFrame({"date": dates, "close": spy_spot}),

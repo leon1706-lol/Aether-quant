@@ -293,7 +293,7 @@ def stage_combine(args) -> int:
         sleeves[name] = weights_for(spec, cell.context, sleeve_signal(spec, cell.context.panel), start=window.start, end=window.end, phase_offset=phase_offsets(spec.rebalance_every)[0])
     results = {}
     sessions = cell.context.market.sessions
-    for name, method in zip(COMBINATION_IDS, ("inverse_vol", "hrp")):
+    for name, method in zip(COMBINATION_IDS, ("inverse_vol", "hrp"), strict=False):
         rows = combine_sleeves(sleeves, cell.context.panel, method=method, settings=cell.context.settings, start=window.start, end=window.end)
         strategy = cell.context.simulate(rows, window.start, window.end)["strategy_excess"]
         results[name] = {
@@ -342,7 +342,7 @@ def stage_vel(args) -> int:
         strategy = result["strategy"]
         five_day = (1.0 + strategy).rolling(5).apply(np.prod, raw=True) - 1.0
         locked = result.get("locked_on")
-        rows = [date for date in strategy.index]
+        rows = list(strategy.index)
         trading_share = (sum(1 for date in rows if locked is None or date <= locked) / len(rows)) if rows else 0.0
         return {"velocity": velocity, "locked_on": locked, "sharpe": annual_sharpe(strategy), "worst_5_day": float(five_day.min()), "share_of_sessions_trading": trading_share, "max_drawdown": max_drawdown(strategy)}
 

@@ -4,6 +4,7 @@ ordering. Kept separate from the existing ~1000-line test_options_strategy.py
 (that file's single-leg/2-leg-vertical coverage is completely untouched)."""
 
 import math
+from datetime import date
 
 from portfolio.options_strategy import (
     ANNUALIZATION_FACTOR_DAILY_TO_ANNUAL,
@@ -23,7 +24,6 @@ from portfolio.options_strategy import (
     select_strategy_legs,
     strategies_for_volatility_view,
 )
-from datetime import date
 
 
 def _sample_chain(expiries=("2026-08-21",)) -> list[dict]:

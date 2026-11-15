@@ -16,6 +16,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from regime import build_market_regime_vector
 from train import (
     LIQUIDITY_FEATURE_NAMES,
     REGIME_FEATURE_NAMES,
@@ -29,8 +30,6 @@ from train import (
     load_sector_mapping,
     peer_return_feature_names,
 )
-from regime import build_market_regime_vector
-
 
 # ---------------------------------------------------------------------------
 # add_regime_features

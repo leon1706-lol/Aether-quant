@@ -95,7 +95,7 @@ class _Harness:
     def __init__(self, split, use_cache, dataset_path, kind, calls):
         self.split = split
         self.frame = _frame(carry=kind == "forex")
-        self.asset_class_by_ticker = {ticker: kind for ticker in TICKERS}
+        self.asset_class_by_ticker = dict.fromkeys(TICKERS, kind)
         self.metadata = {ticker: {"trading_eligible": True} for ticker in TICKERS}
         self.base = _base()
         calls.append((split, use_cache, dataset_path))

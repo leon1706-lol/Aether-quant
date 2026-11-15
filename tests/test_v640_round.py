@@ -66,7 +66,7 @@ def test_the_simulator_threads_the_counter_like_a_bar_by_bar_replay():
     plain = [evaluate_kill_switch({"recent_bar_returns": returns[:end]}, dict(config, trip_confirm_bars=1)).tripped
              for end in range(10, len(returns) + 1)]
     assert sum(confirmed) < sum(plain)
-    assert all(b or not a for a, b in zip(confirmed, plain))  # every confirmed trip is also a first-bar trip
+    assert all(b or not a for a, b in zip(confirmed, plain, strict=False))  # every confirmed trip is also a first-bar trip
 
 
 # ---------------------------------------------------------------- book history: probabilities and the paper gate

@@ -10,9 +10,10 @@ percentile rank) is train.py's definition unchanged. Pure numpy/pandas.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import numpy as np
 import pandas as pd
-from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -65,7 +66,7 @@ def asof_beta_by_row(frame: pd.DataFrame, *, market_ticker: str, return_column: 
     """The as-of beta of every row of a long (date, ticker) frame, aligned to `frame.index`. The market's daily return
     is matched by date, so each asset pairs only on the dates both traded."""
     market = frame.loc[frame["ticker"] == market_ticker, ["date", return_column]].drop_duplicates("date")
-    market_by_date = dict(zip(market["date"], market[return_column]))
+    market_by_date = dict(zip(market["date"], market[return_column], strict=False))
     out = pd.Series(np.nan, index=frame.index, dtype=float)
     for _ticker, rows in frame.sort_values("date").groupby("ticker", sort=False):
         market_returns = rows["date"].map(market_by_date).to_numpy(dtype=float)
@@ -86,7 +87,7 @@ def build_asof_rank_labels(frame: pd.DataFrame, *, horizons: Sequence[int]=(5, 2
     for horizon in horizons:
         return_column = f"target_return_{horizon}d"
         market = frame.loc[frame["ticker"] == market_ticker, ["date", return_column]].drop_duplicates("date")
-        market_fwd = frame["date"].map(dict(zip(market["date"], market[return_column])))
+        market_fwd = frame["date"].map(dict(zip(market["date"], market[return_column], strict=False)))
         valid = frame[return_column].notna() & market_fwd.notna()
 
         residual = pd.Series(asof_residual_forward_return(frame[return_column], market_fwd, beta), index=frame.index).where(valid)

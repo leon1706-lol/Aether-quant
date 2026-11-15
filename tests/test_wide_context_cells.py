@@ -19,7 +19,7 @@ def equity(tmp_path_factory):
 
 
 def test_an_equity_cell_holds_its_side_of_the_names_with_features_membership_and_sectors(equity):
-    root, base, cell = equity
+    _root, _base, cell = equity
     assert cell.cell.name == "SV" and cell.bars is not None and cell.member is not None and cell.label is not None
     assert set(wide_world.side_a_equities()) <= set(cell.context.market.tickers) and "gp_assets" in cell.features and cell.sectors["SPY"] == wide_context.BENCHMARK_CLASS
     assert {"sue", "accruals_ttm", "noa", "capex_growth"} <= set(cell.features) and cell.sectors["TLT"] == wide_context.BOND_ETF_CLASS and cell.sectors["XLK"] == wide_context.SECTOR_ETF_CLASS
@@ -43,7 +43,7 @@ def test_a_held_out_cell_and_a_cell_of_the_wrong_universe_do_not_open(equity):
 
 
 def test_a_crypto_cell_reads_binance_coins_their_liquidity_and_funding(tmp_path):
-    root, base, coins = wide_world.build_crypto_root(tmp_path)
+    root, base, _coins = wide_world.build_crypto_root(tmp_path)
     cell = wide_context.crypto_cell(root, base, "CS", data_dir="data_crypto_wide")
     assert "BTCUSD" in cell.context.market.tickers and {"quote_volume", "liquid", "funding"} <= set(cell.features) and cell.member.shape[1] == len(cell.context.market.tickers)
     one_side = wide_context.crypto_cell(root, base, "CS", data_dir="data_crypto_wide", side="A")

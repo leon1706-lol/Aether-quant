@@ -14,11 +14,11 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any
 
+from execution.secrets import redact_url
+from execution.secrets_io import secret_env
 from json_safety import dumps_json_safe
 
 from .observation_metrics import compute_observation_summary
-from execution.secrets import redact_url
-from execution.secrets_io import secret_env
 
 logger = logging.getLogger(__name__)
 

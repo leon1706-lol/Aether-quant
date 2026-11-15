@@ -135,7 +135,7 @@ def test_aether_net_multitask_horizons_forward_returns_eight_heads():
         "residual_rank_5d", "residual_rank_20d", "beta_neutral_rank_20d",
     }
     assert set(outputs.keys()) == expected_heads
-    for head_name, tensor in outputs.items():
+    for tensor in outputs.values():
         assert tensor.shape == (3,)
     assert torch.all(outputs["volatility"] >= 0.0)
 

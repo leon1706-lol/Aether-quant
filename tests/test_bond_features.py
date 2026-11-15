@@ -16,7 +16,6 @@ from features.bond_features import (
     yield_curve_slope,
 )
 
-
 # ---------------------------------------------------------------------------
 # yield_curve_level / slope / curvature - neutral defaults on missing input
 # ---------------------------------------------------------------------------

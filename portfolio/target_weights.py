@@ -19,9 +19,9 @@ import math
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 from portfolio.cash_sweep import strategy_reserve
-from typing import Any
 
 DEFAULT_SLIPPAGE_BPS = {"equity": 3.0, "bond": 3.0, "forex": 1.0, "crypto": 10.0}
 NEXT_BAR_CLASSES = frozenset({"crypto", "forex"})

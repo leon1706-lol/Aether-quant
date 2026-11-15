@@ -20,6 +20,7 @@ import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+from execution.secrets_io import secret_env
 from performance.postgres_triggers import (
     ensure_schema,
     fetch_events_since,
@@ -32,7 +33,6 @@ from performance.postgres_triggers import (
 )
 from performance.rank_ic_monitor import compute_realized_rank_ic_observations
 from performance.triggers import evaluate_all_triggers
-from execution.secrets_io import secret_env
 
 logger = logging.getLogger(__name__)
 

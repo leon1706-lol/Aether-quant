@@ -74,7 +74,7 @@ def random_weights(panel: MarketPanel, tickers: list[str], *, seed: int, start: 
         else:
             raw = np.abs(raw)
         scale = gross / np.abs(raw).sum()
-        rows[date] = {ticker: float(value * scale) for ticker, value in zip(live, raw)}
+        rows[date] = {ticker: float(value * scale) for ticker, value in zip(live, raw, strict=False)}
     return rows
 
 
@@ -97,7 +97,7 @@ def oracle_weights(panel: MarketPanel, tickers: list[str], *, start: str, end: s
         if count == 0:
             continue
         weight = gross / (2 * count)
-        rows[sessions[position]] = {**{ticker: weight for ticker in ranked[-count:]}, **{ticker: -weight for ticker in ranked[:count]}}
+        rows[sessions[position]] = {**dict.fromkeys(ranked[-count:], weight), **dict.fromkeys(ranked[:count], -weight)}
     return rows
 
 
@@ -191,7 +191,7 @@ def compare(name: str, run_dir: Path) -> dict:
     panel = load_market_panel(ROOT, run_config)
     engine = _engine_for(run_config, panel)
     points = daily_equity_from_chart(load_backtest_run(run_dir)["result"])
-    lean_nav = pd.Series({day: value for day, value in points}, dtype=float).sort_index()
+    lean_nav = pd.Series(dict(points), dtype=float).sort_index()
     window = run_config["runtime"]["lean_window_override"]
     lean_nav = lean_nav[(lean_nav.index >= window["start"]) & (lean_nav.index <= window["end"])]
     lean = lean_nav.pct_change().dropna()

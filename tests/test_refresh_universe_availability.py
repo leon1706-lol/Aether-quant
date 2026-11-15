@@ -5,7 +5,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
-import refresh_universe_availability as refresh  # noqa: E402
+import refresh_universe_availability as refresh
 
 
 def _zip(path: Path, rows: list[str]) -> None:

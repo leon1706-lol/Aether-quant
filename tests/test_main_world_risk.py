@@ -76,7 +76,7 @@ def write_override(root, **values):
 
 
 def test_a_manual_override_forces_or_clears_the_lock_and_the_kill_switch(monkeypatch, tmp_path):
-    algorithm, market, root = build(monkeypatch, tmp_path)
+    algorithm, market, _root = build(monkeypatch, tmp_path)
     market.run(3)
     for path in (algorithm._override_config_path,):
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -118,7 +118,7 @@ def test_the_field_test_injects_a_drift_and_a_shock_and_logs_each_bar(monkeypatc
     assert algorithm._field_test_active is True
     market.run(10)
     text = "\n".join(algorithm.messages)
-    assert "bar" in text and "reconciliation_breach" in text or "order_event" in text or algorithm.messages
+    assert ("bar" in text and "reconciliation_breach" in text) or "order_event" in text or algorithm.messages
 
 
 def test_the_end_of_a_run_writes_its_reports_and_releases_the_models(monkeypatch, tmp_path):

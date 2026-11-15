@@ -10,7 +10,7 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
-import v664_crypto_gbm as gbm  # noqa: E402
+import v664_crypto_gbm as gbm
 
 DAYS = [day.strftime("%Y-%m-%d") for day in pd.date_range("2017-06-01", periods=1300)]
 COINS = ["BTCUSD", "ETHUSD"] + [f"C{i:02d}USD" for i in range(12)]

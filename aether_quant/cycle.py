@@ -1,7 +1,22 @@
 """The research cycle: generations sharing a book, the admission rule, decay, the forward record, the glide's calibration, pre-registered rounds and holdout cells."""
 
 from evaluation.alpha_decay import DecayConfig, DecayReport, average_run_lengths, cusum_lower, cusum_path, decay_state
-from evaluation.forward_ledger import append_row, decide, definition_sha256, has_session, is_rebalance, judge_candidate, judge_ledger, last_row_for, read_ledger, session_return, turnover
+from evaluation.forward_ledger import (
+    NoSessionToRecord,
+    append_row,
+    decide,
+    definition_sha256,
+    has_session,
+    is_rebalance,
+    judge_candidate,
+    judge_ledger,
+    last_row_for,
+    read_ledger,
+    resolve_session,
+    session_for_outage,
+    session_return,
+    turnover,
+)
 from evaluation.generation_ledger import (
     allocation_row,
     append_event,
@@ -25,13 +40,17 @@ from evaluation.research_cells import Cell, assert_cell_open, blank_stale, coin_
 from evaluation.research_cycle import due_actions, install_command, ram_preflight, read_json_or, render_schedule, retrain_due, retrain_stages, sessions_since_retrain, status_view, total_memory_bytes
 from evaluation.research_round import (
     RoundSpec,
+    clause_overrides,
     count_unrun_trials,
+    family_of,
     gate_report,
     holdouts_spent,
+    live_rows,
     load_round,
     passes_earlier_clauses,
     pbo_report,
     r_hold1,
+    r_hold1_crypto,
     rules_sha_path,
     score_file_table,
     spec_of,
@@ -43,16 +62,24 @@ from evaluation.research_round import (
     stage_report,
     stage_score,
     trial_table,
+    universe_for,
     write_rules,
 )
-from portfolio.generation_blend import (
-    GlidePolicy, blend_due, blend_generation_rows, dynamic_generation_shares, dynamic_targets, ew_sharpe, ew_update, repair_shares, resolve_glide_policy,
-    shrunk_sharpe, step_toward, update_generation_shares,
-)
-
-from evaluation.forward_ledger import NoSessionToRecord, resolve_session, session_for_outage
-from evaluation.research_round import clause_overrides, family_of, live_rows, r_hold1_crypto, universe_for
 from evaluation.round_builders import MissingInput, apply_gate, build_trial_table
+from portfolio.generation_blend import (
+    GlidePolicy,
+    blend_due,
+    blend_generation_rows,
+    dynamic_generation_shares,
+    dynamic_targets,
+    ew_sharpe,
+    ew_update,
+    repair_shares,
+    resolve_glide_policy,
+    shrunk_sharpe,
+    step_toward,
+    update_generation_shares,
+)
 
 __all__ = [
     "AdmissionEvidence",

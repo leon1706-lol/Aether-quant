@@ -199,7 +199,7 @@ def test_gating_uses_learned_model_when_present():
         0.55,
         decision.weights,
     )
-    pre_sigmoid = sum(w * x for w, x in zip(weights_vector, feature_vector)) + bias
+    pre_sigmoid = sum(w * x for w, x in zip(weights_vector, feature_vector, strict=False)) + bias
     expected = 1.0 / (1.0 + math.exp(-pre_sigmoid))
     assert decision.final_probability_up == pytest.approx(expected, abs=1e-9)
 

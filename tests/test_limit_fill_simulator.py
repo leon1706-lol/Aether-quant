@@ -28,7 +28,7 @@ def test_simulate_limit_fills_buy_fills_when_low_crosses_limit():
 
     result = simulate_limit_fills(dataset, unfilled_timeout_bars=2)
 
-    buy_records = [r for r in result["by_side"]["buy"].items()]
+    buy_records = list(result["by_side"]["buy"].items())
     assert result["by_side"]["buy"]["num_signals"] >= 1
     assert result["by_side"]["buy"]["fill_rate"] == 1.0
     assert buy_records  # sanity - dict is non-empty

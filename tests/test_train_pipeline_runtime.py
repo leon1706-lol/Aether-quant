@@ -130,5 +130,5 @@ def test_walk_forward_survives_a_trainer_that_fails_and_a_window_that_does_not_f
     monkeypatch.setattr(train, "build_feature_dataset", lambda config: (dataset.copy(), copy.deepcopy(metadata)))
     monkeypatch.setattr(sys, "argv", ["train", "--walk-forward", "--include-multitask"])
     assert train.main() == 0
-    root2, code = run(monkeypatch, tmp_path / "toolong", built, ["--walk-forward", "--step-days", "10"], config_overrides={"phase_v2": {"retraining": {"walk_forward": {"train_span_days": 5000}}}})
+    _root2, code = run(monkeypatch, tmp_path / "toolong", built, ["--walk-forward", "--step-days", "10"], config_overrides={"phase_v2": {"retraining": {"walk_forward": {"train_span_days": 5000}}}})
     assert code == 0 and "no windows" in capsys.readouterr().out

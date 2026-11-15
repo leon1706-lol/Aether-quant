@@ -20,6 +20,7 @@ next 00:00 UTC), so its bar date is the UTC date one second earlier. Pure functi
 from __future__ import annotations
 
 import bisect
+import itertools
 import zipfile
 from collections import defaultdict
 from dataclasses import dataclass
@@ -281,7 +282,7 @@ def reconcile_with_equity_curve(component_pnl: dict[str, dict[str, dict]], daily
     import numpy as np
 
     rebuilt = {date: sum(entry["pnl"] - entry["fee"] for entry in day.values()) for date, day in component_pnl.items()}
-    lean = {date: equity - previous for (_, previous), (date, equity) in zip(daily_equity, daily_equity[1:])}
+    lean = {date: equity - previous for (_, previous), (date, equity) in itertools.pairwise(daily_equity)}
     common = sorted(set(rebuilt) & set(lean))
     total_rebuilt = sum(rebuilt.values())
     total_lean = daily_equity[-1][1] - daily_equity[0][1] if len(daily_equity) > 1 else 0.0

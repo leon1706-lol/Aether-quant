@@ -7,9 +7,10 @@ needs is NaN, never a number.
 
 from __future__ import annotations
 
+from typing import Any
+
 import numpy as np
 import pandas as pd
-from typing import Any
 
 
 def _dates(values) -> pd.Series:
@@ -36,7 +37,7 @@ def events_to_sessions(events: pd.DataFrame, index: pd.Index, columns: pd.Index,
     keep = rows < len(index)
     columns_at = {name: position for position, name in enumerate(columns)}
     values = table.to_numpy(dtype=float, copy=True)
-    for row, ticker, number in zip(rows[keep], frame["ticker"].to_numpy()[keep], frame["value"].to_numpy()[keep]):
+    for row, ticker, number in zip(rows[keep], frame["ticker"].to_numpy()[keep], frame["value"].to_numpy()[keep], strict=False):
         values[row, columns_at[ticker]] = number
     return pd.DataFrame(values, index=index, columns=columns).ffill(limit=limit)
 
@@ -59,13 +60,13 @@ def announcement_proximity(rows: pd.DataFrame, index: pd.Index, columns: pd.Inde
     values = table.to_numpy(dtype=float, copy=True)
     columns_at = {name: position for position, name in enumerate(columns)}
     first_seen: dict[str, int] = {}
-    for date, ticker in zip(_positions(index, frame["date"], side="right"), frame["ticker"]):
+    for date, ticker in zip(_positions(index, frame["date"], side="right"), frame["ticker"], strict=False):
         first_seen[ticker] = min(first_seen.get(ticker, len(index)), int(date))
     for ticker, first in first_seen.items():
         values[first:, columns_at[ticker]] = 0.0  # a name with an announcement on record is measurable from the session after it
     ends = _positions(index, expected, side="left")
     starts = _positions(index, expected - pd.Timedelta(days=window_days), side="left")
-    for low, end, ticker in zip(starts, ends, frame["ticker"]):
+    for low, end, ticker in zip(starts, ends, frame["ticker"], strict=False):
         if low < end:
             values[int(low):int(end), columns_at[ticker]] = 1.0
     return pd.DataFrame(values, index=index, columns=columns)
@@ -84,7 +85,7 @@ def announcement_return(rows: pd.DataFrame, known: pd.DataFrame, *, days: int = 
     benchmark = known[bench].to_numpy(dtype=float)
     columns_at = {name: position for position, name in enumerate(known.columns)}
     values = table.to_numpy(dtype=float, copy=True)
-    for start, ticker in zip(starts, frame["ticker"]):
+    for start, ticker in zip(starts, frame["ticker"], strict=False):
         end = int(start) + days
         if start < 1 or end >= len(known.index):
             continue
@@ -128,17 +129,17 @@ def opportunistic_buying(trades: pd.DataFrame, index: pd.Index, columns: pd.Inde
         return table
     stamp = pd.DatetimeIndex(frame["filed"])
     frame = frame.assign(year=stamp.year, month=stamp.month)
-    seen = set(zip(frame["ticker"], frame["owner"], frame["year"], frame["month"]))
+    seen = set(zip(frame["ticker"], frame["owner"], frame["year"], frame["month"], strict=False))
     routine = np.array([
         all((ticker, owner, year - gap, month) in seen for gap in range(1, routine_years + 1))
-        for ticker, owner, year, month in zip(frame["ticker"], frame["owner"], frame["year"], frame["month"])
+        for ticker, owner, year, month in zip(frame["ticker"], frame["owner"], frame["year"], frame["month"], strict=False)
     ])
     kept = frame[~routine]  # never empty: the first purchase of an owner in a month has no earlier year to repeat
     daily = pd.DataFrame(0.0, index=index, columns=columns)
     rows = _positions(index, kept["filed"], side="right")
     values = daily.to_numpy(dtype=float, copy=True)
     columns_at = {name: position for position, name in enumerate(columns)}
-    for row, ticker, value in zip(rows, kept["ticker"], kept["value"]):
+    for row, ticker, value in zip(rows, kept["ticker"], kept["value"], strict=False):
         if row < len(index):
             values[row, columns_at[ticker]] += float(value)
     daily = pd.DataFrame(values, index=index, columns=columns)

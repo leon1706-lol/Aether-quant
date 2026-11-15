@@ -24,7 +24,7 @@ def _stamp(day) -> float:
 
 def _zip(path: Path, prices, scale=1, dates=None) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    rows = "\n".join(f"{day:%Y%m%d} 00:00,{int(p * scale)},{int(p * scale)},{int(p * scale)},{int(p * scale)},1000" for day, p in zip(dates if dates is not None else SESSIONS, prices))
+    rows = "\n".join(f"{day:%Y%m%d} 00:00,{int(p * scale)},{int(p * scale)},{int(p * scale)},{int(p * scale)},1000" for day, p in zip(dates if dates is not None else SESSIONS, prices, strict=False))
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w") as archive:
         archive.writestr(f"{path.stem}.csv", rows)
@@ -43,7 +43,7 @@ def world(tmp_path):
         {"ticker": "AGG", "security_type": "equity", "data_path": "data/equity/usa/daily/agg.zip"},
         {"ticker": "BTCUSD", "security_type": "crypto", "data_path": "data/crypto/coinbase/daily/btcusd_trade.zip"}]}}}
     nav = 100000.0 * np.exp(np.cumsum(rng.normal(0.0004, 0.006, len(SESSIONS))))
-    points = [[_stamp(day), float(value)] for day, value in zip(SESSIONS, nav)]
+    points = [[_stamp(day), float(value)] for day, value in zip(SESSIONS, nav, strict=False)]
     result = {"charts": {"Strategy Equity": {"series": {"Equity": {"values": points}}}}}
     run_dir = tmp_path / "backtests" / "2026-12-31_00-00-00"
     run_dir.mkdir(parents=True)

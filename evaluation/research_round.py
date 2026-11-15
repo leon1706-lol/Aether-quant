@@ -20,6 +20,7 @@ import math
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import pandas as pd
@@ -32,13 +33,12 @@ from evaluation.premia_research import (
     score_sleeve,
     selection_gate,
 )
-from evaluation.round_builders import BUILDERS, MissingInput, apply_gate, build_trial_table
 from evaluation.research_cells import CELLS, FREE_CELLS, freeze_digest_of, record_holdout_read, write_freeze
+from evaluation.round_builders import BUILDERS, MissingInput, apply_gate, build_trial_table
 from evaluation.trial_ledger import append_trial, read_ledger
 from portfolio.premia_signals import DIRECT, POOLED, TS, XS, SleeveSpec
 from portfolio.signal_construction import build_table
 from portfolio.wide_signals import live_names_per_rebalance, rank_mean
-from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from evaluation.wide_context import WideCell

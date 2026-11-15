@@ -305,7 +305,7 @@ def test_signal_quality_score_decreases_with_higher_participation_rate():
 
 
 def test_signal_quality_score_empty_topology_falls_back_to_regime_component():
-    score, breakdown = compute_signal_quality_score(0.5, 0.7, {}, {})
+    _score, breakdown = compute_signal_quality_score(0.5, 0.7, {}, {})
     assert breakdown["topology_component"] == breakdown["regime_component"] == 0.7
 
 

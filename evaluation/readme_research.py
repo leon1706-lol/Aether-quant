@@ -653,6 +653,6 @@ def refresh_readme_best_effort() -> bool:
         from generate_evaluation_report import update_readme_evaluation_sections
 
         return bool(update_readme_evaluation_sections())
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         print(f"warning: README refresh failed: {exc}")
         return False

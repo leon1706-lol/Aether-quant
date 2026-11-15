@@ -23,7 +23,7 @@ def stamp(day: str, hour: int = 20) -> float:
 
 def write_zip(path: Path, closes, *, scale: int = 1, days=SESSIONS) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    rows = "\n".join(f"{day.replace('-', '')} 00:00,{int(p * scale)},{int(p * scale)},{int(p * scale)},{int(p * scale)},1000" for day, p in zip(days, closes))
+    rows = "\n".join(f"{day.replace('-', '')} 00:00,{int(p * scale)},{int(p * scale)},{int(p * scale)},{int(p * scale)},1000" for day, p in zip(days, closes, strict=False))
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w") as archive:
         archive.writestr(f"{path.stem}.csv", rows)
@@ -59,7 +59,7 @@ def build_world(root: Path, *, seed: int = 1) -> SimpleNamespace:
                                "fillQuantity": quantity if (index // 10) % 2 == 0 else -quantity, "fillPrice": closes[ticker][index], "orderFeeAmount": 1.0, "direction": "buy"})
     result = {
         "statistics": {"Sharpe Ratio": "0.5", "Total Fees": "$10.00"},
-        "charts": {"Strategy Equity": {"series": {"Equity": {"values": [[stamp(day), value, value, value, value] for day, value in zip(SESSIONS, nav)]}}},
+        "charts": {"Strategy Equity": {"series": {"Equity": {"values": [[stamp(day), value, value, value, value] for day, value in zip(SESSIONS, nav, strict=False)]}}},
                    "Benchmark": {"series": {"Benchmark": {"values": [[stamp(day), 400.0 + i] for i, day in enumerate(SESSIONS)]}}}},
         "orders": {str(event["orderId"]): {"securityType": 1 if event["symbolValue"] == "AAA" else 7, "type": 0} for event in events},
         "totalPerformance": {"closedTrades": []},

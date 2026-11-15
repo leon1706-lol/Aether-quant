@@ -14,8 +14,9 @@ Pure; no I/O.
 
 from __future__ import annotations
 
-import numpy as np
 from typing import TYPE_CHECKING, Any
+
+import numpy as np
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence

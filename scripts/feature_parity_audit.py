@@ -37,11 +37,11 @@ ROOT_DIR = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT_DIR))
 
 from evaluation.feature_parity import (  # noqa: E402
-    build_momentum_pool,
     BASE_TECHNICAL_FEATURES,
     DEFAULT_LONG_LOOKBACK_WINDOW_BARS,
     INDICATOR_FEATURES,
     LIQUIDITY_FEATURES,
+    build_momentum_pool,
     compute_base_technicals_replica,
     compute_cs_momentum_rank_replica,
     compute_liquidity_replica,
@@ -154,7 +154,7 @@ def check_synthetic_formula_parity() -> dict:
                 "n_compared": int(len(joined)),
             }
         result["_status"] = "OK"
-    except Exception as error:  # noqa: BLE001 - audit must degrade, never crash
+    except Exception as error:
         result["_status"] = f"SKIPPED: {type(error).__name__}: {error}"
     return result
 
@@ -198,7 +198,7 @@ def check_artifact_consistency(dataset: pd.DataFrame, scaler_mapping: dict[str, 
                 unexplained += 1
         return boundary, unexplained
 
-    for ticker, group in dataset.groupby("ticker"):
+    for _ticker, group in dataset.groupby("ticker"):
         group = group.sort_values("date").reset_index(drop=True)
         security_type = str(group["security_type"].iloc[0]) if "security_type" in group.columns else "equity"
         dates = pd.to_datetime(group["date"])
@@ -209,7 +209,7 @@ def check_artifact_consistency(dataset: pd.DataFrame, scaler_mapping: dict[str, 
         if security_type == "forex":
             # Forex rows are engineered on Lean's fill-forward calendar (train.engineer_forex_features_on_lean_calendar):
             # replicate on the filled frame, then read the replica at the dataset's own dates.
-            import train as train_module  # noqa: PLC0415 - heavy import, forex only
+            import train as train_module
 
             filled = train_module.fill_forward_forex_frame(group[["date", "open", "high", "low", "close", "volume"]].assign(date=dates.to_numpy()))
             row_positions = np.flatnonzero(filled["date"].isin(set(dates)).to_numpy())

@@ -15,6 +15,7 @@ that additionally evaluates observation-mode readiness.
 """
 
 from __future__ import annotations
+
 from typing import Any
 
 _PAPER_REASON_ALL_CONFIRMED = "paper_broker_config_confirmed"
@@ -84,7 +85,7 @@ def evaluate_live_broker_config(
     `postgres_dsn` is optional and defaults to None (unchecked) so existing
     callers/tests are unaffected; main.py threads the real DSN through so a
     live run against the public default password fails closed."""
-    paper_ready, paper_reason = evaluate_paper_broker_config(paper_trading_config)
+    paper_ready, _paper_reason = evaluate_paper_broker_config(paper_trading_config)
     if not paper_ready:
         return False, _LIVE_REASON_PAPER_NOT_READY
 

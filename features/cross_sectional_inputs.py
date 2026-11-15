@@ -122,7 +122,7 @@ def rank_input_matrix(
         target = out_names.index(name + CSR_SUFFIX) if append else source
         for indexes in members.values():
             ranks = _centred_ranks([_finite(rows[i][source]) for i in indexes], min_group_size)
-            for i, rank in zip(indexes, ranks):
+            for i, rank in zip(indexes, ranks, strict=False):
                 out_rows[i][target] = rank
     return out_rows, out_names
 

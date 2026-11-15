@@ -177,7 +177,7 @@ def test_zero_volume_with_fallback_ddv_allows_when_fallback_above_floor():
         zero_volume_fallback_ddv=5_000_000_000.0,
     )
     assert decision.recommended_action != "block"
-    assert not any("zero_volume" == r for r in decision.reasons)
+    assert not any(r == "zero_volume" for r in decision.reasons)
     assert any("zero_volume_treated_as_missing_data_fallback_ddv" in r for r in decision.reasons)
 
 

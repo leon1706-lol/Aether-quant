@@ -12,10 +12,10 @@ import pytest
 
 from train import (
     FOREX_CALENDAR_FEATURE_COLUMNS,
+    add_liquidity_features,
     engineer_features,
     engineer_forex_features_on_lean_calendar,
     fill_forward_forex_frame,
-    add_liquidity_features,
 )
 
 FEATURE_NAMES = [

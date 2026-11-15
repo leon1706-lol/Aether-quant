@@ -53,7 +53,7 @@ def segment_overlaps(runs: list[dict]) -> list[tuple[str, str, float, int]]:
 def pair_ordinally(segments: list, dir_sharpes: list[tuple[str, float]]) -> list[dict]:
     n = min(len(segments), len(dir_sharpes))
     rows = []
-    for (start, end, mean_overlap, n_dates), (dir_name, sharpe) in zip(segments[len(segments) - n :], dir_sharpes[len(dir_sharpes) - n :]):
+    for (start, end, mean_overlap, n_dates), (dir_name, sharpe) in zip(segments[len(segments) - n :], dir_sharpes[len(dir_sharpes) - n :], strict=False):
         rows.append(
             {
                 "segment": f"{start}..{end}",

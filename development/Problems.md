@@ -2,7 +2,7 @@
 
 Every bug and infrastructure issue found in this codebase, oldest first, with how it was fixed or why it stayed open. Numbers never change, because code and docs cite them; #73-76 don't exist, and #88 and #112 appear twice.
 
-**Entries:** <!--fact:problems.total-->376<!--/fact--> up to #<!--fact:problems.last-->378<!--/fact-->: <!--fact:problems.fixed-->342<!--/fact--> 🟢 `fixed` (changed and verified), <!--fact:problems.partial-->13<!--/fact--> 🟡 `partial` (shipped, verification pending), <!--fact:problems.closed-->18<!--/fact--> 🔴 `closed` (no code fix: declined, moot or superseded). Severity runs from 1 (cosmetic) to 10 (data loss or safety). Full text of older entries: [`backups/`](backups/README.md).
+**Entries:** <!--fact:problems.total-->379<!--/fact--> up to #<!--fact:problems.last-->381<!--/fact-->: <!--fact:problems.fixed-->343<!--/fact--> 🟢 `fixed` (changed and verified), <!--fact:problems.partial-->14<!--/fact--> 🟡 `partial` (shipped, verification pending), <!--fact:problems.closed-->19<!--/fact--> 🔴 `closed` (no code fix: declined, moot or superseded). Severity runs from 1 (cosmetic) to 10 (data loss or safety). Full text of older entries: [`backups/`](backups/README.md).
 
 **Open now** (each needs a broker key, a forward record or the laptop):
 
@@ -2111,3 +2111,30 @@ Lean's paper brokerage starts empty on each run, so the restart proves the state
 **Fix:** the 24 modules got their own test files (the frozen list is empty, its ceiling 0). Each of the 288 names is now under `unexported` with a per-module reason, and `LEGACY_CEILING` is 0. `scripts/README.md` says what a record is, names every script, and `tests/test_scripts_readme.py` keeps it so.
 
 **Verification:** `tests/test_module_has_test.py`, `tests/test_library_gate.py`, `tests/test_aether_quant_coverage.py` and `tests/test_scripts_readme.py` pass, and `python scripts/library_gate.py` is clean.
+
+### 379. ruff checked only pyflakes and pycodestyle errors (V6.6.8)
+🟢 `fixed` · 2/10
+
+**Problem:** CI's lint ran ruff with `E` and `F` only, a thin basis for the OpenSSF `warnings_strict` answer, and ruff targeted Python 3.11 while `requires-python` is 3.10, so an upgrade fix could reach for a 3.11-only name (#326). The fast coverage gate (#367) also refused every change to `main.py`, because the `--lean`-only test names it and is in no group by design.
+
+**Fix:** ruff now runs 14 sets (E, F, W, PLE, PIE, SIM, PERF, N, UP, PLW, C4, I, B, RUF) and targets py310. Every exclusion (SIM105, SIM108, PERF203, PERF401, N818, PLW2901, C408, RUF046, RUF005, RUF022, plus scoped per-file ones) has its reason in `pyproject.toml`, and `tests/test_ruff_config.py` pins the sets, the target and the reasons. The sweep was behaviour-neutral by construction (`zip(strict=False)`, `subprocess.run(check=False)`, sorted imports with `main.py` exempt for Lean's star import). What it surfaced was small: a vacuous `assert ... or True` in `tests/test_ib_backfill.py` (deleted), a zero-width space in a docstring of `scripts/order_events_audit.py`, an invalid `noqa` code, and five late-binding closures (B023) that were all called inside their own loop iteration, so none was a live bug; they now bind the variable explicitly or moved to module level. `aq test --coverage --changed` also refused every `main.py` change, because the `--lean`-only test names it and sits in no group by design; it is skipped there now.
+
+**Verification:** `ruff check .` (the pinned 0.16.4) is clean on all 14 sets, and the full `aq test --coverage` ran all 16 groups green (7,000+ tests) over 48,167 statements at 100% with nothing missed. The first full run found three things the lint sweep itself caused, all fixed before this one: an unsafe C416 autofix turned a comprehension over a pandas `GroupBy` into `dict(groupby)`, which reads the grouping column's name as a `.keys()` method and raised `TypeError` (reverted, with the reason on the line); RUF100 stripped a `noqa: F821` from the four notebooks' install cell that their `notebooks/src` twins still need; and six test fakes of `subprocess.run` did not accept the `check=False` the sweep added. The new CI job needed a row in the verification matrix.
+
+### 380. The C++ accelerator had never run under a memory sanitizer (V6.6.8)
+🟡 `partial` · 3/10
+
+**Problem:** `cpp_inference_ext` is the project's only memory-unsafe code (pybind11, `unchecked<>` accessors), and no job built it: CI always took the NumPy path, so OpenSSF `dynamic_analysis_unsafe` was Unmet.
+
+**Fix:** CI job `cpp-sanitizers` builds it with AddressSanitizer and UBSan (`setup.py` reads `AQ_SANITIZE` and `AQ_ASAN_CANARY`; the default build is unchanged) from the new hash-locked `sanitize` profile. A canary heap overflow must abort first, then `tests/test_cpp_inference_kernel.py` (hypothesis over shapes with zero sizes, dtypes, strided and Fortran layouts, NaN and inf; shape and rank mismatches) and `tests/test_exported_model.py` run against the sanitized build with `AQ_REQUIRE_CPP_INFERENCE=1`, so a missing build fails instead of skipping.
+
+**Verification:** the job's steps replayed in `python:3.11-bookworm` on the PC's Docker (`ml/evaluation/v668/sanitizers_local.txt`): the canary aborts with `AddressSanitizer: heap-buffer-overflow` at `read_at`, then 77 tests pass and 3 skip under ASan and UBSan (the skips need the gitignored `ml/expert_models`, as in CI). The replay caught two flaws in the first draft, both fixed before any push: the canary tripped UBSan's object-size check first, so it now reads through a non-inlined helper, and the shape-mismatch tests aborted inside ASan (`CHECK failed: real___cxa_throw`) because `python` is a C program, so the job preloads `libstdc++` next to `libasan` (the plain build raised the expected `RuntimeError` and `ValueError`). Partial until the first green run on `ubuntu-24.04` (gcc 13) after the push: the replay used gcc 12 and `seccomp=unconfined`, because Docker's default profile blocks a syscall the gcc-12 ASan runtime needs at startup (a plain runner VM has no such filter).
+
+### 381. The repository is not FLOSS as a whole, so the best-practices badge cannot pass (V6.6.8)
+🔴 `closed` · 1/10
+
+**Problem:** OpenSSF Best Practices `floss_license` is a MUST, and the trading system's PolyForm Noncommercial 1.0.0 is not an OSI licence, so project 16720 stays "in progress" at 99% whatever the code does.
+
+**Fix:** none, by the owner's decision (2026-11-15): the licence split stays (library Apache-2.0, trading system PolyForm Noncommercial). Relicensing is recorded as a possible future step in the README's Known Limitations, `docs/about/license.md` and `development/openssf_best_practices.md`.
+
+**Verification:** `tests/test_licensing.py` is unchanged and passes; the README bullet links the badge.

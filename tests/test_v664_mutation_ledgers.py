@@ -125,7 +125,7 @@ def _rows(count: int, candidate: str = "c", *, with_benchmarks: bool = True) -> 
     rng = np.random.default_rng(3)
     days = pd.bdate_range("2026-01-05", periods=count)
     out = []
-    for index, day in enumerate(days):
+    for _index, day in enumerate(days):
         payload = {"session": day.date().isoformat(), "candidate": candidate, "status": "ok", "session_return": float(rng.normal(0.001, 0.01))}
         if with_benchmarks:
             payload["benchmarks"] = {"SPY": float(rng.normal(0, 0.01)), "AGG": float(rng.normal(0, 0.003))}

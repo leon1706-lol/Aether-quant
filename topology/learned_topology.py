@@ -228,7 +228,7 @@ def learned_sizing_inputs(
         mismatch = 1.0 if cluster_regime_label is not None and nearest_regime != cluster_regime_label else 0.0
         disagreement = 0.5 * mismatch + 0.5 * _clamp(float(peer_distance), 0.0, 1.0)
         return {"topology_source": "learned", "topology_confidence": confidence, "topology_disagreement": disagreement}
-    except Exception:  # noqa: BLE001 - same never-raise contract as apply_learned_topology
+    except Exception:
         return fallback
 
 

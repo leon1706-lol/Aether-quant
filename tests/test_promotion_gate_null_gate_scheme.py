@@ -20,7 +20,7 @@ def _datasets(root):
     for position, day in enumerate(dates):
         names = tickers[:5] if position % 40 == 7 else tickers  # a thin date the gate skips
         sign = 1.0 if (position // 65) % 2 == 0 else -1.0  # eras that flip sign
-        for rank, ticker in enumerate(names):
+        for _rank, ticker in enumerate(names):
             target = rng.normal()
             rows.append({"date": day, "ticker": ticker, "target_rank_20d": target})
             score = 1.0 if position == 3 else sign * target + 0.1 * rng.normal()  # one date of constant scores

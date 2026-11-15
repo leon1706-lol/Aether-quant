@@ -6,12 +6,11 @@ import json
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 import pandas as pd
 
 from regime import build_market_regime_vector
-from typing import Any
-
 
 EXPERT_DEFINITIONS = {
     "bullish": {

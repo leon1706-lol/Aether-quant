@@ -60,7 +60,7 @@ def test_run_as_a_script_it_writes_one_report(monkeypatch, capsys):
     monkeypatch.setattr(requests, "get", lambda url, params, headers, timeout: _Response(503))
     writes = block_path_writes(monkeypatch)
     assert run_script("v660_venue_coverage", [], monkeypatch) == 0
-    ((method, path, args),) = writes
+    ((_method, path, args),) = writes
     report = json.loads(args[0])
     assert path.name == "venue_data_coverage.json" and set(report["coins"]["BTC"]) == {"coinbase", "kraken", "binance"}
     assert "BTC" in capsys.readouterr().out

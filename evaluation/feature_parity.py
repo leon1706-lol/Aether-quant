@@ -326,7 +326,7 @@ def compute_cs_momentum_rank_replica(momentum_long: pd.DataFrame, security_types
     arrays = _momentum_arrays(momentum_long, security_types)
     keys = _row_keys(momentum_long, security_types)
     pools = {key: _momentum_before(arrays, key) for key in sorted(set(keys))}
-    ranks = [cross_sectional_momentum_rank(pools[key], ticker) for key, ticker in zip(keys, momentum_long["ticker"])]
+    ranks = [cross_sectional_momentum_rank(pools[key], ticker) for key, ticker in zip(keys, momentum_long["ticker"], strict=False)]
     result = momentum_long[["date", "ticker"]].copy()
     result["cs_momentum_rank_recomputed"] = ranks
     return result

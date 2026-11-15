@@ -80,7 +80,7 @@ def test_the_tiled_stack_cache_is_bounded():
     cache = type("Cache", (), {})()
     cache.tiled = {}
     holder = {}
-    for index in range(17):
+    for _ in range(17):
         holder = cache.__dict__
     assert holder is not None
 

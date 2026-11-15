@@ -123,7 +123,7 @@ except PermissionError as refused:
 # %%
 policy = cycle.GlidePolicy(glide_sessions=252, entry_share=0.30, retire_share=0.05)
 shares, path = {"old": 1.0, "new": 0.0}, []
-for session in range(300):
+for _session in range(300):
     shares = cycle.update_generation_shares(shares, {"old": "active", "new": "ramping"}, {}, {}, policy)
     path.append(dict(shares))
 axes = pd.DataFrame(path).plot(figsize=(7, 3), title="Capital share by session")

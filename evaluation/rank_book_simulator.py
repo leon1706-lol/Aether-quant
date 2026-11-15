@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import asdict, dataclass, field, replace
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -30,7 +31,6 @@ from portfolio.sleeve_guard import evaluate_sleeve_guard, resolve_sleeve_guard_c
 from risk.asset_class_router import asset_listed_on_venue
 from risk.kill_switch import evaluate_kill_switch
 from risk_controls import evaluate_non_model_exit, should_scale_position
-from typing import Any
 
 DEFAULT_SECTOR_MAX_NET_WEIGHT = 0.05
 # main.py's `_kill_switch_return_history` deque length.
@@ -154,7 +154,7 @@ def _legacy_lagged_return(state: dict[str, Any], date_returns: dict[str, Any], e
 def _legacy_intraday(state: dict[str, Any], eligible: pd.DataFrame, ticker_column: str, column: str) -> float:
     """The next session's open-to-close move earned by the legacy weights that changed today (next-open fill)."""
     current, previous = state["weights"], state["previous"]
-    intraday = dict(zip(eligible[ticker_column].astype(str), eligible[column]))
+    intraday = dict(zip(eligible[ticker_column].astype(str), eligible[column], strict=False))
     total = 0.0
     for symbol in set(current) | set(previous):
         delta = current.get(symbol, 0.0) - previous.get(symbol, 0.0)
@@ -569,7 +569,7 @@ def _simulate_rank_book_core(
         eligible = date_frame.dropna(subset=[forward_return_column])
         if len(eligible) < min_universe_size:
             if accrue_skipped_dates and net_returns:
-                returns_today = dict(zip(eligible[ticker_column].astype(str), eligible[forward_return_column]))
+                returns_today = dict(zip(eligible[ticker_column].astype(str), eligible[forward_return_column], strict=False))
                 book_extra = sum(weight * float(returns_today.get(symbol, 0.0)) for symbol, weight in (weights_history[-1] if weights_history else {}).items())
                 legacy_extra = _legacy_mark(legacy_state, returns_today) if legacy_state is not None else 0.0
                 extra = book_extra + legacy_extra
@@ -600,7 +600,7 @@ def _simulate_rank_book_core(
         if is_session:
             rebalance_counter += 1
         cost_this_date = 0.0
-        date_returns = dict(zip(eligible[ticker_column], eligible[forward_return_column]))
+        date_returns = dict(zip(eligible[ticker_column], eligible[forward_return_column], strict=False))
 
         kill_switch_locked = False
         if kill_switch_active:
@@ -671,11 +671,11 @@ def _simulate_rank_book_core(
 
         if trailing_stop_pct is not None and held_weights and close_column in eligible.columns:
             date_index = rebalance_counter - 1
-            closes_today = dict(zip(eligible[ticker_column].astype(str), eligible[close_column]))
+            closes_today = dict(zip(eligible[ticker_column].astype(str), eligible[close_column], strict=False))
             stopped = []
             for symbol, weight in held_weights.items():
                 close = closes_today.get(symbol)
-                if close is None or not close == close or close <= 0.0:
+                if close is None or close != close or close <= 0.0:
                     continue
                 peak = peak_close_by_ticker.get(symbol)
                 reason = evaluate_non_model_exit(
@@ -730,7 +730,7 @@ def _simulate_rank_book_core(
         if is_rebalance or mid_cycle:
             if is_rebalance:
                 raw_scores_by_ticker = {
-                    str(ticker): float(rank) for ticker, rank in zip(eligible[ticker_column], eligible[prediction_column])
+                    str(ticker): float(rank) for ticker, rank in zip(eligible[ticker_column], eligible[prediction_column], strict=False)
                 }
                 candidate_ranks = (
                     grouped_cross_sectional_rank_scores(
@@ -820,10 +820,10 @@ def _simulate_rank_book_core(
                     else:
                         if long_symbols:
                             per_name = (gross_exposure / 2.0) / len(long_symbols)
-                            raw_weights.update({symbol: per_name for symbol in long_symbols})
+                            raw_weights.update(dict.fromkeys(long_symbols, per_name))
                         if short_symbols:
                             per_name = (gross_exposure / 2.0) / len(short_symbols)
-                            raw_weights.update({symbol: -per_name for symbol in short_symbols})
+                            raw_weights.update(dict.fromkeys(short_symbols, -per_name))
 
                     new_weights, _diagnostics = apply_book_neutrality(
                         raw_weights,
@@ -881,7 +881,7 @@ def _simulate_rank_book_core(
                 # reduce_risk; positions already held are not force-closed by it.
                 vetoed_entries = {
                     str(ticker)
-                    for ticker, flag in zip(eligible[ticker_column], eligible[entry_veto_column])
+                    for ticker, flag in zip(eligible[ticker_column], eligible[entry_veto_column], strict=False)
                     if flag == flag and float(flag) > 0.5
                 }
                 new_weights = {
@@ -1050,7 +1050,7 @@ def _simulate_rank_book_core(
                 symbol: held_weights.get(symbol, 0.0) - effective_weights.get(symbol, 0.0)
                 for symbol in set(held_weights) | set(effective_weights)
             }
-            intraday = dict(zip(eligible[ticker_column], eligible[intraday_next_return_column]))
+            intraday = dict(zip(eligible[ticker_column], eligible[intraday_next_return_column], strict=False))
             bar_return += sum(
                 delta * float(intraday.get(symbol, 0.0) or 0.0)
                 for symbol, delta in changed.items()
@@ -1131,9 +1131,9 @@ def _simulate_rank_book_core(
         rebalance_log=rebalance_log,
         weights_log=weights_log,
         per_date_component_returns=(
-            ({"main_book": dict(zip(per_date_used, book_component_returns)), "legacy": dict(zip(per_date_used, legacy_component_returns))}
+            ({"main_book": dict(zip(per_date_used, book_component_returns, strict=False)), "legacy": dict(zip(per_date_used, legacy_component_returns, strict=False))}
              if legacy_state is not None else {})
-            | ({"cash_sweep": dict(zip(per_date_used, sweep_component_returns))} if sweep is not None else {})
+            | ({"cash_sweep": dict(zip(per_date_used, sweep_component_returns, strict=False))} if sweep is not None else {})
         ),
     )
     return result, held_days_by_ticker

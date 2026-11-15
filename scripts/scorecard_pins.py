@@ -16,6 +16,7 @@ workflow parsers) so a regression fails in CI's fast guards instead of a week la
 
 from __future__ import annotations
 
+import itertools
 import re
 import shlex
 import subprocess
@@ -167,7 +168,7 @@ def shell_findings(path: str, text: str) -> list[Finding]:
 
 def _pipe_to_shell(path: str, number: int, line: str) -> list[Finding]:
     segments = [segment.split() for segment in re.split(r"(?<!\|)\|(?!\|)", line)]
-    for left, right in zip(segments, segments[1:]):
+    for left, right in itertools.pairwise(segments):
         fetches = bool(left) and _base(left[0]) in {"curl", "wget"}
         runs = [word for word in right if word != "sudo"][:1]
         if fetches and runs and _base(runs[0]) in _SHELLS:

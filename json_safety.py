@@ -56,7 +56,7 @@ def sanitize_json_finite(value: Any) -> Any:
     Tuples/lists/dicts are rebuilt; everything else returns unchanged."""
     if isinstance(value, float):
         return value if math.isfinite(value) else None
-    if isinstance(value, bool) or isinstance(value, int) or value is None or isinstance(value, str):
+    if isinstance(value, (bool, int, str)) or value is None:
         return value
     if _is_numpy_number(value):
         as_python = value.item()

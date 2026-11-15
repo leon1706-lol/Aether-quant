@@ -234,7 +234,7 @@ def _rl_model(favor_index: int, actions=(0.6, 0.8, 1.0)) -> dict:
 
 
 def _rl_state() -> dict:
-    return {key: 0.0 for key in RL_SIZING_STATE_KEYS}
+    return dict.fromkeys(RL_SIZING_STATE_KEYS, 0.0)
 
 
 def test_build_dynamic_position_sizing_rl_disabled_is_byte_identical_to_pre_rl():

@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
-
-from inference import run_exported_model
 from typing import Any
 
+from inference import run_exported_model
 
 EXPERT_NAMES = ("bullish", "bearish", "sideways", "volatility")
 

@@ -10,8 +10,8 @@ import math
 
 from evaluation.feature_reconciliation import (
     DEFAULT_ABS_TOLERANCE,
-    summarize_feature_reconciliation,
     reconcile_feature_snapshot,
+    summarize_feature_reconciliation,
 )
 
 
@@ -81,7 +81,7 @@ def test_float_reconstruction_noise_within_default_tolerances_matches():
 def test_nan_or_none_on_either_side_degrades_to_none_not_divergence():
     logged = _snapshot(volatility_20d=None)
     result = reconcile_feature_snapshot(logged, _row())
-    degraded = [entry for entry in result["feature_deltas"] if entry["feature"] == "volatility_20d"][0]
+    degraded = next(entry for entry in result["feature_deltas"] if entry["feature"] == "volatility_20d")
     assert degraded["logged_value"] is None
     assert degraded["abs_delta"] is None
     assert degraded["relative_delta"] is None
@@ -91,7 +91,7 @@ def test_nan_or_none_on_either_side_degrades_to_none_not_divergence():
     offline_row = _row()
     offline_row["return_5d"] = float("nan")
     result_nan_offline = reconcile_feature_snapshot(_snapshot(), offline_row)
-    degraded_nan = [entry for entry in result_nan_offline["feature_deltas"] if entry["feature"] == "return_5d"][0]
+    degraded_nan = next(entry for entry in result_nan_offline["feature_deltas"] if entry["feature"] == "return_5d")
     assert degraded_nan["offline_value"] is None
     assert degraded_nan["diverged"] is False
 

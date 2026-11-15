@@ -85,7 +85,7 @@ def _sweep_world(module, monkeypatch):
     dataset[["date", "ticker"]].assign(raw_blended_score=np.random.default_rng(1).normal(size=len(dataset))).to_csv(module.ML_DIR / "evaluation" / "gate_sweep_scored.csv", index=False)
     monkeypatch.setattr(module, "replay_rolling_ic_gate_over_dataset", lambda scored, raw_score_column, rebalance_dates, horizon_days, rolling_window_days, gate_config: [{"date": date, "engaged": index % 2 == 0} for index, date in enumerate(rebalance_dates)] + [{"date": "2018-01-01", "engaged": False}])
     monkeypatch.setattr(module, "summarize_rolling_ic_gate_replay", lambda records: {"overall": {"n": len(records)}, "records": records})
-    monkeypatch.setattr(features, "load_sector_mapping", lambda config: {ticker: "tech" for ticker in TICKERS})
+    monkeypatch.setattr(features, "load_sector_mapping", lambda config: dict.fromkeys(TICKERS, "tech"))
     result = SimpleNamespace(per_date=DATES[:30], per_date_net_return=[0.001] * 30, net_sharpe=1.2, gross_sharpe=1.5, turnover=0.4)
     monkeypatch.setattr(simulator, "simulate_rank_book", lambda scored, **kwargs: result)
     return result

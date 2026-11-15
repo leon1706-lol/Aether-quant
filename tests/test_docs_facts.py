@@ -34,7 +34,7 @@ def _living_docs() -> list[Path]:
 
 def _ignored(relatives: list[str]) -> set[str]:
     # bytes, not text: on Windows text mode sends "\r\n", and git reads every path but the last with a trailing "\r"
-    done = subprocess.run(["git", "check-ignore", "--stdin"], cwd=ROOT, input="\n".join(relatives).encode("utf-8"), capture_output=True, timeout=60)
+    done = subprocess.run(["git", "check-ignore", "--stdin"], cwd=ROOT, input="\n".join(relatives).encode("utf-8"), capture_output=True, timeout=60, check=False)
     return {line.strip() for line in done.stdout.decode("utf-8", errors="replace").splitlines()}
 
 
@@ -86,7 +86,7 @@ def test_the_readme_library_example_runs(capsys, tmp_path):
     # a real file outside the repository, so coverage neither measures it nor reports a missing source
     path = tmp_path / "readme_example.py"
     path.write_text(example, encoding="utf-8")
-    exec(compile(example, str(path), "exec"), {"__name__": "readme_example"})  # noqa: S102 - the repo's own README
+    exec(compile(example, str(path), "exec"), {"__name__": "readme_example"})
     assert "PBO:" in capsys.readouterr().out
 
 
@@ -192,7 +192,7 @@ def test_every_docs_page_is_in_the_site_nav_and_the_readme_shows_the_nav():
     assert not missing, f"add to mkdocs.yml's nav: {missing}"
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     assert "<!-- AQ:DOCS_SITE_START -->" in readme and docs_facts.docs_site_block(ROOT) in readme
-    for title, page in ((t, p) for section, rows in docs_facts.docs_site_nav(ROOT) if section != "API reference" for t, p in rows):
+    for _title, page in ((t, p) for section, rows in docs_facts.docs_site_nav(ROOT) if section != "API reference" for t, p in rows):
         target = f"notebooks/{Path(page).name}" if page.startswith("tutorials/") else f"docs/{page}"
         assert f"]({target})" in readme, f"the README does not link {target}"
 

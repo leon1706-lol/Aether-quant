@@ -54,6 +54,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     import forward_ledger
     from cycle_decide import write_decision
+
     from data_pipeline.edgar_facts import read_fundamentals
     from data_pipeline.sp500_membership import load_membership
     from evaluation.research_cells import membership_mask

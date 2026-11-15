@@ -15,17 +15,18 @@ A metric that cannot be computed is a row with `value None` and a `reason`, neve
 from __future__ import annotations
 
 import bisect
+import itertools
 import json
 import math
 from collections import defaultdict
 from datetime import date as date_type
 from pathlib import Path
 from statistics import NormalDist
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
 from json_safety import sanitize_json_finite
-from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping, Sequence
@@ -68,7 +69,7 @@ def drawdown_episodes(dates: list[str], equity: list[float]) -> list[dict]:
     if len(equity) < 2:
         return episodes
     hwm, hwm_date, trough = equity[0], dates[0], equity[0]
-    for day, value in zip(dates[1:], equity[1:]):
+    for day, value in zip(dates[1:], equity[1:], strict=False):
         if value > hwm:
             if trough < hwm:
                 episodes.append(_episode(hwm, hwm_date, trough, day, open_episode=False))
@@ -98,7 +99,7 @@ def percentile(values: ArrayLike, q: float) -> float | None:
 
 def daily_returns(equity: list[float]) -> list[float]:
     """Period returns of an equity curve, skipping steps from a non-positive value."""
-    return [after / before - 1.0 for before, after in zip(equity, equity[1:]) if before > 0.0]
+    return [after / before - 1.0 for before, after in itertools.pairwise(equity) if before > 0.0]
 
 
 def sharpe_ratio(returns: ArrayLike, periods_per_year: int = DAYS_PER_YEAR) -> float | None:
@@ -331,15 +332,15 @@ def compute_backtest_statistics(
         for day, tickers in ticker_pnl.items()
     }
     sweep_per_return = _interval_sums(sweep_net_by_day, dates)
-    strategy_pnl = [(after - before) - carry for before, after, carry in zip(nav, nav[1:], sweep_per_return)]
-    strategy_returns = [pnl / before for pnl, before in zip(strategy_pnl, nav) if before > 0.0]
+    strategy_pnl = [(after - before) - carry for before, after, carry in zip(nav, nav[1:], sweep_per_return, strict=False)]
+    strategy_returns = [pnl / before for pnl, before in zip(strategy_pnl, nav, strict=False) if before > 0.0]
     strategy_curve = [nav[0]]
     for pnl in strategy_pnl:
         strategy_curve.append(strategy_curve[-1] + pnl)
     sweep_net_total = float(sum(sweep_per_return))
 
     # ---- positions, notionals, bets
-    nav_by_date = dict(zip(dates, nav))
+    nav_by_date = dict(zip(dates, nav, strict=False))
     positions_ex_sweep: dict[str, dict[str, float]] = {}
     gross_all, gross_ex, max_position = [], [], (0.0, None, None)
     notional_all = notional_ex = fees_all = fees_ex = 0.0
@@ -689,7 +690,7 @@ def _benchmark_section(run: dict[str, Any], config: dict[str, Any], root: Path) 
     benchmarks = benchmark_daily_returns(root, config, ("SPY", "AGG", "BTCUSD", *[coin for coin in crypto if coin != "BTCUSD"]), start=start, end=end)
     if benchmarks.empty:
         return []
-    nav = pd.Series({day: value for day, value in points}, dtype=float).sort_index()
+    nav = pd.Series(dict(points), dtype=float).sort_index()
     portfolio = to_sessions(nav.pct_change(fill_method=None).dropna(), benchmarks.index)
     strategy = to_sessions(strategy_daily_returns(run, config, root), benchmarks.index)
     return sanitize_json_finite(benchmark_rows(portfolio, strategy, benchmarks, crypto))

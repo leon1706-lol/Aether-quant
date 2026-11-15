@@ -70,7 +70,7 @@ def test_with_few_slopes_it_is_the_sign_composite():
     label = _label(features)
     score = fama_macbeth_ridge(features, label, signs={"good": 1.0, "noise": -1.0}, start=START)
     date = DATES[50]  # far fewer than MIN_SLOPE_MONTHS monthly slopes have ended
-    assert 50 / 21 < MIN_SLOPE_MONTHS
+    assert MIN_SLOPE_MONTHS > 50 / 21
     ranks = {name: table.loc[date].rank(pct=True) - 0.5 for name, table in features.items()}
     pd.testing.assert_series_equal(score.loc[date], ranks["good"] - ranks["noise"], check_names=False)
 

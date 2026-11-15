@@ -73,7 +73,7 @@ def offline_probability_map(frame, probability_column: str, date_column: str = "
     dates = frame[date_column].astype(str).str[:10].tolist()
     tickers = frame[ticker_column].astype(str).str.upper().tolist()
     values = frame[probability_column].tolist()
-    return {(day, ticker): float(value) for day, ticker, value in zip(dates, tickers, values) if isinstance(value, (int, float)) and math.isfinite(value)}
+    return {(day, ticker): float(value) for day, ticker, value in zip(dates, tickers, values, strict=False) if isinstance(value, (int, float)) and math.isfinite(value)}
 
 
 def classification_parity_for_run_dir(run_dir, config: dict, root, *, dataset_path=None, ml_dir=None, source: str | None = None) -> dict:

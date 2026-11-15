@@ -15,8 +15,8 @@ from __future__ import annotations
 import json
 import math
 from bisect import bisect_left
-from datetime import date as _date
 from collections.abc import Mapping, Sequence
+from datetime import date as _date
 from functools import lru_cache
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -76,7 +76,7 @@ def fill_forward_open_forex_days(
     closed; only gaps strictly between two bars are filled; ordinals must be ascending."""
     filled_ordinals: list[int] = []
     filled_closes: list[float] = []
-    for index, (ordinal, close) in enumerate(zip(ordinals, closes)):
+    for index, (ordinal, close) in enumerate(zip(ordinals, closes, strict=False)):
         filled_ordinals.append(ordinal)
         filled_closes.append(close)
         if index + 1 == len(ordinals):

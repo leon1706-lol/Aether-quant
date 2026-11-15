@@ -77,6 +77,7 @@ def test_the_frozen_rule_runs_on_the_panel_crypto(module, monkeypatch, tmp_path)
 
 def _make_world(module, monkeypatch, tmp_path, *, identity_ok=True, incumbent_rows=True):
     import build_wide_root
+
     import evaluation.generation_ledger as ledger
     import evaluation.target_weights_engine as engine
     import portfolio.target_weights as target_weights
@@ -111,6 +112,7 @@ def test_a_changed_identity_or_an_empty_incumbent_stops_the_blend_configs(module
 
 def _three_world(module, monkeypatch, tmp_path, *, three_held=True):
     import build_wide_root
+
     import evaluation.generation_ledger as ledger
     import evaluation.premia_research as premia
     import evaluation.target_weights_engine as engine

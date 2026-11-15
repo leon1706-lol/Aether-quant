@@ -153,7 +153,7 @@ def test_the_chain_becomes_rows_with_greeks_and_unusable_contracts_are_dropped(s
 
 
 def test_every_registered_structure_is_built_through_its_factory(structures):
-    module, algorithm = structures
+    _module, algorithm = structures
     assert len(MULTI_LEG_STRATEGY_REGISTRY) >= 43
     for name, spec in MULTI_LEG_STRATEGY_REGISTRY.items():
         expiries = {}

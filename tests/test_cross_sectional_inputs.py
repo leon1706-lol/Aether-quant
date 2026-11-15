@@ -50,7 +50,7 @@ def test_list_and_frame_forms_agree(mode):
         frame, groups = _random_frame(seed)
         offline = rank_input_frame(frame, NAMES, groups, settings)
         out_names = expand_input_names(NAMES, settings)
-        for date, part in frame.groupby("date", sort=False):
+        for _date, part in frame.groupby("date", sort=False):
             index = part.index.tolist()
             rows = part[NAMES].to_numpy(dtype=float).tolist()
             live_rows, live_names = rank_input_matrix(rows, NAMES, [groups[i] for i in index], settings)

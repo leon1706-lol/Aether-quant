@@ -117,8 +117,8 @@ def fx_pair_scores(change: pd.DataFrame, pairs: Iterable[str]) -> pd.DataFrame:
     out = {}
     for pair in pairs:
         base, quote = pair[:3], pair[3:]
-        first = change[base] if base in change else (0.0 if base == "USD" else np.nan)
-        second = change[quote] if quote in change else (0.0 if quote == "USD" else np.nan)
+        first = change.get(base, 0.0 if base == "USD" else np.nan)
+        second = change.get(quote, 0.0 if quote == "USD" else np.nan)
         out[pair] = first - second
     return pd.DataFrame(out, index=change.index)
 

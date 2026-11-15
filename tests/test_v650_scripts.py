@@ -125,7 +125,7 @@ def test_score_tables_cover_only_the_windows_backtest_split_up_to_the_end(tmp_pa
 
     def heads(window_dir, frame, mask, kind, sequence_window):
         values = np.arange(len(frame), dtype=float)
-        return {head: values for head in scores.HEADS}
+        return dict.fromkeys(scores.HEADS, values)
 
     monkeypatch.setattr(scores, "window_heads", heads)
     tables = scores.tables_for_window(window, end="2023-06-30", sequence_window=30)

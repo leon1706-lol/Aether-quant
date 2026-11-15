@@ -2,9 +2,8 @@ import json
 import math
 from pathlib import Path
 
-import pytest
-
 import numpy as np
+import pytest
 
 from inference.exported_model import (
     _architectures_match,
@@ -25,9 +24,9 @@ from inference.exported_model import (
     convert_state_dict_arrays,
     resolve_sequence_window_size,
     run_exported_model,
+    run_exported_models_batched,
     run_exported_multitask_model,
     run_exported_multitask_models_batched,
-    run_exported_models_batched,
     run_exported_sequence_multitask_model,
     run_exported_sequence_multitask_model_batched,
 )
@@ -105,7 +104,7 @@ def _reference_forward_pass(inputs: list[float]) -> float:
     produce the expected value for the full-stack test below."""
     l1_weight = [[0.5, -0.25], [0.1, 0.3], [-0.2, 0.4]]
     l1_bias = [0.1, -0.1, 0.05]
-    hidden = [sum(w * x for w, x in zip(row, inputs)) + b for row, b in zip(l1_weight, l1_bias)]
+    hidden = [sum(w * x for w, x in zip(row, inputs, strict=False)) + b for row, b in zip(l1_weight, l1_bias, strict=False)]
 
     mean_value = sum(hidden) / len(hidden)
     variance = sum((v - mean_value) ** 2 for v in hidden) / len(hidden)
@@ -116,7 +115,7 @@ def _reference_forward_pass(inputs: list[float]) -> float:
 
     l2_weight = [0.3, -0.4, 0.2]
     l2_bias = 0.05
-    pre_sigmoid = sum(w * x for w, x in zip(l2_weight, relu_out)) + l2_bias
+    pre_sigmoid = sum(w * x for w, x in zip(l2_weight, relu_out, strict=False)) + l2_bias
 
     return 1.0 / (1.0 + math.exp(-pre_sigmoid))
 
@@ -193,22 +192,22 @@ def _reference_multitask_forward_pass(inputs: list[float]) -> dict:
     trunk_weight = [[0.5, -0.25], [0.1, 0.3]]
     trunk_bias = [0.1, -0.1]
     trunk_out = [
-        max(0.0, sum(w * x for w, x in zip(row, inputs)) + b)
-        for row, b in zip(trunk_weight, trunk_bias)
+        max(0.0, sum(w * x for w, x in zip(row, inputs, strict=False)) + b)
+        for row, b in zip(trunk_weight, trunk_bias, strict=False)
     ]
 
     direction_weight = [0.3, -0.4]
     direction_bias = 0.05
-    direction_pre = sum(w * x for w, x in zip(direction_weight, trunk_out)) + direction_bias
+    direction_pre = sum(w * x for w, x in zip(direction_weight, trunk_out, strict=False)) + direction_bias
     direction = 1.0 / (1.0 + math.exp(-direction_pre))
 
     magnitude_weight = [0.2, 0.1]
     magnitude_bias = -0.02
-    magnitude = sum(w * x for w, x in zip(magnitude_weight, trunk_out)) + magnitude_bias
+    magnitude = sum(w * x for w, x in zip(magnitude_weight, trunk_out, strict=False)) + magnitude_bias
 
     volatility_weight = [-1.0, -1.0]
     volatility_bias = 0.0
-    volatility_pre = sum(w * x for w, x in zip(volatility_weight, trunk_out)) + volatility_bias
+    volatility_pre = sum(w * x for w, x in zip(volatility_weight, trunk_out, strict=False)) + volatility_bias
     volatility = math.log1p(math.exp(-abs(volatility_pre))) + max(volatility_pre, 0.0)
 
     return {"direction": direction, "magnitude": magnitude, "volatility": volatility}
@@ -246,8 +245,8 @@ def test_run_exported_multitask_model_activation_none_rank_head_matches_raw_line
 
     trunk_weight = [[0.5, -0.25], [0.1, 0.3]]
     trunk_bias = [0.1, -0.1]
-    trunk_out = [max(0.0, sum(w * x for w, x in zip(row, inputs)) + b) for row, b in zip(trunk_weight, trunk_bias)]
-    expected_raw = sum(w * x for w, x in zip([0.4, -0.6], trunk_out)) + 0.03
+    trunk_out = [max(0.0, sum(w * x for w, x in zip(row, inputs, strict=False)) + b) for row, b in zip(trunk_weight, trunk_bias, strict=False)]
+    expected_raw = sum(w * x for w, x in zip([0.4, -0.6], trunk_out, strict=False)) + 0.03
 
     assert result["residual_rank_20d"] == pytest.approx(expected_raw, abs=1e-9)
     # Never squashed into (0, 1) by a sigmoid that isn't in the export -
@@ -468,15 +467,15 @@ def test_run_exported_sequence_multitask_model_matches_hand_computed_reference()
 
     direction_weight = [0.3, -0.4]
     direction_bias = 0.05
-    direction_pre = sum(w * x for w, x in zip(direction_weight, pooled)) + direction_bias
+    direction_pre = sum(w * x for w, x in zip(direction_weight, pooled, strict=False)) + direction_bias
     direction = 1.0 / (1.0 + math.exp(-direction_pre))
 
     magnitude_weight = [0.2, 0.1]
     magnitude_bias = -0.02
-    magnitude = sum(w * x for w, x in zip(magnitude_weight, pooled)) + magnitude_bias
+    magnitude = sum(w * x for w, x in zip(magnitude_weight, pooled, strict=False)) + magnitude_bias
 
     volatility_weight = [-1.0, -1.0]
-    volatility_pre = sum(w * x for w, x in zip(volatility_weight, pooled))
+    volatility_pre = sum(w * x for w, x in zip(volatility_weight, pooled, strict=False))
     volatility = math.log1p(math.exp(-abs(volatility_pre))) + max(volatility_pre, 0.0)
 
     assert result["direction"] == pytest.approx(direction, abs=1e-9)
@@ -566,7 +565,7 @@ def test_conv1d_causal_batched_matches_per_row_unbatched_calls():
     individual = [_conv1d_causal(seq, weights, bias, dilation=1) for seq in sequences]
 
     assert batched.shape == (3, 2, 2)
-    for row, expected in zip(batched, individual):
+    for row, expected in zip(batched, individual, strict=False):
         assert np.allclose(row, expected, atol=1e-9)
 
 
@@ -582,7 +581,7 @@ def test_run_exported_sequence_multitask_model_batched_matches_individual_calls(
     individual = [run_exported_sequence_multitask_model(model_export, seq) for seq in sequences]
 
     assert len(batched) == len(individual)
-    for actual, expected in zip(batched, individual):
+    for actual, expected in zip(batched, individual, strict=False):
         assert actual == pytest.approx(expected, abs=1e-9)
 
 
@@ -783,7 +782,7 @@ def test_run_exported_multitask_models_batched_matches_individual_calls():
     batched = run_exported_multitask_models_batched(models, inputs)
     individual = [run_exported_multitask_model(m, inputs) for m in models]
 
-    for batched_result, individual_result in zip(batched, individual):
+    for batched_result, individual_result in zip(batched, individual, strict=False):
         assert batched_result == pytest.approx(individual_result, abs=1e-9)
 
 
@@ -825,7 +824,7 @@ def test_run_exported_multitask_models_batched_matches_individual_calls_on_real_
     batched = run_exported_multitask_models_batched(experts, inputs)
     individual = [run_exported_multitask_model(m, inputs) for m in experts]
 
-    for batched_result, individual_result in zip(batched, individual):
+    for batched_result, individual_result in zip(batched, individual, strict=False):
         assert batched_result == pytest.approx(individual_result, abs=1e-7)
 
 
@@ -903,10 +902,10 @@ def test_build_layer_stacks_returns_none_for_unweighted_layers_and_arrays_for_we
     stacks = build_layer_stacks(architecture, state_dicts)
 
     assert len(stacks) == len(architecture)
-    for layer, stack in zip(architecture, stacks):
+    for layer, stack in zip(architecture, stacks, strict=False):
         if layer["type"] in ("linear", "layernorm"):
             assert stack is not None
-            weights_stack, bias_stack = stack
+            weights_stack, _bias_stack = stack
             assert weights_stack.shape[0] == 1  # one model stacked
         else:
             assert stack is None
@@ -965,7 +964,7 @@ def test_multitask_models_batched_cache_matches_uncached_batched_output():
     cached_result = run_exported_multitask_models_batched(models, inputs, stack_cache=cache)
     uncached_result = run_exported_multitask_models_batched(models, inputs)
 
-    for cached_row, uncached_row in zip(cached_result, uncached_result):
+    for cached_row, uncached_row in zip(cached_result, uncached_result, strict=False):
         assert cached_row == pytest.approx(uncached_row, abs=1e-12)
 
 
@@ -1117,5 +1116,5 @@ def test_row_batched_multitask_model_equals_the_per_row_interpreter():
     expected = [run_exported_multitask_model(export, row) for row in rows]
     actual = run_exported_multitask_model_rows(export, rows)
     assert len(actual) == 7
-    for want, got in zip(expected, actual):
+    for want, got in zip(expected, actual, strict=False):
         assert got == pytest.approx(want, abs=1e-12)

@@ -93,7 +93,7 @@ def test_dockerignore_secret_list_covers_gitignore_secret_block():
 
     for raw in block.splitlines():
         line = raw.strip()
-        if not line or line.startswith("#") or line.startswith("!"):
+        if not line or line.startswith(("#", "!")):
             continue
         # Wildcards/globs are covered by the parametrized checks above.
         if "*" in line:

@@ -479,8 +479,8 @@ def _render_monte_carlo_chart(runs, avg_curve: list[float], config: dict, out_pa
         import matplotlib
 
         matplotlib.use("Agg")
-        import numpy as np
         import matplotlib.pyplot as plt
+        import numpy as np
     except Exception:
         return False
     if runs is None or getattr(runs, "size", 0) == 0 or not avg_curve:

@@ -71,7 +71,7 @@ def test_bond_routes_byte_identical_to_direct_call():
 def test_unrecognized_asset_class_falls_back_to_equity_path():
     kwargs = _equity_crypto_kwargs()
     direct = build_dynamic_position_sizing(base_target_weight=0.1, confidence=0.8, **kwargs)
-    routed, extra = route_position_sizing("unknown_future_asset_class", "buy", 0.8, 0.1, equity_crypto_kwargs=kwargs)
+    routed, _extra = route_position_sizing("unknown_future_asset_class", "buy", 0.8, 0.1, equity_crypto_kwargs=kwargs)
     assert routed == direct
 
 
@@ -160,7 +160,7 @@ def test_forex_extra_carries_pair_spec_for_webui_display():
 
 
 def test_forex_extra_pair_spec_is_none_when_not_configured():
-    decision, extra = route_position_sizing("forex", "buy", 1.0, 0.1, price=1.10, portfolio_value=1_000_000, pair_spec=None)
+    _decision, extra = route_position_sizing("forex", "buy", 1.0, 0.1, price=1.10, portfolio_value=1_000_000, pair_spec=None)
     assert extra["pair_spec"] is None
 
 
@@ -253,7 +253,7 @@ def test_option_single_leg_ignores_stray_short_leg_delta_offset_without_raising(
     # legitimately carry it (e.g. staged for a future switch to
     # "vertical") even while spread_strategy stays "single_leg" - this
     # must never raise a TypeError.
-    decision, extra = route_position_sizing(
+    _decision, extra = route_position_sizing(
         "option", "buy", 1.0, 0.1, portfolio_value=1_000_000, available_chain=_sample_chain(),
         options_kwargs=dict(
             spread_strategy="single_leg", short_leg_delta_offset=0.20,
@@ -281,7 +281,7 @@ def test_option_vertical_spread_short_selects_bear_put_spread():
         {"strike": 500, "expiry": "2026-08-21", "right": "put", "delta": -0.50, "vega": 45.0},
         {"strike": 480, "expiry": "2026-08-21", "right": "put", "delta": -0.25, "vega": 30.0},
     ]
-    decision, extra = route_position_sizing(
+    _decision, extra = route_position_sizing(
         "option", "short", 1.0, -0.1, portfolio_value=1_000_000, available_chain=put_chain,
         options_kwargs=dict(
             spread_strategy="vertical", target_delta_at_full_confidence=0.5,
@@ -365,7 +365,7 @@ def test_route_multi_leg_option_sizing_default_list_single_leg_wins():
         "neutral", "defined_risk_first", False, **_multi_leg_kwargs(),
     )
     assert result is not None
-    decision, extra = result
+    _decision, extra = result
     assert extra["options_decision"].right == "call"
 
 

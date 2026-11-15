@@ -38,9 +38,9 @@ def make_result(phase: int = 0, seed: int = 0) -> SimpleNamespace:
     rng = np.random.default_rng(seed + phase)
     returns = [float(value) for value in rng.normal(0.0004, 0.01, len(DATES))]
     return SimpleNamespace(
-        per_date=list(DATES), per_date_net_return=returns, per_date_component_returns={"legacy": {day: 0.0001 for day in DATES}},
+        per_date=list(DATES), per_date_net_return=returns, per_date_component_returns={"legacy": dict.fromkeys(DATES, 0.0001)},
         kill_switch_locked_date_list=DATES[3:6], rebalance_log=[{"date": day, "engaged": index % 2 == 0} for index, day in enumerate(DATES[::5])],
-        weights_log=[{ticker: 0.05 for ticker in EQUITY[:2]} for _ in DATES], mean_gross_exposure=0.4,
+        weights_log=[dict.fromkeys(EQUITY[:2], 0.05) for _ in DATES], mean_gross_exposure=0.4,
     )
 
 
@@ -51,7 +51,7 @@ class FakeHarness:
         self.frame = make_frame(seed)
         self.lagged_frame = self.frame.copy()
         self.rank_groups: dict = {}
-        self.asset_class_by_ticker = {**{t: "equity" for t in EQUITY}, **{t: "crypto" for t in CRYPTO}, **{t: "forex" for t in FOREX}}
+        self.asset_class_by_ticker = {**dict.fromkeys(EQUITY, "equity"), **dict.fromkeys(CRYPTO, "crypto"), **dict.fromkeys(FOREX, "forex")}
         self.metadata = {t: {"asset_class": kind, "trading_eligible": True} for t, kind in self.asset_class_by_ticker.items()}
         self.late_bar_tickers = set(CRYPTO)
         self.ic_config = {"horizon_days": 20, "rolling_window_days": 40, "min_names_per_date": 3}

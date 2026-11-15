@@ -153,8 +153,8 @@ def sharpe_on_observations(series: pd.Series) -> float | None:
 
 def stage_pre2013_judge(args) -> int:
     from evaluation.alpha_proof import alpha_regression, benchmark_daily_returns, to_sessions
-    from evaluation.lean_attribution import fills_from_order_events
     from evaluation.backtest_audit import load_backtest_run
+    from evaluation.lean_attribution import fills_from_order_events
 
     done = {}
     for line in Path(args.status).read_text(encoding="utf-8-sig").splitlines():
@@ -240,11 +240,12 @@ def stage_eps_pool(args) -> int:
 
 
 def describe_run(run_dir: Path) -> dict:
-    from evaluation.alpha_proof import alpha_regression, benchmark_daily_returns, sharpe, to_sessions
-    from evaluation.lean_attribution import fills_from_order_events
-    from evaluation.backtest_audit import load_backtest_run
     from v650_instrument import RUN_CONFIGS
     from v650_lean import ANNUALIZATION, strategy_series
+
+    from evaluation.alpha_proof import alpha_regression, benchmark_daily_returns, sharpe, to_sessions
+    from evaluation.backtest_audit import load_backtest_run
+    from evaluation.lean_attribution import fills_from_order_events
 
     config = json.loads((RUN_CONFIGS / f"{run_dir.name}.json").read_text(encoding="utf-8"))
     series = strategy_series(run_dir, config)
@@ -276,7 +277,7 @@ def stage_eps_judge(args) -> int:
         long_run = describe_run(done[f"v650_pool_{name}_long"])
         detail[name] = {"phases": phases, "long": long_run}
 
-        def median(key: str) -> float | None:
+        def median(key: str, phases: dict = phases) -> float | None:
             values = [entry[key] for entry in phases.values() if entry.get(key) is not None]
             return float(np.median(values)) if values else None
 

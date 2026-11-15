@@ -23,7 +23,7 @@ from evaluation.feature_parity import (
 from script_loader import load_script, run_script
 
 FEATURES = BASE_TECHNICAL_FEATURES + INDICATOR_FEATURES + LIQUIDITY_FEATURES
-MAPPING = {name: (0.0, 1.0, 5.0) for name in FEATURES}
+MAPPING = dict.fromkeys(FEATURES, (0.0, 1.0, 5.0))
 
 
 @pytest.fixture(scope="module")
@@ -103,7 +103,7 @@ def _cross_world(monkeypatch, audit, tmp_path):
     monkeypatch.setattr(timing, "resolve_forex_lean_holidays", lambda config: frozenset())
     monkeypatch.setattr(audit, "build_momentum_pool", lambda dataset, security_types, holidays: dataset[["date", "ticker", "momentum_20d"]].assign(date=pd.to_datetime(dataset["date"])))
     monkeypatch.setattr(audit, "compute_cs_momentum_rank_replica", lambda pool, security_types: pool[["date", "ticker"]].assign(cs_momentum_rank_recomputed=0.5))
-    monkeypatch.setattr(audit, "compute_macro_proxies_replica", lambda pool, security_types: pool[["date", "ticker"]].assign(**{name: 0.1 for name in ("macro_yield_curve_slope_proxy", "macro_credit_spread_proxy", "macro_crypto_risk_appetite_proxy")}))
+    monkeypatch.setattr(audit, "compute_macro_proxies_replica", lambda pool, security_types: pool[["date", "ticker"]].assign(**dict.fromkeys(("macro_yield_curve_slope_proxy", "macro_credit_spread_proxy", "macro_crypto_risk_appetite_proxy"), 0.1)))
     seen = []
     monkeypatch.setattr(audit, "summarize_comparison", lambda stored, recomputed, mean, scale, clip, warmup_excluded: seen.append(len(stored)) or {"verdict": "PASS", "n_compared": len(stored), "max_abs_delta": 0.0, "n_mismatch_gt_1e-9": 0})
     return seen
@@ -121,7 +121,7 @@ def _cross_dataset(with_types):
 @pytest.mark.parametrize("with_types", [True, False])
 def test_the_cross_sectional_and_macro_features_are_each_compared_after_the_warmup(audit, monkeypatch, tmp_path, with_types):
     seen = _cross_world(monkeypatch, audit, tmp_path)
-    mapping = {name: (0.0, 1.0, 5.0) for name in ("cs_momentum_rank_20", "macro_yield_curve_slope_proxy", "macro_credit_spread_proxy", "macro_crypto_risk_appetite_proxy")}
+    mapping = dict.fromkeys(("cs_momentum_rank_20", "macro_yield_curve_slope_proxy", "macro_credit_spread_proxy", "macro_crypto_risk_appetite_proxy"), (0.0, 1.0, 5.0))
     results = audit.check_cross_sectional_and_macro(_cross_dataset(with_types), mapping)
     assert set(results) == set(mapping) and seen == [15, 15, 15, 15]
 

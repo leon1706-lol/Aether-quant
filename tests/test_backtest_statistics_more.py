@@ -64,7 +64,7 @@ def test_the_trial_registry_is_optional(tmp_path):
     assert stats_module.load_trial_sharpes(tmp_path / "ok.json") == [0.4]
 
 
-def test_the_assembly_handles_odd_trades_benchmarks_fills_and_a_lean_formula_row(synthetic):  # noqa: F811
+def test_the_assembly_handles_odd_trades_benchmarks_fills_and_a_lean_formula_row(synthetic):
     run, config, root, history = synthetic
     sweep_trade = {"symbols": [{"value": "BIL"}], "entryTime": "2024-01-01T20:00:00Z", "entryPrice": 50.0, "quantity": 5.0, "direction": 0, "profitLoss": 1.0, "totalFees": 1.0, "duration": "1.00:00:00"}
     run["result"]["totalPerformance"]["closedTrades"].append(sweep_trade)
@@ -99,7 +99,7 @@ def test_the_benchmark_section_needs_three_points_and_some_benchmarks(monkeypatc
     assert rows[0]["benchmark"] == "SPY" and rows[0]["crypto"] == ["ETHUSD"]
 
 
-def test_the_run_folder_wrapper_loads_the_companions(synthetic, monkeypatch):  # noqa: F811
+def test_the_run_folder_wrapper_loads_the_companions(synthetic, monkeypatch):
     import evaluation.lean_statistics as lean_statistics
 
     run, config, root, history = synthetic

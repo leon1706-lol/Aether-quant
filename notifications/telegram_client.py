@@ -10,7 +10,8 @@ deferred inside send_message() so importing this module doesn't hard-require
 from __future__ import annotations
 
 import logging
-from typing import Callable
+from collections.abc import Callable
+
 from execution.secrets import redact
 from execution.secrets_io import secret_env
 

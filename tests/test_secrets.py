@@ -47,7 +47,7 @@ def test_accounts_never_share_a_credential():
 
 def test_a_secret_value_never_shows_itself():
     value = SecretValue("hunter2-very-secret")
-    for text in (repr(value), str(value), f"{value}", f"{value!s}", "%s" % value):
+    for text in (repr(value), str(value), f"{value}", f"{value!s}", "%s" % value):  # noqa: UP031  # %-formatting is one of the paths checked
         assert "hunter2" not in text
     assert value.reveal() == "hunter2-very-secret" and value == SecretValue("hunter2-very-secret") and value != SecretValue("other")
     with pytest.raises(TypeError):

@@ -2,6 +2,8 @@
 smoothing helpers: build_optimizer(), build_lr_scheduler(), swa_accumulate(),
 swa_finalize(), smoothed_metric()."""
 
+import itertools
+
 import pytest
 import torch
 import torch.nn as nn
@@ -67,7 +69,7 @@ def test_build_lr_scheduler_cosine_decreases_monotonically_to_min_factor():
         scheduler.step()
         observed_lrs.append(optimizer.param_groups[0]["lr"])
 
-    for earlier, later in zip(observed_lrs, observed_lrs[1:]):
+    for earlier, later in itertools.pairwise(observed_lrs):
         assert later <= earlier + 1e-12
 
     assert observed_lrs[-1] == pytest.approx(learning_rate * lr_min_factor, abs=1e-4)

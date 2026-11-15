@@ -1,21 +1,6 @@
 """Risk controls: the kill switch, the bounded sizing multipliers and the exposure / drawdown gates (formally verified
 in formal/AetherFormal/{KillSwitch,PositionSizing,RiskControls}.lean)."""
 
-from risk.kill_switch import KillSwitchDecision, evaluate_kill_switch
-from risk.position_sizing import (
-    PositionSizingDecision,
-    build_dynamic_position_sizing,
-    classify_volatility_regime,
-    cost_sizing_multiplier,
-    rank_sizing_multiplier,
-    topology_sizing_multiplier,
-)
-from risk_controls import (
-    assess_drawdown_lock,
-    cap_target_weight,
-    compute_incremental_order_quantity,
-    projected_signed_quantity,
-)
 from risk.asset_class_router import (
     asset_listed_on_venue,
     book_candidate_trading_eligible,
@@ -27,13 +12,25 @@ from risk.asset_class_router import (
 )
 from risk.forex_risk import ForexSizingDecision, build_forex_position_sizing, cap_forex_target_to_book_weight, load_forex_pair_specs
 from risk.futures_risk import FuturesSizingDecision, build_futures_position_sizing, build_live_contract_spec, load_futures_contract_specs, resolve_futures_margin_source, rollover_due
+from risk.kill_switch import KillSwitchDecision, evaluate_kill_switch
+from risk.manual_override import read_kill_switch_manual_override, read_manual_trade_lock_override, write_kill_switch_manual_override, write_manual_trade_lock_override
+from risk.position_sizing import (
+    PositionSizingDecision,
+    build_dynamic_position_sizing,
+    classify_volatility_regime,
+    cost_sizing_multiplier,
+    rank_sizing_multiplier,
+    topology_sizing_multiplier,
+)
 from risk.rl_sizing import build_rl_sizing_state, load_rl_sizing_model, resolve_rl_shadow_guard, rl_excess_return, rl_shadow_guard_allows, rl_sizing_multiplier
-
 from risk_controls import (
     active_position_limit_reached,
+    assess_drawdown_lock,
     build_forex_order_sizing_record,
+    cap_target_weight,
     compute_forex_order_units,
     compute_held_weight,
+    compute_incremental_order_quantity,
     compute_position_exit_tracking_update,
     evaluate_non_model_exit,
     is_backtest_safety_bypass_active,
@@ -41,13 +38,13 @@ from risk_controls import (
     is_position_resize_permitted,
     is_regime_drawdown_bypass_active,
     is_sticky_trade_lock_bypass_active,
+    projected_signed_quantity,
     resolve_benchmark_ticker,
     resolve_lean_window,
     resolve_trading_days_per_year,
     should_lock_in_duration_beta,
     should_scale_position,
 )
-from risk.manual_override import read_kill_switch_manual_override, read_manual_trade_lock_override, write_kill_switch_manual_override, write_manual_trade_lock_override
 
 __all__ = [
     "ForexSizingDecision",

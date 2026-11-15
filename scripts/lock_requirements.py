@@ -59,6 +59,7 @@ PROFILES: dict[str, ProfileSpec] = {
         ProfileSpec("lean-cli"),
         ProfileSpec("lean-runtime"),
         ProfileSpec("fuzz"),
+        ProfileSpec("sanitize"),
         ProfileSpec("sbom"),
         ProfileSpec("compat", python_version="3.10"),
     )

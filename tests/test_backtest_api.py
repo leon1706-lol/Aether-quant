@@ -23,13 +23,13 @@ def _market(seed: int = 1, rows: int = 400, names: int = 4):
     decisions = {}
     for i, day in enumerate(dates):
         if i % 5 == 0 and i > 0:
-            decisions[day] = dict(zip(tickers, rng.uniform(-0.3, 0.4, names)))
+            decisions[day] = dict(zip(tickers, rng.uniform(-0.3, 0.4, names), strict=False))
     return dates, tickers, closes, opens, decisions
 
 
 def test_matches_the_target_weights_simulator_for_equities():
     dates, tickers, closes, opens, decisions = _market()
-    panel = MarketPanel(dates, tickers, opens, closes, {t: "equity" for t in tickers}, set(dates))
+    panel = MarketPanel(dates, tickers, opens, closes, dict.fromkeys(tickers, "equity"), set(dates))
     config = TargetWeightsConfig(min_weight_change=0.0, min_trade_usd=0.0, equity_fee_bps=10.0, equity_min_fee_usd=0.0,
                                  slippage_bps_by_class={"equity": 0.0}, financing_enabled=False)
     reference = pd.Series(simulate_target_weights(decisions, panel, config, start=dates[0], end=dates[-1], nav=1e9)["strategy"])
@@ -45,7 +45,7 @@ def test_matches_the_target_weights_simulator_for_equities():
 
 
 def test_costs_reduce_returns_by_exactly_the_fees():
-    dates, tickers, closes, opens, decisions = _market(seed=3)
+    dates, tickers, closes, _opens, decisions = _market(seed=3)
     weights = pd.DataFrame.from_dict(decisions, orient="index").reindex(dates)
     prices = pd.DataFrame(closes, index=dates, columns=tickers)
     free = backtest(weights, prices, fill="close")
@@ -64,7 +64,7 @@ def test_close_fill_holds_target_weights_on_decision_days():
 
 
 def test_rebalance_every_skips_decisions_and_a_missing_price_is_never_sized():
-    dates, tickers, closes, opens, decisions = _market(seed=5)
+    dates, tickers, closes, _opens, decisions = _market(seed=5)
     closes = closes.copy()
     closes[:50, 0] = np.nan
     weights = pd.DataFrame.from_dict(decisions, orient="index").reindex(dates)
@@ -77,11 +77,11 @@ def test_rebalance_every_skips_decisions_and_a_missing_price_is_never_sized():
 
 
 def test_impact_model_uses_adv_and_vol():
-    dates, tickers, closes, opens, decisions = _market(seed=6)
+    dates, tickers, closes, _opens, decisions = _market(seed=6)
     weights = pd.DataFrame.from_dict(decisions, orient="index").reindex(dates)
     prices = pd.DataFrame(closes, index=dates, columns=tickers)
     with_impact = backtest(weights, prices, fill="close", cost_model=SquareRootImpactModel(eta=1.0), initial_nav=1e8,
-                           adv_usd={t: 1e7 for t in tickers}, daily_vol={t: 0.02 for t in tickers})
+                           adv_usd=dict.fromkeys(tickers, 10000000.0), daily_vol=dict.fromkeys(tickers, 0.02))
     without_inputs = backtest(weights, prices, fill="close", cost_model=SquareRootImpactModel(eta=1.0), initial_nav=1e8)
     assert with_impact.costs.sum() > 0 and without_inputs.costs.sum() == 0
 

@@ -3,41 +3,81 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from portfolio.book_construction import (
     BookAllocation,
+    apply_book_weight_floor,
     apply_class_weight_caps,
+    apply_hrp_weights,
+    book_history_mode_allowed,
+    build_book_history_record,
+    build_book_raw_weights,
     build_rank_based_book,
     combine_tranche_weights,
+    compute_confidence_spread,
+    crypto_core_only_settings,
+    crypto_graduate_excluded,
+    is_rotation_exit_candidate,
+    normalize_per_asset_class_slots,
     partial_adjust_weights,
+    pct_returns_from_closes,
+    remember_formed_book,
     resolve_class_weight_caps,
+    should_exit_non_selected_book_symbol,
+    should_hold_owned_position_on_veto,
+    should_rebalance_this_bar,
     tranche_book_params,
     tranche_offsets,
+    update_book_owned_symbols,
 )
 from portfolio.book_neutrality import apply_book_neutrality
-from portfolio.rank_signal import cross_sectional_rank_scores, grouped_cross_sectional_rank_scores
-from portfolio.sleeve_guard import SleeveGuardConfig, evaluate_sleeve_guard, resolve_sleeve_guard_config, trailing_drawdown
-from portfolio.target_weights import (
-    TargetWeightsConfig,
-    equity_fee_usd,
-    load_live_weight_file,
-    load_weight_file,
-    names_to_exit_without_bars,
-    next_unapplied_row,
-    no_bar_exit_cost_usd,
-    rebalance_deltas,
-    resolve_target_weights_config,
-    slippage_bps_for,
-    sweep_reserve,
-    update_missing_bars,
-    weights_at_tick,
-    weights_sidecar,
-    write_weight_file,
-    write_weights_sidecar,
-)
-from portfolio.class_sleeve import ClassSleeveConfig, build_class_sleeve_weights, resize_below_minimum, resolve_class_sleeve_config, sleeve_classes_out_of_main_pool
-from portfolio.trend_sleeve import TrendSleeveConfig, annualised_vol, apply_min_change, resolve_trend_sleeve_config, signal_lookbacks, trend_signal, trend_sleeve_weights
 from portfolio.cash_sweep import advance_strategy_value, cash_sweep_target_weight, margin_fraction, resolve_cash_sweep_config, strategy_reserve, sweep_order_needed
+from portfolio.class_sleeve import ClassSleeveConfig, build_class_sleeve_weights, resize_below_minimum, resolve_class_sleeve_config, sleeve_classes_out_of_main_pool
+from portfolio.crypto_signals import (
+    amihud,
+    breadth_timing,
+    core_constant,
+    forward_table,
+    funding_filtered_trend,
+    high_proximity,
+    idio_vol,
+    lottery_max,
+    low_beta,
+    low_vol,
+    regime_gate,
+    short_reversal,
+    trend_votes,
+    volume_trend,
+)
+from portfolio.direction_overlay import apply_direction_overlay, calibrate_probability, resolve_direction_overlay
+from portfolio.filing_signals import (
+    announcement_proximity,
+    announcement_return,
+    cash_profitability,
+    cross_asset_trend,
+    events_to_sessions,
+    fred_as_known,
+    opportunistic_buying,
+    same_month_seasonality,
+    similarity_table,
+    term_credit_timing,
+)
 from portfolio.financing import daily_financing_usd, load_rate_series, rate_asof
+from portfolio.forex_sleeve import build_forex_sleeve_weights, forex_resize_below_minimum
+from portfolio.legacy_sleeve import apply_legacy_sleeve_policy, compute_sleeve_gross_used, resolve_legacy_signal_params, resolve_legacy_sleeve_config
+from portfolio.options_arbitrage_detector import (
+    box_spread_fair_value,
+    build_arbitrage_position_sizing,
+    conversion_parity_value,
+    detect_executable_edge,
+    detect_mispricing,
+    jelly_roll_fair_value,
+    pv_dividends_to_expiry,
+    select_arbitrage_signal,
+)
+from portfolio.options_assignment_risk import assignment_risk_flag, assignment_risk_score, days_to_next_ex_dividend, early_exercise_optimal_for_dividend, extrinsic_value
+from portfolio.options_margin_sizing import MarginSizingDecision, build_margin_position_sizing, build_margin_position_sizing_for_legs
 from portfolio.options_strategy import (
     MultiLegSpec,
     OptionsMultiLegPositionDecision,
@@ -80,19 +120,6 @@ from portfolio.options_strategy import (
     select_vertical_spread_legs,
     strategies_for_volatility_view,
 )
-from portfolio.options_margin_sizing import MarginSizingDecision, build_margin_position_sizing, build_margin_position_sizing_for_legs
-from portfolio.options_assignment_risk import assignment_risk_flag, assignment_risk_score, days_to_next_ex_dividend, early_exercise_optimal_for_dividend, extrinsic_value
-from portfolio.options_arbitrage_detector import (
-    box_spread_fair_value,
-    build_arbitrage_position_sizing,
-    conversion_parity_value,
-    detect_executable_edge,
-    detect_mispricing,
-    jelly_roll_fair_value,
-    pv_dividends_to_expiry,
-    select_arbitrage_signal,
-)
-from portfolio.rolling_ic_gate import compute_rolling_ic_state, evaluate_rolling_ic_gate, resolve_late_bar_event_count, should_record_ic_event
 from portfolio.premia_signals import (
     ResearchPanel,
     SleeveSpec,
@@ -118,66 +145,35 @@ from portfolio.premia_signals import (
     turn_of_month,
     vix_term_structure,
 )
+from portfolio.rank_signal import cross_sectional_rank_scores, grouped_cross_sectional_rank_scores, rank_group_by_symbol, resolve_rank_signal_policy, sector_relative_scores, select_raw_rank_score
+from portfolio.rolling_ic_gate import compute_rolling_ic_state, evaluate_rolling_ic_gate, resolve_late_bar_event_count, should_record_ic_event
+from portfolio.sleeve_guard import SleeveGuardConfig, evaluate_sleeve_guard, resolve_sleeve_guard_config, trailing_drawdown
+from portfolio.target_weights import (
+    TargetWeightsConfig,
+    equity_fee_usd,
+    load_live_weight_file,
+    load_weight_file,
+    names_to_exit_without_bars,
+    next_unapplied_row,
+    no_bar_exit_cost_usd,
+    rebalance_deltas,
+    resolve_target_weights_config,
+    slippage_bps_for,
+    sweep_reserve,
+    update_missing_bars,
+    weights_at_tick,
+    weights_sidecar,
+    write_weight_file,
+    write_weights_sidecar,
+)
+from portfolio.trend_sleeve import TrendSleeveConfig, annualised_vol, apply_min_change, resolve_trend_sleeve_config, signal_lookbacks, trend_signal, trend_sleeve_weights
 from portfolio.wide_signals import cross_sectional_rank, crypto_tables, live_names_per_rebalance, rank_mean, wide_tables
-from portfolio.direction_overlay import apply_direction_overlay, calibrate_probability, resolve_direction_overlay
-from portfolio.forex_sleeve import build_forex_sleeve_weights, forex_resize_below_minimum
-from portfolio.legacy_sleeve import apply_legacy_sleeve_policy, compute_sleeve_gross_used, resolve_legacy_signal_params, resolve_legacy_sleeve_config
-
-from portfolio.crypto_signals import (
-    amihud,
-    breadth_timing,
-    core_constant,
-    forward_table,
-    funding_filtered_trend,
-    high_proximity,
-    idio_vol,
-    lottery_max,
-    low_beta,
-    low_vol,
-    regime_gate,
-    short_reversal,
-    trend_votes,
-    volume_trend,
-)
-from portfolio.filing_signals import (
-    announcement_proximity,
-    announcement_return,
-    cash_profitability,
-    cross_asset_trend,
-    events_to_sessions,
-    fred_as_known,
-    opportunistic_buying,
-    same_month_seasonality,
-    similarity_table,
-    term_credit_timing,
-)
-from portfolio.book_construction import (
-    apply_book_weight_floor,
-    apply_hrp_weights,
-    book_history_mode_allowed,
-    build_book_history_record,
-    build_book_raw_weights,
-    compute_confidence_spread,
-    crypto_core_only_settings,
-    crypto_graduate_excluded,
-    is_rotation_exit_candidate,
-    normalize_per_asset_class_slots,
-    pct_returns_from_closes,
-    remember_formed_book,
-    should_exit_non_selected_book_symbol,
-    should_hold_owned_position_on_veto,
-    should_rebalance_this_bar,
-    update_book_owned_symbols,
-)
-from portfolio.rank_signal import rank_group_by_symbol, resolve_rank_signal_policy, sector_relative_scores, select_raw_rank_score
-from typing import TYPE_CHECKING
-
 
 if TYPE_CHECKING:
     import pandas as pd
 
 
-def compute_hrp_weights(returns: "pd.DataFrame") -> "pd.Series":
+def compute_hrp_weights(returns: pd.DataFrame) -> pd.Series:
     """Hierarchical risk parity weights (portfolio/hrp_allocation.py; needs scipy, imported on call)."""
     from portfolio.hrp_allocation import compute_hrp_weights as _compute
 

@@ -4,6 +4,8 @@ Conventions: no test classes, module-level helpers, plain list[dict] fixtures
 (same shape whether sourced from Redis/in-memory logs or Postgres JSONB rows).
 """
 
+import itertools
+
 from experience.observation_metrics import (
     action_distribution,
     compute_observation_summary,
@@ -135,7 +137,7 @@ def test_simulated_sharpe_computes_expected_value_for_known_series():
     events = [_sample_event(portfolio={"total_value": value, "simulated": True}) for value in equities]
 
     returns = []
-    for previous, current in zip(equities, equities[1:]):
+    for previous, current in itertools.pairwise(equities):
         returns.append((current - previous) / previous)
     mean = sum(returns) / len(returns)
     variance = sum((r - mean) ** 2 for r in returns) / len(returns)

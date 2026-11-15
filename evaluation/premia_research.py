@@ -12,6 +12,7 @@ import math
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import pandas as pd
@@ -33,7 +34,6 @@ from portfolio.premia_signals import (
     sleeve_signal,
 )
 from portfolio.target_weights import TargetWeightsConfig, resolve_target_weights_config
-from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from collections.abc import Iterable

@@ -23,7 +23,7 @@ aq evaluate               # offline evaluation
 aq cycle status           # generations, shares, decay, what is due (RUNBOOK "Research cycle")
 aq docs sync              # refresh numbers quoted in the docs
 aq backtest               # real Lean backtest (Docker, ~1hr+): the owner runs this, never agents
-ruff check .              # must be clean before commit
+ruff check .              # must be clean before commit: 14 rule sets, each exclusion's reason in pyproject.toml (the pinned ruff, tools.in)
 ```
 
 ## Non-negotiables
@@ -118,7 +118,7 @@ Lean backtests run on a temporary DinD Codespace (`scripts/codespace_lean_run.ps
 
 `forward-ledger.yml` and `research-cycle.yml` run each session on free runners and write only to branch `forward-ledger`.
 
-`.github/workflows/ci.yml` (Python 3.11): `python-tests` (ubuntu and windows, 100% coverage gate over every tracked module, coverage XML/JSON/HTML and a JUnit report), `python-lint`, `dependency-audit`, `webui-tests` (with coverage and a blocking `npm audit`), `cli-smoke`, `workflows-lint`, and the guard jobs: fast-guards, subsystem-matrix, wheel-smoke, python-compat, docker-checks (dashboard image smoke and trivy), secret-scan (blocking on the tree), parity-smoke, lite-install, typecheck, docs, notebooks and bandit. `codeql.yml`, `scorecard.yml` and `pages.yml` (docs, coverage reports, and the coverage and test badges on GitHub Pages) run beside it. `release.yml` attaches the wheel, sdist, SBOM, Sigstore signatures and SLSA provenance to each GitHub release, then reruns the Scorecard; its `backfill_tag` dispatch signs and attaches PyPI's files to an older release. Actions are pinned by commit and base images by digest; Dependabot moves the pins. `tests/test_ci_workflows.py` pins the shape: update it with any workflow change. No Lean backtest in CI. A Docker rebuild is required before any paper or live deploy once material code lands.
+`.github/workflows/ci.yml` (Python 3.11): `python-tests` (ubuntu and windows, 100% coverage gate over every tracked module, coverage XML/JSON/HTML and a JUnit report), `python-lint`, `dependency-audit`, `webui-tests` (with coverage and a blocking `npm audit`), `cli-smoke`, `workflows-lint`, and the guard jobs: fast-guards, subsystem-matrix, wheel-smoke, python-compat, docker-checks (dashboard image smoke and trivy), secret-scan (blocking on the tree), parity-smoke, lite-install, typecheck, docs, notebooks, bandit and cpp-sanitizers (the C++ accelerator under ASan and UBSan, with a canary that must abort). `codeql.yml`, `scorecard.yml` and `pages.yml` (docs, coverage reports, and the coverage and test badges on GitHub Pages) run beside it. `release.yml` attaches the wheel, sdist, SBOM, Sigstore signatures and SLSA provenance to each GitHub release, then reruns the Scorecard; its `backfill_tag` dispatch signs and attaches PyPI's files to an older release. Actions are pinned by commit and base images by digest; Dependabot moves the pins. `tests/test_ci_workflows.py` pins the shape: update it with any workflow change. No Lean backtest in CI. A Docker rebuild is required before any paper or live deploy once material code lands.
 
 ## After every phase: what doesn't update itself
 

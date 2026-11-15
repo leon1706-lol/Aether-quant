@@ -70,8 +70,8 @@ def main() -> int:
         for name, (call, before, after) in cases.items():
             identical = call(before) == call(after)
             repeats = max(1, args.calls // 200)
-            t_old = min(timeit.repeat(lambda: call(before), number=repeats, repeat=3)) / (repeats * 200) * 1e6
-            t_new = min(timeit.repeat(lambda: call(after), number=repeats, repeat=3)) / (repeats * 200) * 1e6
+            t_old = min(timeit.repeat(lambda call=call, before=before: call(before), number=repeats, repeat=3)) / (repeats * 200) * 1e6
+            t_new = min(timeit.repeat(lambda call=call, after=after: call(after), number=repeats, repeat=3)) / (repeats * 200) * 1e6
             report[name] = {"identical_outputs": identical, "committed_us_per_call": round(t_old, 3), "v643_us_per_call": round(t_new, 3),
                             "change_pct": round((t_new / t_old - 1) * 100, 1) if t_old else None}
             print(name, report[name], flush=True)

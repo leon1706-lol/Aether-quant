@@ -16,8 +16,9 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from portfolio.premia_signals import WeightSettings  # noqa: E402
 from v650_trials import ABLATION_IDS, ALL_SPECS, COMBINATION_IDS  # noqa: E402
+
+from portfolio.premia_signals import WeightSettings  # noqa: E402
 
 OUT = ROOT / "ml" / "evaluation" / "v650"
 

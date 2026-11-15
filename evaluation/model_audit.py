@@ -7,13 +7,13 @@ sign published work gives each feature, so there is nothing to fit, and a single
 from __future__ import annotations
 
 from collections.abc import Mapping
+from typing import TYPE_CHECKING, Any
 
 import pandas as pd
 
 from evaluation.research_cells import CELLS, FREE_CELLS
 from features.wide_panel import wide_label
 from portfolio.wide_signals import rank_mean
-from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from collections.abc import Callable

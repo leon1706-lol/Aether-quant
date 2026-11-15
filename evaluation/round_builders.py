@@ -9,12 +9,11 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
 import pandas as pd
 
 from portfolio import crypto_signals, filing_signals
-from typing import TYPE_CHECKING, Any
-
 
 if TYPE_CHECKING:
     from evaluation.wide_context import WideCell

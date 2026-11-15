@@ -154,7 +154,7 @@ def test_update_retraining_event_status_updates_fields():
 
     update_retraining_event_status(conn_mock, "evt-1", "promoted", candidate_version_id="v1", reason="done")
 
-    sql, params = cur_mock.execute.call_args.args
+    _sql, params = cur_mock.execute.call_args.args
     assert params["status"] == "promoted"
     assert params["candidate_version_id"] == "v1"
     assert params["reason"] == "done"

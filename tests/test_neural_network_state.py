@@ -1,3 +1,4 @@
+import itertools
 import json
 from pathlib import Path
 
@@ -10,7 +11,7 @@ def _write_model_export(path: Path, node_layers: list[int]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     architecture = []
     state_dict = {}
-    for index, (in_features, out_features) in enumerate(zip(node_layers, node_layers[1:])):
+    for index, (in_features, out_features) in enumerate(itertools.pairwise(node_layers)):
         weight_key = f"network.{index}.weight"
         bias_key = f"network.{index}.bias"
         architecture.append(
@@ -47,7 +48,7 @@ def _write_branching_model_export(
 
     def _layer_specs(node_layers: list[int], prefix: str, use_conv_first: bool) -> list[dict]:
         specs = []
-        for index, (in_features, out_features) in enumerate(zip(node_layers, node_layers[1:])):
+        for index, (in_features, out_features) in enumerate(itertools.pairwise(node_layers)):
             weight_key = f"{prefix}.{index}.weight"
             bias_key = f"{prefix}.{index}.bias"
             if use_conv_first and index == 0:

@@ -51,7 +51,7 @@ def test_flat_experts_across_symbols_equal_the_per_symbol_calls():
     cache = build_models_batched_cache(exports)
     rows = _rows(rng)
     batched = run_exported_models_across_symbols(exports, rows, stack_cache=cache)
-    for row, result in zip(rows, batched):
+    for row, result in zip(rows, batched, strict=False):
         assert result == pytest.approx(run_exported_models_batched(exports, row, stack_cache=cache), rel=0, abs=1e-12)
     no_cache = run_exported_models_across_symbols(exports, rows)  # no cache object
     assert [value for row in no_cache for value in row] == pytest.approx([value for row in batched for value in row], abs=1e-12)
@@ -63,7 +63,7 @@ def test_a_missing_expert_stays_none_for_every_symbol():
     rng = np.random.default_rng(2)
     exports = [_flat_export(rng), None, _flat_export(rng), _flat_export(rng)]
     rows = _rows(rng, 4)
-    for row, result in zip(rows, run_exported_models_across_symbols(exports, rows, stack_cache=build_models_batched_cache(exports))):
+    for row, result in zip(rows, run_exported_models_across_symbols(exports, rows, stack_cache=build_models_batched_cache(exports)), strict=False):
         assert result[1] is None
         assert result == pytest.approx(run_exported_models_batched(exports, row), abs=1e-12)
 
@@ -74,13 +74,13 @@ def test_multitask_experts_across_symbols_equal_the_per_symbol_calls():
     cache = build_multitask_models_batched_cache(exports)
     rows = _rows(rng)
     batched = run_exported_multitask_models_across_symbols(exports, rows, stack_cache=cache)
-    for row, result in zip(rows, batched):
+    for row, result in zip(rows, batched, strict=False):
         reference = run_exported_multitask_models_batched(exports, row, stack_cache=cache)
-        for got, expected in zip(result, reference):
+        for got, expected in zip(result, reference, strict=False):
             assert got == pytest.approx(expected, abs=1e-12)
     again = run_exported_multitask_models_across_symbols(exports, rows)
-    for got_row, expected_row in zip(again, batched):
-        for got, expected in zip(got_row, expected_row):
+    for got_row, expected_row in zip(again, batched, strict=False):
+        for got, expected in zip(got_row, expected_row, strict=False):
             assert got == pytest.approx(expected, abs=1e-12)
 
 
@@ -107,7 +107,7 @@ def test_the_installed_experts_agree_on_real_width_inputs():
     rows = rng.normal(size=(12, width)).tolist()
     flat = run_exported_models_across_symbols(exports, rows, stack_cache=build_models_batched_cache(exports))
     multitask = run_exported_multitask_models_across_symbols(multitask_exports, rows, stack_cache=build_multitask_models_batched_cache(multitask_exports))
-    for row, flat_row, multitask_row in zip(rows, flat, multitask):
+    for row, flat_row, multitask_row in zip(rows, flat, multitask, strict=False):
         assert flat_row == pytest.approx(run_exported_models_batched(exports, row), abs=1e-12)
-        for got, expected in zip(multitask_row, run_exported_multitask_models_batched(multitask_exports, row)):
+        for got, expected in zip(multitask_row, run_exported_multitask_models_batched(multitask_exports, row), strict=False):
             assert got == pytest.approx(expected, abs=1e-12)

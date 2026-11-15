@@ -37,6 +37,7 @@ Ships config-gated OFF by default (phase_v2.portfolio_book.enabled: false)
 
 from __future__ import annotations
 
+import itertools
 import math
 from collections.abc import Mapping
 from dataclasses import asdict, dataclass
@@ -501,7 +502,7 @@ def pct_returns_from_closes(closes: list[Any]) -> list[float]:
     Fewer than 2 usable closes returns [] (no return can exist without at
     least one previous close to diff against)."""
     returns: list[float] = []
-    for previous_close, current_close in zip(closes, closes[1:]):
+    for previous_close, current_close in itertools.pairwise(closes):
         if (
             previous_close is None
             or current_close is None
@@ -1005,6 +1006,14 @@ def book_history_mode_allowed(runtime_mode: str, enabled: bool, paper_enabled: b
     return False, False
 
 
+def _positive_cap(entry: dict, key: str) -> float | None:
+    try:
+        value = float(entry.get(key, 0.0))
+    except (TypeError, ValueError):
+        return None
+    return value if value > 0.0 and value == value and value != float("inf") else None
+
+
 def resolve_class_weight_caps(raw: dict[str, Any] | None) -> dict[str, dict]:
     """`phase_v2.class_weight_caps` -> {asset_class: {"per_name_cap", "class_gross_cap", "exempt"}} for the enabled classes.
     Absent/empty = no caps (the pre-V5.8.0 behaviour). A cap of 0 or less means "no cap on that dimension"."""
@@ -1012,15 +1021,7 @@ def resolve_class_weight_caps(raw: dict[str, Any] | None) -> dict[str, dict]:
     for asset_class, entry in (raw or {}).items():
         if not isinstance(entry, dict) or not bool(entry.get("enabled", True)):
             continue
-
-        def _cap(key: str) -> float | None:
-            try:
-                value = float(entry.get(key, 0.0))
-            except (TypeError, ValueError):
-                return None
-            return value if value > 0.0 and value == value and value != float("inf") else None
-
-        per_name, gross = _cap("per_name_cap"), _cap("class_gross_cap")
+        per_name, gross = _positive_cap(entry, "per_name_cap"), _positive_cap(entry, "class_gross_cap")
         if per_name is None and gross is None:
             continue
         caps[str(asset_class)] = {"per_name_cap": per_name, "class_gross_cap": gross, "exempt": frozenset(map(str, entry.get("exempt", ())))}

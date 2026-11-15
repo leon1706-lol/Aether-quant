@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import fnmatch
 import subprocess
-import tomllib
 from pathlib import Path
 
+import tomllib
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]

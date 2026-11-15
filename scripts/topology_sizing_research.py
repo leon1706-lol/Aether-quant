@@ -54,7 +54,7 @@ def topology_inputs_by_row(frame, topo_model: dict, topo_schema: dict, probabili
     records = frame.to_dict("records")
     indices, vectors, _outcomes, regimes = dataset_feature_vectors_indexed(records, list(probabilities))
     out = {}
-    for index, vector, regime in zip(indices, vectors, regimes):
+    for index, vector, regime in zip(indices, vectors, regimes, strict=False):
         row = records[index]
         out[(str(row["date"])[:10], str(row["ticker"]))] = learned_sizing_inputs(
             vector, topo_model, topo_schema, cluster_regime_label=regime, peer_distance=peer_distance,

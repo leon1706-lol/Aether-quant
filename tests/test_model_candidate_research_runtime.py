@@ -31,8 +31,8 @@ def _frame():
         split = "validation" if index < 40 else ("backtest" if index < 70 else "holdout")
         for number, ticker in enumerate(TICKERS):
             row = {"date": date, "ticker": ticker, "split": split, "training_eligible": True, "in_main_group": number != 13}
-            for head, (target, _) in {"rank_5d": ("target_rank_5d", 5), "rank_20d": ("target_rank_20d", 20), "sector_neutral_rank_20d": ("target_sector_neutral_rank_20d", 20),
-                                      "residual_rank_5d": ("target_residual_rank_5d", 5), "residual_rank_20d": ("target_residual_rank_20d", 20)}.items():
+            for (target, _) in {"rank_5d": ("target_rank_5d", 5), "rank_20d": ("target_rank_20d", 20), "sector_neutral_rank_20d": ("target_sector_neutral_rank_20d", 20),
+                                      "residual_rank_5d": ("target_residual_rank_5d", 5), "residual_rank_20d": ("target_residual_rank_20d", 20)}.values():
                 row[target] = rng.random()
             rows.append(row)
     return pd.DataFrame(rows)

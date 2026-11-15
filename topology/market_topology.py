@@ -5,12 +5,11 @@ structure layer consumed by the dashboard and the central market analyzer."""
 from __future__ import annotations
 
 import math
+from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
-from typing import Callable
-
-import numpy as np
 from typing import TYPE_CHECKING, Any
 
+import numpy as np
 
 if TYPE_CHECKING:
     from numpy.typing import ArrayLike
@@ -185,7 +184,7 @@ def _pearson_correlation(series_a: list[float], series_b: list[float]) -> float:
         return 0.0
     mean_a = _mean(series_a)
     mean_b = _mean(series_b)
-    covariance = sum((a - mean_a) * (b - mean_b) for a, b in zip(series_a, series_b))
+    covariance = sum((a - mean_a) * (b - mean_b) for a, b in zip(series_a, series_b, strict=False))
     variance_a = sum((a - mean_a) ** 2 for a in series_a)
     variance_b = sum((b - mean_b) ** 2 for b in series_b)
     denominator = math.sqrt(variance_a * variance_b)
@@ -205,7 +204,7 @@ def _full_window_correlation_matrix(
     ~87% of build_market_topology()'s 332 ms/call. Results agree with the scalar path to ~1e-15.
     """
     try:
-        import numpy as np  # noqa: PLC0415 - optional speed-up; the scalar path below is always correct
+        import numpy as np
     except ImportError:
         return None
     if not symbols:
@@ -256,7 +255,7 @@ class _UnionFind:
 
 
 def _distance(a: tuple[float, ...], b: tuple[float, ...]) -> float:
-    return math.sqrt(sum((component_a - component_b) ** 2 for component_a, component_b in zip(a, b)))
+    return math.sqrt(sum((component_a - component_b) ** 2 for component_a, component_b in zip(a, b, strict=False)))
 
 
 def _stress_majorize(
@@ -370,7 +369,7 @@ def _rescale_positions_to_bounds(
         default=0.0,
     )
     if max_extent <= 1e-9:
-        return {symbol: (center,) * dimensions for symbol in positions}
+        return dict.fromkeys(positions, (center,) * dimensions)
 
     scale = max_radius / max_extent
     return {
@@ -447,7 +446,7 @@ def rank_correlated_peers_from_row(
     correlation, ties by symbol name - via one stable lexsort instead of a Python sort with a lookup per pair.
     `symbols` must be in the matrix's row order; `alphabetical_positions` (rank of each symbol's name) defaults to the
     row order, which equals alphabetical order for build_market_topology()'s sorted eligible symbols."""
-    import numpy as np  # noqa: PLC0415
+    import numpy as np
 
     values = -np.asarray(correlation_row, dtype=np.float64)
     names = np.arange(len(symbols)) if alphabetical_positions is None else np.asarray(alphabetical_positions)
@@ -755,7 +754,7 @@ def build_market_topology(
         # above) so the result is deterministic and converges fast. This
         # is what makes spatial distance actually reflect correlation
         # distance instead of arbitrary index-based placement.
-        import numpy as np  # noqa: PLC0415
+        import numpy as np
 
         final_positions = _rescale_positions_to_bounds(
             _stress_majorize(

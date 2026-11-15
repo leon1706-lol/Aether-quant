@@ -26,9 +26,9 @@ import argparse
 import json
 import logging
 import math
+from collections.abc import Callable
 from datetime import date, datetime, timedelta
 from pathlib import Path
-from typing import Callable
 from zipfile import ZipFile
 
 import pandas as pd
@@ -358,7 +358,7 @@ def synthesize_crypto_bid_ask_row(row: dict) -> dict:
     above). Duplicates trade OHLC into both bid and ask groups, carries the
     trade volume into both volume columns — matches Lean's real crypto
     quote CSV shape (data/crypto/coinbase/daily/btcusd_quote.zip), no fake
-    spread invented.""" 
+    spread invented."""
     return {
         "date": row["date"],
         "bid_open": row["open"], "bid_high": row["high"],

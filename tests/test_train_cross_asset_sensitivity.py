@@ -42,7 +42,7 @@ def _asset_frame(dates: list, returns: list[float]) -> pd.DataFrame:
 
 
 def _driver_series(dates: list, levels: list[float]) -> list[dict]:
-    return [{"date": d, "value": v} for d, v in zip(dates, levels)]
+    return [{"date": d, "value": v} for d, v in zip(dates, levels, strict=False)]
 
 
 def test_build_cross_asset_sensitivity_features_disabled_writes_all_zero_columns():
@@ -79,7 +79,7 @@ def test_build_cross_asset_sensitivity_features_adds_all_8_columns_to_every_asse
 
     result = build_cross_asset_sensitivity_features(frames, config, fred_series={})
 
-    for ticker, frame in result.items():
+    for frame in result.values():
         for driver in ("vix", "real_rate", "credit", "dollar"):
             assert f"sens_{driver}_beta" in frame.columns
             assert f"sens_{driver}_interaction" in frame.columns

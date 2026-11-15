@@ -14,6 +14,7 @@ Dry run by default (prints the table, writes nothing).
 from __future__ import annotations
 
 import argparse
+import itertools
 import json
 import sys
 import time as _time
@@ -61,7 +62,7 @@ def listing_entry(days: list[date], *, min_gap_days: int, end: date | None = Non
     if not days:
         return {"listed": None, "last": None, "suspended": [], "delisted": None}
     gaps = []
-    for previous, current in zip(days, days[1:]):
+    for previous, current in itertools.pairwise(days):
         if (current - previous).days > min_gap_days:
             gaps.append([(previous + timedelta(days=1)).isoformat(), current.isoformat()])
     delisted = None

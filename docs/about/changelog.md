@@ -5,10 +5,17 @@ The full record of every phase lives in the repository: [`development/Changelog.
 The latest phases, generated from that file by `aq docs sync`:
 
 <!-- AQ:CHANGELOG_LATEST_START -->
+- [Phase V6.6.8 — Close the best-practices gaps: strict lint, the C++ accelerator under sanitizers, the licence decision](https://github.com/leon1706-lol/Aether-quant/blob/main/development/Changelog.md#phase-v668--close-the-best-practices-gaps-strict-lint-the-c-accelerator-under-sanitizers-the-licence-decision)
 - [Phase V6.6.7 — The last tidy-up: the Scorecard near its ceiling, fuzzing, coverage after every commit, ten more proofs](https://github.com/leon1706-lol/Aether-quant/blob/main/development/Changelog.md#phase-v667--the-last-tidy-up-the-scorecard-near-its-ceiling-fuzzing-coverage-after-every-commit-ten-more-proofs)
 - [Phase V6.6.6 — Cleanup: the Scorecard sees releases, the public pages stop quoting by hand, coverage measures everything](https://github.com/leon1706-lol/Aether-quant/blob/main/development/Changelog.md#phase-v666--cleanup-the-scorecard-sees-releases-the-public-pages-stop-quoting-by-hand-coverage-measures-everything)
-- [Phase V6.6.5 — Open the door: a five-minute start, a first-class library, a hardened live path](https://github.com/leon1706-lol/Aether-quant/blob/main/development/Changelog.md#phase-v665--open-the-door-a-five-minute-start-a-first-class-library-a-hardened-live-path)
 <!-- AQ:CHANGELOG_LATEST_END -->
+
+**6.6.8: the best-practices gaps.**
+
+- **Stricter lint.** ruff now runs 14 rule sets instead of two, and it targets Python 3.10, the oldest version the package supports. Every rule left out carries its reason in `pyproject.toml`.
+- **The C++ accelerator under sanitizers.** A new CI job builds `cpp_inference_ext` with AddressSanitizer and UBSan. A deliberate overflow must abort first, which proves the sanitizers are on; then property tests and the exported-model parity run against the sanitized build.
+- **The licence, decided.** The trading system stays PolyForm Noncommercial, so the OpenSSF Best Practices badge stays "in progress" at 99%. Relicensing is listed as a possible future step under Known Limitations.
+- **The per-commit coverage gate** no longer refuses a change to `main.py`.
 
 **6.6.7: the last tidy-up.**
 

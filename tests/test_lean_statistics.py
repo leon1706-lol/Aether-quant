@@ -65,7 +65,7 @@ def test_a_result_file_drops_the_first_two_return_points_and_keeps_every_equity_
     stamps = [(start + timedelta(days=i)).timestamp() for i in range(6)]
     result = {
         "charts": {"Strategy Equity": {"series": {
-            "Return": {"values": [[s, v] for s, v in zip(stamps, [0.0, 0.5, 0.1, -0.2, 0.3, 0.1])]},
+            "Return": {"values": [[s, v] for s, v in zip(stamps, [0.0, 0.5, 0.1, -0.2, 0.3, 0.1], strict=False)]},
             "Equity": {"values": [[s, 1, 1, 1, 1] for s in stamps] + [[stamps[-1], 1, 1, 1, 1]]},
         }}},
         "algorithmConfiguration": {"tradingDaysPerYear": 365},

@@ -22,10 +22,8 @@ step (`python train.py`).
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
-
-from json_safety import atomic_write_json
 
 from data_pipeline.yfinance_backfill import (
     fetch_yahoo_ohlcv,
@@ -33,6 +31,7 @@ from data_pipeline.yfinance_backfill import (
     write_lean_forex_zip,
     write_lean_zip,
 )
+from json_safety import atomic_write_json
 
 ROOT = Path(__file__).resolve().parents[1]
 CONFIG_PATH = ROOT / "config.json"

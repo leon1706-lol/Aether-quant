@@ -164,7 +164,7 @@ def test_run_symbol_inference_experts_match_direct_batched_call():
 
     expert_list = [exports["experts"][name] for name in EXPERT_NAMES]
     expected = run_exported_models_batched(expert_list, inputs)
-    for name, expected_value in zip(EXPERT_NAMES, expected):
+    for name, expected_value in zip(EXPERT_NAMES, expected, strict=False):
         assert result["expert_probabilities"][name] == pytest.approx(expected_value, abs=1e-9)
 
 
@@ -189,7 +189,7 @@ def test_run_symbol_inference_expert_multitask_matches_direct_batched_call():
 
     expert_multitask_list = [exports["expert_multitask"][name] for name in EXPERT_NAMES]
     expected = run_exported_multitask_models_batched(expert_multitask_list, inputs)
-    for name, expected_value in zip(EXPERT_NAMES, expected):
+    for name, expected_value in zip(EXPERT_NAMES, expected, strict=False):
         assert result["expert_multitask_magnitudes"][name] == pytest.approx(expected_value["magnitude"], abs=1e-9)
         assert result["expert_multitask_volatilities"][name] == pytest.approx(expected_value["volatility"], abs=1e-9)
 

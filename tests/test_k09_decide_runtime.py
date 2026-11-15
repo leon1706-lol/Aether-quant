@@ -30,10 +30,11 @@ def test_a_name_without_a_sector_or_price_is_not_ranked_and_nothing_is_held_with
 
 def _world(module, monkeypatch, tmp_path, *, closes_for, ledger_row="row"):
     import cycle_decide
+    import forward_ledger
+
     import data_pipeline.edgar_facts as edgar_facts
     import data_pipeline.sp500_membership as membership
     import evaluation.research_cells as cells
-    import forward_ledger
 
     reference = tmp_path / "data_wide" / "reference"
     reference.mkdir(parents=True, exist_ok=True)
@@ -70,7 +71,7 @@ def test_the_weights_of_the_session_are_written_beside_the_names_yahoo_could_not
 
 
 def test_a_session_without_closes_yet_is_not_decided(module, monkeypatch, tmp_path, capsys):
-    _world(module, monkeypatch, tmp_path, closes_for=lambda ticker, getter: {day: 1.0 for day in DAYS[:-3]})
+    _world(module, monkeypatch, tmp_path, closes_for=lambda ticker, getter: dict.fromkeys(DAYS[:-3], 1.0))
     monkeypatch.setattr(sys, "argv", ["k09_decide", "--out", str(tmp_path / "k09.csv"), "--session", SESSION])
     assert module.main() == 1 and f"no closes for {SESSION} yet" in capsys.readouterr().err and not (tmp_path / "k09.csv").exists()
 

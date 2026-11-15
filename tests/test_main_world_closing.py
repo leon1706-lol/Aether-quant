@@ -54,7 +54,7 @@ def symbol_of(algorithm, ticker):
 
 
 def test_the_sweep_ignores_a_zero_price_and_a_holding_whose_value_is_not_finite(monkeypatch, tmp_path):
-    _, algorithm, market, _ = make(monkeypatch, tmp_path)
+    _, algorithm, _market, _ = make(monkeypatch, tmp_path)
     algorithm.is_equity_session_bar = True
     algorithm.is_warming_up = False
     sweep = algorithm._cash_sweep_symbol
@@ -86,7 +86,7 @@ def send(algorithm, symbol, key, decision, price):
 
 
 def test_a_small_single_leg_position_is_resized_up_in_place_when_another_strike_is_asked_for(monkeypatch, tmp_path):
-    main, algorithm, market, _ = make(monkeypatch, tmp_path)
+    main, algorithm, _market, _ = make(monkeypatch, tmp_path)
     symbol, key, rows = option_scene(algorithm)
     nav = float(algorithm.Portfolio.TotalPortfolioValue)
     price = float(rows[0]["underlying_price"])
@@ -99,7 +99,7 @@ def test_a_small_single_leg_position_is_resized_up_in_place_when_another_strike_
 
 
 def test_a_small_structure_is_repriced_and_scaled_in_place_and_a_margin_figure_is_kept_current(monkeypatch, tmp_path):
-    _, algorithm, market, _ = make(monkeypatch, tmp_path)
+    _, algorithm, _market, _ = make(monkeypatch, tmp_path)
     symbol, key, rows = option_scene(algorithm)
     nav = float(algorithm.Portfolio.TotalPortfolioValue)
     price = float(rows[0]["underlying_price"])
@@ -119,14 +119,14 @@ def test_a_small_structure_is_repriced_and_scaled_in_place_and_a_margin_figure_i
 
 
 def test_a_covered_record_cannot_be_resized_as_a_vega_structure(monkeypatch, tmp_path):
-    _, algorithm, market, _ = make(monkeypatch, tmp_path)
-    symbol, key, rows = option_scene(algorithm)
+    _, algorithm, _market, _ = make(monkeypatch, tmp_path)
+    _symbol, key, rows = option_scene(algorithm)
     call = next(row for row in rows if row["right"] == "call")
     assert algorithm._resize_multi_leg_record(key, {"strategy_name": "covered_call", "legs": [call["symbol"]]}) is None
 
 
 def test_short_exposure_skips_holdings_of_another_class(monkeypatch, tmp_path):
-    _, algorithm, market, _ = make(monkeypatch, tmp_path)
+    _, algorithm, _market, _ = make(monkeypatch, tmp_path)
     for ticker in ("TLT", "AAPL", "GBPJPY"):
         symbol = symbol_of(algorithm, ticker)
         algorithm.Portfolio.apply(symbol, -50.0, float(algorithm.Securities[symbol].Price))
@@ -134,7 +134,7 @@ def test_short_exposure_skips_holdings_of_another_class(monkeypatch, tmp_path):
 
 
 def test_a_margin_structure_held_beside_another_is_counted_once_and_an_excluded_one_is_left_out(monkeypatch, tmp_path):
-    _, algorithm, market, _ = make(monkeypatch, tmp_path)
+    _, algorithm, _market, _ = make(monkeypatch, tmp_path)
     symbol, key, rows = option_scene(algorithm)
     legs = [row["symbol"] for row in rows[:2]]
     algorithm.symbol_key_by_option_contract_symbol = {str(leg): key for leg in legs}
@@ -173,7 +173,7 @@ def test_a_kill_switch_override_file_replaces_the_configured_switch_and_a_model_
 
 
 def test_a_failing_field_test_exposure_read_is_logged_as_unknown(monkeypatch, tmp_path):
-    _, algorithm, market, _ = make(monkeypatch, tmp_path)
+    _, algorithm, _market, _ = make(monkeypatch, tmp_path)
     algorithm.Portfolio.holdings[symbol_of(algorithm, "AAPL")] = SimpleNamespace(Invested=True, Symbol="x", HoldingsValue=float("nan"))
     algorithm.Portfolio.holdings[symbol_of(algorithm, "SPY")] = SimpleNamespace(Invested=True, Symbol="y", HoldingsValue="not a number")
     algorithm._field_test_log_bar({}, SimpleNamespace(tripped=False, triggers=[]), {"status": "not_applicable"})
@@ -182,7 +182,7 @@ def test_a_failing_field_test_exposure_read_is_logged_as_unknown(monkeypatch, tm
 
 def test_a_filled_limit_is_not_cancelled_and_a_state_write_policy_can_thin_the_state(monkeypatch, tmp_path):
     overrides = {"phase_v2": {"limit_orders": {"enabled": True, "unfilled_timeout_bars": 1}, "diagnostics": {"state_write": {"every_n_ticks": 1000}}}}
-    _, algorithm, market, _ = make(monkeypatch, tmp_path, overrides)
+    _, algorithm, _market, _ = make(monkeypatch, tmp_path, overrides)
     symbol = symbol_of(algorithm, "AAPL")
     key = str(symbol)
     filled = SimpleNamespace(Status="Filled", QuantityRemaining=0.0, Cancel=lambda *a, **k: None)
@@ -195,8 +195,8 @@ def test_a_filled_limit_is_not_cancelled_and_a_state_write_policy_can_thin_the_s
 
 
 def test_an_assignment_row_without_a_spot_or_a_strike_is_skipped(monkeypatch, tmp_path):
-    _, algorithm, market, _ = make(monkeypatch, tmp_path)
-    symbol, key, rows = option_scene(algorithm)
+    _, algorithm, _market, _ = make(monkeypatch, tmp_path)
+    _symbol, key, rows = option_scene(algorithm)
     algorithm.options_assignment_risk_detector_enabled = True
     leg = rows[0]["symbol"]
     algorithm.option_positions_by_symbol[key] = [{"kind": "multi_leg", "strategy_name": "covered_call", "legs": [leg], "strikes": [100.0], "expiries": ("2019-02-01",)}]
@@ -252,7 +252,7 @@ def test_a_history_file_that_cannot_be_written_and_a_teardown_that_raises_do_not
 
 
 def test_the_last_branches_of_exposure_age_state_writes_carry_and_history(monkeypatch, tmp_path):
-    main, algorithm, market, _ = make(monkeypatch, tmp_path, {"phase_v2": {"diagnostics": {"state_write": {"every_n_ticks": 1000}}}}, bars=2)
+    main, algorithm, _market, _ = make(monkeypatch, tmp_path, {"phase_v2": {"diagnostics": {"state_write": {"every_n_ticks": 1000}}}}, bars=2)
     # short exposure of the simulated book, by class
     algorithm._simulated_portfolio.enter_long(str(symbol_of(algorithm, "TLT")), 100.0, -0.1, algorithm.bar_index, slippage_bps=1.0)
     algorithm._simulated_portfolio.enter_long(str(symbol_of(algorithm, "AAPL")), 100.0, -0.1, algorithm.bar_index, slippage_bps=1.0)
@@ -307,7 +307,7 @@ def test_a_symbol_the_topology_does_not_node_is_skipped_by_the_learned_overlay(m
 
 
 def test_a_structure_with_other_strikes_is_compared_with_the_held_one_and_resized_in_place(monkeypatch, tmp_path):
-    _, algorithm, market, _ = make(monkeypatch, tmp_path)
+    _, algorithm, _market, _ = make(monkeypatch, tmp_path)
     symbol, key, rows = option_scene(algorithm)
     nav = float(algorithm.Portfolio.TotalPortfolioValue)
     price = float(rows[0]["underlying_price"])

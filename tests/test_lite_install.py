@@ -6,8 +6,9 @@ from __future__ import annotations
 import subprocess
 import sys
 import textwrap
-import tomllib
 from pathlib import Path
+
+import tomllib
 
 ROOT = Path(__file__).resolve().parents[1]
 BLOCKED = (
@@ -34,7 +35,7 @@ def _run_blocked(body: str) -> subprocess.CompletedProcess:
         sys.path.insert(0, {str(ROOT)!r})
         """
     ) + textwrap.dedent(body)
-    return subprocess.run([sys.executable, "-c", script], cwd=ROOT, capture_output=True, text=True, timeout=600)
+    return subprocess.run([sys.executable, "-c", script], cwd=ROOT, capture_output=True, text=True, timeout=600, check=False)
 
 
 def test_base_dependencies_are_numpy_and_pandas_only():

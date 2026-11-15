@@ -183,7 +183,7 @@ def l1_margins(skill: dict, base_summary: dict) -> dict:
     """{"ic_margin", "sharpe_margin"} of one split: engaged - all IC, and the median over phases of (engaged - all) Sharpe."""
     engaged = base_summary.get("engaged_sharpe_by_phase") or []
     everything = base_summary.get("all_sharpe_by_phase") or []
-    margins = [a - b for a, b in zip(engaged, everything)]
+    margins = [a - b for a, b in zip(engaged, everything, strict=False)]
     return {"ic_margin": skill.get("ic_margin"), "sharpe_margin": statistics.median(margins) if margins else None}
 
 
@@ -340,7 +340,7 @@ def _phase_worker(task: tuple[int, int | None]) -> dict:
     components = result.per_date_component_returns or {}
     summary["legacy_net_return"] = sum(components.get("legacy", {}).values())
     summary["locked_dates"] = list(result.kill_switch_locked_date_list or [])
-    returns = dict(zip(result.per_date, result.per_date_net_return))
+    returns = dict(zip(result.per_date, result.per_date_net_return, strict=False))
     if "returns" in job["extras"]:
         summary["returns"] = returns
     if "engaged" in job["extras"]:
@@ -357,7 +357,7 @@ def equity_gross_sharpe(result, frame_returns: dict, equity_tickers: set) -> flo
     from evaluation.engaged_day_skill import sharpe
 
     series = []
-    for day, weights in zip(result.per_date, result.weights_log or []):
+    for day, weights in zip(result.per_date, result.weights_log or [], strict=False):
         returns = frame_returns.get(day, {})
         series.append(sum(weight * returns.get(ticker, 0.0) for ticker, weight in weights.items() if ticker in equity_tickers))
     return sharpe(series)
@@ -432,8 +432,8 @@ class Research:
         try:
             for name in saved:
                 frame = getattr(harness, name)
-                keys = list(zip(frame["date"].astype(str).str[:10], frame["ticker"].astype(str)))
-                frame[LEGACY_PROBABILITY_COLUMN] = [probabilities.get(key, value) for key, value in zip(keys, saved[name])]
+                keys = list(zip(frame["date"].astype(str).str[:10], frame["ticker"].astype(str), strict=False))
+                frame[LEGACY_PROBABILITY_COLUMN] = [probabilities.get(key, value) for key, value in zip(keys, saved[name], strict=False)]
             yield
         finally:
             for name, column in saved.items():
@@ -486,10 +486,10 @@ class Research:
                     summary["locked_dates_lists"] = [row["locked_dates"] for row in per_phase]
                 if stability and name == "backtest":
                     picked = phase_list[:: max(1, len(phase_list) // STABILITY_PHASES)][:STABILITY_PHASES]
-                    locked = {phase: row["locked_dates"] for phase, row in zip(phase_list, per_phase)}
+                    locked = {phase: row["locked_dates"] for phase, row in zip(phase_list, per_phase, strict=False)}
                     tasks = [(phase, seed) for phase in picked for seed in NOISE_SEEDS]
                     perturbed = map_tasks(tasks, self.args.workers)
-                    overlaps = [jaccard(locked[phase], row["locked_dates"]) for (phase, _seed), row in zip(tasks, perturbed)]
+                    overlaps = [jaccard(locked[phase], row["locked_dates"]) for (phase, _seed), row in zip(tasks, perturbed, strict=False)]
                     summary["stability_jaccard_median"] = statistics.median(overlaps)
             out[name] = summary
         self.memo[key] = out
@@ -572,7 +572,7 @@ def equity_engaged_ic(ctx: Research, split, config_changes: dict, patch: dict | 
     score_column = "live_rank_score"
     if probabilities is not None:
         frame = frame.copy()
-        keys = zip(frame["date"].astype(str).str[:10], frame["ticker"].astype(str))
+        keys = zip(frame["date"].astype(str).str[:10], frame["ticker"].astype(str), strict=False)
         frame["legacy_score"] = [probabilities.get(key) for key in keys]
         score_column = "legacy_score"
     labels = engaged_labels(ctx, harness, apply_dotted(config, config_changes))
@@ -588,11 +588,11 @@ def stage_l8(ctx: Research) -> dict:
     config = ctx.base_config
     metrics_path = ROOT_DIR / "ml" / "expert_training_metrics.json"
     expert_metrics = json.loads(metrics_path.read_text(encoding="utf-8")) if metrics_path.exists() else {}
-    keys = list(zip(components["date"], components["ticker"].astype(str)))
+    keys = list(zip(components["date"], components["ticker"].astype(str), strict=False))
     rows = components.to_dict("records")
 
     def probabilities(excluded=()):
-        return {key: legacy_probability_from_components(row, expert_metrics, config, tuple(excluded)) for key, row in zip(keys, rows)}
+        return {key: legacy_probability_from_components(row, expert_metrics, config, tuple(excluded)) for key, row in zip(keys, rows, strict=False)}
 
     full = probabilities()
     contributions: dict = {expert: {} for expert in EXPERTS}
@@ -681,7 +681,7 @@ def stage_l2(ctx: Research) -> dict:
         from portfolio.direction_overlay import calibrate_probability
 
         scored = probabilities_by_head[chosen][split_key][0]
-        return {(str(d)[:10], str(t)): calibrate_probability(p, calibration) for d, t, p in zip(scored["date"], scored["ticker"], scored["head"])
+        return {(str(d)[:10], str(t)): calibrate_probability(p, calibration) for d, t, p in zip(scored["date"], scored["ticker"], scored["head"], strict=False)
                 if p == p}
 
     base = ctx.score(ctx.adopted["config"], mode="as_live", memo_tag="l2")
@@ -725,8 +725,9 @@ def stage_l3(ctx: Research) -> dict:
 
 def legacy_ic_report(ctx: Research) -> dict:
     """(c) IC of the legacy score against rank_20d's by asset class and by regime bucket, both splits."""
-    from evaluation.gate_audit import daily_rank_ic
     from as_live_levers import LEGACY_PROBABILITY_COLUMN
+
+    from evaluation.gate_audit import daily_rank_ic
 
     out = {}
     for split in SPLITS:
@@ -865,7 +866,7 @@ def false_lock_summary(summary: dict, unlocked: dict) -> dict:
 
     for split, entry in summary.items():
         shares = []
-        for locked, returns in zip(entry["locked_dates_lists"], unlocked[split]):
+        for locked, returns in zip(entry["locked_dates_lists"], unlocked[split], strict=False):
             share = false_lock_share(locked, forward_window_returns(returns))
             if share is not None:
                 shares.append(share)
@@ -908,8 +909,7 @@ def stage_l7(ctx: Research) -> dict:
 
 
 def stage_l9(ctx: Research) -> dict:
-    from evaluation.trade_bootstrap import (bootstrap_mean_pnl, leave_one_name_out, pnl_by_name, repeatable,
-                                            round_trips_from_closed_trades, top_k_share)
+    from evaluation.trade_bootstrap import bootstrap_mean_pnl, leave_one_name_out, pnl_by_name, repeatable, round_trips_from_closed_trades, top_k_share
 
     harness, _t, _c = ctx.harness("backtest", patch=ctx.adopted["patch"])
     core = {"BTCUSD", "LTCUSD"}

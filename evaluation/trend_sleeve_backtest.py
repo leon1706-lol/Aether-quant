@@ -67,7 +67,7 @@ def simulate_trend_sleeve(
     values = closes.to_numpy(dtype=float)
     first = next((i for i, date in enumerate(dates) if date >= start), len(dates))
     last = max((i for i, date in enumerate(dates) if date <= end), default=-1)
-    units = {symbol: 0.0 for symbol in columns}
+    units = dict.fromkeys(columns, 0.0)
     weights_held: dict[str, float] = {}
     equity = float(nav)
     pnl_history: list[float] = []
@@ -76,9 +76,9 @@ def simulate_trend_sleeve(
     total_cost, traded = 0.0, 0.0
     for i in range(first, last + 1):
         date = dates[i]
-        prices = dict(zip(columns, values[i]))
+        prices = dict(zip(columns, values[i], strict=False))
         if i > first:
-            previous = dict(zip(columns, values[i - 1]))
+            previous = dict(zip(columns, values[i - 1], strict=False))
             pnl = sum(units[s] * (prices[s] - previous[s]) for s in columns)
         else:
             pnl = 0.0

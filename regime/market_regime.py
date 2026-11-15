@@ -6,7 +6,6 @@ import math
 from dataclasses import asdict, dataclass
 from typing import Any
 
-
 TRADING_DAYS_PER_YEAR = 252
 
 

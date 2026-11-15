@@ -13,7 +13,7 @@ import pytest
 
 import research_fakes
 from script_loader import ROOT, load_script
-from test_v643_research_runtime import SCALED, INPUTS, _research_frame
+from test_v643_research_runtime import INPUTS, SCALED, _research_frame
 
 SUMMARY = {"median_net_sharpe": 0.5, "phases": 2, "net_sharpe_by_phase": [0.4, 0.6], "median_net_max_drawdown": -0.05, "p25_net_sharpe": 0.4, "p10_net_sharpe": 0.4,
            "iqr_net_sharpe": 0.1, "cost_drag_by_phase": [40.0, 40.0], "median_turnover": 3.0, "p05_net_max_drawdown": -0.07, "legacy_net_return_median": 0.01}
@@ -61,7 +61,7 @@ def _make_versions(module, tmp_path, grid_ids, seeds=(1, 2, 3)):
 
 
 def test_candidate_files_are_assembled_from_the_installed_ml_and_the_members(world):
-    module, chain, tmp_path = world
+    module, _chain, tmp_path = world
     _make_versions(module, tmp_path, ["M1"])
     (tmp_path / "ml" / "scaler_stats.json").write_text("{}", encoding="utf-8")
     assert module.version_dir("M1", 2).name == "v644_M1_s2" and module.candidate_config("M1", ensemble=True)["phase_v2"]["model_ensemble"]["enabled"] is True
@@ -109,7 +109,7 @@ def test_candidate_scores_are_cached_and_the_installed_book_can_exclude_tickers(
 
 
 def test_viability_and_the_first_clause(world):
-    module, chain, tmp_path = world
+    module, _chain, tmp_path = world
     _make_versions(module, tmp_path, ["M0"], seeds=(1,))
     assert set(module.viability(module.version_dir("M0", 1), module.candidate_config("M0"))) == {"passes", "kept_head_weights", "model_priority"}
     ic = {"validation": {"mean_ic": 0.2, "nonoverlap_mean_ic": 0.2}}
@@ -124,11 +124,11 @@ def _ic_stub(chain, monkeypatch, validation=0.2, backtest_t=3.0):
 
 
 def _run_to_verdict(module, chain, tmp_path, monkeypatch, *, passing=True):
+    import v640_research
+
     import evaluation.factor_spanning as spanning
     import evaluation.leakage_audit as leakage
     import evaluation.pbo as pbo
-
-    import v640_research
 
     monkeypatch.setattr(v640_research, "verdict_as_live", lambda base, variant: {"passes": passing})
     _make_versions(module, tmp_path, ["M0", "M1"])
@@ -167,7 +167,7 @@ def test_a_failing_grid_has_no_survivors_and_a_smoke_run_writes_no_side_files(wo
 
 
 def test_missing_versions_are_named_and_a_pbo_needs_two_trials(world, monkeypatch):
-    module, chain, tmp_path = world
+    module, chain, _tmp_path = world
     chain.report["priors"] = {}
     module.stage_stage1(chain)
     assert chain.report["stage1"]["M0"]["status"] == "missing"
@@ -239,7 +239,7 @@ def test_the_verdict_without_a_holdout_has_no_winner(world, monkeypatch):
 
 
 def test_the_command_runs_stages_and_reports_the_c6_status(world, monkeypatch):
-    module, chain, tmp_path = world
+    module, chain, _tmp_path = world
     monkeypatch.setattr(module, "Chain644", lambda args: chain)
     monkeypatch.setitem(module.STAGES, "priors", lambda c: None)
     monkeypatch.setitem(module.STAGES, "c6", lambda c: 3)

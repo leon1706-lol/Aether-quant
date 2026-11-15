@@ -142,7 +142,7 @@ def test_a_decision_with_a_leg_that_has_no_contract_is_refused(monkeypatch, tmp_
 
 
 def test_a_covered_call_follows_the_equity_leg_and_is_closed_when_it_is_sold(monkeypatch, tmp_path):
-    algorithm, market = build(monkeypatch, tmp_path, {"phase_v2": {"options_risk": {"enabled_strategy_names": ["covered_call"]}}})
+    algorithm, _market = build(monkeypatch, tmp_path, {"phase_v2": {"options_risk": {"enabled_strategy_names": ["covered_call"]}}})
     scene = Scene(algorithm)
     aapl = algorithm.ticker_to_symbol["AAPL"]
     price = float(algorithm.Securities[aapl].Price)
@@ -191,7 +191,7 @@ def test_the_assignment_sweep_closes_a_short_call_leg_that_the_detector_flags(mo
 
 
 def test_a_margin_structure_is_resized_in_the_margin_family_and_not_outside_it(monkeypatch, tmp_path):
-    algorithm, market = build(monkeypatch, tmp_path)
+    algorithm, _market = build(monkeypatch, tmp_path)
     scene = Scene(algorithm)
     built = None
     for name in ("short_call", "short_put", "naked_call", "naked_put", "short_straddle", "call_backspread", "put_backspread", "ratio_call_spread"):

@@ -20,7 +20,6 @@ from evaluation.rank_signal_calibration import (
 )
 from portfolio.book_construction import compute_confidence_spread
 
-
 # ---------------------------------------------------------------------------
 # compute_blended_raw_scores()
 # ---------------------------------------------------------------------------

@@ -52,10 +52,11 @@ import pandas as pd
 import torch
 import torch.nn as nn
 
+from performance_probe import install_sigterm_witness
 from train import (
-    add_rank_label_noise,
     HORIZON_HEAD_SPECS,
     AetherNetSequenceMultiTaskHorizons,
+    add_rank_label_noise,
     assess_net_performance_quality,
     assess_ranking_quality_from_predictions,
     assess_regression_quality,
@@ -85,8 +86,6 @@ from train import (
     swa_accumulate,
     swa_finalize,
 )
-
-from performance_probe import install_sigterm_witness  # noqa: E402
 
 LOGGER = logging.getLogger("aether_quant.train_sequence")
 ROOT = Path(__file__).resolve().parent
@@ -153,7 +152,7 @@ def read_dataset_compact(path: Path, chunk_rows: int = 40_000) -> pd.DataFrame:
     and the boolean flags keep their types."""
     parts = []
     for chunk in pd.read_csv(path, chunksize=chunk_rows):
-        float_columns = {name: np.float32 for name in chunk.columns[chunk.dtypes == np.float64]}
+        float_columns = dict.fromkeys(chunk.columns[chunk.dtypes == np.float64], np.float32)
         parts.append(chunk.astype(float_columns))
     return pd.concat(parts, ignore_index=True) if parts else pd.DataFrame()
 
@@ -583,7 +582,7 @@ def main() -> int:
                 batch_source = (
                     (
                         batch[0].to(device),
-                        {name: tensor.to(device) for name, tensor in zip(target_names_sorted, batch[1:])},
+                        {name: tensor.to(device) for name, tensor in zip(target_names_sorted, batch[1:], strict=False)},
                         None,
                         None,
                     )

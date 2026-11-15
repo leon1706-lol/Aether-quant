@@ -162,7 +162,7 @@ def test_predict_head_unknown_model_kind_raises_value_error():
     model_export = _synthetic_multitask_model_export()
     try:
         predict_head(frame, model_export, ["f1", "f2"], "rank_20d", model_kind="not_a_real_kind")
-        assert False, "expected ValueError"
+        raise AssertionError("expected ValueError")
     except ValueError:
         pass
 
@@ -217,7 +217,7 @@ def test_select_context_date_range_raises_on_empty_recorded_dates():
     frame = _two_ticker_range_frame()
     try:
         select_context_date_range(frame, [], window_size=4)
-        assert False, "expected ValueError"
+        raise AssertionError("expected ValueError")
     except ValueError:
         pass
 

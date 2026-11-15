@@ -58,7 +58,7 @@ def write_asset(root: Path, asset: dict, seed: int, first_day: datetime.date | N
     rng = np.random.default_rng(seed + 100)
     lines = []
     previous = closes[0]
-    for date, close in zip(dates, closes):
+    for date, close in zip(dates, closes, strict=False):
         open_, high, low, close = bar(float(close), float(previous), rng)
         previous = close
         stamp = date.strftime("%Y%m%d") + " 00:00"

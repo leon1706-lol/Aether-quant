@@ -34,9 +34,9 @@ from pathlib import Path
 import numpy as np
 from sklearn.cluster import KMeans
 
+from execution.secrets_io import secret_env
 from performance.postgres_triggers import fetch_recent_events
 from topology.learned_topology import FEATURE_KEYS, liquidity_score_from_decision
-from execution.secrets_io import secret_env
 
 LOGGER = logging.getLogger("aether_quant.train_topology")
 ROOT = Path(__file__).resolve().parent
@@ -85,7 +85,7 @@ def primary_regime_label(row: dict) -> str:
 def dataset_feature_vectors(
     rows: list[dict], probabilities: list[float], *, nominal_notional: float = 5_000.0
 ) -> tuple[list[dict], list[str | None], list[str]]:
-    indices, vectors, outcomes, regimes = dataset_feature_vectors_indexed(rows, probabilities, nominal_notional=nominal_notional)
+    _indices, vectors, outcomes, regimes = dataset_feature_vectors_indexed(rows, probabilities, nominal_notional=nominal_notional)
     return vectors, outcomes, regimes
 
 
@@ -99,7 +99,7 @@ def dataset_feature_vectors_indexed(
     uses a nominal order notional against the row's dollar volume. A row is a "win" when the realised 20-day return has
     the sign the probability called."""
     indices, vectors, outcomes, regimes = [], [], [], []
-    for index, (row, probability) in enumerate(zip(rows, probabilities)):
+    for index, (row, probability) in enumerate(zip(rows, probabilities, strict=False)):
         try:
             volatility = float(row["rolling_volatility_20d"]) * (252.0 ** 0.5)
             close, volume = float(row["close"]), float(row["volume"])
@@ -308,7 +308,7 @@ def fit_prototypes(
         prototypes.append(
             {
                 "label": f"proto_{cluster_index}",
-                "centroid": {key: float(value) for key, value in zip(FEATURE_KEYS, centroid)},
+                "centroid": {key: float(value) for key, value in zip(FEATURE_KEYS, centroid, strict=False)},
                 "dominant_regime_label": dominant_regime_label,
                 "offset": {
                     "x": offset_sign * 2.0,
@@ -320,7 +320,7 @@ def fit_prototypes(
             }
         )
 
-    feature_stats = {key: {"mean": float(mean), "std": float(std)} for key, mean, std in zip(FEATURE_KEYS, means, stds)}
+    feature_stats = {key: {"mean": float(mean), "std": float(std)} for key, mean, std in zip(FEATURE_KEYS, means, stds, strict=False)}
 
     return {
         "prototypes": prototypes,
@@ -359,7 +359,7 @@ def main() -> int:
             feature_vectors = []
             outcome_labels = []
             regime_labels = []
-            for event, outcome in zip(events, outcomes):
+            for event, outcome in zip(events, outcomes, strict=False):
                 vector = build_feature_vector(event)
                 if vector is None:
                     continue

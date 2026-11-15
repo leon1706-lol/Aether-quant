@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import argparse
 import copy
+import itertools
 import json
 import os
 import re
@@ -50,13 +51,13 @@ from data_pipeline.ib_backfill import (
     ib_readiness_status,
     load_futures_contract_specs,
 )
+from execution.secrets_io import secret_env
 from risk.manual_override import (
     read_kill_switch_manual_override,
     read_manual_trade_lock_override,
     write_kill_switch_manual_override,
     write_manual_trade_lock_override,
 )
-from execution.secrets_io import secret_env
 
 IB_ASSET_CLASSES = ("futures", "options")
 
@@ -105,7 +106,7 @@ _ANSI_ESCAPE_PATTERN = re.compile(r"\x1b\[[0-9;]*m")
 
 def _run(cmd: list[str], cwd: Path = ROOT_DIR) -> int:
     """Runs a command with inherited stdout/stderr (live output), returns its exit code."""
-    result = subprocess.run(cmd, cwd=str(cwd))
+    result = subprocess.run(cmd, cwd=str(cwd), check=False)
     return result.returncode
 
 
@@ -127,7 +128,7 @@ def _find_quantconnect_lean_binary() -> str | None:
             continue
         try:
             # the CLI's own startup takes 20-40 s on the 4 GB dev PC under memory pressure: 30 s reported a real CLI as missing
-            result = subprocess.run([candidate, "--version"], capture_output=True, text=True, timeout=120)
+            result = subprocess.run([candidate, "--version"], capture_output=True, text=True, timeout=120, check=False)
         except (FileNotFoundError, OSError, subprocess.TimeoutExpired):
             continue
         if "Lean (version" not in (result.stdout or "") + (result.stderr or ""):
@@ -141,7 +142,7 @@ def _ensure_local_lean_engine_image() -> bool:
         ["docker", "image", "inspect", LOCAL_LEAN_ENGINE_IMAGE],
         cwd=str(ROOT_DIR),
         stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL, check=False,
     )
     if image_check.returncode == 0:
         return True
@@ -212,7 +213,7 @@ def _write_update_cache(latest_version: str) -> None:
 def _fetch_latest_version_from_pypi() -> str | None:
     try:
         url = f"https://pypi.org/pypi/{PACKAGE_NAME}/json"
-        with urllib.request.urlopen(url, timeout=UPDATE_CHECK_TIMEOUT_SECONDS) as response:  # noqa: S310
+        with urllib.request.urlopen(url, timeout=UPDATE_CHECK_TIMEOUT_SECONDS) as response:
             payload = json.loads(response.read().decode("utf-8"))
         return payload["info"]["version"]
     except Exception:
@@ -585,7 +586,7 @@ def _sync_doc_facts_best_effort() -> None:
         import docs_facts
 
         docs_facts.sync_docs(docs_facts.tracked_docs(ROOT_DIR), docs_facts.compute_facts(ROOT_DIR), blocks=docs_facts.compute_blocks(ROOT_DIR))
-    except Exception as error:  # noqa: BLE001 - a docs refresh must never fail `aq test`
+    except Exception as error:
         print(f"warning: docs facts not refreshed ({error})", file=sys.stderr)
 
 
@@ -749,6 +750,8 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         "test_train_sequence_architecture.py", "test_train_pipeline.py", "test_train_ranking_validation.py",
         "test_train_walk_forward_windows.py", "test_train_topology.py", "test_learned_topology.py",
         "test_exported_model.py", "test_market_topology.py", "test_market_regime.py", "test_regime_model_input.py",
+        # V6.6.8 (#380): the C++ kernel, run under ASan/UBSan by CI's cpp-sanitizers job (skips where it is not built)
+        "test_cpp_inference_kernel.py",
         "test_market_analyzer.py", "test_market_liquidity.py",
         "test_train_strategy_selector.py", "test_strategy_selector_inference.py",
         "test_parallel_inference.py", "test_train_threshold_and_early_stop.py",
@@ -928,6 +931,8 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         "test_licensing.py",
         # V6.6.6
         "test_test_badge.py", "test_coverage_scope.py", "test_notebook_sources.py", "test_cpp_inference_ext_setup.py",
+        # V6.6.8 (#379)
+        "test_ruff_config.py",
     ],
     # V6.6.6 (#359): one test file per script under scripts/, so `aq test --coverage` reaches every tracked line
     "scripts": [
@@ -1068,15 +1073,20 @@ def _module_needles(path: str) -> list[str]:
     return needles
 
 
+_LEAN_BACKTEST_TEST_FILE = "test_lean_backtest_ml_coverage.py"
+
+
 def _tests_for_changed(changed: list[str], registered: set[str], grep) -> list[str]:
     """Registered test files that name a changed module. `grep(needle)` returns the test file names containing it. A test
-    that names a changed module but is in no group is an error: an unregistered test never runs in its subsystem."""
+    that names a changed module but is in no group is an error: an unregistered test never runs in its subsystem. The real
+    Lean run is the one file deliberately in no group (it runs only under --lean), so it is neither chosen nor an error."""
     chosen: set[str] = set()
     unregistered: set[str] = set()
     for path in changed:
         for needle in _module_needles(path):
             for name in grep(needle):
-                (chosen if name in registered else unregistered).add(name)
+                if name != _LEAN_BACKTEST_TEST_FILE:
+                    (chosen if name in registered else unregistered).add(name)
     if unregistered:
         raise SystemExit(f"test files outside _SUBSYSTEM_TEST_FILES: {sorted(unregistered)} (register them in aq_cli.py)")
     return sorted(chosen)
@@ -1173,7 +1183,7 @@ def cmd_test(args: argparse.Namespace) -> int:
     if getattr(args, "ruff", False):
         import subprocess as _sp
 
-        ruff_exit = _sp.run(["ruff", "check", "."]).returncode
+        ruff_exit = _sp.run(["ruff", "check", "."], check=False).returncode
         if ruff_exit != 0:
             print(f"ruff check failed (exit {ruff_exit}) - fix lint findings before running the suite.")
             return ruff_exit
@@ -1257,7 +1267,7 @@ def cmd_backtest(args: argparse.Namespace) -> int:
 
         if update_readme_from_latest_backtest():
             print("Updated README.md's Backtest Statistics overview.")
-    except Exception as error:  # noqa: BLE001 - must never fail the backtest command itself
+    except Exception as error:
         print(f"warning: failed to update README.md's backtest results ({error})", file=sys.stderr)
     # Also refreshes Other Metrics (Lean-vs-offline comparison) with this
     # backtest's fresh Sharpe, rather than leaving it stale until the next
@@ -1269,7 +1279,7 @@ def cmd_backtest(args: argparse.Namespace) -> int:
         if run_dir is not None:
             report_args = build_parser().parse_args(["evaluate", "--lean-report"])
             _run_lean_report(report_args, json.loads(CONFIG_PATH.read_text(encoding="utf-8")), run_dir, pin=False)
-    except Exception as error:  # noqa: BLE001 - must never fail the backtest command itself
+    except Exception as error:
         print(f"warning: the Lean report failed ({error})", file=sys.stderr)
     if exit_code != 0:
         print(
@@ -1467,10 +1477,10 @@ def _cycle_ledger_rows(args: argparse.Namespace) -> list[dict]:
 
     if getattr(args, "ledger_file", None):
         return read_ledger(Path(args.ledger_file))
-    fetched = subprocess.run(["git", "fetch", "--quiet", "origin", "forward-ledger:forward-ledger"], cwd=ROOT_DIR, capture_output=True, text=True, encoding="utf-8")
+    fetched = subprocess.run(["git", "fetch", "--quiet", "origin", "forward-ledger:forward-ledger"], cwd=ROOT_DIR, capture_output=True, text=True, encoding="utf-8", check=False)
     if fetched.returncode != 0:
         print("warning: could not fetch origin/forward-ledger: reading the local branch, which may be old", file=sys.stderr)
-    result = subprocess.run(["git", "show", "forward-ledger:forward/generations.jsonl"], cwd=ROOT_DIR, capture_output=True, text=True, encoding="utf-8")
+    result = subprocess.run(["git", "show", "forward-ledger:forward/generations.jsonl"], cwd=ROOT_DIR, capture_output=True, text=True, encoding="utf-8", check=False)
     return [json.loads(line) for line in result.stdout.splitlines() if line.strip()] if result.returncode == 0 else []
 
 
@@ -1566,7 +1576,7 @@ def _cycle_schedule(args: argparse.Namespace) -> int:
     task = ML_DIR / "cycle" / ("schedule.xml" if platform == "windows" else "schedule.cron")
     task.parent.mkdir(parents=True, exist_ok=True)
     task.write_text(text, encoding="utf-16" if platform == "windows" else "utf-8", newline="\n")
-    return subprocess.run(install_command(platform, task_file=task), cwd=ROOT_DIR).returncode
+    return subprocess.run(install_command(platform, task_file=task), cwd=ROOT_DIR, check=False).returncode
 
 
 def _cycle_retrain(args: argparse.Namespace) -> int:
@@ -1585,7 +1595,7 @@ def _cycle_retrain(args: argparse.Namespace) -> int:
         command.append("--smoke")
     if args.dry_run:
         command.append("--dry-run")
-    return subprocess.run(command, cwd=ROOT_DIR).returncode
+    return subprocess.run(command, cwd=ROOT_DIR, check=False).returncode
 
 
 def cmd_cycle(args: argparse.Namespace) -> int:
@@ -1600,10 +1610,10 @@ def cmd_cycle(args: argparse.Namespace) -> int:
     if command == "daily":
         extra = ["--dry-run"] if args.dry_run else []
         ledger = args.ledger_file or str(ML_DIR / "cycle" / "generations.jsonl")
-        return subprocess.run([sys.executable, str(ROOT_DIR / "scripts" / "cycle_daily.py"), "--ledger", ledger, *extra], cwd=ROOT_DIR).returncode
+        return subprocess.run([sys.executable, str(ROOT_DIR / "scripts" / "cycle_daily.py"), "--ledger", ledger, *extra], cwd=ROOT_DIR, check=False).returncode
     if command == "decide":
         return subprocess.run(
-            [sys.executable, str(ROOT_DIR / "scripts" / "cycle_decide.py"), "--generation", args.generation, "--weights", args.weights, "--ledger", args.ledger_file, "--session", args.session], cwd=ROOT_DIR,
+            [sys.executable, str(ROOT_DIR / "scripts" / "cycle_decide.py"), "--generation", args.generation, "--weights", args.weights, "--ledger", args.ledger_file, "--session", args.session], cwd=ROOT_DIR, check=False,
         ).returncode
     if command == "retrain":
         return _cycle_retrain(args)
@@ -1737,7 +1747,7 @@ def cmd_render_lean_config(args: argparse.Namespace) -> int:
     # AuditQueue (this is a one-shot CLI invocation, not a long-running
     # process like main.py's) - never blocks/raises on a Redis hiccup.
     try:
-        from audit import AuditQueue, CREDENTIAL_LOAD, build_audit_event
+        from audit import CREDENTIAL_LOAD, AuditQueue, build_audit_event
 
         config = json.loads(CONFIG_PATH.read_text(encoding="utf-8")) if CONFIG_PATH.exists() else {}
         audit_config = config.get("phase_v2", {}).get("audit_log", {})
@@ -1745,7 +1755,7 @@ def cmd_render_lean_config(args: argparse.Namespace) -> int:
             enabled=bool(audit_config.get("enabled", True)),
             stream_name=str(audit_config.get("redis_stream", "aether:audit")),
         ).push(build_audit_event(CREDENTIAL_LOAD, {"loaded_fields": filled}, actor="cli"))
-    except Exception:  # noqa: BLE001 - audit logging must never fail this command
+    except Exception:
         pass
 
     if filled:
@@ -1998,7 +2008,7 @@ def cmd_secrets_check(_args: argparse.Namespace) -> int:
     # gracefully (skips this check) outside a git repo or without git on PATH.
     try:
         tracked = subprocess.run(
-            ["git", "ls-files"], cwd=str(ROOT_DIR), capture_output=True, text=True
+            ["git", "ls-files"], cwd=str(ROOT_DIR), capture_output=True, text=True, check=False
         )
         if tracked.returncode == 0:
             for path in tracked.stdout.splitlines():
@@ -2060,7 +2070,8 @@ def cmd_audit_log(args: argparse.Namespace) -> int:
 
         since = None
         if args.since:
-            from datetime import datetime as _datetime, timezone as _timezone
+            from datetime import datetime as _datetime
+            from datetime import timezone as _timezone
 
             since = _datetime.fromisoformat(args.since).replace(tzinfo=_timezone.utc)
         rows = fetch_recent_events(conn, event_type=args.event_type, since=since, limit=args.limit)
@@ -2595,7 +2606,7 @@ def _refresh_readme_evaluation_sections() -> None:
         from generate_evaluation_report import update_readme_evaluation_sections
 
         update_readme_evaluation_sections()
-    except Exception as exc:  # noqa: BLE001 - report generation must never break `aq evaluate`
+    except Exception as exc:
         print(f"warning: README evaluation-section refresh failed: {exc}", file=sys.stderr)
 
 
@@ -2609,7 +2620,7 @@ def _run_lean_report(args: argparse.Namespace, config: dict, run_dir: Path, *, p
             from generate_backtest_report import update_readme_from_latest_backtest
 
             update_readme_from_latest_backtest(backtest_dir=run_dir)
-        except Exception as exc:  # noqa: BLE001 - one README block must not stop the report
+        except Exception as exc:
             print(f"warning: Lean headline refresh failed: {exc}", file=sys.stderr)
     failed = []
     for label, overrides in lean_report_steps(config):
@@ -2620,7 +2631,7 @@ def _run_lean_report(args: argparse.Namespace, config: dict, run_dir: Path, *, p
         print(f"--- {label} ({run_dir.name})")
         try:
             exit_code = cmd_evaluate(step_args)
-        except Exception as exc:  # noqa: BLE001 - every other step still runs
+        except Exception as exc:
             print(f"warning: {label} failed: {exc}", file=sys.stderr)
             exit_code = 1
         if exit_code:
@@ -2651,7 +2662,7 @@ def _forward_ledger_rows(args: argparse.Namespace) -> list[dict]:
         return read_ledger(Path(args.ledger_file))
     branch = getattr(args, "ledger_branch", None) or "forward-ledger"
     subprocess.run(["git", "fetch", "--quiet", "origin", f"{branch}:{branch}"], cwd=ROOT_DIR, check=False)
-    shown = subprocess.run(["git", "show", f"{branch}:forward/ledger.jsonl"], cwd=ROOT_DIR, capture_output=True, text=True, encoding="utf-8")
+    shown = subprocess.run(["git", "show", f"{branch}:forward/ledger.jsonl"], cwd=ROOT_DIR, capture_output=True, text=True, encoding="utf-8", check=False)
     if shown.returncode != 0:
         return []
     return [json.loads(line) for line in shown.stdout.splitlines() if line.strip()]
@@ -2803,7 +2814,7 @@ def _read_dataset_rows(
     """Returns a pandas DataFrame. Chunked read of a dataset CSV that keeps only the requested columns / one ticker's rows /
     training-eligible rows - the full 250-column frame is ~330 MB resident and the reconciliation
     tools only ever need a sliver of it (the 4 GB dev PC kills them otherwise)."""
-    import pandas as pd  # noqa: PLC0415 - aq starts fast for commands that never touch a dataset
+    import pandas as pd
 
     wanted = None if columns is None else set(columns)
     usecols = None if wanted is None else (lambda name: name in wanted)
@@ -2926,11 +2937,11 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
 
     # V6.3.0 - `aq evaluate --backtest-stats`: the README's Backtest Statistics for one Lean run; no dataset, no model.
     if getattr(args, "forward_ledger", False):
-        from evaluation.forward_ledger import judge_ledger
-
         import datetime as _datetime
 
         import numpy as np
+
+        from evaluation.forward_ledger import judge_ledger
 
         ledger_rows = _forward_ledger_rows(args)
         today = _datetime.datetime.now(_datetime.timezone.utc).date()
@@ -3034,7 +3045,7 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
             from evaluation.lean_attribution import run_config_path
 
             reference_config_path = run_config_path(reference_dir, ROOT_DIR)
-        except Exception:  # noqa: BLE001 - falls back to the current config
+        except Exception:
             pass
         reference_config = json.loads(reference_config_path.read_text(encoding="utf-8")) if reference_config_path else config
         run = paper_metrics_for_run_dir(run_dir, config, ROOT_DIR, start=getattr(args, "start", None), end=getattr(args, "end", None))
@@ -3171,7 +3182,7 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
         lean_result = load_backtest_run(run_dir)["result"]
         equity = daily_equity_from_chart(lean_result)
         configured_start, configured_end = configured_run_window(lean_result)
-        returns = [after / before - 1.0 for (_, before), (_, after) in zip(equity, equity[1:]) if before > 0]
+        returns = [after / before - 1.0 for (_, before), (_, after) in itertools.pairwise(equity) if before > 0]
         from evaluation.alpha_proof import measured_annualization
 
         mc = run_monte_carlo(
@@ -3328,7 +3339,7 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
         opens_frame = _read_dataset_rows(opens_dataset, columns=["ticker", "date", "open"])
         dataset_opens = {
             (str(ticker), str(date)[:10]): float(value)
-            for ticker, date, value in zip(opens_frame["ticker"], opens_frame["date"], opens_frame["open"])
+            for ticker, date, value in zip(opens_frame["ticker"], opens_frame["date"], opens_frame["open"], strict=False)
         }
         audit = audit_fills(run, dataset_opens, ROOT_DIR / "data")
         audit["backtest_dir"] = str(run_dir)
@@ -3434,7 +3445,7 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
             return 1
 
         logged_records: list[dict] = []
-        with open(book_history_path, "r", encoding="utf-8") as book_history_file:
+        with open(book_history_path, encoding="utf-8") as book_history_file:
             for line_number, raw_line in enumerate(book_history_file, start=1):
                 stripped_line = raw_line.strip()
                 if not stripped_line:
@@ -3511,7 +3522,7 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
         previous_row_date: dict[str, str] = {}
         if lag_to_previous_row and dataset_has_ticker_column:
             ordered_dates = sorted({str(date) for date, ticker in rows_by_date_ticker if ticker == target_symbol})
-            previous_row_date = dict(zip(ordered_dates[1:], ordered_dates[:-1]))
+            previous_row_date = dict(zip(ordered_dates[1:], ordered_dates[:-1], strict=False))
             print(f"  {target_symbol} is a {target_asset_class} symbol: own-price features at tick D are compared with the dataset's previous row, cross-asset ones with row D.")
 
         per_run_payloads = []
@@ -3570,7 +3581,7 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
                 "summary": summary,
                 "per_date": [
                     {"date": date_str, **result}
-                    for date_str, result in zip(matching_snapshots, per_date_results)
+                    for date_str, result in zip(matching_snapshots, per_date_results, strict=False)
                 ],
             })
 
@@ -3666,7 +3677,7 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
             return 1
 
         logged_records: list[dict] = []
-        with open(book_history_path, "r", encoding="utf-8") as book_history_file:
+        with open(book_history_path, encoding="utf-8") as book_history_file:
             for line_number, raw_line in enumerate(book_history_file, start=1):
                 stripped_line = raw_line.strip()
                 if not stripped_line:
@@ -3823,7 +3834,7 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
             for recon_date, group in recorded_subset.groupby("date", sort=True):
                 scores_lookup = {
                     str(ticker): float(score)
-                    for ticker, score in zip(group["ticker"], group["raw_blended_score"])
+                    for ticker, score in zip(group["ticker"], group["raw_blended_score"], strict=False)
                     if score is not None and not (isinstance(score, float) and pd.isna(score))
                     and pool_eligible_by_ticker.get(str(ticker), True)
                 }
@@ -4204,9 +4215,9 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
             # histories. Pure core in evaluation/monte_carlo.py; heavy runs
             # matrix persisted as .npz next to the JSON (README renderer owns
             # the PNG), summary + avg/band curves go in the JSON.
-            from evaluation.monte_carlo import run_monte_carlo
-
             import numpy as _np_mc
+
+            from evaluation.monte_carlo import run_monte_carlo
 
             mc = run_monte_carlo(
                 result.per_date_net_return,
@@ -4409,7 +4420,7 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
         kill_switch_config = config.get("phase_v2", {}).get("risk", {}).get("kill_switch", {})
         phase6_risk = config.get("phase6", {}).get("risk", {})
         daily_portfolio_returns = dict(
-            zip(kill_switch_replay_result.per_date, kill_switch_replay_result.per_date_net_return)
+            zip(kill_switch_replay_result.per_date, kill_switch_replay_result.per_date_net_return, strict=False)
         )
         replay_records = replay_kill_switch_over_dataset(
             kill_switch_replay_result.per_date,

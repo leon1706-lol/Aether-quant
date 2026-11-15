@@ -111,30 +111,68 @@ markers = [
     "lean_backtest: real `lean backtest .` integration test (over an hour wall-clock) - excluded from `aq test`'s default run, included via `aq test --lean`/`--full`.",
 ]
 
-# V5.3.9 - Python lint job in ci.yml. Deliberately narrow rule set (E/F =
-# pycodestyle errors + pyflakes) calibrated to the EXISTING codebase style
-# so CI hardens without a mass style migration:
-# - line-length 240 matches the documented long-line convention of
-#   main.py/aq_cli.py/train.py
-# - main.py is exempt from E501/F403/F405: Lean's AlgorithmImports star-
-#   import pattern makes those structural (see #16/#69 lineage)
-# - __init__.py files are exempt from F401: package re-export convention
+# V6.6.8 (#379): `ruff check .` (CI python-lint) runs the rule sets in `select`. Every exclusion below carries its reason
+# on the line above it, and tests/test_ruff_config.py pins both. line-length 240 is the house long-line convention;
+# target-version matches requires-python (3.10), so no fix reaches for a 3.11-only name (#326).
 [tool.ruff]
 line-length = 240
-target-version = "py311"
+target-version = "py310"
+# the root's packages and modules are first-party, and so are the tests' helpers (lean_fakes, train_world, ...), which the
+# tests import from tests/; import sorting then reads the same on every machine
+src = [".", "tests"]
 
 [tool.ruff.lint]
-select = ["E", "F"]
+select = ["E", "F", "W", "PLE", "PIE", "SIM", "PERF", "N", "UP", "PLW", "C4", "I", "B", "RUF"]
+ignore = [
+    # try/except/pass is cheaper than contextlib.suppress on the per-bar path (AGENTS rule 11) and reads as clearly
+    "SIM105",
+    # an if/else block keeps two long branches readable; a ternary is used where the whole choice fits one short line
+    "SIM108",
+    # try/except costs nothing until it raises on the interpreters this runs on (3.11+), and one bad item must not stop the loop
+    "PERF203",
+    # an explicit append loop is kept where it filters or names a step; the gain of a comprehension is negligible here
+    "PERF401",
+    # control-flow exceptions (NetworkOutage, NoSessionToRecord, MissingInput, Stop) name a condition, not an error, and are imported across the repo
+    "N818",
+    # rebinding a loop variable to its cleaned form (line.strip(), batch.to(device), frame.copy()) is the idiom; a second name adds nothing
+    "PLW2901",
+    # dict(key=value) keyword calls are the house style for config and payload literals
+    "C408",
+    # int(round(x)) stays: round() of a numpy scalar returns a numpy float, not an int
+    "RUF046",
+    # a + [b] stays: an operand can be a numpy array or a pandas index, where [*a, b] would change the type
+    "RUF005",
+    # __all__ is grouped by job (the facades document their names that way), not sorted
+    "RUF022",
+]
+# typographic signs in prose and report text (multiplication, minus, the information mark) are intentional
+allowed-confusables = ["×", "−", "ℹ"]
+
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI's parameter markers are declarations read once at import, not mutable defaults
+extend-immutable-calls = ["fastapi.Body", "fastapi.Depends", "fastapi.Header", "fastapi.Path", "fastapi.Query"]
 
 [tool.ruff.lint.per-file-ignores]
+# the dashboard is TypeScript; nothing Python lives there
 "webui/**" = ["E", "F"]
-# V6.6.5: tutorials import where a step first needs a module, and their markdown cells are prose
-"notebooks/**" = ["E402", "E501"]
-"main.py" = ["E501", "F403", "F405"]
+# V6.6.5: tutorials import where a step first needs a module, and their markdown cells are prose; a cell's last expression is what it displays (B018); the install cell keeps the `noqa: F821` its notebooks/src twin needs, and a notebook must match its source cell for cell (RUF100)
+"notebooks/**" = ["E402", "E501", "B018", "RUF100"]
+# Lean's AlgorithmImports star import is structural (#16, #69) and must precede the builtins/time re-imports (AGENTS rule 10), so imports are never re-sorted here; Lean's .NET fee and slippage models call GetOrderFee/GetSlippageApproximation
+"main.py" = ["E501", "F403", "F405", "N802", "I001"]
+# a package's __init__ re-exports its modules' names
 "**/__init__.py" = ["F401"]
+# the profiler prints whole timing tables on one line
 "scripts/profile_inference.py" = ["E501"]
-# V6.6.6: the runtime tests write whole scenarios on one line, and a test module imports a sibling's fixtures by name (pytest takes them from the argument list)
-"tests/**" = ["E501", "F811"]
+# matrix and panel names follow the maths (X, XtX, R, T)
+"evaluation/factor_neutralization_check.py" = ["N806"]
+# matrix and panel names follow the maths (R, T, T_work), and ERA_RANGES is a constant table
+"scripts/promotion_gate_null_*.py" = ["N806"]
+# a ProcessPoolExecutor initializer can only hand each worker its model exports through module state
+"inference/parallel_inference.py" = ["PLW0603"]
+# a past round's record: its --smoke mode shrinks the module's phase count in place
+"scripts/v640_research.py" = ["PLW0603"]
+# V6.6.6: the runtime tests write whole scenarios on one line, and a test module imports a sibling's fixtures by name (pytest takes them from the argument list); the fakes mirror Lean's .NET and ib_insync names (N802, N803), constants local to a test are capitalised (N806), a lambda around a call reads a monkeypatched name at call time (PLW0108), and where the driver or the environment decides the exception type a test asserts only that one is raised (B017), and a match= pattern is a regex by pytest's contract, matching its message as written (RUF043)
+"tests/**" = ["E501", "F811", "N802", "N803", "N806", "PLW0108", "B017", "RUF043"]
 
 # V6.6.6 (#359): every tracked Python file outside tests/ is measured, at 100%, with no pragma. `if TYPE_CHECKING:` blocks
 # (imports for annotations only, never executed) are the one exclusion. tests/test_coverage_scope.py pins all of it.

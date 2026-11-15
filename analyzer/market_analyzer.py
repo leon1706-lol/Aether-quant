@@ -8,7 +8,6 @@ import math
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
-
 ACTIONS = ("observe", "simulate", "trade", "reduce_risk", "retrain_candidate")
 
 

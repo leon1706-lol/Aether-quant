@@ -8,7 +8,8 @@ import random
 import numpy as np
 import pandas as pd
 
-from portfolio import cash_sweep, class_sleeve, direction_overlay, hrp_allocation, neutrality, options_arbitrage_detector as arbitrage, rank_signal, signal_construction, sleeve_guard, wide_signals
+from portfolio import cash_sweep, class_sleeve, direction_overlay, hrp_allocation, neutrality, rank_signal, signal_construction, sleeve_guard, wide_signals
+from portfolio import options_arbitrage_detector as arbitrage
 from test_options_strategy_selectors import _pool
 
 

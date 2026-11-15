@@ -203,7 +203,7 @@ def install_sigterm_witness(log) -> bool:
         for handler in getattr(log, "handlers", []) or []:
             try:
                 handler.flush()
-            except Exception:  # noqa: BLE001 - dying anyway
+            except Exception:
                 pass
         os._exit(143)
 

@@ -18,10 +18,12 @@ from evaluation import (
     factor_neutralization_check,
     feature_parity,
     fill_price_audit,
-    probability_calibration as calibration,
     readme_statistics,
     research_cycle,
     round_builders,
+)
+from evaluation import (
+    probability_calibration as calibration,
 )
 
 
@@ -35,7 +37,7 @@ def test_calibration_helpers_refuse_what_they_cannot_judge(monkeypatch):
     assert calibration.balanced_accuracy([], []) is None and calibration.balanced_accuracy(many, [1] * 40) is None
     assert calibration.balanced_accuracy([0.2, 0.8, 0.6, 0.4], [0, 1, 1, 0]) == 1.0
     assert calibration.cross_fitted_log_loss(few, [0, 1] * 3, "raw") is None
-    outcomes = np.array(([0, 1] * 20))
+    outcomes = np.array([0, 1] * 20)
     assert calibration.cross_fitted_log_loss(many, outcomes, "raw") is not None
     with pytest.raises(ValueError):
         calibration.cross_fitted_log_loss(many, outcomes, "mystery")

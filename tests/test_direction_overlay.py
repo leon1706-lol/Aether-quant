@@ -25,7 +25,7 @@ def test_blend_lifts_a_name_the_head_likes_and_stays_a_percentile():
     probabilities = {"A": 0.4, "B": 0.4, "C": 0.9, "D": 0.5, "E": 0.5}
     out = apply_direction_overlay(RANKS, probabilities, params)
     assert out["C"] > RANKS["C"]
-    assert 0.0 < min(out.values()) and max(out.values()) == 1.0
+    assert min(out.values()) > 0.0 and max(out.values()) == 1.0
     assert set(out) == set(RANKS)
 
 

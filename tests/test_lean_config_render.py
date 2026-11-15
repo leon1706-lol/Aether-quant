@@ -22,7 +22,7 @@ from execution.lean_config_render import (
 
 
 def _empty_template() -> dict:
-    return {field: "" for field in SECRET_ENV_MAP} | {"ib-trading-mode": "paper", "data-folder": "data"}
+    return dict.fromkeys(SECRET_ENV_MAP, "") | {"ib-trading-mode": "paper", "data-folder": "data"}
 
 
 def test_render_fills_only_fields_with_nonempty_env():

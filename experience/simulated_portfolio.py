@@ -10,8 +10,9 @@ function's signature never needs to change.
 
 from __future__ import annotations
 
-from execution.order_gate import simulate_fill
 from typing import Any
+
+from execution.order_gate import simulate_fill
 
 
 class SimulatedPortfolioState:

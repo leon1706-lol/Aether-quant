@@ -102,7 +102,7 @@ def main(argv: list[str] | None = None) -> int:
                     try:
                         execute(built, OUT if (OUT / "src").is_dir() else Path(scratch))
                         print(f"{source.stem}: ran in {time.perf_counter() - began:.0f} s")
-                    except Exception as error:  # noqa: BLE001 - report every failing notebook
+                    except Exception as error:
                         problems.append(f"{source.stem}: {type(error).__name__}: {str(error)[-1500:]}")
             continue
         if args.execute:

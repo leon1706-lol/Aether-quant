@@ -11,9 +11,9 @@ from __future__ import annotations
 import math
 from collections.abc import Sequence
 from dataclasses import dataclass
+from typing import Any
 
 import numpy as np
-from typing import Any
 
 STATES = ("healthy", "watch", "decaying", "dead")
 TRADING_DAYS = 252.0

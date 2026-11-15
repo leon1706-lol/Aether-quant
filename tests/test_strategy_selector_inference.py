@@ -4,7 +4,6 @@ from inference.strategy_selector_inference import (
     score_strategies,
 )
 
-
 # ---------------------------------------------------------------------------
 # build_strategy_selector_features
 # ---------------------------------------------------------------------------

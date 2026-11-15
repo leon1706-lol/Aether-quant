@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import itertools
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -64,7 +66,7 @@ def test_decide_generation_keeps_top_k_and_a_score_table():
     known = pd.DataFrame(100.0 * np.exp(np.cumsum(np.random.default_rng(2).normal(0, 0.01, (200, 12)), axis=0)), index=SESSIONS[:200], columns=tickers)
     table = pd.DataFrame(np.tile(np.arange(12.0), (200, 1)), index=SESSIONS[:200], columns=tickers)
     definition = {"id": "x", "kind": "cross_sectional", "family": "external_score", "universe": ["tech"], "rebalance_every": 20, "params": {"table": "x", "top_k": 2}}
-    panel = ResearchPanel(known, {ticker: "tech" for ticker in tickers}, {}, {"x": table})
+    panel = ResearchPanel(known, dict.fromkeys(tickers, "tech"), {}, {"x": table})
     weights = decide_generation(definition, panel, SESSIONS[150])
     assert len(weights) == 4, "two long and two short: the forward ledger's decide would drop top_k here"
 
@@ -191,7 +193,7 @@ def test_a_replayed_handover_moves_the_book_from_one_rule_to_the_other():
     last = out["rows"][max(out["rows"])]
     assert set(last) == {"AAA"} and last["AAA"] == pytest.approx(0.03), "by the end the successor holds the whole book"
     shares = list(out["shares"].values())
-    assert all(later["new"] >= earlier["new"] - 1e-12 for earlier, later in zip(shares, shares[1:]))
+    assert all(later["new"] >= earlier["new"] - 1e-12 for earlier, later in itertools.pairwise(shares))
     assert len(out["rows"]) < len(days), "a row retargets every name, so it isn't written daily"
 
 
@@ -199,7 +201,7 @@ def _three_generations():
     days = [day.strftime("%Y-%m-%d") for day in pd.bdate_range("2016-01-04", periods=900)]
     rows = {"a": {day: {"BTCUSD": 0.02} for day in days[::5]}, "b": {day: {"AAA": 0.03} for day in days[::20]}, "c": {day: {"BBB": 0.01} for day in days[::20]}}
     rng = np.random.default_rng(6)
-    returns = {name: {day: float(value) for day, value in zip(days, rng.normal(0.0006, 0.01, len(days)))} for name in rows}
+    returns = {name: {day: float(value) for day, value in zip(days, rng.normal(0.0006, 0.01, len(days)), strict=False)} for name in rows}
     return days, rows, returns
 
 

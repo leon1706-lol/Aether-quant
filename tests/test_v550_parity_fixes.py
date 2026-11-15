@@ -358,7 +358,7 @@ def _rl_model(scores_bias):
 
 
 def _rl_state():
-    return {key: 0.0 for key in RL_SIZING_STATE_KEYS}
+    return dict.fromkeys(RL_SIZING_STATE_KEYS, 0.0)
 
 
 @pytest.mark.parametrize("position", [0, 1, 2])

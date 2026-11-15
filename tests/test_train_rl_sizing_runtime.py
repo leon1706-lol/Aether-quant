@@ -154,7 +154,7 @@ def test_rows_with_a_gap_a_failed_replay_or_no_rank_are_dropped_by_both_builders
     monkeypatch.setattr(rl, "run_exported_multitask_model", lambda export, inputs: {})
     assert len(rl.build_bandit_rows(frame, {}, **common)[0]) == 0
 
-    book = dict(asset_class_by_ticker={t: "forex" for t in ("AAA", "BBB")}, pool_classes=["forex"], per_side=0, rebalance_every=1, nominal_base_weight=0.02, nav=100000.0, costs_config={})
+    book = dict(asset_class_by_ticker=dict.fromkeys(("AAA", "BBB"), "forex"), pool_classes=["forex"], per_side=0, rebalance_every=1, nominal_base_weight=0.02, nav=100000.0, costs_config={})
     keys = list(FOREX_RL_SIZING_STATE_KEYS)
     args = ({}, ["f0"], [0.0, 1.0], keys)
     monkeypatch.setattr(rl, "run_exported_multitask_model", failing)

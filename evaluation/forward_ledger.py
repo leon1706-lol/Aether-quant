@@ -16,6 +16,7 @@ import json
 import math
 from collections.abc import Mapping, Sequence
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -23,7 +24,6 @@ import pandas as pd
 from audit.hash_chain import GENESIS_HASH, compute_entry_hash, verify_chain
 from evaluation.power_analysis import excluded_alpha_sharpe, minimum_detectable_alpha_sharpe
 from portfolio.premia_signals import ResearchPanel, SleeveSpec, WeightSettings, signal_to_weights, sleeve_signal
-from typing import Any
 
 EVENT_TYPE = "forward_session"
 JUDGE_AT_SESSIONS = (60, 252)

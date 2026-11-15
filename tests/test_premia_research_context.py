@@ -10,7 +10,7 @@ import pytest
 
 import train_world as world
 from evaluation import premia_research
-from portfolio.premia_signals import DIRECT, SleeveSpec, TS
+from portfolio.premia_signals import DIRECT, TS, SleeveSpec
 
 
 @pytest.fixture(scope="module")

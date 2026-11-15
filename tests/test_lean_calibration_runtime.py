@@ -122,7 +122,7 @@ class FakeHarness:
         dates = list(DATES)
         returns = [0.001 * (1 if index % 2 else -1) for index in range(len(dates))]
         log = [{"date": date, "engaged": index % 3 != 0, "locked": index == 5, "reason": "gate"} for index, date in enumerate(dates)]
-        components = {"main_book": {date: value for date, value in zip(dates, returns)}} if gate == "on" else {}
+        components = {"main_book": dict(zip(dates, returns, strict=False))} if gate == "on" else {}
         return SimpleNamespace(per_date=dates, per_date_net_return=returns, weights_log=[{"AAA": 0.5} for _ in dates], rebalance_log=log, per_date_component_returns=components)
 
 

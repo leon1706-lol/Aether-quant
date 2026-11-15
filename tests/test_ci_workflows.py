@@ -172,7 +172,7 @@ def test_every_requirements_line_parses_as_a_valid_requirement():
                 continue
             try:
                 Requirement(line)
-            except Exception as error:  # noqa: BLE001
+            except Exception as error:
                 pytest.fail(f"{req_file.name}:{line_no} invalid requirement {line!r}: {error}")
 
 
@@ -341,6 +341,22 @@ def test_agents_md_describes_the_real_ci_not_the_old_single_job_version():
     for job in ("fast-guards", "wheel-smoke", "subsystem-matrix"):
         assert job in agents
 
+
+
+def test_cpp_sanitizers_proves_asan_is_live_then_runs_the_kernel_tests_under_it():
+    """V6.6.8 (#380): the OpenSSF dynamic_analysis_unsafe evidence. The canary must abort before a clean run counts, and
+    AQ_REQUIRE_CPP_INFERENCE stops the kernel tests from skipping when the build is missing."""
+    job = _load(CI)["jobs"]["cpp-sanitizers"]
+    assert job["timeout-minutes"] and not job.get("continue-on-error")
+    script = _scripts(job)
+    assert "--require-hashes -r requirements/lock/sanitize.txt" in script
+    assert script.count("AQ_SANITIZE=address,undefined") == 2 and "AQ_ASAN_CANARY=1" in script
+    assert "cpp_inference.asan_canary()" in script and 'test "$status" -ne 0' in script and 'grep -q "heap-buffer-overflow"' in script
+    assert "libasan.so" in script and "apt-get" not in script
+    assert "libstdc++.so.6" in script, "the kernel throws C++ exceptions, which ASan's __cxa_throw interceptor cannot forward without libstdc++ preloaded"
+    tests_step = job["steps"][-1]
+    assert tests_step["env"]["AQ_REQUIRE_CPP_INFERENCE"] == "1" and "halt_on_error=1" in tests_step["env"]["UBSAN_OPTIONS"]
+    assert "tests/test_cpp_inference_kernel.py" in tests_step["run"] and "tests/test_exported_model.py" in tests_step["run"]
 
 
 def test_v665_jobs_exist_with_timeouts_and_check_what_they_claim():

@@ -1,15 +1,6 @@
 """Research and audit tools (V6.4.3): one report for any signal, the probability of backtest overfitting, factor
 baselines and spanning, overfitting and leakage audits, the simulator / Lean gap, research probes, the trial registry."""
 
-from evaluation.factor_spanning import FACTOR_COLUMNS, build_factor_returns, build_factor_scores, factor_spanning
-from evaluation.leakage_audit import audit_leakage, identity_check, label_shuffle_check, single_feature_ic, tail_nan_check
-from evaluation.overfit_diagnostics import head_ic, learning_curve, training_gap_report
-from evaluation.pbo import probability_of_backtest_overfitting
-from evaluation.research_harness import block_bootstrap_mean_ci, evaluate_signal, ic_summary
-from evaluation.research_probes import fit_hgb_rank, fit_ridge_rank, load_research_frame, predict_scores
-from evaluation.sim_lean_calibration import daily_gap_breakdown, gap_report, rung_attribution
-from evaluation.trial_registry import build_registry, collect_trials, dedupe
-from evaluation.premia_research import ResearchContext, annual_sharpe, build_context, max_drawdown, nulls_for, passes_sharpe_clauses, phase_offsets, placebo_p_value, placebo_sharpes, score_sleeve, selection_gate, weights_for
 from evaluation.alpha_proof import (
     alpha_proof_report,
     alpha_regression,
@@ -25,10 +16,35 @@ from evaluation.alpha_proof import (
     to_sessions,
     window_report,
 )
+from evaluation.factor_spanning import FACTOR_COLUMNS, build_factor_returns, build_factor_scores, factor_spanning
+from evaluation.leakage_audit import audit_leakage, identity_check, label_shuffle_check, single_feature_ic, tail_nan_check
+from evaluation.overfit_diagnostics import head_ic, learning_curve, training_gap_report
+from evaluation.pbo import probability_of_backtest_overfitting
+from evaluation.premia_research import ResearchContext, annual_sharpe, build_context, max_drawdown, nulls_for, passes_sharpe_clauses, phase_offsets, placebo_p_value, placebo_sharpes, score_sleeve, selection_gate, weights_for
+from evaluation.research_harness import block_bootstrap_mean_ci, evaluate_signal, ic_summary
+from evaluation.research_probes import fit_hgb_rank, fit_ridge_rank, load_research_frame, predict_scores
+from evaluation.sim_lean_calibration import daily_gap_breakdown, gap_report, rung_attribution
 from evaluation.trial_ledger import append_trial, candidate_ids, deflation_inputs, legacy_trials, read_ledger
-from evaluation.wide_context import WideCell, crypto_cell, daily_returns_for, equity_cell, liquid_mask_for_cell, path_config, sharpe_at_sessions, signal_ic_t, slice_market
-
-from evaluation.wide_context import calendar_rows, crypto_ic, lag_onto, load_ohlcv, load_raw_closes, project_tickers, read_info, wide_config_for
+from evaluation.trial_registry import build_registry, collect_trials, dedupe
+from evaluation.wide_context import (
+    WideCell,
+    calendar_rows,
+    crypto_cell,
+    crypto_ic,
+    daily_returns_for,
+    equity_cell,
+    lag_onto,
+    liquid_mask_for_cell,
+    load_ohlcv,
+    load_raw_closes,
+    path_config,
+    project_tickers,
+    read_info,
+    sharpe_at_sessions,
+    signal_ic_t,
+    slice_market,
+    wide_config_for,
+)
 
 __all__ = [
     "FACTOR_COLUMNS",

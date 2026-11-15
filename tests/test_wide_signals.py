@@ -158,7 +158,7 @@ def test_unknown_sector_is_never_labelled_or_framed():
 
 def test_long_frame_keeps_only_member_rows():
     bars = _bars()
-    sector = {ticker: "tech" for ticker in TICKERS}
+    sector = dict.fromkeys(TICKERS, "tech")
     label = wide_label(bars, sector)
     member = pd.DataFrame(False, index=DATES, columns=TICKERS)
     member.loc[DATES[10]:DATES[12], "AAA"] = True

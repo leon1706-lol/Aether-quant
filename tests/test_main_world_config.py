@@ -174,7 +174,7 @@ def test_the_dividend_schedule_of_each_underlying_is_read_when_the_assignment_de
 
 
 def test_an_unready_algorithm_sets_itself_up_on_its_first_slice_and_an_empty_slice_does_nothing(monkeypatch, tmp_path):
-    main, algorithm, _ = make(monkeypatch, tmp_path, ready=False)
+    _main, algorithm, _ = make(monkeypatch, tmp_path, ready=False)
     algorithm.messages.clear()
     market = Market(algorithm, seed=1)
     algorithm.on_data(market.slice(drop=tuple(str(symbol) for symbol in algorithm.symbols)))

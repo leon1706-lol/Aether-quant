@@ -129,7 +129,7 @@ def main() -> int:
     end = datetime.date.fromisoformat(args.end)
     algorithm = build_algorithm(datetime.datetime.combine(end, datetime.time(16, 0)))
     assets = {str(asset["ticker"]): asset for asset in config["phase1"]["universe"]["assets"]}
-    symbol_by_ticker = {symbol_key: symbol for symbol_key, symbol in ((str(s), s) for s in algorithm.symbols)}
+    symbol_by_ticker = {str(s): s for s in algorithm.symbols}
     bars_by_symbol = {}
     for key, symbol in symbol_by_ticker.items():
         ticker = algorithm.asset_lookup[key]["ticker"]

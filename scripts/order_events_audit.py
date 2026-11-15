@@ -1,5 +1,5 @@
 """V5.3.1 (development/Problems.md #34/#96) - standalone audit of every
-real `order-events.json` this repo has ever produced (`backtests/*/​**/
+real `order-events.json` this repo has ever produced (`backtests/*/**/
 order-events.json`, ~45 files as of this writing), turning the ad hoc
 `grep`/manual-scan evidence Problems.md #34 was built from into a
 repeatable, versioned tool instead of a one-off investigation.
@@ -60,8 +60,7 @@ def _iter_order_events_jsons(backtests_dir: Path) -> Iterator[Path]:
         reverse=True,
     )
     for run_dir in run_dirs:
-        for candidate in sorted(run_dir.glob("*-order-events.json")):
-            yield candidate
+        yield from sorted(run_dir.glob("*-order-events.json"))
 
 
 def load_order_events(path: Path) -> list[dict]:
@@ -102,7 +101,7 @@ def summarize_order_events(events: list[dict]) -> dict:
 
     fill_latency_hours: list[float] = []
     canceled_count_by_symbol: Counter = Counter()
-    for order_id, order_events in events_by_order_id.items():
+    for order_events in events_by_order_id.values():
         order_events_sorted = sorted(order_events, key=lambda e: e.get("time", 0.0))
         submitted = next((e for e in order_events_sorted if e.get("status") == "submitted"), None)
         terminal = next((e for e in order_events_sorted if e.get("status") in ("filled", "canceled")), None)

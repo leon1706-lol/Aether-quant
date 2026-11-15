@@ -29,7 +29,7 @@ def main_module():
     patcher = pytest.MonkeyPatch()
     patcher.setitem(sys.modules, "AlgorithmImports", stub)
     patcher.delitem(sys.modules, "main", raising=False)
-    import main  # noqa: PLC0415
+    import main
 
     yield main
     sys.modules.pop("main", None)

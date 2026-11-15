@@ -20,10 +20,10 @@ import time as _time
 from collections.abc import Callable, Iterable
 from datetime import date
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pandas as pd
-from typing import Any
 
 OUTPUT = Path(__file__).resolve().parent.parent / "data" / "reference" / "edgar_eps.csv"
 TICKERS_URL = "https://www.sec.gov/files/company_tickers.json"
@@ -486,7 +486,7 @@ def split_adjusted_eps(eps: pd.DataFrame, splits: pd.DataFrame) -> pd.DataFrame:
     """EPS on one share basis per ticker. A first filing states EPS on the shares at its filing date, so it is divided by
     the splits after that date. A later split scales a ticker's whole history alike, so a standardised ratio sees no future."""
     adjusted = eps.copy()
-    by_ticker = {ticker: group for ticker, group in splits.groupby("ticker")}
+    by_ticker = {ticker: group for ticker, group in splits.groupby("ticker")}  # noqa: C416  # dict(GroupBy) reads its .keys attribute (a column name) as a method
 
     def divisor(row) -> float:
         group = by_ticker.get(row["ticker"])

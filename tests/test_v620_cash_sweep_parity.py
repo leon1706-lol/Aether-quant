@@ -35,7 +35,7 @@ def _kwargs(**overrides):
 
 def _sweep(frame, daily=0.00018):
     return {
-        "returns_by_date": {date: daily for date in frame["date"].unique()},
+        "returns_by_date": dict.fromkeys(frame["date"].unique(), daily),
         "config": resolve_cash_sweep_config({"enabled": True}),
         "book_gross_cap": 1.0, "max_short_exposure": 0.3, "other_budget": 0.05, "neutral_budget": 0.1, "min_commission_usd": 1.0,
     }
@@ -53,7 +53,7 @@ def test_the_sweep_adds_its_carry_as_a_component_and_the_book_is_untouched():
     swept = simulate_rank_book(frame, **_kwargs(cash_sweep=_sweep(frame)))
     carry = swept.per_date_component_returns["cash_sweep"]
     assert sum(carry.values()) > 0.0
-    for date, before, after in zip(base.per_date, base.per_date_net_return, swept.per_date_net_return):
+    for date, before, after in zip(base.per_date, base.per_date_net_return, swept.per_date_net_return, strict=False):
         assert after == pytest.approx(before + carry[date], abs=1e-15)
     assert swept.net_total_return > base.net_total_return
 
@@ -87,7 +87,7 @@ def test_one_step_sizes_the_sweep_exactly_as_the_live_rule():
                                     reserve=reserve, config=sweep["config"])
     assert weight == pytest.approx(live)
     assert earned == pytest.approx(0.5 * 0.00018 - sweep["_last_cost"])
-    held, unchanged = _cash_sweep_step(sweep, live, date="2024-01-03", is_session=False, book_weights=book,
+    _held, unchanged = _cash_sweep_step(sweep, live, date="2024-01-03", is_session=False, book_weights=book,
                                        legacy_weights=legacy, rebalance_next=True, formed_weights=book, pv_for_costs=1e5)
     assert unchanged == live and sweep["_last_cost"] == 0.0
 

@@ -143,8 +143,8 @@ class Chain:
         from evaluation.live_parity import lag_predictions_for_tickers
 
         frame = self.frame()
-        lookup = dict(zip(zip(frame["date"], frame["ticker"]), scores.to_numpy()))
-        keys = zip(harness.frame["date"].astype(str).str[:10], harness.frame["ticker"].astype(str))
+        lookup = dict(zip(zip(frame["date"], frame["ticker"], strict=False), scores.to_numpy(), strict=False))
+        keys = zip(harness.frame["date"].astype(str).str[:10], harness.frame["ticker"].astype(str), strict=False)
         replaced = np.array([lookup.get(key, np.nan) for key in keys], dtype=float)
         try:
             harness.frame["live_rank_score"] = replaced
@@ -187,7 +187,7 @@ class Chain:
                 result = harness.as_live(**dict(calibrated_overrides(harness, phase=phase), **mechanisms), include=ANALYZER_INCLUDE)
                 per_phase.append(summarize(result))
                 if not daily:
-                    daily = {str(d)[:10]: float(r) for d, r in zip(result.per_date, result.per_date_net_return)}
+                    daily = {str(d)[:10]: float(r) for d, r in zip(result.per_date, result.per_date_net_return, strict=False)}
         entry = {"summary": extended_summary(per_phase), "daily": daily}
         self.memo[key] = entry
         self.save()

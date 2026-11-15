@@ -32,6 +32,9 @@ from pathlib import Path
 from uuid import uuid4
 
 from execution.runtime_config_io import read_runtime_mode
+from execution.secrets_io import secret_env
+from performance.postgres_triggers import ensure_schema as ensure_performance_schema
+from performance.postgres_triggers import fetch_triggers_since, insert_triggers
 from retraining.orchestrator import (
     _CONFIG_PATH,
     _load_retraining_config,
@@ -53,8 +56,6 @@ from retraining.orchestrator import (
     validate,
 )
 from retraining.postgres_registry import ensure_schema
-from performance.postgres_triggers import ensure_schema as ensure_performance_schema, fetch_triggers_since, insert_triggers
-from execution.secrets_io import secret_env
 
 logger = logging.getLogger(__name__)
 

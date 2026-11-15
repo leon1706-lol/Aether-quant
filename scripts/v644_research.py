@@ -516,7 +516,7 @@ def stage_trend_main(chain: Chain644) -> None:
                                              include=ANALYZER_INCLUDE)
                     per_phase.append(summarize(result))
                     if not daily:
-                        daily = {str(d)[:10]: float(r) for d, r in zip(result.per_date, result.per_date_net_return)}
+                        daily = {str(d)[:10]: float(r) for d, r in zip(result.per_date, result.per_date_net_return, strict=False)}
                         held = {str(t) for row in result.weights_log or [] for t, w in (row or {}).items() if w}
                         chain.memo[f"trend_main_held|{split}"] = sorted(held & set(symbols))
                         chain.memo[f"trend_main_gross|{split}"] = float(result.mean_gross_exposure)
@@ -598,7 +598,7 @@ def stage_verdict(chain: Chain644) -> None:
     chain.report["verdict"] = {
         "R-MODEL12": {"checks": checks, "winner": winner,
                       "winner_spec": candidates.get(winner) if winner else None},
-        "R-TREND1": {"chosen": choice.get("chosen"), "signal": TREND_TRIALS.get(choice.get("chosen", ""), None),
+        "R-TREND1": {"chosen": choice.get("chosen"), "signal": TREND_TRIALS.get(choice.get("chosen", "")),
                      "checks": {k: choice.get(k) for k in ("K2", "K3", "K4", "K5", "K6")}, "passes": trend_passes},
     }
     chain.save()

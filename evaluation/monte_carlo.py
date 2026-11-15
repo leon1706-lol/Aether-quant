@@ -20,10 +20,9 @@ so callers can persist it without multi-megabyte payloads.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
-from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from numpy.typing import ArrayLike
@@ -58,7 +57,7 @@ def _resample_indices(n: int, block_size: int, method: str, rng: np.random.Gener
 def _percentiles(values: np.ndarray) -> dict[str, float]:
     pct = np.percentile(values, [5, 25, 50, 75, 95])
     keys = ["p5", "p25", "p50", "p75", "p95"]
-    return {k: round(float(v), 6) for k, v in zip(keys, pct)}
+    return {k: round(float(v), 6) for k, v in zip(keys, pct, strict=False)}
 
 
 def run_monte_carlo(

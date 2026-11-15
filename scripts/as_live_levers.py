@@ -175,11 +175,10 @@ class AsLiveHarness:
                  late_bar_event_count=None):
         """Rolling-IC gate for `frame`'s scores. The state depends on (horizon, window, min names, how late-bar events
         are counted) only, so every floor variant shares it; the floor is applied afterwards."""
-        from portfolio.rolling_ic_gate import resolve_late_bar_event_count
-
         from evaluation.live_parity import make_rolling_ic_gate_fn
         from evaluation.rolling_ic_gate_calibration import build_event_buffer
         from evaluation.rolling_ic_series import make_rolling_ic_state_fn
+        from portfolio.rolling_ic_gate import resolve_late_bar_event_count
 
         horizon = int(horizon_days if horizon_days is not None else self.ic_config.get("horizon_days", 20))
         window = int(rolling_window_days if rolling_window_days is not None else self.ic_config.get("rolling_window_days", 40))
@@ -387,8 +386,8 @@ def main() -> int:
 
     harness = AsLiveHarness(args.split, use_cache=not args.no_cache)
     variants = {
-        "idealized (no live mechanism)": lambda: harness.idealized(),
-        "as-live (config)": lambda: harness.as_live(),
+        "idealized (no live mechanism)": harness.idealized,
+        "as-live (config)": harness.as_live,
         "as-live without kill switch": lambda: harness.as_live(include=("member_sizing", "hrp", "impact")),
         "as-live without member sizing chain": lambda: harness.as_live(include=("kill_switch", "hrp", "impact")),
         "as-live without either (V5.6 simulator)": lambda: harness.as_live(include=("hrp", "impact")),

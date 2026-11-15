@@ -80,14 +80,14 @@ def test_a_checkout_import_is_refused_and_an_installed_wheel_is_judged(smoke, mo
     assert smoke.main() == 1 and "not an installed wheel" in capsys.readouterr().out
     monkeypatch.setattr(aq_cli, "__file__", "/venv/lib/site-packages/aq_cli.py")
     monkeypatch.setattr(smoke, "check_imports", lambda: ([], ["tolerated line"]))
-    monkeypatch.setattr(smoke, "check_library", lambda: [])
+    monkeypatch.setattr(smoke, "check_library", list)
     monkeypatch.setattr(smoke, "subcommand_names", lambda: ["test"])
     monkeypatch.setattr(smoke, "check_help", lambda names: [])
     assert smoke.main() == 0 and "note: tolerated line" in capsys.readouterr().out
     monkeypatch.setattr(smoke, "check_library", lambda: ["library broke"])
     assert smoke.main() == 1 and "FAIL: library broke" in capsys.readouterr().out
-    monkeypatch.setattr(smoke, "check_library", lambda: [])
-    monkeypatch.setattr(smoke, "subcommand_names", lambda: [])
+    monkeypatch.setattr(smoke, "check_library", list)
+    monkeypatch.setattr(smoke, "subcommand_names", list)
     assert smoke.main() == 1 and "no aq subcommands found" in capsys.readouterr().out and sys is not None
 
 

@@ -17,7 +17,6 @@ from data_pipeline.factor_file_backfill import (
     write_factor_file,
 )
 
-
 # ---------------------------------------------------------------------------
 # compute_lean_factor_rows - pure factor-math, no network
 # ---------------------------------------------------------------------------
@@ -247,7 +246,7 @@ def _write_zip(path, rows, *, float_volume):
 
 
 def _rows(factor_rows):
-    return [dict(zip(("factor_date", "price_factor", "split_factor", "reference_price"), r)) for r in factor_rows]
+    return [dict(zip(("factor_date", "price_factor", "split_factor", "reference_price"), r, strict=False)) for r in factor_rows]
 
 
 def test_a_float_formatted_volume_fingerprints_the_yfinance_backfill_writer(tmp_path):

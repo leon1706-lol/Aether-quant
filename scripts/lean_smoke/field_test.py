@@ -42,7 +42,7 @@ SKIP = {".git", ".av", ".venv", "node_modules", "backtests", "backtests_invalid"
 
 
 def run(command: list[str], **kwargs) -> subprocess.CompletedProcess:
-    return subprocess.run(command, capture_output=True, text=True, encoding="utf-8", errors="replace", **kwargs)
+    return subprocess.run(command, capture_output=True, text=True, encoding="utf-8", errors="replace", **kwargs, check=False)
 
 
 def copy_project(target: Path) -> None:
@@ -202,7 +202,7 @@ def main(argv: list[str] | None = None) -> int:
         evidence.update(audit_facts())
         if evidence["runs"]:
             evidence["runs"][0]["reconciliation_audit_event"] = evidence["reconciliation_audit_event"]
-    except Exception as error:  # noqa: BLE001 - a missing service is recorded, never faked
+    except Exception as error:
         evidence["audit_error"] = f"{type(error).__name__}: {error}"
     judged = judge_field_test(evidence)
     report = {"date": stamp, "evidence": evidence, "judged": judged, "image": IMAGE, "work_dir": str(work)}

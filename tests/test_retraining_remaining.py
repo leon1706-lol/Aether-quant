@@ -18,10 +18,14 @@ from retraining import (
     backtest_gate,
     lean_backtest,
     planning,
-    postgres_registry as registry,
     status_export,
     validation_gate,
     vault_client,
+)
+from retraining import (
+    postgres_registry as registry,
+)
+from retraining import (
     worker as worker_module,
 )
 
@@ -39,7 +43,7 @@ def _conn(row=None, rows=None):
 def test_the_registry_readers_return_a_dict_or_none():
     columns = registry._MODEL_VERSION_COLUMNS
     row = tuple(f"v{index}" for index, _ in enumerate(columns))
-    conn, cursor = _conn(row=row)
+    conn, _cursor = _conn(row=row)
     assert registry.fetch_latest_candidate_version(conn)["model_version_id"] == "v0"
     conn, _ = _conn(row=None)
     assert registry.fetch_latest_candidate_version(conn) is None
@@ -89,7 +93,7 @@ def test_a_missing_lean_binary_a_timeout_and_a_crash_are_reported_not_raised(mon
     (tmp_path / "main.py").write_text("", encoding="utf-8")
     monkeypatch.setattr(lean_backtest, "find_lean_binary", lambda config: "lean")
     for error, expected in ((FileNotFoundError("lean"), "lean_binary_not_found"), (subprocess.TimeoutExpired("lean", 1), "lean_backtest_timed_out"), (RuntimeError("boom"), "boom")):
-        def run(*args, **kwargs):
+        def run(*args, error=error, **kwargs):
             raise error
 
         monkeypatch.setattr(lean_backtest.subprocess, "run", run)

@@ -4,9 +4,9 @@ This is Lean's local IB margin model, not IB's servers: it proves the API is the
 Runs as a project's main.py (scripts/lean_smoke/run.sh).
 """
 
-from AlgorithmImports import *  # noqa: F403
-
 import json
+
+from AlgorithmImports import *  # noqa: F403
 
 from risk.futures_risk import build_live_contract_spec
 

@@ -90,7 +90,7 @@ def test_a_file_that_fails_its_hash_leaves_the_run_without_decisions(monkeypatch
 
 
 def test_the_live_reload_applies_the_newest_unapplied_row_before_the_open(monkeypatch, tmp_path):
-    algorithm, market = build(monkeypatch, tmp_path, overrides={"phase_v2": {"target_weights": {"live_reload": True}}}, mode="paper")
+    algorithm, _market = build(monkeypatch, tmp_path, overrides={"phase_v2": {"target_weights": {"live_reload": True}}}, mode="paper")
     try:
         algorithm.Time = datetime.datetime(2019, 1, 8, 9, 0)
         algorithm.allow_live_orders = True

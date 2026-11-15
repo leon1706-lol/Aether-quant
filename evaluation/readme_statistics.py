@@ -219,7 +219,7 @@ def build_backtest_statistics_blocks(evaluation_dir: Path) -> dict[str, str]:
     except (OSError, ValueError):
         stats = None
     if not stats or stats.get("status") != "OK":
-        return {section: _NOT_RUN for section in SECTIONS}
+        return dict.fromkeys(SECTIONS, _NOT_RUN)
     sections = stats.get("sections", {})
     blocks = {}
     for section in SECTIONS:

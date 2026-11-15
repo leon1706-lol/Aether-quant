@@ -13,7 +13,6 @@ from evaluation.backtest_audit import (
     audit_backtest_run,
     carried_book_members,
     classify_entries,
-    pnl_by_entry_bucket,
     daily_equity_from_chart,
     exposure_summary,
     find_overlapping_orders,
@@ -22,6 +21,7 @@ from evaluation.backtest_audit import (
     load_book_history,
     period_summary,
     pnl_and_fees_by_asset_class,
+    pnl_by_entry_bucket,
     select_run_book_history,
     sharpe_from_equity,
     summarize_book_history,
@@ -77,7 +77,7 @@ def test_daily_equity_keeps_the_last_point_per_day_even_with_intraday_points():
 
 
 def test_sharpe_with_a_risk_free_rate_is_lower_than_without():
-    equity = [("d%d" % i, 100.0 * (1.0004 + 0.0006 * ((-1) ** i)) ** i) for i in range(1, 120)]
+    equity = [(f"d{i}",100.0 * (1.0004 + 0.0006 * ((-1) ** i)) ** i) for i in range(1, 120)]
     no_rf = sharpe_from_equity(equity, 0.0)
     with_rf = sharpe_from_equity(equity, 0.02)
     assert no_rf is not None and with_rf is not None

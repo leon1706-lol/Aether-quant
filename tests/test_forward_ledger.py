@@ -70,7 +70,7 @@ def test_a_tampered_row_is_caught(tmp_path, edit):
 def test_rebalance_days_count_sessions_from_the_frozen_anchor():
     sessions = [day.strftime("%Y-%m-%d") for day in pd.bdate_range("2024-01-02", periods=12)]
     flags = [is_rebalance(sessions, day, anchor=sessions[0], every=5) for day in sessions]
-    assert [day for day, flag in zip(sessions, flags) if flag] == [sessions[5], sessions[10]]
+    assert [day for day, flag in zip(sessions, flags, strict=False) if flag] == [sessions[5], sessions[10]]
     assert not is_rebalance(sessions, sessions[0], anchor=sessions[0], every=5)
 
 
@@ -127,7 +127,7 @@ def test_a_stopped_schedule_is_flagged(tmp_path):
 
 
 def _fake_api(*, block=None, last_session="2024-09-30"):
-    sessions = [day for day in pd.bdate_range("2022-10-03", last_session)]
+    sessions = list(pd.bdate_range("2022-10-03", last_session))
     days = pd.date_range("2024-01-01", last_session)
     stamp = lambda day: int(pd.Timestamp(day, tz="UTC").timestamp())  # noqa: E731
     rng = np.random.default_rng(3)
@@ -142,7 +142,7 @@ def _fake_api(*, block=None, last_session="2024-09-30"):
             closes = [base + i * 0.1 for i in range(len(sessions))]
             return {"chart": {"result": [{"timestamp": [stamp(day) for day in sessions], "indicators": {"adjclose": [{"adjclose": closes}]}}]}}
         series = btc if "BTC" in url else eth
-        return [[stamp(day), 0.0, 0.0, 0.0, float(value), 1.0] for day, value in reversed(list(zip(days, series)))]
+        return [[stamp(day), 0.0, 0.0, 0.0, float(value), 1.0] for day, value in reversed(list(zip(days, series, strict=False)))]
 
     return get
 
@@ -286,9 +286,8 @@ def test_the_cli_writes_the_session_or_says_why_not(tmp_path, monkeypatch, capsy
 
 
 def test_get_json_asks_with_the_project_agent_and_raises_on_an_error(monkeypatch):
-    import requests
-
     import forward_ledger
+    import requests
 
     seen = {}
 

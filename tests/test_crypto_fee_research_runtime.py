@@ -64,7 +64,7 @@ class Harness:
         self.split = split
         self.config = _json.loads((ROOT / "config.json").read_text(encoding="utf-8"))
         self.frame = pd.DataFrame([{"date": date, "ticker": ticker, "target_return_1d": (0.002 if ticker in ("BTCUSD", "LTCUSD") else (0.002 if graduates_positive else -0.002))} for date in DATES for ticker in CRYPTO])
-        self.asset_class_by_ticker = {ticker: "crypto" for ticker in CRYPTO} | {"SPY": "equity"}
+        self.asset_class_by_ticker = dict.fromkeys(CRYPTO, "crypto") | {"SPY": "equity"}
         self.metadata = {ticker: {"trading_eligible": True} for ticker in CRYPTO}
         self.venue_listing_dates = None
 

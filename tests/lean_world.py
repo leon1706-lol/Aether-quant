@@ -214,7 +214,7 @@ def install_stub(monkeypatch, base=None):
     redis_stub.from_url = lambda *args, **kwargs: MagicMock(name="redis_client")
     monkeypatch.setitem(sys.modules, "redis", redis_stub)
     monkeypatch.delitem(sys.modules, "main", raising=False)
-    import main  # noqa: PLC0415 - must come after the stub is installed
+    import main
 
     monkeypatch.setattr(main, "load_cached_fred_series", synthetic_fred)  # the repo's own data/ would make every bar read megabytes
     return main

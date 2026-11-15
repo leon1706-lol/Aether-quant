@@ -8,14 +8,13 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from features.cross_asset_timing import CrossAssetTimeline
-
 from evaluation.feature_parity import (
     BASE_TECHNICAL_FEATURES,
     DEFAULT_LONG_LOOKBACK_WINDOW_BARS,
     forward_scale,
     load_scaler_mapping,
 )
+from features.cross_asset_timing import CrossAssetTimeline
 
 
 def _scaler_stats():

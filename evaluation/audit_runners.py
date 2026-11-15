@@ -108,7 +108,6 @@ def live_consumers(config: dict) -> set[str]:
 
 def run_audit_heads(config: dict, *, ml_dir: Path = ML_DIR) -> dict:
     from evaluation.head_audit import audit_heads, load_head_metrics
-
     from portfolio.rank_signal import resolve_rank_signal_policy
 
     report = audit_heads(load_head_metrics(ml_dir), consumers=live_consumers(config))
@@ -138,7 +137,7 @@ def run_audit_features(config: dict, *, dataset_path: str | None = None, permuta
     path = Path(dataset_path) if dataset_path else ML_DIR / "datasets" / "full_dataset.csv"
     wanted = set(features) | {"date", "ticker", "split", "target_rank_20d", "training_eligible"}
     frame = pd.concat(
-        [chunk for chunk in pd.read_csv(path, usecols=lambda name: name in wanted, chunksize=50_000)], ignore_index=True
+        list(pd.read_csv(path, usecols=lambda name: name in wanted, chunksize=50_000)), ignore_index=True
     )
     asset_class = {a["ticker"]: a.get("asset_class") or a.get("security_type") for a in config["phase1"]["universe"]["assets"]}
     frame["asset_class"] = frame["ticker"].map(asset_class)
