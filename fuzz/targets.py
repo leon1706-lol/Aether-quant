@@ -95,8 +95,14 @@ def fuzz_json_safety(data: bytes) -> None:
     assert json.loads(dumps_json_safe(value)) == json.loads(json.dumps(clean))
 
 
+def _plain_password(user: str, password: str, host: str) -> bool:
+    """A password the masked URL cannot spell out by accident: no mask or separator characters, and not part of the text that stays.
+    Atheris found the need for it: the mask's last `*` plus the text after a secret `*XXXXX` spells `*XXXXX` again, which is no leak."""
+    return len(password) >= 4 and not set(password) & set("*:@") and password not in f"{user}:" and password not in host and password not in "redis"
+
+
 def fuzz_secret_refs(data: bytes) -> None:
-    """parse_ref raises only ValueError; a redacted text and a redacted URL never show the secret."""
+    """parse_ref raises only ValueError; redaction masks every occurrence of a secret and nothing else, and a masked URL keeps its user and host."""
     reader = Bytes(data)
     text = reader.choice(["env:", "file:", "keyring:", "", "envx:"]) + reader.text(40)
     try:
@@ -107,12 +113,18 @@ def fuzz_secret_refs(data: bytes) -> None:
         assert ref.scheme in ("env", "file", "keyring") and ref.target
     secret = reader.text(16)
     message = reader.text(12) + secret + reader.text(12)
+    redacted = redact(message, [SecretValue(secret)])
     if len(secret) >= 4:
-        assert secret not in redact(message, [SecretValue(secret)])
+        assert redacted == message.replace(secret, "***")
+        if "*" not in secret:
+            assert secret not in redacted
+    else:
+        assert redacted == message, "a value under 4 characters is left alone"
     user, password, host = reader.text(8).replace("/", ""), reader.text(16).replace("/", ""), reader.text(12).replace("/", "").replace("@", "")
     url = f"redis://{user}:{password}@{host}/0"
     masked = redact_url(url)
-    if len(password) >= 4 and password not in f"{user}:" and password not in host and password not in "redis://:***@/0":
+    assert masked.startswith("redis://") and masked.endswith(f"@{host}/0") and ":***@" in masked, (url, masked)
+    if _plain_password(user, password, host):
         assert password not in masked, (url, masked)
 
 

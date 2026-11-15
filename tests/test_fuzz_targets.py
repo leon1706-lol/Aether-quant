@@ -107,19 +107,46 @@ def test_holdout_ledger_refuses_a_malformed_entry(tmp_path):
         record_holdout_read(ledger, candidate="c", cells=("V1",), digest="d", created_at="t")
 
 
-def test_a_broken_invariant_is_reported(monkeypatch):
-    monkeypatch.setattr(targets, "redact_url", lambda url: str(url))
-    data = _search("redact", lambda d: _leaks(d))
-    with pytest.raises(AssertionError):
-        targets.fuzz_secret_refs(data)
-
-
-def _leaks(data: bytes) -> bool:
+def _url_parts(data: bytes) -> tuple[str, str, str]:
+    """The user, password and host `fuzz_secret_refs` builds its URL from (the reads must stay in step with the target)."""
     reader = Bytes(data)
     reader.choice([0, 1, 2, 3, 4])
     reader.text(40)
     reader.text(16)
     reader.text(12), reader.text(12)
-    user, password, host = reader.text(8).replace("/", ""), reader.text(16).replace("/", ""), reader.text(12).replace("/", "").replace("@", "")
-    return len(password) >= 4 and password not in f"{user}:" and password not in host and password not in "redis://:***@/0"
+    return reader.text(8).replace("/", ""), reader.text(16).replace("/", ""), reader.text(12).replace("/", "").replace("@", "")
 
+
+def test_a_leaked_password_is_reported(monkeypatch):
+    from execution.secrets import redact_url as real
+
+    def leaky(url: str) -> str:
+        authority = str(url).split("://", 1)[1].split("/", 1)[0]
+        password = authority.rpartition("@")[0].partition(":")[2]
+        return real(url).replace("://", "://" + password, 1)  # the right shape, with the password put back in
+
+    monkeypatch.setattr(targets, "redact_url", leaky)
+    data = _search("redact", lambda d: targets._plain_password(*_url_parts(d)))
+    user, password, host = _url_parts(data)
+    with pytest.raises(AssertionError) as caught:
+        targets.fuzz_secret_refs(data)
+    assert password in caught.value.args[0][1], "the assertion that fired is the leak check, carrying the masked URL"
+
+
+def test_a_url_that_loses_its_shape_is_reported(monkeypatch):
+    monkeypatch.setattr(targets, "redact_url", lambda url: str(url))
+    with pytest.raises(AssertionError):
+        targets.fuzz_secret_refs(b"\x00" * 64)
+
+
+def test_a_mask_that_rejoins_the_text_is_not_a_leak():
+    """Atheris, first CI run: the secret `*XXXXX` in `aa/Xb*XXXXXXXXXXXXX`. The mask's last `*` plus the five text characters after
+    the secret spell `*XXXXX` again, which the old invariant (the secret is not in the output) took for a leak."""
+    from execution.secrets import SecretValue, redact
+
+    assert redact("aa/Xb*XXXXXXXXXXXXX", [SecretValue("*XXXXX")]) == "aa/Xb***XXXXXXXX"
+    crash = bytes.fromhex("19090cef1fd75884bc4a6355deff239cf05e1df1b262947b83b31a0a1ed6395757575757768e7e935eff01de705757575757575757575757d2f5e318012f")
+    targets.fuzz_secret_refs(crash)
+    assert redact("abc*", [SecretValue("abc")]) == "abc*", "a value under 4 characters is left alone"
+    assert not targets._plain_password("u", "ab*dd", "h") and targets._plain_password("u", "abcd", "h")
+    assert not targets._plain_password("u", "abcd", "xabcdx") and not targets._plain_password("user", "edis", "h")

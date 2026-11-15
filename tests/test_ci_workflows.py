@@ -530,3 +530,17 @@ def test_fuzz_workflow_runs_every_target_read_only_from_the_hash_lock():
 
     assert set(job["strategy"]["matrix"]["target"]) == set(TARGETS)
     assert "${{ secrets." not in (ROOT / ".github" / "workflows" / "fuzz.yml").read_text(encoding="utf-8")
+
+
+def test_gitleaks_allowlists_pip_hash_lines_and_nothing_wider():
+    """V6.6.7.1: the first push failed secret-scan on two sha256 digests in requirements/lock/ that start with `eaaa`, which the
+    case-insensitive square-access-token rule reads as a token. The allowlist is a line shape, not a path."""
+    import tomllib
+
+    config = tomllib.loads((ROOT / ".gitleaks.toml").read_text(encoding="utf-8"))["allowlist"]
+    assert config["regexTarget"] == "line" and "paths" not in config, "a line shape only: a path would hide a real secret in that file"
+    hash_pattern = re.compile(next(pattern for pattern in config["regexes"] if "hash=sha256" in pattern))
+    lock_lines = [line for line in (ROOT / "requirements" / "lock" / "ci.txt").read_text(encoding="utf-8").splitlines() if "--hash=sha256:" in line]
+    assert lock_lines and all(hash_pattern.search(line) for line in lock_lines)
+    for credential in ("token = EAAA" + "x" * 60, 'api_key = "sk_live_' + "a1" * 12 + '"', "--hash=sha256:" + "e" * 63, "hash=sha256:" + "a" * 64):
+        assert not hash_pattern.search(credential), credential

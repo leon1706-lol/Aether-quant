@@ -4,6 +4,9 @@ title = "Aether Quant gitleaks config"
 useDefault = true
 
 [allowlist]
-description = "Exported-model JSON names its tensors in `weight_key` / `bias_key` fields (e.g. \"head_rank_5d.weight\"); the generic-api-key rule reads them as credentials."
+description = "Two line shapes that are not credentials but read as one. Exported-model JSON names its tensors in `weight_key` / `bias_key` fields (e.g. \"head_rank_5d.weight\"), which the generic-api-key rule reads as a key. A pip hash line in requirements/lock/ (`--hash=sha256:` and 64 hex digits) is a file digest, and the case-insensitive square-access-token rule matches the few that start with `eaaa`."
 regexTarget = "line"
-regexes = ['''"(weight|bias)_key"\s*:\s*"[A-Za-z0-9_.]+"''']
+regexes = [
+    '''"(weight|bias)_key"\s*:\s*"[A-Za-z0-9_.]+"''',
+    '''--hash=sha256:[0-9a-f]{64}''',
+]

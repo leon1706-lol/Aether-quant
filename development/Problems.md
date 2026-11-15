@@ -2,7 +2,7 @@
 
 Every bug and infrastructure issue found in this codebase, oldest first, with how it was fixed or why it stayed open. Numbers never change, because code and docs cite them; #73-76 don't exist, and #88 and #112 appear twice.
 
-**Entries:** <!--fact:problems.total-->376<!--/fact--> up to #<!--fact:problems.last-->378<!--/fact-->: <!--fact:problems.fixed-->339<!--/fact--> 🟢 `fixed` (changed and verified), <!--fact:problems.partial-->16<!--/fact--> 🟡 `partial` (shipped, verification pending), <!--fact:problems.closed-->18<!--/fact--> 🔴 `closed` (no code fix: declined, moot or superseded). Severity runs from 1 (cosmetic) to 10 (data loss or safety). Full text of older entries: [`backups/`](backups/README.md).
+**Entries:** <!--fact:problems.total-->376<!--/fact--> up to #<!--fact:problems.last-->378<!--/fact-->: <!--fact:problems.fixed-->342<!--/fact--> 🟢 `fixed` (changed and verified), <!--fact:problems.partial-->13<!--/fact--> 🟡 `partial` (shipped, verification pending), <!--fact:problems.closed-->18<!--/fact--> 🔴 `closed` (no code fix: declined, moot or superseded). Severity runs from 1 (cosmetic) to 10 (data loss or safety). Full text of older entries: [`backups/`](backups/README.md).
 
 **Open now** (each needs a broker key, a forward record or the laptop):
 
@@ -18,10 +18,7 @@ Every bug and infrastructure issue found in this codebase, oldest first, with ho
 
 **Waiting on the owner's push, tag or sign-up (V6.6.7, each only needs a GitHub run or an account to confirm):**
 
-- **#361** Every install was unpinned (the Scorecard reads Pinned-Dependencies after the push)
-- **#362** Vulnerabilities: five advisories, four of them torch (the Scorecard reads it after the push)
-- **#363** Nothing was fuzzed (`fuzz.yml` runs on GitHub after the push)
-- **#364** Branch protection: none on `main` (the Scorecard reads the ruleset on its next run)
+- **#363** Nothing was fuzzed (`fuzz.yml` must be green on GitHub: seven of eight targets were on the first run)
 - **#365** Release provenance (the tag, then the two `backfill_tag` dispatches)
 - **#366** No OpenSSF Best Practices badge (the owner registers)
 
@@ -1945,7 +1942,7 @@ Lean's paper brokerage starts empty on each run, so the restart proves the state
 **Verification:** `tests/test_rank_book_legacy_step.py` covers an age exit, a trailing-stop exit, and no exit when none is configured. Dead guards the same round found (a fold that cannot be empty, an event that is always in its own date list, a group that cannot have zero rows, a purchase that is never routine) were removed with a one-line comment each.
 
 ### 361. Every install was unpinned, and CI ran downloaded code it never checked (V6.6.7)
-🟡 `partial` · 4/10
+🟢 `fixed` · 4/10
 
 **Problem:** the OpenSSF Scorecard's Pinned-Dependencies read 3. About sixty `pip install` lines in workflows, Dockerfiles and scripts named no hash, `elan-init.sh` was fetched from `master` and run, and the actionlint, hadolint and gitleaks downloads had no checksum.
 
@@ -1955,16 +1952,16 @@ Lean's paper brokerage starts empty on each run, so the restart proves the state
 - Every install is `pip install --require-hashes -r requirements/lock/<profile>.txt`, then `--no-deps -e .` or `--no-deps <wheel>`. The three CI binaries are checked by sha256, and `elan-init.sh` is fetched at a fixed commit and checked.
 - `scripts/scorecard_pins.py` mirrors the Scorecard's rule offline (pip, npm, actions, `FROM`, download-then-shell). It runs in the pre-commit hook and in fast-guards; AGENTS.md rule 15 states it.
 
-**Verification:** the checker found 52 unpinned commands on the old tree and reports 0 now. `tests/test_scorecard_pins.py`, `test_lock_requirements.py`, `test_requirement_locks.py` (every lock is hashed and satisfies every floor it inherits) and `test_ci_workflows.py` pass. It stays 🟡 until the Scorecard reads Pinned-Dependencies after the push.
+**Verification:** the checker found 52 unpinned commands on the old tree and reports 0 now. `tests/test_scorecard_pins.py`, `test_lock_requirements.py`, `test_requirement_locks.py` (every lock is hashed and satisfies every floor it inherits) and `test_ci_workflows.py` pass. After the push (2026-11-15) the Scorecard reads Pinned-Dependencies **10** (it was 3). The first push's `secret-scan` job failed on two sha256 digests in `requirements/lock/` that start with `eaaa`, which gitleaks' case-insensitive `square-access-token` rule reads as a token; `.gitleaks.toml` now allowlists the pip hash line shape (`--hash=sha256:` and 64 hex digits, not a path), and `tests/test_ci_workflows.py` checks it matches real lock lines and no credential.
 
 ### 362. Vulnerabilities: five advisories, four of them torch (V6.6.7)
-🟡 `partial` · 5/10
+🟢 `fixed` · 5/10
 
 **Problem:** Vulnerabilities read 5: torch's floor (`>=2.9.1`) allowed four advisories fixed only in 2.10 to 2.13, and pyarrow `>=17` allowed GHSA-rgxp-2hwp-jwgg (fixed in 23.0.1). The first audit of the new locks also found `lxml 5.4.0` (PYSEC-2026-87, fixed in 6.1.0) behind `cyclonedx-bom 4.6.1`, which caps `lxml<6`.
 
 **Fix:** torch `>=2.15.0` and pyarrow `>=23.0.1` (also in the `research` and `train` extras), with the joblib and psycopg floors from the merged Dependabot PRs. The release tools moved to `cyclonedx-bom 8.0.1` (its flag is `-o`, not `--outfile`) and lxml 6.1.3.
 
-**Verification:** before the bump the PC's five model checkpoints hashed identically on torch 2.9.1 and 2.15.0, and `aq test --ml` passed 712 of 712 on 2.15.0. `pip-audit --require-hashes` over all 13 locks reports no known vulnerability (the CPU torch wheel is not on PyPI, so it is skipped by name). It stays 🟡 until the Scorecard reads it.
+**Verification:** before the bump the PC's five model checkpoints hashed identically on torch 2.9.1 and 2.15.0, and `aq test --ml` passed 712 of 712 on 2.15.0. `pip-audit --require-hashes` over all 13 locks reports no known vulnerability (the CPU torch wheel is not on PyPI, so it is skipped by name). After the push (2026-11-15) the Scorecard reads Vulnerabilities **10** (it was 5; the Dependabot merges alone took it to 9, and the pyarrow floor cleared the last advisory).
 
 ### 363. Nothing was fuzzed, and the first fuzz run found five bugs (V6.6.7)
 🟡 `partial` · 6/10
@@ -1978,16 +1975,16 @@ Lean's paper brokerage starts empty on each run, so the restart proves the state
 
 **Fix:** eight targets in `fuzz/targets.py` (JSON sanitizing, secret refs, the audit hash chain, account overrides, the users file, the kill switch, the rebalance orders, the holdout ledger), the Atheris entry `fuzz/run_fuzz.py`, a line-guided seed corpus, and `.github/workflows/fuzz.yml` (two minutes a target on a push that touches one, and weekly). Each bug fails closed: a refusal, an empty order or an unreadable window.
 
-**Verification:** `tests/test_fuzz_targets.py` runs every target over its corpus and under hypothesis, `test_fuzz_runner.py` runs the entry against a stand-in Atheris, and each module's own test file holds a regression test. `fuzz/` is at 100%. It stays 🟡 until `fuzz.yml` is green on GitHub (Atheris has no Windows wheel).
+**Verification:** `tests/test_fuzz_targets.py` runs every target over its corpus and under hypothesis, `test_fuzz_runner.py` runs the entry against a stand-in Atheris, and each module's own test file holds a regression test. `fuzz/` is at 100%. On the first GitHub run seven of the eight targets were green, and `secret_refs` failed within 50 ms on an input Atheris generated: the secret `*XXXXX` in `aa/Xb*XXXXXXXXXXXXX`. `redact` was right; the invariant was not, because the mask's last `*` plus the five characters after the secret spell `*XXXXX` again, which is no leak. The invariant now says what is true (the output is the message with every occurrence masked, and a secret without a `*` cannot come back), the URL check only covers passwords the mask and separators cannot spell, and the crash is a corpus seed with a regression test. 160,000 more local inputs found nothing. It stays 🟡 until `fuzz.yml` is green on GitHub (Atheris has no Windows wheel).
 
 ### 364. Branch protection: none on `main` (V6.6.7)
-🟡 `partial` · 5/10
+🟢 `fixed` · 5/10
 
 **Problem:** Branch-Protection read 0, and no pull request had ever merged, so CI-Tests read -1 (no pull request found).
 
 **Fix:** `.github/CODEOWNERS` and a ruleset on `main`: no deletion, no force push, a pull request with 2 approvals, code-owner review, last-push approval, stale reviews dismissed, and four required checks. The repository admin is an always-bypass actor, so the owner's direct pushes still work (git prints "Bypassed rule violations"). Any bypass actor counts as "not applied to admins", so the ceiling is 9. The 14 Dependabot PRs merged through pull requests with green CI, which gives CI-Tests something to read.
 
-**Verification:** the ruleset was applied on 2026-11-15 (id 27309425), and a Scorecard run on `main` read it at once: Branch-Protection 8, CI-Tests 10 (14 of 14 merged pull requests checked by CI), total 7.6 (from 6.7). The workflow's default token reads rulesets, so no extra token is needed. The two remaining warnings are the bypass actor ("settings apply to administrators" is the ceiling) and "codeowners review is required but no codeowners file found", which `.github/CODEOWNERS` removes once it is on `main`. It stays 🟡 until that run reads 9.
+**Verification:** the ruleset was applied on 2026-11-15 (id 27309425), and a Scorecard run on `main` read it at once: Branch-Protection 8, CI-Tests 10 (14 of 14 merged pull requests checked by CI), total 7.6 (from 6.7). The workflow's default token reads rulesets, so no extra token is needed. The two remaining warnings are the bypass actor ("settings apply to administrators" is the ceiling) and "codeowners review is required but no codeowners file found", which `.github/CODEOWNERS` removes once it is on `main`. After the push put `CODEOWNERS` on `main` the Scorecard reads Branch-Protection **9**, the ceiling with an administrator bypass.
 
 ### 365. Release provenance came from an unpinned reusable workflow (V6.6.7)
 🟡 `partial` · 3/10

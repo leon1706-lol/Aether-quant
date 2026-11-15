@@ -20,6 +20,8 @@ The owner's live brief for what to do next; rewritten as objectives change (hist
 
 **Verified (2026-11-15):** the full `aq test --coverage` measures 48,147 statements at **100%** (all 16 groups green after four small fixes), `scripts/clean_checkout_test.ps1` passes 7054 tests, ruff, the pin checker, the library gate and `--check-sorry` are clean, and the branch ruleset is applied (the Scorecard read 7.6 on `main` before any of this is pushed: CI-Tests 10, Branch-Protection 8, Vulnerabilities 9).
 
+**Pushed (2026-11-15, `a976e04`):** the OpenSSF Scorecard reads **8.5** (6.7 before the phase): Pinned-Dependencies, Fuzzing, Vulnerabilities and CI-Tests 10, Branch-Protection 9. CI was green except two things, fixed locally for V6.6.7.1: `secret-scan` (gitleaks read two lock-file digests as a Square token; `.gitleaks.toml` allowlists the pip hash line shape) and the `secret_refs` fuzz target (an invariant that was too strict). Left on the Scorecard: Signed-Releases 8 (the tag and the two backfills), CII 0 (your sign-up), Code-Review and Contributors 0 (one maintainer).
+
 **Not done (the PC ran out of memory and Claude Code stopped both jobs):** `aq verify --quick` as one command (its parts were each run) and the vault regeneration (`Aether-quant-Obsidian-Vault`, the two commands in AGENTS.md). Run them with the other apps closed.
 
 **Then yours:** commit and push, tag v6.6.7, run `gh workflow run release.yml -f backfill_tag=v6.6.5` and again with `v6.6.4`, register at bestpractices.dev, and rebuild the Docker images (`Dockerfile.lean` now installs from a hash lock: your next `aq backtest` is its first proof).
