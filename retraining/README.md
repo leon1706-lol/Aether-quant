@@ -14,6 +14,7 @@ Controlled retraining: reads `retrain_candidate` triggers from Postgres, trains 
 | `backtest_gate.py`, `lean_backtest.py` | Active, candidate and buy-and-hold, plus an optional real Lean run |
 | `vault_commands.py`, `vault_client.py` | Runs `av` as an external CLI; a failure is a `failed` event, never a crash |
 | `artifacts.py` | Completeness checks, hashes, copy and restore. Topology, gating, multitask and sequence files are optional |
+| `artifact_pins.py` | `ml/artifact_pins.json`: one sha256 per installed model file (V6.6.9, #382). Anything that scores with the models checks it first, `snapshot_active` zips the set before a retrain, and `tests/conftest.py` fails a run that changes it |
 | `auto_rollback.py`, `rollback_hardening.py` | `select_rollback_target()`, a dry run, and a degradation score |
 | `status_export.py` | Writes `visualization/grafana/retraining_status.json` |
 | `orchestrator.py` | Each stage as a function and a subcommand (`aq retrain <stage>`) |
@@ -41,5 +42,6 @@ Off by default (`phase_v2.retraining.auto_rollback.enabled`), because an automat
 ## Related mechanisms
 
 - **Walk-forward (`aq train --walk-forward`):** calendar-scheduled, not trigger-driven, so it stays outside this worker (`phase_v2.retraining.walk_forward`). Each window writes `window_result.json`, and `--resume-run-id` skips finished ones. The promotion gate (`phase_v2.retraining.validation_gate.ranking`) passes when any listed head clears it.
+- **The model stack:** `aq cycle retrain --procedure stack` refits the multitask, sequence and gating models and the walk-forward as one resumable run into `ml/versions/` (RUNBOOK "Retraining the model stack"). It is the refit of generation g0006; `stack_asof` is a new procedure and only writes scores for a research round.
 - **Generations:** `promote` fills one slot. With `enabled: true` in `ml/generations/policy.json` it refuses, and `aq cycle promote` takes over. `aq cycle retrain` is the research cycle's own retrain.
 - **The vault:** the client reads `av --output json` and stores the full hash; `vault_preflight` checks it before a commit. `scripts/vault_record.py` records research rounds.

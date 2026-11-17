@@ -53,7 +53,8 @@ def test_forex_is_dropped_by_the_clean_switch_and_the_cross_asset_inputs_it_feed
     topology/peer/macro features read."""
     config = json.loads((ROOT / "config.json").read_text(encoding="utf-8"))
     phase_v2 = config["phase_v2"]
-    assert phase_v2["forex_risk"]["enabled"] is False and phase_v2["forex_sleeve"]["enabled"] is False
+    # V6.6.9: the model book trades forex on the target path, so the switch is on (a disabled class is swept each bar, #384); the legacy class sleeve stays off
+    assert phase_v2["forex_risk"]["enabled"] is True and phase_v2["forex_sleeve"]["enabled"] is False
     assert phase_v2["sleeve_guards"]["forex"]["enabled"] is False
     assert phase_v2["forex_sleeve"]["signal"] == "carry"  # the research settings stay in the file for a re-evaluation
     assert any(asset["security_type"] == "forex" for asset in config["phase1"]["universe"]["assets"])

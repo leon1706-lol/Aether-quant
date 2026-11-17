@@ -19,6 +19,7 @@ from __future__ import annotations
 import bisect
 import itertools
 import math
+from collections.abc import Iterable
 from pathlib import Path
 
 import pandas as pd
@@ -453,13 +454,29 @@ def build_hrp_raw_weights_fn(
     ticker_column: str = "ticker",
     date_column: str = "date",
     close_column: str = "close",
+    session_dates: Iterable[str] | None = None,
+    next_bar_tickers: Iterable[str] = (),
+    linkage_method: str = "ward",
 ):
     """`raw_weights_fn` for the HRP book sizing path (`allocation_method="hrp"`): the live code feeds
-    `apply_hrp_weights` each member's last `window_bars` closes (main.py's `symbol_windows` deque), and falls back to
-    the rank formula when HRP returns nothing."""
+    `apply_hrp_weights` each member's last `window_bars` closes, and falls back to the rank formula when HRP returns nothing.
+
+    With `session_dates` (V6.6.9, #383) each ticker is sampled once per equity session, as `main.py`'s `_session_closes` is: an
+    equity's close on the session, a ticker in `next_bar_tickers` (crypto, forex) its last close dated before it. Without them each
+    ticker keeps its own bar calendar (the pre-V6.6.9 behaviour, kept so earlier results can be reproduced)."""
     closes: dict[str, tuple[list[str], list[float]]] = {}
     for ticker, group in frame.sort_values(date_column).groupby(ticker_column):
         closes[str(ticker)] = ([str(d)[:10] for d in group[date_column]], [float(c) for c in group[close_column]])
+    if session_dates is not None:
+        sessions = sorted({str(day)[:10] for day in session_dates})
+        late = {str(ticker) for ticker in next_bar_tickers}
+        for ticker, (dates, values) in list(closes.items()):
+            side = bisect.bisect_left if ticker in late else bisect.bisect_right
+            sampled = []
+            for session in sessions:
+                end = side(dates, session)
+                sampled.append(values[end - 1] if end else float("nan"))
+            closes[ticker] = (sessions, sampled)
 
     def raw_weights_fn(allocations, date):
         key = str(date)[:10]
@@ -468,7 +485,7 @@ def build_hrp_raw_weights_fn(
             dates, values = closes.get(str(symbol), ([], []))
             end = bisect.bisect_right(dates, key)
             returns_by_symbol[symbol] = pct_returns_from_closes(values[max(0, end - window_bars) : end])
-        hrp = apply_hrp_weights(allocations, returns_by_symbol, gross_exposure=gross_exposure)
+        hrp = apply_hrp_weights(allocations, returns_by_symbol, gross_exposure=gross_exposure, linkage_method=linkage_method)
         return dict(hrp) if hrp else build_book_raw_weights(allocations, max_position_weight)
 
     return raw_weights_fn

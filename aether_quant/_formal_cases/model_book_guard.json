@@ -1,0 +1,89 @@
+{
+ "target": "model_book_guard",
+ "spec_files": [
+  "AetherFormal/ModelBookGuard.lean"
+ ],
+ "cases": [
+  {
+   "input": {
+    "row_finite": false,
+    "pins_ok": false,
+    "model_age_ok": false
+   },
+   "expected": {
+    "permit": false
+   }
+  },
+  {
+   "input": {
+    "row_finite": false,
+    "pins_ok": false,
+    "model_age_ok": true
+   },
+   "expected": {
+    "permit": false
+   }
+  },
+  {
+   "input": {
+    "row_finite": true,
+    "pins_ok": false,
+    "model_age_ok": false
+   },
+   "expected": {
+    "permit": false
+   }
+  },
+  {
+   "input": {
+    "row_finite": true,
+    "pins_ok": false,
+    "model_age_ok": true
+   },
+   "expected": {
+    "permit": false
+   }
+  },
+  {
+   "input": {
+    "row_finite": false,
+    "pins_ok": true,
+    "model_age_ok": false
+   },
+   "expected": {
+    "permit": false
+   }
+  },
+  {
+   "input": {
+    "row_finite": false,
+    "pins_ok": true,
+    "model_age_ok": true
+   },
+   "expected": {
+    "permit": false
+   }
+  },
+  {
+   "input": {
+    "row_finite": true,
+    "pins_ok": true,
+    "model_age_ok": false
+   },
+   "expected": {
+    "permit": false
+   }
+  },
+  {
+   "input": {
+    "row_finite": true,
+    "pins_ok": true,
+    "model_age_ok": true
+   },
+   "expected": {
+    "permit": true
+   }
+  }
+ ],
+ "spec_sha256": "65375cd851cd6135c386df8729664e1415610c60fb29b8145716afea7270958d"
+}

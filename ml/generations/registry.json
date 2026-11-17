@@ -462,6 +462,59 @@
    "stage": "shadow",
    "tier": "none",
    "vintages": []
+  },
+  {
+   "admission": {},
+   "born": "2026-11-16",
+   "definition": {
+    "every": 20,
+    "family": "model_book",
+    "freeze_sha256": "ca2536982f41014f92b0ec1ff6fe64f5bc8836c9468a9f21fc6af7ec87e6e020",
+    "id": "b03",
+    "installed": true,
+    "kind": "cross_sectional",
+    "params": {
+     "guard_classes": [
+      "forex"
+     ],
+     "guard_lookback": 60,
+     "guard_max_loss": 0.01,
+     "optimizer": "inverse_vol",
+     "table": "ml_a1"
+    },
+    "settings": {
+     "class_caps": {
+      "bond": 0.6,
+      "crypto": 0.15,
+      "equity": 0.8,
+      "forex": 0.12
+     },
+     "gross_cap": 1.4,
+     "name_cap": 0.05,
+     "name_cap_by_class": {
+      "crypto": 0.05,
+      "forex": 0.06
+     },
+     "target_vol": 0.07
+    },
+    "table": "ml_a1",
+    "universe": [
+     "equity",
+     "bond",
+     "forex",
+     "crypto"
+    ]
+   },
+   "expected_sharpe": 0.0,
+   "freeze_path": "ml/evaluation/v669/freeze.json",
+   "id": "g0006",
+   "kind": "model",
+   "needs": "model",
+   "note": "the multi-asset model book (R-INSTALL2, V6.6.9): reinstated, not verified. No trial survived R-SLEEVE2, so it holds a fixed 30% beside the crypto sleeve by the owner's rule, on paper.",
+   "procedure_sha256": "a86ac93621f74937832930016f37f343f3cd711e754918858b6a4ba944cd2492",
+   "stage": "active",
+   "tier": "installed",
+   "vintages": []
   }
  ],
  "note": "Which generations exist. `aq cycle promote` changes a stage by rule; a hand edit is visible in git."

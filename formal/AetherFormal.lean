@@ -26,5 +26,6 @@ import AetherFormal.CashSweep
 import AetherFormal.DynamicTargets
 import AetherFormal.ForexCap
 import AetherFormal.VolTarget
+import AetherFormal.ModelBookGuard
 import AetherFormal.Real
 import AetherFormal.GenCases

@@ -16,7 +16,7 @@ from __future__ import annotations
 import csv
 import hashlib
 import math
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -50,6 +50,10 @@ class TargetWeightsConfig:
     no_bar_exit: bool = False
     no_bar_exit_after: int = 2
     no_bar_haircut_by_class: Mapping[str, float] = field(default_factory=lambda: dict(DEFAULT_NO_BAR_HAIRCUT))
+    source: str = "file"  # "file": rows from the weights file; "model_book": main.py computes each session's row (V6.6.9, default off)
+
+
+TARGET_SOURCES = ("file", "model_book")
 
 
 def _finite(value, default: float) -> float:
@@ -86,10 +90,25 @@ def resolve_target_weights_config(raw: Mapping[str, Any] | None) -> TargetWeight
         enabled=bool(raw.get("enabled", False)),
         weights_path=str(raw.get("weights_path") or ""),
         weights_sha256=str(raw.get("weights_sha256") or ""),
+        source=str(raw.get("source")) if raw.get("source") in TARGET_SOURCES else "file",
         slippage_bps_by_class=slippage,
         financing_enabled=bool(raw.get("financing_enabled", True)),
         **numbers,
     )
+
+
+def drop_class_weights(
+    weights_by_date: Mapping[str, Mapping[str, float]], class_by_ticker: Mapping[str, str], dropped: Iterable[str]
+) -> dict[str, dict[str, float]]:
+    """The weight rows without the tickers of `dropped` asset classes (V6.6.9, #384): a name the per-bar disabled-class sweep
+    would close each bar is never opened. Main.py and the offline engine call this one function, so both hold the same names."""
+    dropped = frozenset(dropped)
+    if not dropped:
+        return {date: dict(row) for date, row in weights_by_date.items()}
+    return {
+        date: {ticker: weight for ticker, weight in row.items() if class_by_ticker.get(ticker) not in dropped}
+        for date, row in weights_by_date.items()
+    }
 
 
 def load_weight_file(path: Path | str, expected_sha256: str = "") -> dict[str, dict[str, float]]:

@@ -5,7 +5,10 @@ Book construction: rank-based long/short selection, neutrality, tranches, class 
 ::: aether_quant.portfolio
     options:
       members:
+        - BlendDefinition
         - BookAllocation
+        - BookPart
+        - ClassLossGuard
         - ClassSleeveConfig
         - MarginSizingDecision
         - MultiLegSpec
@@ -22,6 +25,7 @@ Book construction: rank-based long/short selection, neutrality, tranches, class 
         - WeightSettings
         - advance_strategy_value
         - align_score_table
+        - aligned_returns
         - amihud
         - announcement_proximity
         - announcement_return
@@ -36,6 +40,7 @@ Book construction: rank-based long/short selection, neutrality, tranches, class 
         - assignment_risk_flag
         - assignment_risk_score
         - atm_implied_volatility
+        - blend_rows
         - bond_credit_timing
         - bond_slope_timing
         - book_history_mode_allowed
@@ -59,9 +64,13 @@ Book construction: rank-based long/short selection, neutrality, tranches, class 
         - calibrate_probability
         - cash_profitability
         - cash_sweep_target_weight
+        - centred_ranks
+        - class_gross
+        - class_risk_parity
         - classify_volatility_view
         - combine_sleeves
         - combine_tranche_weights
+        - composite_signal
         - compute_confidence_spread
         - compute_hrp_weights
         - compute_rolling_ic_state
@@ -78,8 +87,12 @@ Book construction: rank-based long/short selection, neutrality, tranches, class 
         - crypto_trend
         - daily_financing_usd
         - days_to_next_ex_dividend
+        - decides_at
+        - definition_rows
         - detect_executable_edge
         - detect_mispricing
+        - drop_class_weights
+        - drop_classes
         - early_exercise_optimal_for_dividend
         - equity_fee_usd
         - evaluate_rolling_ic_gate
@@ -88,6 +101,7 @@ Book construction: rank-based long/short selection, neutrality, tranches, class 
         - external_score
         - extrinsic_value
         - forex_resize_below_minimum
+        - forward_fill_rows
         - forward_table
         - fred_as_known
         - fred_series_table
@@ -96,10 +110,15 @@ Book construction: rank-based long/short selection, neutrality, tranches, class 
         - group_chain_by_expiry
         - grouped_cross_sectional_rank_scores
         - high_proximity
+        - holding_for_session
+        - hrp_book
         - idio_vol
+        - inverse_vol_ranks
         - is_rotation_exit_candidate
         - jelly_roll_fair_value
         - known_closes
+        - lean_panel
+        - lean_session_row
         - live_names_per_rebalance
         - load_live_weight_file
         - load_rate_series
@@ -108,18 +127,26 @@ Book construction: rank-based long/short selection, neutrality, tranches, class 
         - low_beta
         - low_vol
         - low_volatility
+        - low_volatility_score
         - margin_fraction
+        - momentum_12_1
         - names_to_exit_without_bars
         - net_debit_or_credit_for_legs
         - next_unapplied_row
         - no_bar_exit_cost_usd
+        - no_trade_band
         - normalize_per_asset_class_slots
         - null_signal
         - opportunistic_buying
+        - optimizer_for
         - option_auto_close_due
         - order_enabled_strategies
+        - paper_loss_guard
+        - parse_definition
         - partial_adjust_weights
         - pct_returns_from_closes
+        - permit_model_book_row
+        - pooled
         - pv_dividends_to_expiry
         - rank_group_by_symbol
         - rank_mean
@@ -143,7 +170,10 @@ Book construction: rank-based long/short selection, neutrality, tranches, class 
         - resolve_sleeve_guard_config
         - resolve_target_weights_config
         - resolve_trend_sleeve_config
+        - risk_parity_core
         - rotation_cooldown_active
+        - row_for_session
+        - row_is_finite
         - same_month_seasonality
         - scale_and_cap
         - sector_relative_scores
@@ -166,36 +196,47 @@ Book construction: rank-based long/short selection, neutrality, tranches, class 
         - select_strategy_legs
         - select_vertical_legs
         - select_vertical_spread_legs
+        - session_scores
         - short_reversal
         - should_exit_non_selected_book_symbol
         - should_hold_owned_position_on_veto
         - should_rebalance_this_bar
         - should_record_ic_event
+        - shrunk_covariance
+        - shrunk_mean_variance
         - signal_lookbacks
+        - signal_tables
         - signal_to_weights
         - similarity_table
         - sleeve_classes_out_of_main_pool
         - sleeve_signal
         - slippage_bps_for
+        - spec_weights
         - strategies_for_volatility_view
         - strategy_reserve
+        - stress_scaler
         - sweep_order_needed
         - sweep_reserve
         - term_credit_timing
+        - tilted_core
         - time_series_momentum
         - trailing_drawdown
         - tranche_book_params
         - tranche_offsets
         - trend_signal
         - trend_sleeve_weights
+        - trend_vote
         - trend_votes
         - turn_of_month
         - update_book_owned_symbols
         - update_missing_bars
+        - vix_ratio
         - vix_term_structure
         - volume_trend
+        - weight_settings
         - weights_at_tick
         - weights_sidecar
         - wide_tables
+        - within_class_z
         - write_weight_file
         - write_weights_sidecar

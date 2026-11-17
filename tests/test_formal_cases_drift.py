@@ -27,6 +27,7 @@ EXPECTED_TARGETS = [
     "holdout_once",
     "json_safety",
     "kill_switch",
+    "model_book_guard",
     "order_gate",
     "position_sizing",
     "premia_caps",

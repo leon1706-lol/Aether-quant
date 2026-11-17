@@ -1,0 +1,25 @@
+{
+ "files": {
+  "expert_models/bearish/model_weights.json": "6c653899adbdb7144410b08bf517439b74ca10eb745b5834e81341aeb77bd1cf",
+  "expert_models/bearish/multitask_model.json": "3a185c72e89b52d1f8041448e408d790a835b829a6ae41e3b8bf7af34bd4691e",
+  "expert_models/bullish/model_weights.json": "9c6bbc1ccfaf633d2663a04c7c6a4ab29cbf473d53c488f29d6f7f44dbc66638",
+  "expert_models/bullish/multitask_model.json": "92a65249a21f3b9d98e1bac8faaba826ace2784cca30daf0a434e3fa3aed7c9d",
+  "expert_models/sideways/model_weights.json": "386ddacd796c0ccdd377c76ddfdd553ea9def841e2b9b11660c4ae4e11980a0b",
+  "expert_models/sideways/multitask_model.json": "d9b94d4c996bfd8e339394fb0263e6245965c229b3e81f88c0e5feda5ebc95f2",
+  "expert_models/volatility/model_weights.json": "c9e7517d13b2801602f76041d0c35e99143d7ee37f20cd04dde87c8e81244226",
+  "expert_models/volatility/multitask_model.json": "970f8f7f71262b4e6b531b942f6a615fc25daa066b6e81c9d93c2b729a6b98da",
+  "feature_schema.json": "31e5b709e1ebe2e7dbc2069902af57acc73d826a27a4364e3d1c68ac1dc3ebcd",
+  "gating_feature_schema.json": "9e5bef0f0d27e3366dcaa0c69ab674b9b36fbe1f1dec6e4cc160126845e7dc09",
+  "gating_model.json": "d3135bd195882447a0be1eca93aa65a19f9c5ac9072a4c680f77b0972489bd90",
+  "model_weights.json": "61b4054a50efa5a25d04999e2bffd9260c2a53556404069a7eadc25d62a7213a",
+  "multitask_feature_schema.json": "6583441fcc418b595b8af30b43beab7b23ee02a8e013266cb0e232a5b8a9f143",
+  "multitask_model.json": "a6aeea089db1cd523228ae6401832819e13c410c539e877c6088a2a142350f06",
+  "rl_sizing_model.json": "5188e279698f429ce8d4bb0e7a8fd63bc8d7f69ad5a3616729f420779c0dabcb",
+  "scaler_stats.json": "7de7fe30d676b876f29e1a44d796a84483f9bbf842da45d5aeffbe224e9b1c53",
+  "sequence_feature_schema.json": "7b8b506367f07e5baeaf6b7b0850ad964558a4f3371ce875ca05b017e9022fe8",
+  "sequence_model.json": "0108ca8e54d88624598a38798597cf52e3425179b451f3e9e0a6cdc581ec3f8a",
+  "topology_feature_schema.json": "8607c97c7c191fdbef5b0646f3a56636414dfed438221a0aa0786763da348ce4",
+  "topology_model.json": "d8b15d518a6e70638395ced556883cdd57fde4f72c319018d9632c6522c4dbc1"
+ },
+ "note": "sha256 of the installed model artifacts, one set (retraining/artifact_pins.py). Rewritten only by an install or a restore."
+}

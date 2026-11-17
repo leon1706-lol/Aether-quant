@@ -1,9 +1,69 @@
 {
- "survivors": [
-  "t3_crypto_trend_blend"
- ],
- "method": null,
- "phase_index": 4,
+ "kind": "blend",
  "history_start": "2023-07-01",
- "pinned_run": "2026-11-07_17-54-01"
+ "pinned_run": "2026-11-16_16-25-28",
+ "settings": {
+  "target_vol": 0.07,
+  "gross_cap": 1.4,
+  "name_cap": 0.05,
+  "class_caps": {
+   "equity": 0.8,
+   "bond": 0.6,
+   "crypto": 0.15,
+   "forex": 0.12
+  },
+  "name_cap_by_class": {
+   "crypto": 0.05,
+   "forex": 0.06
+  }
+ },
+ "parts": [
+  {
+   "generation": "g0001",
+   "share": 0.7,
+   "sleeve": {
+    "id": "t3_crypto_trend_blend",
+    "track": "T3",
+    "kind": "time_series",
+    "family": "crypto_trend",
+    "universe": [
+     "crypto"
+    ],
+    "rebalance_every": 5,
+    "params": {
+     "lookback_a": 20,
+     "lookback_b": 60,
+     "lookback_c": 120
+    }
+   },
+   "phase_index": 4
+  },
+  {
+   "generation": "g0006",
+   "share": 0.3,
+   "book": {
+    "id": "b03",
+    "track": "BOOK",
+    "kind": "cross_sectional",
+    "family": "external_score",
+    "universe": [
+     "equity",
+     "bond",
+     "forex",
+     "crypto"
+    ],
+    "every": 20,
+    "params": {
+     "guard_classes": [
+      "forex"
+     ],
+     "guard_lookback": 60,
+     "guard_max_loss": 0.01,
+     "optimizer": "inverse_vol",
+     "table": "ml_a1"
+    }
+   },
+   "phase_index": 2
+  }
+ ]
 }

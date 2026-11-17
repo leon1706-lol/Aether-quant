@@ -1,12 +1,17 @@
 # Contributing to Aether Quant
 
-A self-adapting trading system on QuantConnect Lean and PyTorch, and a library for building other algorithms. Agents should also read [`AGENTS.md`](AGENTS.md).
+How to get the project, report a problem and send a change. Agents should also read [`AGENTS.md`](AGENTS.md).
 
 ## Get it, give feedback, contribute
 
 - **Get it:** `pip install aether-quant` for the library and `aq hello` (numpy and pandas only), or clone the repository and follow Setup below for the whole system. Releases and their signed files are on the [releases page](https://github.com/leon1706-lol/Aether-quant/releases).
-- **Report a bug or ask for a feature:** open an [issue](https://github.com/leon1706-lol/Aether-quant/issues/new/choose). The bug-report template asks for the version, the steps and the output. Report a security problem privately instead, as [`SECURITY.md`](SECURITY.md) describes.
-- **Contribute code or docs:** fork the repository, branch from `main`, make the change with its tests, and open a pull request; the [pull-request template](.github/PULL_REQUEST_TEMPLATE.md) lists what to check. `main` is protected: a pull request needs green CI and a review from the maintainer, and CI fails under 100% coverage, a ruff finding, or an unpinned install (see Tests and Code conventions below).
+- **Report a bug or ask for a feature:** open an [issue](https://github.com/leon1706-lol/Aether-quant/issues/new/choose). The bug-report template asks for the version, the steps and the output.
+- **Report a security problem** privately instead, as [`SECURITY.md`](SECURITY.md) describes.
+- **Contribute code or docs:**
+  1. Fork the repository and branch from `main`.
+  2. Make the change with its tests.
+  3. Open a pull request. The [pull-request template](.github/PULL_REQUEST_TEMPLATE.md) lists what to check.
+- **What a pull request needs:** `main` is protected, so green CI and a review from the maintainer. CI fails under 100% coverage, on a ruff finding, or on an unpinned install (see Tests and Code conventions below).
 
 ## Setup
 
@@ -33,9 +38,9 @@ aq test          # the suite, and it refreshes the README badge
 - **Register every new test file** in `aq_cli.py`'s `_SUBSYSTEM_TEST_FILES`, or filtered runs skip it.
 - **Run `aq test`, or `pytest` from the root** so `testpaths` applies; never `pytest .` (#8, `tests/README.md`).
 - **Real Lean backtests** are run by the maintainer. Don't block a PR on one.
-- **Docs and notebooks:** `python scripts/build_docs.py` then `mkdocs build --strict` (`pip install -r requirements/requirements-docs.txt`); notebooks are edited in `notebooks/src/*.py` and rebuilt with `python scripts/build_notebooks.py --execute`.
-
-CI runs the suite on Ubuntu and Windows with a 100% coverage gate over every tracked module (`aq test --coverage` checks it locally), plus ruff, the frontend tests, a CLI smoke battery, actionlint and guard jobs. A red job means don't merge, even if your local run was green.
+- **Docs site:** `python scripts/build_docs.py`, then `mkdocs build --strict` (`pip install -r requirements/requirements-docs.txt`).
+- **Notebooks:** edit `notebooks/src/*.py` and rebuild with `python scripts/build_notebooks.py --execute`.
+- **What CI runs:** the suite on Ubuntu and Windows with a 100% coverage gate over every tracked module (`aq test --coverage` checks it locally), plus ruff, the frontend tests, a CLI smoke battery, actionlint and guard jobs. A red job means don't merge, even if your local run was green.
 
 ## Code conventions
 
@@ -74,9 +79,7 @@ Push a tag `vX.Y.Z` on `main` after writing its Changelog entry. `release.yml` t
 
 ## License
 
-Two licenses, mapped path by path in [`LICENSING.md`](LICENSING.md) and [`REUSE.toml`](REUSE.toml); [`LICENSE`](LICENSE) is the AGPL-3.0:
+Two licenses, by path: Apache-2.0 for the library and AGPL-3.0 for the trading system. [`LICENSING.md`](LICENSING.md) holds the map, [`REUSE.toml`](REUSE.toml) states it file by file, and [`LICENSE`](LICENSE) is the AGPL-3.0.
 
-- **Apache-2.0:** the library, i.e. everything the wheel and the dashboard image ship, plus `webui/`, `notebooks/`, `docs/`, `examples/` and `formal/`.
-- **AGPL-3.0:** the trading system, including `main.py`, the trainers, `ml/`, `config.json`, `scripts/` and the research records.
-
-Inbound equals outbound: a contribution is licensed under the license of the path it changes. A new file takes the license its path matches in `REUSE.toml`, and `tests/test_licensing.py` checks the wheel.
+- **Inbound equals outbound:** a contribution is licensed under the license of the path it changes.
+- **A new file** takes the license its path matches in `REUSE.toml`; `tests/test_licensing.py` checks the wheel.

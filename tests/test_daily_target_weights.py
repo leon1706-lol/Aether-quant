@@ -149,3 +149,32 @@ def test_a_date_is_refused_when_it_is_no_session_or_a_class_has_gone_stale():
     assert module.data_problems(context, "2024-01-09") == ["2024-01-09 is not a session in the data (last is 2024-01-08)"]
     assert module.data_problems(context, "2024-01-08") == ["crypto data is 5 days old on 2024-01-08 (limit 2)"]
     assert module.data_problems(context, "2024-01-03") == []
+
+
+def test_an_installed_blend_is_decided_from_the_model_books_own_scores(tmp_path, monkeypatch, capsys):
+    """V6.6.9: `kind: blend` loads the round's context and score files, refuses on stale data or stale scores, and writes the blended row of a decision day."""
+    import json
+    import sys
+
+    from evaluation import model_book_round as rnd
+
+    definition = tmp_path / "candidate.json"
+    definition.write_text(json.dumps({"kind": "blend", "history_start": "2023-07-01"}), encoding="utf-8")
+    out = tmp_path / "weights.csv"
+    seen = {}
+    context = SimpleNamespace(panel=SimpleNamespace(known=pd.DataFrame(index=["2024-01-02", "2024-01-03"])))
+    monkeypatch.setattr(rnd, "load_round_context", lambda root, sources: seen.update(sources=sorted(sources)) or context)
+    monkeypatch.setattr(module, "data_problems", lambda context, date: [])
+    scores = iter(["the newest ml_a1 score is 20 days older than 2024-01-03 (limit 5)", None, None])
+    monkeypatch.setattr(rnd, "score_problem", lambda context, date: next(scores))
+    rows = iter([{"BTCUSD": 0.1}, None])
+    monkeypatch.setattr(rnd, "blend_row", lambda raw, context, date: next(rows))
+
+    def run(*argv):
+        monkeypatch.setattr(sys, "argv", ["daily_target_weights.py", *argv])
+        return module.main()
+
+    assert run("--candidate", str(definition), "--out", str(out)) == 1 and "20 days older" in capsys.readouterr().err
+    assert run("--candidate", str(definition), "--out", str(out)) == 0 and "2024-01-03: wrote 1 weights" in capsys.readouterr().out
+    assert run("--candidate", str(definition), "--out", str(out), "--date", "2024-01-02") == 0 and "not a rebalance day" in capsys.readouterr().out
+    assert seen["sources"] == ["ml_a1", "ml_a2", "ml_a3"]

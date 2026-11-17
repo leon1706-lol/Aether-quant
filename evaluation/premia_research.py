@@ -30,7 +30,6 @@ from portfolio.premia_signals import (
     fred_series_table,
     known_closes,
     null_signal,
-    signal_to_weights,
     sleeve_signal,
 )
 from portfolio.target_weights import TargetWeightsConfig, resolve_target_weights_config
@@ -58,6 +57,27 @@ def annual_sharpe(daily: pd.Series, *, sessions: Iterable[str] | None=None) -> f
     if len(values) < 20 or values.std(ddof=1) <= 0.0:
         return None
     return float(values.mean() / values.std(ddof=1) * math.sqrt(annualization))
+
+
+def annual_volatility(daily: pd.Series, *, sessions: Iterable[str] | None = None) -> float | None:
+    """Annualised standard deviation of the daily returns, on the same calendar rule as `annual_sharpe`."""
+    annualization = ANNUALIZATION
+    if sessions is not None:
+        from evaluation.alpha_proof import to_sessions
+
+        daily = to_sessions(daily, sessions)
+        annualization = SESSION_ANNUALIZATION
+    values = daily.to_numpy(dtype=float)
+    values = values[np.isfinite(values)]
+    return float(values.std(ddof=1) * math.sqrt(annualization)) if len(values) >= 20 else None
+
+
+def class_breadth(weights: Mapping[str, Mapping[str, float]], asset_class: Mapping[str, str], *, minimum: int = 3) -> float:
+    """The share of rebalance rows that hold a non-zero weight in at least `minimum` asset classes (0.0 with no rows)."""
+    if not weights:
+        return 0.0
+    broad = sum(len({asset_class.get(ticker) for ticker, weight in row.items() if weight}) >= minimum for row in weights.values())
+    return broad / len(weights)
 
 
 def max_drawdown(daily: pd.Series) -> float:
@@ -90,12 +110,13 @@ class ResearchContext:
     carry: Callable[[str, str], float]
     listed: Callable[[str, str], bool]
     settings: WeightSettings = field(default_factory=WeightSettings)
+    disabled_classes: frozenset[str] = frozenset()
 
     def simulate(self, weights: Mapping[str, Mapping[str, float]], start: str, end: str, *, max_drawdown_velocity: float | None = None, max_total_drawdown: float | None = None) -> dict[str, Any]:
         return simulate_target_weights(
             weights, self.market, self.config, start=start, end=end, sweep_config=self.sweep, rf_dates=self.rf_dates,
             rf_rates=self.rf_rates, carry_fn=self.carry, max_drawdown_velocity=max_drawdown_velocity,
-            max_total_drawdown=max_total_drawdown,
+            max_total_drawdown=max_total_drawdown, disabled_classes=self.disabled_classes,
         )
 
     def sessions_for(self, spec: SleeveSpec) -> set[str] | None:
@@ -103,8 +124,10 @@ class ResearchContext:
         return None if tuple(spec.universe) == ("crypto",) else self.market.sessions
 
 
-def build_context(root: Path, config: dict[str, Any], *, data_dir: str = "data") -> ResearchContext:
-    """Build a `ResearchContext` from the repo's data: the market panel, known closes, FRED, CFTC and carry inputs, and listing dates."""
+def build_context(root: Path, config: dict[str, Any], *, data_dir: str = "data", respect_disabled_classes: bool = False) -> ResearchContext:
+    """Build a `ResearchContext` from the repo's data: the market panel, known closes, FRED, CFTC and carry inputs, and listing dates.
+    With `respect_disabled_classes` the engine drops the classes `config` disables, as `main.py` does (#384); off, a research round
+    that closed before V6.6.9 scores exactly as it did."""
     from data_pipeline.cftc_cot import change_by_session, fx_pair_scores, macro_scores, read_positioning
     from data_pipeline.fred_backfill import load_cached_fred_series
     from features.fx_carry import fx_carry_3m
@@ -136,29 +159,37 @@ def build_context(root: Path, config: dict[str, Any], *, data_dir: str = "data")
     guard = config["phase_v2"].get("venue_listing_guard") or {}
     listing_dates = load_venue_listing_dates(root / str(guard.get("path"))) if guard.get("enabled") else {}
     rf_dates, rf_rates = load_rate_series(root / data_dir / "alternative" / "interest-rate" / "usa" / "interest-rate.csv")
+    disabled = frozenset(
+        asset_class for asset_class, key in (("future", "futures_risk"), ("option", "options_risk"), ("forex", "forex_risk"))
+        if respect_disabled_classes and not (config["phase_v2"].get(key) or {}).get("enabled", False)
+    )
     return ResearchContext(
         market, panel, resolve_target_weights_config(config["phase_v2"].get("target_weights")), config["phase_v2"]["cash_sweep"],
         rf_dates, rf_rates, carry, lambda ticker, date: asset_listed_on_venue(ticker, date, listing_dates),
+        disabled_classes=disabled,
     )
 
 
 def weights_for(spec: SleeveSpec, context: ResearchContext, signal: pd.DataFrame, *, start: str, end: str, phase_offset: int) -> dict[str, Any]:
-    """The sleeve's weights over [start, end] in this context, from one phase offset."""
-    return signal_to_weights(
-        signal, context.panel, kind=spec.kind, rebalance_every=spec.rebalance_every, phase_offset=phase_offset,
-        settings=context.settings, start=start, end=end, listed=context.listed, top_k=spec.params.get("top_k"),
-    )
+    """The sleeve's weights over [start, end] in this context, from one phase offset. A spec naming an `optimizer` in its
+    params (`portfolio.book_optimizer`, V6.6.9) is sized by it; a spec with none is sized as before."""
+    from portfolio.model_book import spec_weights
+
+    return spec_weights(spec, context.panel, signal, settings=context.settings, listed=context.listed, start=start, end=end, phase_offset=phase_offset)
 
 
 def score_sleeve(spec: SleeveSpec, context: ResearchContext, *, start: str, split: str, end: str, signal: pd.DataFrame | None = None) -> dict[str, Any]:
     """Median over the phases of the ex-T-bill Sharpe: pooled and on both sides of `split`."""
     signal = sleeve_signal(spec, context.panel) if signal is None else signal
     sessions = context.sessions_for(spec)
-    pooled, first, second, drawdowns, turnover, gross = [], [], [], [], [], []
+    pooled, first, second, drawdowns, turnover, gross, volatility, breadth = [], [], [], [], [], [], [], []
     daily_by_phase: dict[int, pd.Series] = {}
     for offset in phase_offsets(spec.rebalance_every):
-        result = context.simulate(weights_for(spec, context, signal, start=start, end=end, phase_offset=offset), start, end)
+        weights = weights_for(spec, context, signal, start=start, end=end, phase_offset=offset)
+        result = context.simulate(weights, start, end)
         strategy = result["strategy_excess"]
+        volatility.append(annual_volatility(strategy, sessions=sessions))
+        breadth.append(class_breadth(weights, context.panel.asset_class))
         pooled.append(annual_sharpe(strategy, sessions=sessions))
         first.append(annual_sharpe(strategy[strategy.index < split], sessions=sessions))
         second.append(annual_sharpe(strategy[strategy.index >= split], sessions=sessions))
@@ -174,7 +205,8 @@ def score_sleeve(spec: SleeveSpec, context: ResearchContext, *, start: str, spli
     return {
         "id": spec.id, "track": spec.track, "kind": spec.kind, "phases": len(pooled), "sharpe": median(pooled),
         "sharpe_first_half": median(first), "sharpe_second_half": median(second), "max_drawdown": median(drawdowns),
-        "turnover": median(turnover), "mean_gross": median(gross), "daily": daily_by_phase,
+        "turnover": median(turnover), "mean_gross": median(gross), "volatility": median(volatility), "class_breadth": median(breadth),
+        "daily": daily_by_phase,
     }
 
 
@@ -246,6 +278,6 @@ def _first_phase(score: Mapping[str, Any]) -> pd.Series | None:
 
 
 __all__ = [
-    "DIRECT", "TS", "XS", "PHASES", "ResearchContext", "annual_sharpe", "build_context", "max_drawdown", "nulls_for",
+    "DIRECT", "TS", "XS", "PHASES", "ResearchContext", "annual_sharpe", "annual_volatility", "class_breadth", "build_context", "max_drawdown", "nulls_for",
     "phase_offsets", "passes_sharpe_clauses", "placebo_p_value", "placebo_sharpes", "score_sleeve", "selection_gate", "weights_for",
 ]

@@ -14,7 +14,12 @@ The library's own extras (`lib`, `research`, `train`) are in `pyproject.toml`.
 
 ## Hash locks (V6.6.7)
 
-Every install in a workflow, Dockerfile or shell script reads a hash-locked file in `requirements/lock/`, because the OpenSSF Scorecard counts a pip install as pinned only with `--require-hashes`. Each `<profile>.in` names what that job needs (it can include the files above with `-r ../<file>`), and `<profile>.txt` is generated from it: exact versions, a sha256 for every file, one resolution for CPython 3.11 on Linux and Windows (the CI interpreter; `compat` is 3.10). The `ci` and `runtime` profiles take torch from the CPU index.
+Every install in a workflow, Dockerfile or shell script reads a hash-locked file in `requirements/lock/`, because the OpenSSF Scorecard counts a pip install as pinned only with `--require-hashes`.
+
+- **`<profile>.in`** names what that job needs. It can include the files above with `-r ../<file>`.
+- **`<profile>.txt`** is generated from it: exact versions and a sha256 for every file.
+- **One resolution** covers CPython 3.11 on Linux and Windows, the CI interpreter (`compat` is 3.10).
+- **torch** comes from the CPU index in the `ci` and `runtime` profiles.
 
 | Profile | Used by |
 |---|---|

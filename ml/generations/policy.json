@@ -17,6 +17,10 @@
  },
  "glide_policy": "dynamic_h126_p504_f00_b21",
  "guard_max_drawdown": 0.15,
+ "installed_shares": {
+  "g0001": 0.7,
+  "g0006": 0.3
+ },
  "min_local_ram_gb": 14,
  "note": "Nothing in Lean reads this file. `enabled` true makes `aq cycle` write the blended file and bridges retraining's promote to the registry; pointing a paper run at that file is a separate owner decision."
 }

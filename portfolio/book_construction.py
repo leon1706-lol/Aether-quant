@@ -520,6 +520,7 @@ def apply_hrp_weights(
     book_allocations: dict[str, BookAllocation],
     returns_by_symbol: dict[str, list[float]],
     gross_exposure: float = 1.0,
+    linkage_method: str = "ward",
 ) -> dict[str, float]:
     """V5.4.4 - HRP book SIZING over an already-selected book. Replaces
     the per-symbol confidence formula (min(max_position_weight,
@@ -562,6 +563,7 @@ def apply_hrp_weights(
         selected_tickers_long=long_symbols,
         selected_tickers_short=short_symbols,
         gross_exposure=gross_exposure,
+        linkage_method=linkage_method,
     )
 
 

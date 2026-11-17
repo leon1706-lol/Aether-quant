@@ -1,5 +1,14 @@
 """Retraining's pure gates and plans (workers and registries stay in `retraining/`)."""
 
+from retraining.artifact_pins import (
+    artifact_problems,
+    check_artifact_pins,
+    compute_artifact_pins,
+    file_sha256,
+    load_artifact_pins,
+    snapshot_active,
+    write_artifact_pins,
+)
 from retraining.auto_rollback import select_rollback_target
 from retraining.backtest_gate import compare_backtests
 from retraining.planning import cooldown_remaining_seconds, count_events_in_last_day, evaluate_retraining_plan, min_observations_satisfied, select_candidate_trigger
@@ -8,6 +17,7 @@ from retraining.validation_gate import compute_overfitting_gap, evaluate_ranking
 from retraining.vault_commands import build_av_add_command, build_av_commit_command, build_av_head_command, build_av_push_command, build_av_restore_command, build_av_status_command, build_commit_plan
 
 __all__ = [
+    "artifact_problems",
     "build_av_add_command",
     "build_av_commit_command",
     "build_av_head_command",
@@ -15,7 +25,9 @@ __all__ = [
     "build_av_restore_command",
     "build_av_status_command",
     "build_commit_plan",
+    "check_artifact_pins",
     "compare_backtests",
+    "compute_artifact_pins",
     "compute_degradation_score",
     "compute_overfitting_gap",
     "cooldown_remaining_seconds",
@@ -23,8 +35,12 @@ __all__ = [
     "evaluate_ranking_promotion_gate",
     "evaluate_retraining_plan",
     "evaluate_validation_gate",
+    "file_sha256",
+    "load_artifact_pins",
     "min_observations_satisfied",
     "select_candidate_trigger",
     "select_rollback_target",
     "select_rollback_target_dry_run",
+    "snapshot_active",
+    "write_artifact_pins",
 ]

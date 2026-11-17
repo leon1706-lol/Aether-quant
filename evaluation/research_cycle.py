@@ -20,6 +20,10 @@ RETRAIN_EVERY_SESSIONS = 252
 STALE_LEDGER_SESSIONS = 3
 RETRAIN_STAGES = ("refresh_data", "build_panel", "walk_forward", "score", "round", "register", "report")
 BOOTSTRAP_STAGE = "bootstrap_data"
+STACK_STAGES = (
+    "snapshot_active", "factor_audit", "dataset", "parity_audit", "multitask", "sequence", "gating", "walk_forward", "scores", "pins", "register", "report",
+)
+MODEL_AGE_WARNING_DAYS = 30
 HOSTS = ("local", "codespace")
 
 
@@ -61,6 +65,53 @@ def retrain_stages(*, data_present: bool) -> list[str]:
     return ([] if data_present else [BOOTSTRAP_STAGE]) + list(RETRAIN_STAGES)
 
 
+def stack_stages() -> list[str]:
+    """The model stack's retrain, in order. The first stage zips the active artifacts; nothing after it writes into the active `ml/` except the dataset build."""
+    return list(STACK_STAGES)
+
+
+def stack_plan(procedure: Mapping[str, Any], *, run_id: str, python: str = "python", score_end: str | None = None, resume_id: str | None = None) -> list[tuple[str, list[str] | None]]:
+    """(stage, command) for each stage of the stack retrain; a stage with no command (None) runs in this process. Every trainer writes to
+    `ml/versions/<run id>_<part>/` (`--candidate`, `--version-id`), never over the installed models. `stack_asof` is a new procedure, so its scores are only written for a research round."""
+    candidate = f"{run_id}_base"
+    walk_forward = [python, "train.py", "--walk-forward", "--include-multitask", "--include-sequence", "--mode", str(procedure.get("mode", "expanding"))]
+    if resume_id:
+        walk_forward += ["--resume-run-id", resume_id]
+    scores = [python, "scripts/v650_ml_scores.py", "--run-id", resume_id or "<walk-forward run id>", "--end", score_end] if score_end else None
+    return [
+        ("snapshot_active", None),
+        ("factor_audit", [python, "-m", "data_pipeline.factor_file_backfill", "--audit"]),
+        ("dataset", [python, "train.py", "--candidate", "--version-id", candidate]),
+        ("parity_audit", [python, "scripts/feature_parity_audit.py", "--skip-synthetic"]),
+        ("multitask", [python, "train_multitask.py", "--version-id", f"{run_id}_mt"]),
+        ("sequence", [python, "train_sequence.py", "--version-id", f"{run_id}_seq"]),
+        ("gating", [python, "train_gating.py", "--version-id", f"{run_id}_gate"]),
+        ("walk_forward", walk_forward),
+        ("scores", scores),
+        ("pins", None),
+        ("register", None),
+        ("report", None),
+    ]
+
+
+def validate_plan_flags(plan: Sequence[tuple[str, list[str] | None]], *, runner: Any) -> list[str]:
+    """Every `--flag` a planned command passes that its script's own `--help` does not list, as "script: --flag". [] is a plan the trainers accept.
+    A retrain that fails on a flag typo in its last stage has already spent the Codespace hours."""
+    problems: list[str] = []
+    for stage, command in plan:
+        if not command:
+            continue
+        python, rest = command[0], command[1:]
+        target = rest[:2] if rest and rest[0] == "-m" else rest[:1]
+        result = runner([python, *target, "--help"], capture_output=True, text=True)
+        if result.returncode != 0:
+            problems.append(f"{stage}: `{' '.join(target)} --help` exit {result.returncode}")
+            continue
+        text = (result.stdout or "") + (result.stderr or "")
+        problems.extend(f"{target[-1]}: {flag}" for flag in sorted({token for token in command if token.startswith("--")}) if flag not in text)
+    return problems
+
+
 def retrain_due(*, sessions_since_retrain: int | None, decay_states: Mapping[str, str], every_sessions: int = RETRAIN_EVERY_SESSIONS) -> dict[str, Any]:
     """By the calendar, or because the book's generation is decaying. It reports; it starts nothing."""
     decaying = sorted(name for name, state in decay_states.items() if state in ("decaying", "dead", "tripped"))
@@ -73,7 +124,7 @@ def retrain_due(*, sessions_since_retrain: int | None, decay_states: Mapping[str
 
 def due_actions(
     generations: Mapping[str, Mapping], judged: Mapping[str, Any], *, session: str | None, sessions_behind: int = 0, sessions_since_retrain: int | None = None, broker_keys: bool = False, policy_enabled: bool = False,
-    record_started: bool = True,
+    record_started: bool = True, model_age_days: float | None = None, max_model_age_days: float = 180.0,
 ) -> list[dict]:
     """What a person or a job should do next, most urgent first."""
     actions: list[dict] = []
@@ -102,6 +153,10 @@ def due_actions(
     if any(entry.get("kind") == "model" for entry in generations.values()):
         if due["due"]:
             actions.append({"action": "aq cycle retrain --host codespace", "why": due["reason"], "urgency": "when convenient"})
+        if model_age_days is not None and model_age_days >= max_model_age_days - MODEL_AGE_WARNING_DAYS and not due["due"]:
+            days_left = max(0.0, max_model_age_days - model_age_days)
+            actions.append({"action": "aq cycle retrain --host codespace --procedure stack", "why": (f"the installed models are {model_age_days:.0f} days old and the kill switch stops a model book at "
+                                                                                   f"{max_model_age_days:.0f} ({days_left:.0f} days left)"), "urgency": "when convenient"})
     elif any(state in ("decaying", "dead", "tripped") for state in states.values()):
         actions.append({"action": "aq cycle research: write a new round (RUNBOOK: Research cycle)", "why": "the book's rule is decaying and there is no model to refit", "urgency": "when convenient"})
     if not broker_keys:
@@ -116,7 +171,9 @@ def status_view(generations: Mapping[str, Mapping], judged: Mapping[str, Any], a
     latest = judged.get("latest_allocation") or {}
     # Before the first allocation row, the book is whatever is active: that is what `scripts/cycle_daily.py` starts from.
     active = [name for name, entry in generations.items() if entry.get("stage") == "active"]
-    shares = latest.get("shares") or {name: 1.0 / len(active) for name in active}
+    # An installed blend (V6.6.9, R-INSTALL2) fixes its shares by the owner's rule, not by the glide: say those, not an equal split nobody computed.
+    installed = {str(name): float(share) for name, share in (policy.get("installed_shares") or {}).items() if name in generations}
+    shares = latest.get("shares") or installed or {name: 1.0 / len(active) for name in active}
     rows = []
     for name, entry in sorted(generations.items()):
         forward = (judged.get("generations") or {}).get(name) or {}

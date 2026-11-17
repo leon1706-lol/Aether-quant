@@ -45,6 +45,9 @@ Each reads only the run folder and its data; `aq evaluate --lean-report` runs th
 | `power_analysis.py` | What a t-test on an alpha can show, given the history |
 | `research_probes.py`, `walk_forward_linear.py` | Small models fitted to measure what the data supports |
 | `trade_bootstrap.py` | A repeatable effect, or a few lucky fills? |
+| `model_book_research.py` | The multi-asset model book's research (V6.6.9): `load_score_table` (a score table as it can be used at each session; crypto and forex rows move one row later), the trial lists of R-BOOK1 and R-MIX1, the pure verdicts of R-INSTALL2 (`is_eligible`, `pick_candidate`, `install_verdict`), `rank_ic_diagnostics` and `installed_score_tables` |
+| `model_book_round.py` | That round's stages, each behind `rules.json`'s hash: `score_stage`, `placebo_stage`, `gate_stage`, `pbo_stage`, `diagnostics_stage`, `report_stage`, `freeze_stage`, `verify_stage`, `blend_stage`, `judge_stage`. `scripts/v669_book.py` drives them |
+| `dataset_io.py` | `read_dataset_columns` and `read_dataset_rows`: chunked reads of the 800 MB dataset that fit a 4 GB machine |
 
 ## Generations and forward records
 
@@ -53,7 +56,7 @@ Each reads only the run folder and its data; `aq evaluate --lean-report` runs th
 - **`alpha_decay.py`:** a one-sided CUSUM of net returns against what it was expected to earn.
 - **`glide_calibration.py`:** which handover policy loses least to an oracle.
 - **`forward_ledger.py`:** a hash-chained record that can't be backfilled.
-- **`research_cycle.py`:** what is due, whether a host may train, and scheduling.
+- **`research_cycle.py`:** what is due, whether a host may train, and scheduling. `stack_plan` lays out the model stack's retrain and `validate_plan_flags` checks every flag in it against the trainers' own `--help`.
 
 ## Audits
 

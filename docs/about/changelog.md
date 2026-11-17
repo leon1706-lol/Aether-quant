@@ -5,10 +5,18 @@ The full record of every phase lives in the repository: [`development/Changelog.
 The latest phases, generated from that file by `aq docs sync`:
 
 <!-- AQ:CHANGELOG_LATEST_START -->
+- [Phase V6.6.9 — The multi-asset model book back on the trusted path, an optimizer, a docs pass](https://github.com/leon1706-lol/Aether-quant/blob/main/development/Changelog.md#phase-v669--the-multi-asset-model-book-back-on-the-trusted-path-an-optimizer-a-docs-pass)
 - [Phase V6.6.8 — Close the best-practices gaps: strict lint, the C++ accelerator under sanitizers, the licence decision](https://github.com/leon1706-lol/Aether-quant/blob/main/development/Changelog.md#phase-v668--close-the-best-practices-gaps-strict-lint-the-c-accelerator-under-sanitizers-the-licence-decision)
 - [Phase V6.6.7 — The last tidy-up: the Scorecard near its ceiling, fuzzing, coverage after every commit, ten more proofs](https://github.com/leon1706-lol/Aether-quant/blob/main/development/Changelog.md#phase-v667--the-last-tidy-up-the-scorecard-near-its-ceiling-fuzzing-coverage-after-every-commit-ten-more-proofs)
-- [Phase V6.6.6 — Cleanup: the Scorecard sees releases, the public pages stop quoting by hand, coverage measures everything](https://github.com/leon1706-lol/Aether-quant/blob/main/development/Changelog.md#phase-v666--cleanup-the-scorecard-sees-releases-the-public-pages-stop-quoting-by-hand-coverage-measures-everything)
 <!-- AQ:CHANGELOG_LATEST_END -->
+
+**6.6.9: the multi-asset model book is back.**
+
+- **Two parts on paper.** The book is now a crypto trend sleeve (70%) beside a model book (30%) over equities, bond ETFs, crypto and forex, installed by the owner's rule as "reinstated, not verified". No pre-registered trial survived, and the Lean Sharpe fell from 0.65 to 0.57.
+- **A real optimizer.** `portfolio/book_optimizer.py` has seven ways to size a model's scores, a no-trade band and a forex loss guard. Twelve optimizers and six signal mixes were tried on pre-registered rules; none survived, and the model-free core did as well.
+- **Computed inside Lean, off by default.** `phase_v2.target_weights.source: "model_book"` lets `main.py` score the universe and decide the row itself. A parity run matched the file's 209 decision dates and 0.998 of its daily returns.
+- **Fixes.** The installed scaler had been overwritten under the models (restored and pinned, and the suite now fails on any change to the model files); HRP correlated different dates; a forex name was opened and swept the next bar; score tables for crypto and forex were used a bar early.
+- **A retrain that cannot overwrite.** `aq cycle retrain --procedure stack` refits the models into `ml/versions/`, after zipping the installed set, and `aq cycle status` suggests it 30 days before the models reach the kill switch's age limit.
 
 **6.6.8: the best-practices gaps.**
 

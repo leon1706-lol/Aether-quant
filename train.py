@@ -2871,8 +2871,8 @@ def write_scaler_artifacts(
     scaler: StandardScaler,
     manifest: dict,
     *,
-    scaler_path: Path = SCALER_PATH,
-    scaler_stats_path: Path = SCALER_STATS_PATH,
+    scaler_path: Path | None = None,
+    scaler_stats_path: Path | None = None,
     clip_sigma: float = 10.0,
 ) -> None:
     """Persists the fitted scaler as both the joblib pickle (training-only)
@@ -2886,6 +2886,10 @@ def write_scaler_artifacts(
     Extracted out of write_dataset_artifacts() so candidate training (V2-17)
     can write into ml/versions/<id>/ without touching the active scaler.
     """
+    # Resolved here, not bound as defaults: a default captured at import time keeps pointing at the real ml/ after a test
+    # moves the module's constants, which is how the installed scaler was rewritten under unchanged models (#382).
+    scaler_path = SCALER_PATH if scaler_path is None else scaler_path
+    scaler_stats_path = SCALER_STATS_PATH if scaler_stats_path is None else scaler_stats_path
     scaler_path.parent.mkdir(parents=True, exist_ok=True)
     joblib.dump(scaler, scaler_path)
     scaler_stats_path.write_text(

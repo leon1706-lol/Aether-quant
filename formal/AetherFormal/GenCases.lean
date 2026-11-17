@@ -15,6 +15,7 @@ import AetherFormal.Admission
 import AetherFormal.SessionResolve
 import AetherFormal.HoldoutOnce
 import AetherFormal.AccountOverrides
+import AetherFormal.ModelBookGuard
 import AetherFormal.Authorize
 import AetherFormal.RlSizing
 import AetherFormal.DrawdownGuard
@@ -916,6 +917,19 @@ def volTargetCases : Gen Json := do
       ("expected", Json.mkObj [("weights", toJson (out.map qj))])]]
   return file "vol_target" ["AetherFormal/VolTarget.lean"] cases
 
+/-! ### model_book_guard -/
+
+open ModelBookGuard in
+def modelBookGuardCases : Gen Json := do
+  let mut cases : List Json := []
+  for a in [false, true] do
+    for b in [false, true] do
+      for c in [false, true] do
+        cases := cases ++ [Json.mkObj [
+          ("input", Json.mkObj [("pins_ok", toJson a), ("row_finite", toJson b), ("model_age_ok", toJson c)]),
+          ("expected", Json.mkObj [("permit", toJson (permit a b c))])]]
+  return file "model_book_guard" ["AetherFormal/ModelBookGuard.lean"] cases
+
 def all : List (String × Gen Json) :=
   [("order_gate", orderGate), ("hash_chain", hashChain), ("book_neutrality", bookNeutrality),
    ("book_construction", bookConstruction), ("risk_controls", riskControls), ("kill_switch", killSwitch),
@@ -926,7 +940,9 @@ def all : List (String × Gen Json) :=
    -- V6.6.7: appended, so the earlier targets keep their seeds
    ("rl_sizing", rlSizing), ("drawdown_guard", drawdownGuard), ("backtest_gate", backtestGate), ("auto_rollback", autoRollback),
    ("premia_caps", premiaCaps), ("rebalance", rebalance), ("cash_sweep", cashSweep), ("dynamic_targets", dynamicTargetsCases),
-   ("forex_cap", forexCap), ("vol_target", volTargetCases)]
+   ("forex_cap", forexCap), ("vol_target", volTargetCases),
+   -- V6.6.9
+   ("model_book_guard", modelBookGuardCases)]
 
 end AetherFormal.GenCases
 

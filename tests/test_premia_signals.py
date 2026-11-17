@@ -269,3 +269,53 @@ def test_v667_the_cap_stage_holds_its_caps_and_never_flips_a_sign():
         assert sum(abs(v) for n, v in out.items() if classes[n] == "crypto") <= cap + 1e-9
 
     check()
+
+
+def test_v669_the_pooled_optimizer_is_the_pooled_path_and_a_closed_choice_changes_the_book():
+    from portfolio import book_optimizer
+
+    panel = _panel()
+    spec = next(s for s in SPECS if s.id == "model")
+    signal = sleeve_signal(spec, panel)
+    settings = WeightSettings(name_cap=10.0, gross_cap=10.0)
+    base = signal_to_weights(signal, panel, kind="cross_sectional_pooled", rebalance_every=20, settings=settings)
+    same = signal_to_weights(signal, panel, kind=XS, rebalance_every=20, settings=settings, optimizer=book_optimizer.pooled)
+    assert base.keys() == same.keys()
+    for date in base:
+        assert same[date] == pytest.approx(base[date])
+    inverse = signal_to_weights(signal, panel, kind=XS, rebalance_every=20, settings=settings, optimizer=book_optimizer.inverse_vol_ranks)
+    assert any(inverse[date] != pytest.approx(base[date]) for date in base if base[date])
+
+
+def test_v669_adjust_sees_the_previous_row_and_guard_runs_last_with_the_date():
+    from portfolio import book_optimizer
+
+    panel = _panel()
+    spec = next(s for s in SPECS if s.id == "model")
+    signal = sleeve_signal(spec, panel)
+    seen: list[tuple[dict, dict]] = []
+    guarded: list[str] = []
+
+    def adjust(previous, new):
+        seen.append((dict(previous), dict(new)))
+        return book_optimizer.no_trade_band(previous, new, band=0.5)
+
+    def guard(date, row):
+        guarded.append(date)
+        return {} if len(guarded) == 3 else row
+
+    rows = signal_to_weights(signal, panel, kind=XS, rebalance_every=20, optimizer=book_optimizer.pooled, adjust=adjust, guard=guard)
+    dates = list(rows)
+    assert guarded == dates and rows[dates[2]] == {}
+    assert seen[0][0] == {}  # the first decision has nothing to be held back by
+    assert seen[1][0] == rows[dates[0]]  # and the second sees exactly what the first emitted
+    assert seen[3][0] == {}  # after a guarded (empty) row the next adjustment starts from nothing, as the book holds nothing
+
+
+def test_a_book_with_no_measurable_variance_is_flat():
+    import pandas as pd
+
+    from portfolio.premia_signals import WeightSettings, scale_and_cap
+
+    raw = pd.Series({"A": 0.5, "B": -0.5})
+    assert scale_and_cap(raw, pd.DataFrame(0.0, index=["A", "B"], columns=["A", "B"]), {"A": "equity", "B": "equity"}, WeightSettings()) == {}

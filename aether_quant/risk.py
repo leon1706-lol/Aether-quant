@@ -9,6 +9,7 @@ from risk.asset_class_router import (
     route_multi_leg_option_sizing,
     route_position_sizing,
     should_liquidate_disabled_asset_class_position,
+    target_path_class_conflicts,
 )
 from risk.forex_risk import ForexSizingDecision, build_forex_position_sizing, cap_forex_target_to_book_weight, load_forex_pair_specs
 from risk.futures_risk import FuturesSizingDecision, build_futures_position_sizing, build_live_contract_spec, load_futures_contract_specs, resolve_futures_margin_source, rollover_due
@@ -99,6 +100,7 @@ __all__ = [
     "should_liquidate_disabled_asset_class_position",
     "should_lock_in_duration_beta",
     "should_scale_position",
+    "target_path_class_conflicts",
     "topology_sizing_multiplier",
     "write_kill_switch_manual_override",
     "write_manual_trade_lock_override",

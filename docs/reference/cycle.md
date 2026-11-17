@@ -104,6 +104,8 @@ The research cycle: generations sharing a book, the admission rule, decay, the f
         - shrunk_sharpe
         - simulate_generations
         - spec_of
+        - stack_plan
+        - stack_stages
         - stage_freeze
         - stage_gate
         - stage_hold
@@ -118,6 +120,7 @@ The research cycle: generations sharing a book, the admission rule, decay, the f
         - turnover
         - universe_for
         - update_generation_shares
+        - validate_plan_flags
         - window_rows
         - write_freeze
         - write_rules

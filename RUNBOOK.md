@@ -57,7 +57,7 @@ The paper period is the out-of-sample test no backtest can give. Success is **no
 
 - **Freeze first:** the `config.json` sha256, the model manifest, `phase_v2.diagnostics.book_history.paper_enabled: true`, no live capital.
 - **Minimum:** 6 rebalances and 120 trading days, after `aq paper-readiness` passes.
-- **Check:** `aq evaluate --paper-check --backtest-dir <paper run> --reference-dir backtests/<pinned run>`, the pinned run being <!--fact:lean.pin_run-->2026-11-07_17-54-01<!--/fact-->. It compares veto rate, lock share, gross exposure, fills per rebalance, slippage, fee bps, P&L per day, hit ratio and turnover.
+- **Check:** `aq evaluate --paper-check --backtest-dir <paper run> --reference-dir backtests/<pinned run>`, the pinned run being <!--fact:lean.pin_run-->2026-11-16_16-25-28<!--/fact-->. It compares veto rate, lock share, gross exposure, fills per rebalance, slippage, fee bps, P&L per day, hit ratio and turnover.
 - **Bands:** the 5-95% range of every 6-rebalance window of the reference run (`ml/evaluation/v650/paper_bands.json`). A target-weights run counts fill days as rebalances and has no veto or lock metrics.
 - **Daily:** a live run also runs `python scripts/daily_target_weights.py --candidate ml/target_weights_candidate.json --out ml/target_weights.csv` before each open, with `weights_sha256` empty.
 - **Verdict:** every metric inside its band. A metric outside is a finding to explain, written up before any capital decision.
@@ -94,6 +94,7 @@ Research a pre-registered round, freeze one candidate, read the holdouts once, s
 | Every session | `research-cycle.yml` appends returns, states and shares to `forward/generations.jsonl` | GitHub, free |
 | A generation needing fundamentals or a model | `aq cycle decide --generation G --weights <csv> --ledger-file <worktree>/forward/decisions.jsonl --session D`, then push the branch before that session's 22:45 UTC run (a decision pushed after it is missed, and is good for 25 sessions) | A host with the data |
 | k09's decision (g0005, an observer at zero capital) | Every 20 sessions, with your own address: `AQ_SEC_CONTACT=<you> python scripts/build_wide_info.py --parts extended --refresh`, then `python scripts/k09_decide.py --session D --out ml/cycle/k09_D.csv --ledger <worktree>/forward/decisions.jsonl --generation g0005`, push the branch before D's 22:45 UTC run. `aq cycle status` says when the next is due; a missed one shows `no_data`, never a false record | PC |
+| The model book's decision (g0006) | `python scripts/data_append_refresh.py`, `scripts/splice_holdout_dataset.py`, `python scripts/v669_book.py scores --through D`, then `python scripts/model_book_decide.py --session D --out ml/cycle/g0006_D.csv --ledger <worktree>/forward/decisions.jsonl --generation g0006`; push the branch before that session's 22:45 UTC run. It refuses on a model file that differs from `ml/artifact_pins.json`, on closes that stopped updating and on scores older than a week | A host with the models and the data |
 | Weekly | `aq cycle status` (also feeds `GET /api/generations`) | Anywhere |
 | A new idea | Write a round file, `aq cycle research rules --round <file> --draft <json>`, `scripts/vault_record.py`, then `score`, `placebo`, `gate`, `pbo`, `report`. A survivor: `freeze`, `hold`, R-LEAN21, R-EDGE2 | Training Codespace, or 14 GB of RAM |
 | Retrain | `aq cycle retrain --host codespace --procedure k06` | See below |
@@ -122,6 +123,16 @@ Research a pre-registered round, freeze one candidate, read the holdouts once, s
 2. A real run needs 14 GB of RAM (`--dry-run` says what this machine has). If `data_wide/` is absent, set `AQ_SEC_CONTACT` to your own address; it is used for that process only and never stored.
 3. `aq cycle retrain --host local --procedure k06`. Stages resume after a reboot.
 4. `aq cycle schedule install` registers a weekly retrain-if-due job. `aq cycle schedule show` prints it first.
+
+### Retraining the model stack
+
+The installed multitask, sequence and gating models are one generation (g0006). `aq cycle retrain --host codespace --procedure stack` refits all three and the walk-forward as one resumable run, and never writes over the installed models.
+
+1. **Prove the plumbing anywhere:** `aq cycle retrain --host local --procedure stack --smoke` runs every trainer's `--help` and fails on any flag the plan passes that a trainer does not list.
+2. **Sync first:** from PowerShell, `scripts/codespace_sync.ps1 -Mode push -IncludeDatasets`; `-CodeOnly` once results exist there.
+3. **Stages:** `snapshot_active` (zips the installed files to `ml/backups/pre_retrain_<id>.zip`), `factor_audit`, `dataset`, `parity_audit`, `multitask`, `sequence`, `gating`, `walk_forward`, `scores` (with `--score-end`, the last date the next round may read), `pins`, `register`, `report`. Each trainer writes to `ml/versions/<id>_<part>/`.
+4. **After it:** pull `ml/versions/` and `ml/cycle/retrain_<id>/` back, then judge the new vintage (`python scripts/v669_book.py verify`) before anything is installed. `aq cycle status` suggests the retrain 30 days before the models reach the kill switch's age limit.
+5. **`stack_asof`** (as-of labels, within-class ranked inputs) is a new procedure, not a refit: it only writes scores for a research round, and D1's rank-IC table (`ml/evaluation/v669/diagnostics_d1.json`) says where to look first.
 
 `--host codespace` drives the training Codespace from any machine and stops it however the run ends. It bills the owner's budget, so no schedule uses it unless asked.
 

@@ -62,6 +62,9 @@ Tools run by hand, outside the runtime and the `aq` CLI. Most Lean-reading work 
 | `build_filing_signals.py` | Earnings-release dates and year-on-year filing similarity from EDGAR, for the selection names (needs `AQ_SEC_CONTACT`, never stored) |
 | `k09_decide.py` | k09's weights for one session (a forward observer); RUNBOOK "Research cycle" |
 | `v664_write_rounds.py`, `v664_crypto_gbm.py`, `v664_register_observers.py`, `v664_eos_repin.py` | The V6.6.4 chain: the two pre-registered rounds, the crypto GBM trial, the observers, the EOS re-pin |
+| `v669_book.py` | V6.6.9: the multi-asset model book from rules to install: `rules`, `score`, `placebo`, `gate`, `pbo`, `diagnostics`, `report`, `freeze`, `scores` (the installed models', needs the freeze), `verify`, `blend`, `configs` (the Lean run configs), `judge`, `install`. Logic in `evaluation/model_book_round.py` |
+| `model_book_decide.py` | The model book's holding after one session as `ticker,weight`, refused on a changed model file or stale data or scores; `--ledger` appends the dated decision for g0006 |
+| `check_artifact_pins.py` | Fails when an installed model file differs from `ml/artifact_pins.json`; `aq verify --quick` runs it |
 | `ml_manifest.py` | SHA-256 of the installed models. Diff it across hosts and before a Lean run |
 
 ## Analysis and profiling

@@ -210,10 +210,15 @@ def bond_credit_timing(panel: ResearchPanel, spec: SleeveSpec) -> pd.DataFrame:
     return _direct(panel, {"HYG": tilt, "LQD": tilt, "IEF": -2.0 * tilt})
 
 
+def vix_ratio(panel: ResearchPanel) -> pd.Series:
+    """VIX over VIX3M as known at each session (above 1 is backwardation, a stressed market)."""
+    sessions = panel.known.index
+    return _asof(panel.fred.get("implied_volatility_vix"), sessions) / _asof(panel.fred.get("implied_volatility_3m"), sessions)
+
+
 def vix_term_structure(panel: ResearchPanel, spec: SleeveSpec) -> pd.DataFrame:
     """Long SPY while VIX is below VIX3M. `threshold` gives an on/off rule; without it, exposure grows with the gap."""
-    sessions = panel.known.index
-    ratio = _asof(panel.fred.get("implied_volatility_vix"), sessions) / _asof(panel.fred.get("implied_volatility_3m"), sessions)
+    ratio = vix_ratio(panel)
     threshold = spec.params.get("threshold")
     if threshold is not None:
         exposure = (ratio < float(threshold)).astype(float).where(ratio.notna())
@@ -284,7 +289,7 @@ def _raw_weights(row: pd.Series, kind: str, volatility: pd.Series, asset_class: 
         pieces = []
         for _, members in live.groupby(asset_class.get):
             if len(members) < 4:
-                continue
+                continue  # a class with under four live names has no cross-section to rank: it holds nothing, by design (V6.6.9, audit item 2)
             ranks = members.rank(pct=True) - (len(members) + 1) / (2.0 * len(members))
             if top_k:
                 # the book as it trades today: equal weight in the best and worst k (a third of a small class)
@@ -357,12 +362,23 @@ def signal_to_weights(
     end: str | None = None,
     listed: Callable[[str, str], bool] | None = None,
     top_k: int | None = None,
+    optimizer: Callable[[pd.Series, pd.DataFrame, Mapping[str, str]], pd.Series] | None = None,
+    long_window: int = 126,
+    adjust: Callable[[dict[str, float], dict[str, float]], dict[str, float]] | None = None,
+    guard: Callable[[str, dict[str, float]], dict[str, float]] | None = None,
 ) -> dict[str, dict[str, float]]:
-    """{date: {ticker: weight}} on every `rebalance_every`-th session from `start`, counted from `phase_offset`."""
+    """{date: {ticker: weight}} on every `rebalance_every`-th session from `start`, counted from `phase_offset`.
+
+    `optimizer` (V6.6.9, `portfolio.book_optimizer`) replaces the rank-to-weight step: it gets the session's scores, the
+    last `long_window` sessions of daily returns of the signal's names and the classes, and returns raw weights that
+    `scale_and_cap` then takes to the one volatility target. `adjust(previous_row, new_row)` runs after the caps (a
+    no-trade band, a partial move) and `guard(date, row)` last (a class loss guard). All three default to None, which is
+    the path as it was."""
     settings = settings or WeightSettings()
     daily = panel.known.pct_change(fill_method=None)
     sessions = [date for date in signal.index if (start is None or date >= start) and (end is None or date <= end)]
     rows: dict[str, dict[str, float]] = {}
+    previous: str | None = None
     position = {date: i for i, date in enumerate(panel.known.index)}
     for count, date in enumerate(sessions):
         if count < phase_offset or (count - phase_offset) % rebalance_every:
@@ -374,8 +390,17 @@ def signal_to_weights(
         window = daily.iloc[max(0, at - VOL_WINDOW + 1):at + 1]
         live = row.dropna().index
         history = window[live]
-        raw = _raw_weights(row, kind, history.std(), panel.asset_class, top_k)
-        rows[date] = scale_and_cap(raw, history.cov(), panel.asset_class, settings) if not raw.empty else {}
+        if optimizer is None:
+            raw = _raw_weights(row, kind, history.std(), panel.asset_class, top_k)
+        else:
+            raw = optimizer(row, daily.iloc[max(0, at - int(long_window) + 1):at + 1][list(row.index)], panel.asset_class)
+        weights = scale_and_cap(raw, history.cov(), panel.asset_class, settings) if not raw.empty else {}
+        if adjust is not None:
+            weights = adjust(rows[previous] if previous is not None else {}, weights)
+        if guard is not None:
+            weights = guard(date, weights)
+        rows[date] = weights
+        previous = date
     return rows
 
 
@@ -434,7 +459,11 @@ def combine_sleeves(
     end: str | None = None,
 ) -> dict[str, dict[str, float]]:
     """A fixed-rule mix of sleeves, never fitted to their returns: each month a sleeve's budget comes from the trailing year of its
-    own gross returns (inverse volatility, or hierarchical risk parity), and the sum is scaled to one volatility target."""
+    own gross returns (inverse volatility, or hierarchical risk parity), and the sum is scaled to one volatility target.
+
+    A sleeve whose trailing year has no variance (it has not started, or held nothing) gets no budget until the next month's recompute, and a
+    sleeve that starts mid-month waits for it too (V6.6.9, audit item 3). With no sleeve usable the budgets are equal. The model book's blend does
+    not use this: its shares are fixed (`portfolio/model_book.py`)."""
     from portfolio.hrp_allocation import compute_hrp_weights
 
     settings = settings or WeightSettings()

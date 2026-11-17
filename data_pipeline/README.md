@@ -22,7 +22,11 @@ Gets data into Lean's local `data/` folder, which training and backtesting both 
 
 ## Interactive Brokers: `ib_backfill.py`
 
-Futures and options for `aq fetch futures` and `aq fetch options`. Needs a running Gateway and `phase_v2.ib` (`aq ib status`); without them it fails cleanly. IB's historical API is per-contract and rate-limited, so a training set is built by repeated runs: `--contract-month` for a term structure, and `--family-ticker` to group contracts for term-structure and skew features. Lean's backtest engine only reads local files, so bars must be backfilled before a backtest can use them.
+Futures and options for `aq fetch futures` and `aq fetch options`.
+
+- **Needs:** a running Gateway and `phase_v2.ib` (`aq ib status`). Without them it fails cleanly.
+- **One contract at a time:** IB's historical API is per-contract and rate-limited, so a training set is built by repeated runs: `--contract-month` for a term structure, and `--family-ticker` to group contracts for term-structure and skew features.
+- **Backfill first:** Lean's backtest engine only reads local files, so bars must be on disk before a backtest can use them.
 
 ## Research sources
 

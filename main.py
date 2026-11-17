@@ -66,6 +66,7 @@ from risk.asset_class_router import (
     route_multi_leg_option_sizing,
     route_position_sizing,
     should_liquidate_disabled_asset_class_position,
+    target_path_class_conflicts,
 )
 from risk.forex_risk import cap_forex_target_to_book_weight, load_forex_pair_specs
 from risk.futures_risk import build_live_contract_spec, load_futures_contract_specs, resolve_futures_margin_source
@@ -92,6 +93,7 @@ from portfolio.cash_sweep import (
 from portfolio.financing import daily_financing_usd, load_rate_series, rate_asof
 from portfolio.target_weights import (
     NEXT_BAR_CLASSES,
+    drop_class_weights,
     equity_fee_usd,
     load_live_weight_file,
     load_weight_file,
@@ -133,6 +135,7 @@ from portfolio import (
 )
 from portfolio.book_neutrality import apply_book_neutrality
 from portfolio.rank_signal import MAIN_RANK_GROUP, grouped_cross_sectional_rank_scores, rank_group_by_symbol
+from portfolio.model_book import decides_at, permit_model_book_row, row_is_finite, session_scores
 # V5.5.0 (Problems.md #128) - light direct submodule import, same rule as
 # rolling_ic_gate below (never route main.py's startup through a heavier
 # package __init__).
@@ -1194,6 +1197,9 @@ class AetherQuantAlgorithm(QCAlgorithm):
             )
             allocation_method_raw = "rank"
         self.portfolio_book_allocation_method = allocation_method_raw
+        # V6.6.9 (#383): HRP reads one close per equity session (never each symbol's own bar calendar), over `hrp_window_bars`, linked by `hrp_linkage`
+        self.portfolio_book_hrp_window_bars = max(3, int(phase_v2_portfolio_book.get("hrp_window_bars", 25)))
+        self.portfolio_book_hrp_linkage = str(phase_v2_portfolio_book.get("hrp_linkage", "ward"))
         # V5.3.5 (development/Problems.md #102) - a rolling TRAILING
         # realized-IC book-engagement veto, independent of
         # min_rank_confidence_spread (see portfolio/rolling_ic_gate.py's
@@ -2175,7 +2181,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
         self._pending_entries_this_bar.clear()
         self._refresh_risk_state()
         self._liquidate_positions_for_disabled_asset_classes()
-        if self.target_weights_config.enabled:
+        if self.target_weights_config.enabled and not self._model_book_in_lean:
             self._target_weights_tick(slice)
             return
         self._apply_option_expiry_auto_close_sweep()
@@ -2761,6 +2767,13 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 if symbol_key in book_candidates:
                     book_candidates[symbol_key]["predicted_rank_20d"] = normalized_value
 
+        if self.is_equity_session_bar:
+            self._record_session_closes(slice)
+        if self._model_book_in_lean:
+            # V6.6.9 (#394): the model book decides here, from this tick's models, and the target-weights order path trades the row
+            self._model_book_tick(slice, pass1_state)
+            return
+
         # `enabled=False` (default) always resolves to {} here - every
         # symbol in Pass 2 below then finds no book_allocation, taking the
         # exact same code path as before this restructuring existed.
@@ -2910,13 +2923,13 @@ class AetherQuantAlgorithm(QCAlgorithm):
                     for hrp_symbol_key in book_allocations:
                         hrp_state = pass1_state.get(hrp_symbol_key)
                         hrp_closes = (
-                            [bar_entry["close"] for bar_entry in self.symbol_windows.get(hrp_state["symbol"], [])]
+                            list(self._session_closes.get(str(self.asset_lookup[hrp_symbol_key]["ticker"]), []))[-self.portfolio_book_hrp_window_bars:]
                             if hrp_state is not None
                             else []
                         )
                         hrp_returns_by_symbol[hrp_symbol_key] = pct_returns_from_closes(hrp_closes)
                     hrp_weights_by_symbol = apply_hrp_weights(
-                        book_allocations, hrp_returns_by_symbol, gross_exposure=1.0
+                        book_allocations, hrp_returns_by_symbol, gross_exposure=1.0, linkage_method=self.portfolio_book_hrp_linkage
                     )
 
                 # V5.1 Phase 1 (development/Problems.md, item 6) - cross-
@@ -4170,6 +4183,15 @@ class AetherQuantAlgorithm(QCAlgorithm):
         leaves the run with no decisions, so it trades nothing rather than something other than what was frozen."""
         self.target_weights_config = resolve_target_weights_config(self.phase_v2.get("target_weights"))
         self._target_weights: dict[str, dict[str, float]] = {}
+        # V6.6.9: the closes kept at each equity session (both paths: the HRP sizing reads them), and the in-Lean model book's state
+        self._session_dates: deque = deque(maxlen=self.long_bar_history_size)
+        self._session_closes: dict[str, deque] = {}
+        self._model_book_in_lean = False
+        self._model_book_definition = None
+        self._model_book_blocked = ""
+        self._model_book_row = None
+        self._model_book_score_history: dict[str, dict[str, float]] = {}
+        self._model_book_noted: set[str] = set()
         self._target_pending: dict[str, float] = {}
         self._target_financing_date = None
         self._target_rf_dates: list[str] = []
@@ -4184,7 +4206,8 @@ class AetherQuantAlgorithm(QCAlgorithm):
         if not config.enabled:
             return
         try:
-            self._target_weights = load_weight_file(self.root_path / config.weights_path, config.weights_sha256)
+            if config.source != "model_book":
+                self._target_weights = load_weight_file(self.root_path / config.weights_path, config.weights_sha256)
         except (OSError, ValueError) as error:
             self.Debug(f"target_weights: no decisions, the run will not trade - {error}")
         self._target_rf_dates, self._target_rf_rates = load_rate_series(
@@ -4204,10 +4227,118 @@ class AetherQuantAlgorithm(QCAlgorithm):
                 self.Securities[symbol].SetFeeModel(_BpsEquityFeeModel(config.equity_fee_bps, config.equity_min_fee_usd))
         if self._cash_sweep_symbol is not None:
             self.Securities[self._cash_sweep_symbol].SetFeeModel(_BpsEquityFeeModel(config.equity_fee_bps, config.equity_min_fee_usd))
+        self._drop_disabled_class_weights()
+        if config.source == "model_book":
+            self._setup_model_book()
         if config.live_reload and self.runtime_mode != "backtest" and self._equity_symbols:
             # Row D is written after D's close, so it can only meet its fill (D+1's open) from a tick before that open.
             anchor = self._equity_symbols[0]
             self.Schedule.On(self.DateRules.EveryDay(anchor), self.TimeRules.BeforeMarketOpen(anchor, 5), self._target_premarket_tick)
+
+    def _drop_disabled_class_weights(self) -> None:
+        """#384: the per-bar sweep closes every position of a disabled asset class, so a weight file naming one would open and
+        close it again each session. Drop those names from every row; the engine drops the same names (`drop_class_weights`)."""
+        names = {ticker for row in self._target_weights.values() for ticker in row}
+        conflicts = target_path_class_conflicts(
+            names, self._target_class_by_ticker, futures_enabled=self.futures_risk_enabled,
+            options_enabled=self.options_risk_enabled, forex_enabled=self.forex_risk_enabled,
+        )
+        if conflicts:
+            self.Debug(f"target_weights: dropping {conflicts} from every row, the asset class is disabled")
+            self._target_weights = drop_class_weights(self._target_weights, self._target_class_by_ticker, conflicts)
+
+    def _setup_model_book(self) -> None:
+        """`phase_v2.target_weights.source == "model_book"` (V6.6.9, #394; default off): this run computes each session's row itself from the
+        installed models, with `portfolio/model_book.py`'s one row function, and sends it through the target-weights order path. A
+        definition that cannot be read, or model files that differ from `ml/artifact_pins.json`, leave the book holding what it has."""
+        from retraining.artifact_pins import artifact_problems
+
+        settings = self.phase_v2.get("model_book") or {}
+        self._model_book_in_lean = True
+        # unbounded: the row counts its rebalances from `history_start`, so dropping the oldest sessions would move the phase (a few hundred floats per name a year)
+        self._session_dates = deque()
+        self._session_closes = {}
+        try:
+            from portfolio.model_book import parse_definition, weight_settings
+
+            path = self.root_path / str(settings.get("candidate_path", "ml/target_weights_candidate.json"))
+            self._model_book_definition = parse_definition(json.loads(path.read_text(encoding="utf-8")))
+            self._model_book_weight_settings = weight_settings(self._model_book_definition)
+            problems = artifact_problems(self.root_path / "ml", self.root_path / str(settings.get("artifact_pins_path", "ml/artifact_pins.json")))
+            if problems:
+                self._model_book_blocked = "the model files are not the pinned ones: " + "; ".join(problems)
+        except (OSError, ValueError, KeyError, TypeError) as error:
+            self._model_book_blocked = f"the definition or the pins cannot be read: {error}"
+        if self._model_book_blocked:
+            self.Debug(f"model_book: holding, {self._model_book_blocked}")
+
+    def _equity_decision_date(self, slice: Slice) -> str | None:
+        for symbol in self._equity_symbols:
+            bar = slice.Bars.get(symbol)
+            if bar is not None:
+                return bar.Time.date().isoformat()
+        return None
+
+    def _record_session_closes(self, slice: Slice) -> None:
+        """The last close each symbol has at this equity session (a crypto or forex symbol's is its bar dated the day before, which is what
+        `features/cross_asset_timing.py` and the offline panel call known). The HRP sizing and the model book read these, one per session."""
+        date = self._equity_decision_date(slice)
+        if date is None:
+            return
+        self._session_dates.append(date)
+        for symbol in self.symbols:
+            ticker = str(self.asset_lookup[str(symbol)]["ticker"])
+            window = self.symbol_windows.get(symbol)
+            series = self._session_closes.setdefault(ticker, deque(maxlen=self._session_dates.maxlen))
+            series.append(float(window[-1]["close"]) if window else float("nan"))
+
+    def _model_book_note(self, reason: str) -> None:
+        if reason not in self._model_book_noted:
+            self._model_book_noted.add(reason)
+            self.Debug(f"model_book: holding, {reason}")
+
+    def _model_book_tick(self, slice: Slice, pass1_state: dict) -> None:
+        """One tick of the in-Lean model book: on an equity session, score the universe and decide the row; on every tick, the shared
+        target-weights tick (its orders, the T-bill sweep, next-bar crypto and forex orders). A held book is the default: no row, no change."""
+        self._model_book_row = None
+        if self.is_equity_session_bar and self._session_dates:
+            heads = {}
+            for symbol_key, state in pass1_state.items():
+                prediction = state.get("sequence_prediction") or {}
+                if prediction.get("rank_20d") is not None and prediction.get("rank_5d") is not None:
+                    heads[str(self.asset_lookup[symbol_key]["ticker"])] = {"rank_20d": prediction["rank_20d"], "rank_5d": prediction["rank_5d"]}
+            history = self._model_book_score_history
+            history[self._session_dates[-1]] = session_scores(heads)
+            if not self.is_warming_up:
+                self._model_book_row = self._model_book_decision()
+        self._target_weights_tick(slice)
+
+    def _model_book_decision(self) -> dict | None:
+        if self._model_book_definition is None or self._model_book_blocked:
+            self._model_book_note(self._model_book_blocked or "there is no definition")
+            return None
+        if not decides_at(self._model_book_definition, self._session_dates, self._session_dates[-1]):
+            return None  # between decisions the book holds what it has: nothing is built
+        from portfolio.model_book import lean_session_row
+        from portfolio.premia_signals import sleeve_signal
+
+        book_settings, sleeve_settings = self._model_book_weight_settings
+        try:
+            row = lean_session_row(
+                self._model_book_definition, dates=list(self._session_dates), closes={ticker: list(series) for ticker, series in self._session_closes.items()},
+                asset_class=self._target_class_by_ticker, score_history=self._model_book_score_history, settings=book_settings,
+                sleeve_settings=sleeve_settings, sleeve_signal=sleeve_signal,
+            )
+        except (ValueError, KeyError, ArithmeticError) as error:
+            self._model_book_note(f"the row could not be built: {error}")
+            return None
+        age = self._model_age_days()
+        limit = float(self._kill_switch_config.get("max_model_age_days", float("inf")))
+        if not permit_model_book_row(not self._model_book_blocked, row_is_finite(row), age is None or age <= limit):
+            self._model_book_note("the row is not finite or the models are past their age limit")
+            return None
+        self.Debug("model_book_row " + json.dumps({"date": self._session_dates[-1], "row": row}, sort_keys=True))
+        return row
 
     def _target_premarket_tick(self) -> None:
         """Paper and live with `live_reload`: re-read the growing file and apply the newest row not applied yet."""
@@ -4218,6 +4349,7 @@ class AetherQuantAlgorithm(QCAlgorithm):
         except (OSError, ValueError) as error:
             self.Debug(f"target_weights: reload failed, holding - {error}")
             return
+        self._drop_disabled_class_weights()
         found = next_unapplied_row(self._target_weights, self.Time.date().isoformat(), self._target_applied_through)
         if found is None:
             return
@@ -4309,9 +4441,12 @@ class AetherQuantAlgorithm(QCAlgorithm):
             if bar is not None:
                 decision_date = bar.Time.date().isoformat()
                 break
-        if self.target_weights_config.live_reload and self.runtime_mode != "backtest":
+        if self._model_book_in_lean:
+            target, self._model_book_row = self._model_book_row, None
+        elif self.target_weights_config.live_reload and self.runtime_mode != "backtest":
             return  # `_target_premarket_tick` applies rows on this path
-        target = weights_at_tick(self._target_weights, decision_date) if decision_date else None
+        else:
+            target = weights_at_tick(self._target_weights, decision_date) if decision_date else None
         if target is None:
             return
         self._apply_target_row(target)

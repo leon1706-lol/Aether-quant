@@ -11,10 +11,10 @@
 
 ## What each class does
 
-- **Crypto:** the shipped book. The long-only sleeve in `ml/target_weights.csv` trades these pairs.
-- **Equities:** features for the models, and the benchmark (`SPY`). `BIL` is the T-bill sweep (`phase_v2.cash_sweep`), configured apart from this list.
+- **Crypto:** the long-only sleeve (70% of the book) and the model book's crypto names (5% each, 15% for the class). Both are in `ml/target_weights.csv`.
+- **Equities:** the model book's main class (80% class cap, 5% per name), the models' features, and the benchmark (`SPY`). `BIL` is the T-bill sweep (`phase_v2.cash_sweep`), configured apart from this list.
 - **Bonds:** span the duration curve (short to long) and the credit spectrum (Treasury, investment grade, high yield, municipal, emerging, international), so the yield-curve and credit features mean something. They trade through Lean's equity path.
-- **Forex:** feature class only. `phase_v2.forex_risk.enabled` is false by rule R-FX6 (#181).
+- **Forex:** traded by the model book at a small cap (6% per name, 12% for the class, which is what the $5,000 minimum trade needs), behind a loss guard that holds the class out while its own paper record has lost more than 1% of the book over 60 sessions. `phase_v2.forex_risk.enabled` is true since V6.6.9 (R-FX6, #181, kept it false while no book traded forex; #384).
 - **Every asset is trading-eligible** by the `asset_quality` rule, which `train.py` re-evaluates on each dataset build (`ml/dataset_manifest.json`).
 
 ## Known issues

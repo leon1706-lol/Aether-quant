@@ -11,20 +11,26 @@ Research and audit tools (V6.4.3): one report for any signal, the probability of
         - alpha_proof_report
         - alpha_regression
         - annual_sharpe
+        - annual_volatility
         - append_trial
         - audit_leakage
         - benchmark_daily_returns
         - block_bootstrap_mean_ci
+        - book_trials
         - build_context
         - build_factor_returns
         - build_factor_scores
         - build_registry
         - calendar_rows
         - candidate_ids
+        - candidate_pool
+        - class_breadth
         - collect_trials
+        - control_trials
         - crypto_cell
         - crypto_ic
         - daily_gap_breakdown
+        - daily_rank
         - daily_returns_for
         - dedupe
         - deflated_sharpe_from_inputs
@@ -39,6 +45,9 @@ Research and audit tools (V6.4.3): one report for any signal, the probability of
         - head_ic
         - ic_summary
         - identity_check
+        - install_verdict
+        - installed_score_tables
+        - is_eligible
         - label_shuffle_check
         - lag_onto
         - learning_curve
@@ -47,19 +56,26 @@ Research and audit tools (V6.4.3): one report for any signal, the probability of
         - load_ohlcv
         - load_raw_closes
         - load_research_frame
+        - load_score_table
         - max_drawdown
         - measured_annualization
+        - mix_trials
+        - model_settings
         - nulls_for
         - passes_sharpe_clauses
         - path_config
         - period_report
         - phase_offsets
+        - pick_candidate
         - placebo_p_value
         - placebo_sharpes
         - predict_scores
         - probability_of_backtest_overfitting
         - project_tickers
         - r_alpha1
+        - rank_ic_diagnostics
+        - read_dataset_columns
+        - read_dataset_rows
         - read_info
         - read_ledger
         - rung_attribution
@@ -75,6 +91,7 @@ Research and audit tools (V6.4.3): one report for any signal, the probability of
         - tail_nan_check
         - to_sessions
         - training_gap_report
+        - universe_tickers
         - weights_for
         - wide_config_for
         - window_report

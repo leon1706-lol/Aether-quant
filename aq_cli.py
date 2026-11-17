@@ -670,7 +670,7 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
     ],
     "portfolio": [
         # V6.6.7: each module's own test file
-        "test_book_construction.py", "test_hrp_allocation.py",
+        "test_book_construction.py", "test_hrp_allocation.py", "test_book_optimizer.py", "test_v669_fixes.py", "test_model_book.py",
         "test_portfolio_book_construction.py", "test_options_strategy.py", "test_cash_sweep.py",
         "test_target_weights.py", "test_financing.py", "test_premia_signals.py", "test_daily_target_weights.py",
         "test_options_strategy_multileg.py", "test_options_arbitrage_detector.py",
@@ -780,6 +780,8 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         "test_v2_pipeline_manifest.py",
         # V5.1 Phase 6 (production safety) - retraining/auto_rollback.py.
         "test_auto_rollback.py",
+        # V6.6.9
+        "test_artifact_pins.py",
     ],
     "notifications": ["test_telegram_alerts.py", "test_telegram_client.py", "test_telegram_worker.py", "test_postgres_telegram.py"],
     "storage": ["test_postgres_triggers.py", "test_postgres_worker.py", "test_config_cache.py", "test_runtime_config_io.py", "test_experience_queue.py"],
@@ -801,6 +803,8 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         "test_live_readiness.py", "test_live_readiness_io.py", "test_backup_postgres.py",
     ],
     "evaluation": [
+        # V6.6.9: the model book's research, its stages and the chunked dataset reader
+        "test_model_book_research.py", "test_model_book_round.py", "test_dataset_io.py",
         # V6.6.7: each module's own test file
         "test_audit_runners.py", "test_benchmark_comparison.py", "test_factor_neutralization_check.py", "test_tranche_book.py", "test_wide_context.py",
         # V6.6.1 - the third round's tools, and generations that hand over.
@@ -914,6 +918,7 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         # V6.6.7 (#368-#376): ten more specs
         "test_formal_differential_rl_sizing.py", "test_formal_differential_drawdown_guard.py", "test_formal_differential_backtest_gate.py", "test_formal_differential_auto_rollback.py", "test_formal_differential_premia_caps.py",
         "test_formal_differential_rebalance.py", "test_formal_differential_cash_sweep.py", "test_formal_differential_dynamic_targets.py", "test_formal_differential_forex_cap.py", "test_formal_differential_vol_target.py",
+        "test_formal_differential_model_book_guard.py",
     ],
     "meta": [
         "test_ci_workflows.py", "test_aq_test_ruff_flag.py", "test_packaging_modules.py", "test_docs_links.py", "test_docs_facts.py",
@@ -936,6 +941,7 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
     ],
     # V6.6.6 (#359): one test file per script under scripts/, so `aq test --coverage` reaches every tracked line
     "scripts": [
+        "test_v669_book.py", "test_model_book_decide.py", "test_check_artifact_pins.py",
         "test_render_lean_credentials.py", "test_exception_scope.py", "test_main_option_order.py",
         "test_coinbase_listing_dates.py", "test_fetch_cash_sweep_data.py", "test_gate_sweep_score_stage.py", "test_gate_value_compare.py",
         "test_promotion_gate_null_gate_scheme.py", "test_script_entry_points.py", "test_v643_rcal4.py", "test_v643_sector_cap_frequency.py",
@@ -1017,7 +1023,7 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         "test_rl_sizing_research_runtime.py", "test_select_feature_subset_runtime.py",
         "test_compare_training_variants_runtime.py",
         "test_v664_register_observers_runtime.py",
-        "test_main_world_book.py", "test_main_world_config.py", "test_main_world_more.py", "test_main_world_options.py", "test_main_world_risk.py",
+        "test_main_world_book.py", "test_main_model_book_mode.py", "test_main_world_config.py", "test_main_world_more.py", "test_main_world_options.py", "test_main_world_risk.py",
         "test_main_world_setup.py", "test_main_world_signals.py", "test_main_world_target_weights.py",
         "test_main_world_bars.py", "test_main_world_options_more.py",
         "test_main_world_tail.py",
@@ -1507,12 +1513,21 @@ def _cycle_status(args: argparse.Namespace, *, write: bool = True) -> dict:
 
         behind = int(np.busday_count(session, _datetime.datetime.now(_datetime.timezone.utc).date().isoformat()))
     actions = due_actions(
-        entries, judged, session=session, sessions_behind=behind, sessions_since_retrain=sessions_since_retrain(ML_DIR / "cycle", sessions), broker_keys=keys, record_started=bool(rows), policy_enabled=bool(policy.get("enabled")),
+        entries, judged, session=session, sessions_behind=behind, sessions_since_retrain=sessions_since_retrain(ML_DIR / "cycle", sessions), broker_keys=keys, record_started=bool(rows),
+        policy_enabled=bool(policy.get("enabled")), model_age_days=_installed_model_age_days(),
     )
     view = status_view(entries, judged, actions, session=session, policy=policy)
     if write:
         (_generations_dir() / "status.json").write_text(json.dumps(view, indent=1, sort_keys=True) + "\n", encoding="utf-8", newline="\n")
     return view
+
+
+def _installed_model_age_days() -> float | None:
+    """Days since the installed sequence model was written (the age `main.py` checks against the kill switch's limit), or None with no model."""
+    import time as _time
+
+    path = ML_DIR / "sequence_model.json"
+    return max(0.0, (_time.time() - path.stat().st_mtime) / 86400.0) if path.exists() else None
 
 
 def _cycle_promote(args: argparse.Namespace) -> int:
@@ -2651,7 +2666,8 @@ def _phase_deflation_inputs() -> dict | None:
     if not registry_path.exists() or not any(entry["role"] == "candidate" for entry in current):
         return None
     registry = json.loads(registry_path.read_text(encoding="utf-8"))
-    return deflation_inputs([*read_ledger(evaluation / "v650" / "trial_ledger.jsonl"), *current], registry, "v660_selection")
+    earlier = [*read_ledger(evaluation / "v650" / "trial_ledger.jsonl"), *read_ledger(evaluation / "v669" / "trial_ledger.jsonl")]
+    return deflation_inputs([*earlier, *current], registry, "v660_selection")
 
 
 def _forward_ledger_rows(args: argparse.Namespace) -> list[dict]:
@@ -4028,7 +4044,10 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
     feature_schema = json.loads(schema_path.read_text(encoding="utf-8"))
     feature_names = feature_schema["model_input_names"]
 
-    dataset = pd.read_csv(dataset_path)
+    # a chunked read that keeps only this split's rows: the whole 825 MB file does not fit in the PC's memory (#389)
+    from evaluation.dataset_io import read_dataset_rows
+
+    dataset = read_dataset_rows(dataset_path, split=None if split == "all" else split)
     # The as-live book keeps EVERY row with features (observation-only names included): main.py's percentile
     # normalisation runs over all of them. The idealized runs keep the training-eligible subset as before.
     as_live_dataset = None
@@ -5244,7 +5263,7 @@ def build_parser() -> argparse.ArgumentParser:
     cycle_decide_parser.add_argument("--session", required=True)
     cycle_retrain_parser = cycle_subparsers.add_parser("retrain", help="Retrain on this machine or the training Codespace, resumable (RAM preflight; --smoke proves the plumbing anywhere)")
     cycle_retrain_parser.add_argument("--host", choices=["local", "codespace"], required=True)
-    cycle_retrain_parser.add_argument("--procedure", default=None, help="A procedure in scripts/cycle_retrain.py, e.g. k06")
+    cycle_retrain_parser.add_argument("--procedure", default=None, help="A procedure in scripts/cycle_retrain.py: k06, k07, or stack (the model stack: multitask, sequence, gating and the walk-forward)")
     cycle_retrain_parser.add_argument("--smoke", action="store_true", help="Every stage on a tiny synthetic panel")
     cycle_retrain_parser.add_argument("--dry-run", action="store_true", help="Print the stages and the preflight, and stop")
     cycle_retrain_parser.add_argument("--if-due", action="store_true", help="Do nothing unless `aq cycle status` says a retrain is due")

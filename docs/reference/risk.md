@@ -57,6 +57,7 @@ Risk controls: the kill switch, the bounded sizing multipliers and the exposure 
         - should_liquidate_disabled_asset_class_position
         - should_lock_in_duration_beta
         - should_scale_position
+        - target_path_class_conflicts
         - topology_sizing_multiplier
         - write_kill_switch_manual_override
         - write_manual_trade_lock_override

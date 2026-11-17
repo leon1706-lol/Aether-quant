@@ -126,18 +126,29 @@ def main() -> int:
             print(f"{date}: wrote the blended row")
         return 0
 
-    from v650_lean import candidate_rows
-    from v650_research import load_context
-
     definition = json.loads(Path(args.candidate).read_text(encoding="utf-8"))
-    context = load_context()
-    date = args.date or str(context.panel.known.index[-1])
-    problems = data_problems(context, date)
+    if definition.get("kind") == "blend":
+        # V6.6.9: the installed book is a blend of the crypto sleeve and the model book; its rows need the installed models' scores up to the session
+        from evaluation import model_book_round as rnd
+
+        out_dir = ROOT / "ml" / "evaluation" / "v669"
+        context = rnd.load_round_context(ROOT, {name: out_dir / "scores" / f"long_{name[-2:]}.csv" for name in ("ml_a1", "ml_a2", "ml_a3")})
+        date = args.date or str(context.panel.known.index[-1])
+        problems = [*data_problems(context, date), *filter(None, [rnd.score_problem(context, date)])]
+        row_of = lambda: rnd.blend_row(definition, context, date)  # noqa: E731
+    else:
+        from v650_lean import candidate_rows
+        from v650_research import load_context
+
+        context = load_context()
+        date = args.date or str(context.panel.known.index[-1])
+        problems = data_problems(context, date)
+        row_of = lambda: row_for_date(definition, context, date, candidate_rows=candidate_rows, history_start=str(definition.get("history_start", "2014-12-01")))  # noqa: E731
     if problems:
         for problem in problems:
             print(f"refusing to decide: {problem}", file=sys.stderr)
         return 1
-    row = row_for_date(definition, context, date, candidate_rows=candidate_rows, history_start=str(definition.get("history_start", "2014-12-01")))
+    row = row_of()
     if row is None:
         print(f"{date}: not a rebalance day, nothing to write")
         return 0

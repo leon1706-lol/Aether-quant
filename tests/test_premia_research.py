@@ -96,3 +96,15 @@ def test_gate_keeps_uncorrelated_sleeves_up_to_the_budget_by_sharpe():
 
 def test_gate_with_no_pass_returns_no_survivors():
     assert selection_gate([_score("x", sharpe=0.1)], {"x": PASS}) == {"survivors": [], "failed": {"x": "sharpe"}}
+
+
+def test_class_breadth_counts_rebalance_rows_holding_enough_classes_and_is_zero_with_no_rows():
+    from evaluation.premia_research import annual_volatility, class_breadth
+
+    classes = {"A": "equity", "B": "bond", "C": "crypto", "D": "forex"}
+    rows = {"d1": {"A": 0.1, "B": 0.1, "C": 0.1}, "d2": {"A": 0.1, "B": 0.0}, "d3": {"A": 0.1, "B": 0.1, "C": 0.0, "D": 0.1}}
+    assert class_breadth(rows, classes) == pytest.approx(2.0 / 3.0)
+    assert class_breadth(rows, classes, minimum=2) == pytest.approx(2.0 / 3.0)
+    assert class_breadth({}, classes) == 0.0
+    flat = pd.Series([0.001] * 30 + [-0.001] * 30)
+    assert annual_volatility(flat) == pytest.approx(0.001 * (365 ** 0.5), rel=0.05) and annual_volatility(flat.iloc[:5]) is None

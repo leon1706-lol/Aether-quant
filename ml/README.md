@@ -2,9 +2,9 @@
 
 Models, datasets and evidence. Gitignored, except for what must survive a clone. Regenerate with `aq train`.
 
-**What Lean loads now:** `target_weights.csv`, the shipped sleeve's weights, pinned by `phase_v2.target_weights.weights_sha256`.
+**What Lean loads now:** `target_weights.csv`, the shipped weights, pinned by `phase_v2.target_weights.weights_sha256`; and, only when `phase_v2.target_weights.source` is `"model_book"`, the models themselves.
 
-**Model artifacts** (trained and installed, not driving the shipped book)
+**Model artifacts** (trained and installed; they drive the model book's 30% share of the shipped book, scored offline by `scripts/model_book_decide.py`)
 
 | Files | What |
 |---|---|
@@ -15,6 +15,7 @@ Models, datasets and evidence. Gitignored, except for what must survive a clone.
 | `gating_*`, `topology_*`, `rl_sizing_*` | Optional overlays, off until trained or enabled |
 | `training_metrics.json`, `dataset_manifest.json`, `dataset_inventory.json` | Metrics and dataset summaries |
 | `datasets/` | The feature CSVs |
+| `artifact_pins.json` | Tracked. The sha256 of every installed model file, written by an install or a restore only (V6.6.9, #382). `scripts/check_artifact_pins.py` checks it |
 
 **Other folders**
 

@@ -45,3 +45,18 @@ def test_a_sleeve_is_scored_over_its_phases_and_placebos_are_drawn_over_the_same
     assert score["id"] == "e" and score["phases"] == 5 and set(score["daily"]) == {0, 1, 2, 3, 4}
     sharpes = premia_research.placebo_sharpes(spec, context, "sign_block", start="2018-06-01", end="2019-09-30", draws=3)
     assert 0 < len(sharpes) <= 3 and all(isinstance(value, float) for value in sharpes)
+
+
+def test_v669_a_spec_naming_an_optimizer_is_sized_by_it_and_one_naming_none_is_unchanged(context):
+    from portfolio.premia_signals import XS, sleeve_signal
+
+    plain = SleeveSpec("p", "T", XS, "low_volatility", ("equity",), 5, {})
+    named = SleeveSpec("n", "T", XS, "low_volatility", ("equity",), 5, {"optimizer": "pooled", "band": 0.3})
+    partial = SleeveSpec("q", "T", XS, "low_volatility", ("equity",), 5, {"optimizer": "inverse_vol", "partial": 0.5})
+    kwargs = {"start": "2018-06-01", "end": "2019-09-30", "phase_offset": 0}
+    base = premia_research.weights_for(plain, context, sleeve_signal(plain, context.panel), **kwargs)
+    with_band = premia_research.weights_for(named, context, sleeve_signal(named, context.panel), **kwargs)
+    moved = premia_research.weights_for(partial, context, sleeve_signal(partial, context.panel), **kwargs)
+    assert base.keys() == with_band.keys() == moved.keys()
+    with pytest.raises(ValueError, match="unknown optimizer"):
+        premia_research.weights_for(SleeveSpec("x", "T", XS, "low_volatility", ("equity",), 5, {"optimizer": "nope"}), context, sleeve_signal(plain, context.panel), **kwargs)

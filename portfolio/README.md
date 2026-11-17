@@ -12,13 +12,22 @@ Decides what the book holds: target weights, the rank-based book and its neutral
 - **Costs:** `financing.py::daily_financing_usd` adds margin interest, stock borrow and FX swap, which Lean doesn't charge.
 - **Idle cash:** `cash_sweep.py` (`phase_v2.cash_sweep`) sweeps into T-bills (BIL) under the no-borrow and margin limits.
 
+## The multi-asset model book (V6.6.9)
+
+The installed models score all 103 assets, and a book sized by a real optimizer trades four classes (equities and ETFs, bond ETFs, crypto, forex at a small cap with a loss guard) through the same order path. The research ran on the offline engine (`evaluation/model_book_round.py`); nothing here is a verified edge.
+
+- **`book_optimizer.py`:** the closed registry of optimizers (`pooled`, `inverse_vol`, `class_risk_parity`, `hrp`, `mean_variance`, `tilted_core`, `core`) that turn one session's scores and the trailing returns into raw weights, which `scale_and_cap` then takes to one volatility target. Also `no_trade_band`, `ClassLossGuard` (a class is held only while its own paper record is within a loss limit) and `stress_scaler` (halve the row while VIX is above VIX3M).
+- **`model_book.py`:** the book as a definition (`parse_definition`: a blend of generations, each a `SleeveSpec`) and the one function that turns it into a row (`row_for_session`, `holding_for_session`). The research, `scripts/model_book_decide.py` and the in-Lean mode all call it. `session_scores` is the live twin of the walk-forward score table, and `permit_model_book_row` is the gate (`ModelBookGuard.lean`).
+- **In Lean (`phase_v2.target_weights.source: "model_book"`, default `"file"`):** `main.py` scores the universe with Pass 1, calls `lean_session_row` on the closes it kept, and sends the row through `_apply_target_row`. A model file that differs from `ml/artifact_pins.json`, an unreadable definition or a non-finite row holds the book.
+- **Sizing for forex:** the name cap is 6%, because `forex_min_trade_usd` is $5,000 of a $100,000 book and a 3% name could never open.
+
 ## Generations
 
 `generation_blend.py` (stdlib only) shares a book among generations: `update_generation_shares` (a ladder), `dynamic_generation_shares` (shares from each record), `blend_generation_rows`. Off by default; see RUNBOOK "Research cycle".
 
 ## The rank-based book
 
-Trained and tested, not trading (`phase_v2.portfolio_book`).
+The legacy gated path: trained and tested, selectable with `target_weights.enabled: false`, not trading (`phase_v2.portfolio_book`). The model book above is the path that trades.
 
 **`book_construction.py::build_rank_based_book()`** picks top and bottom N by predicted rank. A symbol absent from the result means no view, not flat.
 
@@ -33,7 +42,7 @@ Trained and tested, not trading (`phase_v2.portfolio_book`).
 
 **`book_neutrality.py::apply_book_neutrality()`** sizes the selected book: per-name cap, sector-neutral demean, dollar-neutral (scaling the larger leg down, never up), gross cap. `reapply_sector_cap_after_dollar_neutral` keeps the sector cap true at the end, which the Lean 4 proofs found the dollar step could break. The offline simulator calls the same function.
 
-**HRP (`phase_v2.portfolio_book.allocation_method: "hrp"`)** re-weights the same selection with inverse-variance weights (`hrp_allocation.py`, Lopez de Prado 2016). Thin history falls back to equal weight per leg, and the default `"rank"` never imports scipy.
+**HRP (`phase_v2.portfolio_book.allocation_method: "hrp"`)** re-weights the same selection with inverse-variance weights (`hrp_allocation.py`, Lopez de Prado 2016). It reads one close per equity session over `hrp_window_bars` (25), linked by `hrp_linkage` (`ward`), aligned at their last return; a flat or short-history name takes its leg's mean weight. The default `"rank"` never imports scipy.
 
 **`rank_signal.py`:** the head blend the live book reads, with promotion gates, grouped ranks and `sector_relative` normalization. `rolling_ic_gate.py` vetoes a rebalance on trailing IC.
 

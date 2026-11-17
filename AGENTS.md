@@ -1,6 +1,6 @@
 # AGENTS.md: guidance for AI coding agents
 
-**Aether Quant** is a self-adapting trading system on QuantConnect Lean and PyTorch, and a toolkit (`aether_quant`, `aq`) for building other algorithms. The shipped book is a long-only crypto trend sleeve, on paper, with no verified edge. A model stack, research cycle, kill switch, reconciliation and controlled retraining surround it. Read this before changing anything.
+**Aether Quant** is a self-adapting trading system on QuantConnect Lean and PyTorch, and a toolkit (`aether_quant`, `aq`) for building other algorithms. The shipped book is a long-only crypto trend sleeve (70%) beside a multi-asset model book (30%), on paper, reinstated and not verified. A model stack, research cycle, kill switch, reconciliation and controlled retraining surround it. Read this before changing anything.
 
 ## Before touching anything
 
@@ -54,10 +54,11 @@ ruff check .              # must be clean before commit: 14 rule sets, each excl
 | Path | What lives here |
 |---|---|
 | `main.py` | Lean algorithm entry point |
-| `risk/` · `portfolio/` · `execution/` | Sizing, kill switch · target weights, book construction, HRP, options · order gate, cost model, reconciliation |
+| `risk/` · `portfolio/` · `execution/` | Sizing, kill switch · target weights, book construction, HRP, the book optimizers and the model book (`book_optimizer.py`, `model_book.py`), options · order gate, cost model, reconciliation |
 | `features/` · `inference/` · `moe/` | Pure features · model loading and batch inference · gating |
 | `train.py` · `train_*.py` | Training loop · specialized trainers |
 | `evaluation/` · `retraining/` | Offline eval, research rounds, generations' registry and ledger · candidate gates, versioning |
+| `ml/artifact_pins.json` · `retraining/artifact_pins.py` | The sha256 of every installed model file, checked before anything scores with them and by `tests/conftest.py` after every suite run |
 | `ml/generations/` | Generations, glide policy, lifecycle log, the once-only holdout ledger (tracked; nothing in Lean reads it) |
 | `aether_quant/` | The library, pinned by `tests/data/aether_quant_api.json` |
 | `fuzz/` | Atheris fuzz targets (`targets.py`, run by `.github/workflows/fuzz.yml`; hypothesis drives them in the suite) |
@@ -75,6 +76,7 @@ ruff check .              # must be clean before commit: 14 rule sets, each excl
 - **Docs move with code:** README and sub-readmes, `development/`, `aq --help` for new flags.
 - **A doc or doc section added is named here,** in "Where things live" or "After every phase", so an agent finds it.
 - **Synthetic worlds first.** `tests/README.md` "Synthetic worlds" names the fake Lean (`main.py`), the trainer and `train.py` worlds and the script loader. A new runtime test uses one rather than a fresh stub.
+- **Use Aether-Vault wherever it has a use** (`scripts/vault_record.py`, `retraining/vault_*`; not the Obsidian code graph above). Its commit timestamp is the proof that something existed before what judged it, so a research phase records its rules before the first score, its trial ledger and gate results, the frozen candidate before any verification row, and the installed weights and config; a retrain records the new models. A phase that scores, freezes or installs without a vault record cannot show its order of events later. V6.6.9 recorded only the rules and the freeze, and should have recorded the ledger at each gate, the verification, the Lean pins and the install too.
 - **100% coverage of every tracked module, no pragma:** the next section.
 - **Numbers in docs are facts, not text.** A count, window or version goes through `<!--fact:key-->` (`docs_facts.py`) or a generated `AQ:*` block. `tests/test_docs_facts.py` also fails on a path, `phase_v2` key, `aq` command or problem number that no longer exists in a living doc.
 - **The README's Backtest Statistics shows the shipped book only.** The retired book's blocks live in `development/research_results.md`.

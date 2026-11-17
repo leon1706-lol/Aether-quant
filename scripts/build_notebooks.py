@@ -5,7 +5,7 @@ lines lose their leading `# `. The notebook is written to `notebooks/NN_name.ipy
 timestamps, so a rebuild only changes what changed. `--execute` runs each one with nbclient (from `notebooks/`, offline:
 the notebooks read the bundled sample) and stores the outputs, which is what GitHub and Colab show.
 
-    python scripts/build_notebooks.py --execute          # rebuild and run all four (about 3 minutes on a small PC)
+    python scripts/build_notebooks.py --execute          # rebuild and run all four (about 4 minutes on a small PC)
     python scripts/build_notebooks.py --check            # the .ipynb cells match their sources (no execution)
     python scripts/build_notebooks.py --check --execute  # also run them in a temp dir and fail on any error (CI)
 """

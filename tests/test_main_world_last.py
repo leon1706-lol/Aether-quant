@@ -213,3 +213,26 @@ def test_a_held_option_whose_contract_left_the_chain_is_kept_or_resized_at_the_c
     kept = send(drifted)
     assert kept in ("options_held_contract_not_in_chain_kept", "options_at_position_cap_kept") or kept
     assert json.dumps({"ok": True})
+
+
+def test_a_held_position_of_a_class_the_config_disables_is_closed_by_the_per_bar_sweep(monkeypatch, tmp_path):
+    """V6.6.9 (#384): the installed config turns forex on, so the world holds a forex pair and switches the class off to see the sweep close it."""
+    _, algorithm, _, _ = build(monkeypatch, tmp_path, {"phase_v2": {"forex_risk": {"enabled": False}}})
+    symbol = symbol_of(algorithm, "EURUSD")
+    algorithm.Portfolio.apply(symbol, 2000.0, 1.1)
+    assert algorithm.Portfolio[symbol].Invested
+    algorithm._liquidate_positions_for_disabled_asset_classes()
+    assert not algorithm.Portfolio[symbol].Invested
+    assert "asset_class_disabled_liquidation" in "\n".join(algorithm.messages)
+
+
+def test_a_sweep_target_of_zero_sells_the_whole_holding(monkeypatch, tmp_path):
+    main, algorithm, _, _ = build(monkeypatch, tmp_path)
+    sweep = algorithm._cash_sweep_symbol
+    price = float(algorithm.Securities[sweep].Price)
+    algorithm.Portfolio.apply(sweep, 100.0, price)
+    algorithm.is_equity_session_bar = True
+    monkeypatch.setattr(main, "cash_sweep_target_weight", lambda **kwargs: 0.0)
+    before, held = len(algorithm.order_log), float(algorithm.Portfolio[sweep].Quantity)
+    algorithm._update_cash_sweep()
+    assert len(algorithm.order_log) == before + 1 and algorithm.order_log[-1][1] == -held and algorithm.order_log[-1][3] == "cash_sweep"

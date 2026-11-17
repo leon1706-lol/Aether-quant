@@ -151,3 +151,68 @@ def test_a_schedule_renders_for_each_platform_and_installs_nothing():
     assert install_command("linux", task_file=Path("t"))[0] == "crontab"
     with pytest.raises(ValueError):
         render_schedule("beos", repo=repo)
+
+
+# --- V6.6.9: the model stack's retrain (#395) -------------------------------------------------------------------------------
+
+
+def test_the_stack_plan_names_every_stage_and_never_writes_over_the_installed_models():
+    from evaluation.research_cycle import STACK_STAGES, stack_plan, stack_stages
+
+    plan = stack_plan({"mode": "expanding"}, run_id="r1", python="py", score_end="2023-06-30", resume_id="walk-forward-abc")
+    assert [stage for stage, _ in plan] == list(STACK_STAGES) == stack_stages()
+    commands = dict(plan)
+    assert commands["dataset"] == ["py", "train.py", "--candidate", "--version-id", "r1_base"]
+    assert commands["multitask"][-1] == "r1_mt" and commands["sequence"][-1] == "r1_seq" and commands["gating"][-1] == "r1_gate"
+    assert commands["walk_forward"][-2:] == ["--resume-run-id", "walk-forward-abc"] and "--include-sequence" in commands["walk_forward"]
+    assert commands["scores"] == ["py", "scripts/v650_ml_scores.py", "--run-id", "walk-forward-abc", "--end", "2023-06-30"]
+    assert commands["snapshot_active"] is None and commands["pins"] is None and commands["register"] is None
+    bare = dict(stack_plan({}, run_id="r1"))
+    assert bare["scores"] is None and "--resume-run-id" not in bare["walk_forward"] and bare["walk_forward"][-1] == "expanding"
+    assert dict(stack_plan({}, run_id="r1", score_end="2023-06-30"))["scores"][3] == "<walk-forward run id>"
+
+
+def test_a_planned_flag_a_trainer_does_not_list_is_named():
+    from types import SimpleNamespace
+
+    from evaluation.research_cycle import stack_plan, validate_plan_flags
+
+    plan = stack_plan({}, run_id="r1", python="py", score_end="2023-06-30", resume_id="x")
+    helps = {"train.py": "--candidate --version-id --walk-forward --include-multitask --include-sequence --mode --resume-run-id",
+             "train_multitask.py": "--version-id", "train_sequence.py": "--version-id", "train_gating.py": "--version-id",
+             "scripts/feature_parity_audit.py": "--skip-synthetic", "scripts/v650_ml_scores.py": "--run-id --end", "data_pipeline.factor_file_backfill": "--audit"}
+    seen = []
+
+    def runner(command, **kwargs):
+        seen.append(command)
+        key = command[2] if command[1] == "-m" else command[1]
+        return SimpleNamespace(returncode=0, stdout=helps[key], stderr="")
+
+    assert validate_plan_flags(plan, runner=runner) == [] and len(seen) == 8 and seen[0][-1] == "--help"
+    helps["train.py"] = helps["train.py"].replace("--resume-run-id", "")
+    assert validate_plan_flags(plan, runner=runner) == ["train.py: --resume-run-id"]
+
+    def failing(command, **kwargs):
+        return SimpleNamespace(returncode=2, stdout="", stderr="no such file")
+
+    assert validate_plan_flags(plan, runner=failing)[0] == "factor_audit: `-m data_pipeline.factor_file_backfill --help` exit 2"
+
+
+def test_aging_models_suggest_a_retrain_before_the_kill_switch_stops_them():
+    assert "aq cycle retrain --host codespace --procedure stack" not in _names(due_actions(MODEL, HEALTHY, session="s", sessions_since_retrain=10, model_age_days=100.0))
+    soon = due_actions(MODEL, HEALTHY, session="s", sessions_since_retrain=10, model_age_days=160.0)
+    assert "aq cycle retrain --host codespace --procedure stack" in _names(soon)
+    assert "20 days left" in next(item["why"] for item in soon if item["action"].endswith("--procedure stack"))
+    already = due_actions(MODEL, HEALTHY, session="s", sessions_since_retrain=300, model_age_days=170.0)
+    assert _names(already).count("aq cycle retrain --host codespace") == 1 and "aq cycle retrain --host codespace --procedure stack" not in _names(already)
+    assert "aq cycle retrain --host codespace --procedure stack" not in _names(due_actions(ACTIVE, HEALTHY, session="s", model_age_days=170.0))
+
+
+def test_an_installed_blends_fixed_shares_are_what_the_view_shows_until_the_glide_writes_a_row():
+    two = {"g1": {"stage": "active", "tier": "installed", "kind": "rule"}, "g6": {"stage": "active", "tier": "installed", "kind": "model"}}
+    view = status_view(two, {"chain_valid": True, "generations": {}}, [], session=None, policy={"enabled": False, "installed_shares": {"g1": 0.7, "g6": 0.3, "gone": 1.0}})
+    assert {row["id"]: row["share"] for row in view["generations"]} == {"g1": 0.7, "g6": 0.3}
+    unset = status_view(two, {"chain_valid": True, "generations": {}}, [], session=None, policy={})
+    assert {row["id"]: row["share"] for row in unset["generations"]} == {"g1": 0.5, "g6": 0.5}
+    judged = {"chain_valid": True, "generations": {}, "latest_allocation": {"shares": {"g1": 0.6, "g6": 0.4}, "states": {}}}
+    assert {row["id"]: row["share"] for row in status_view(two, judged, [], session=None, policy={"installed_shares": {"g1": 0.7, "g6": 0.3}})["generations"]} == {"g1": 0.6, "g6": 0.4}

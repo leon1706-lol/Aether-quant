@@ -48,6 +48,9 @@ SURFACES: tuple[Surface, ...] = (
     _s("buckets", "aq test --<bucket>", "each of 15 subsystems is self-contained", ["PC", "CI"], "1-2 min each", "stdout", "every commit"),
     _s("guards", "pytest tests/test_ci_workflows.py tests/test_docs_facts.py tests/test_aether_quant_coverage.py ...", "workflows, docs facts, the library gate, packaging, help surface", ["PC", "CI"], "30 s", "stdout; CI fast-guards", "every change", [PY, "-m", "pytest", "-q", "-p", "no:cacheprovider", "tests/test_ci_workflows.py", "tests/test_docs_facts.py", "tests/test_aether_quant_coverage.py", "tests/test_module_has_test.py", "tests/test_formal_no_sorry.py", "tests/test_verification_matrix.py"]),
     _s("clean_checkout", "scripts/clean_checkout_test.ps1 or scripts/codespace_verify.ps1 -Start", "no test depends on a gitignored file; every CI job once, before the push", ["Codespace"], "40-60 min", "/tmp/aq_verify/status, <stage>.log", "a phase"),
+    # --- the installed models (V6.6.9, #382)
+    _s("artifact_pins", "python scripts/check_artifact_pins.py", "the installed model files are the pinned set: a rewritten scaler can't pass for the one the models were fitted with", ["PC", "CI"], "1 s", "stdout; every suite run (tests/conftest.py)", "every change", [PY, "scripts/check_artifact_pins.py"]),
+    _s("model_book_decide", "python scripts/model_book_decide.py --session <D> --out <csv>", "the model book's daily decision: refused on a changed model file, stale closes or stale scores, equal to the verification row on a session both cover", ["PC"], "2 min", "the csv; forward/decisions.jsonl", "a decision"),
     # --- the library
     _s("library_gate", "python scripts/library_gate.py", "a public function is in aether_quant or explained; the backlog only shrinks", ["PC", "CI"], "1 s", "stdout; pre-commit hook", "every commit", [PY, "scripts/library_gate.py"]),
     _s("api_pin", "aq test --meta (tests/test_aether_quant_api.py)", "every export resolves to the real function; the import stays light; the public surface only changes on purpose", ["PC", "CI"], "1 min", "tests/data/aether_quant_api.json", "every commit"),
@@ -57,7 +60,7 @@ SURFACES: tuple[Surface, ...] = (
     _s("prove", "aq prove", "the Lean 4 specs build (Mathlib)", ["Codespace", "CI"], "5 min (Mathlib cached)", "stdout; CI formal.yml", "every change to formal/ or a modelled file"),
     _s("prove_sorry", "aq prove --check-sorry", "no sorry or admit in any spec", ["PC", "CI"], "1 s", "stdout; tests/test_formal_no_sorry.py", "every commit", [PY, "aq_cli.py", "prove", "--check-sorry"]),
     _s("axioms", "python scripts/check_axioms.py", "every theorem rests on the three standard axioms, but two named native_decide findings", ["Codespace", "CI"], "2 min", "stdout; CI formal.yml", "every change to formal/"),
-    _s("differential", "aq test --formal", "the Python functions equal the Lean models on thousands of computed cases (28 targets)", ["PC", "CI"], "1 min", "aether_quant/_formal_cases/*.json", "every commit"),
+    _s("differential", "aq test --formal", "the Python functions equal the Lean models on thousands of computed cases (29 targets)", ["PC", "CI"], "1 min", "aether_quant/_formal_cases/*.json", "every commit"),
     # --- other kinds of test
     _s("properties", "pytest tests/test_v664_properties.py", "invariants of the order gate, admission, session, shares, weight caps, hash chain and JSON safety hold for every input (hypothesis, derandomized)", ["PC", "CI"], "2 min", "stdout", "every commit"),
     _s("mutation", "python scripts/mutation_check.py --out ml/evaluation/v664/mutation.json", "the tests of seven safety and ledger modules notice a changed comparison, operator or constant", ["Codespace"], "1-2 h", "ml/evaluation/v664/mutation.json", "a phase"),

@@ -37,7 +37,21 @@ from evaluation.generation_ledger import (
 from evaluation.generation_registry import AdmissionEvidence, Generation, admitted_to_shadow, append_lifecycle, cap_lifted, lifecycle_is_intact, load_registry, next_stage, read_lifecycle, save_registry, share_cap
 from evaluation.glide_calibration import default_configs, default_policies, evaluate_policies, glide2_policies, oracle_daily, pick_glide2, pick_policy, run_policy, simulate_generations
 from evaluation.research_cells import Cell, assert_cell_open, blank_stale, coin_side, freeze_digest_of, membership_mask, name_side, names_in_cell, record_holdout_read, window_rows, write_freeze
-from evaluation.research_cycle import due_actions, install_command, ram_preflight, read_json_or, render_schedule, retrain_due, retrain_stages, sessions_since_retrain, status_view, total_memory_bytes
+from evaluation.research_cycle import (
+    due_actions,
+    install_command,
+    ram_preflight,
+    read_json_or,
+    render_schedule,
+    retrain_due,
+    retrain_stages,
+    sessions_since_retrain,
+    stack_plan,
+    stack_stages,
+    status_view,
+    total_memory_bytes,
+    validate_plan_flags,
+)
 from evaluation.research_round import (
     RoundSpec,
     clause_overrides,
@@ -181,6 +195,8 @@ __all__ = [
     "shrunk_sharpe",
     "simulate_generations",
     "spec_of",
+    "stack_plan",
+    "stack_stages",
     "stage_freeze",
     "stage_gate",
     "stage_hold",
@@ -195,6 +211,7 @@ __all__ = [
     "turnover",
     "universe_for",
     "update_generation_shares",
+    "validate_plan_flags",
     "window_rows",
     "write_freeze",
     "write_rules",

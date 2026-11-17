@@ -341,6 +341,8 @@ def _algorithm(main_module, *, mode="paper", locked=True, equity_bar=True, holdi
     algorithm._target_class_by_ticker = {"A": "equity", "B": "crypto"}
     algorithm._target_lot_by_ticker = {"A": 1.0, "B": 0.001}
     algorithm._target_financing_date = None
+    algorithm._model_book_in_lean = False
+    algorithm.futures_risk_enabled = algorithm.options_risk_enabled = algorithm.forex_risk_enabled = False
     algorithm._target_missing_bars = {}
     algorithm._target_exited_without_bars = set()
     algorithm._target_applied_through = None

@@ -32,6 +32,7 @@ from risk.futures_risk import FuturesSizingDecision, build_futures_position_sizi
 from risk.position_sizing import PositionSizingDecision, build_dynamic_position_sizing
 
 if TYPE_CHECKING:
+    from collections.abc import Iterable, Mapping
     from datetime import date, datetime
     from pathlib import Path
 
@@ -600,3 +601,23 @@ def asset_listed_on_venue(ticker: str, on_date: date | datetime | str, listing_d
     if delisted and day >= str(delisted)[:10]:
         return False
     return not any(len(window) == 2 and str(window[0])[:10] <= day < str(window[1])[:10] for window in entry.get("suspended") or ())
+
+
+def target_path_class_conflicts(
+    weight_tickers: Iterable[str],
+    class_by_ticker: Mapping[str, str],
+    *,
+    futures_enabled: bool,
+    options_enabled: bool,
+    forex_enabled: bool,
+) -> list[str]:
+    """The asset classes a weight file asks for that the per-bar disabled-class sweep would close again at once (V6.6.9, #384).
+    A weight row naming a forex pair while `phase_v2.forex_risk.enabled` is false opens it on one bar and liquidates it on the
+    next; the caller drops those names instead. Sorted, empty when nothing conflicts."""
+    conflicts = {
+        str(class_by_ticker[ticker])
+        for ticker in weight_tickers
+        if ticker in class_by_ticker
+        and not resolve_asset_class_enabled(class_by_ticker[ticker], futures_enabled, options_enabled, forex_enabled)
+    }
+    return sorted(conflicts)

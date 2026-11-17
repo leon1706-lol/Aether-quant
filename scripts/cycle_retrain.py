@@ -25,7 +25,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from evaluation.research_cycle import ram_preflight, retrain_stages  # noqa: E402
+from evaluation.research_cycle import ram_preflight, retrain_stages, stack_plan, stack_stages, validate_plan_flags  # noqa: E402
 
 CONTACT_ENV = "AQ_SEC_CONTACT"
 STATE_ROOT = ROOT / "ml" / "cycle"
@@ -35,6 +35,10 @@ REMOTE_REPO = "/workspaces/Aether-quant"
 PROCEDURES: dict[str, dict] = {
     "k06": {"model": "gbm_monotone", "variant": "a", "seeds": "1,2,3", "feature_set": "fundamental", "train_start": "2011-07-01", "first_test_year": 2013, "purge_days": 31},
     "k07": {"model": "mlp_multitask", "variant": "a", "seeds": "1,2,3,4,5", "feature_set": "fundamental", "train_start": "2011-07-01", "first_test_year": 2013, "purge_days": 31},
+    # V6.6.9: the model stack (`ml/`'s multitask, sequence and gating models) as one procedure. `stack` is the installed recipe, so a refit is a new vintage of
+    # its generation (g0006); `stack_asof` (as-of labels, within-class ranked inputs) is a new procedure and only writes scores for a research round.
+    "stack": {"kind": "stack", "mode": "expanding", "trainers": ["train.py", "train_multitask.py", "train_sequence.py", "train_gating.py"]},
+    "stack_asof": {"kind": "stack", "mode": "expanding", "asof_labels": True, "trainers": ["train.py", "train_multitask.py", "train_sequence.py", "train_gating.py"]},
 }
 
 
@@ -163,6 +167,52 @@ def local_actions(name: str, procedure: Mapping, *, run_dir: Path, python: str =
         return str(run_dir)
 
     return {"bootstrap_data": bootstrap, "refresh_data": refresh, "build_panel": build_panel, "walk_forward": walk, "score": score, "round": gate, "register": register, "report": report}
+
+
+def stack_actions(
+    name: str, procedure: Mapping, *, run_dir: Path, run_id: str, python: str = sys.executable, runner: Callable = subprocess.run, score_end: str | None = None,
+) -> dict[str, Callable[[], object]]:
+    """The model stack's stages (`evaluation.research_cycle.stack_plan`): each a command from the plan, or one of three that run here. The walk-forward's run id is read
+    from its own output, so `scores` knows which windows to score."""
+    import re
+
+    from retraining.artifact_pins import snapshot_active, write_artifact_pins
+
+    plan = dict(stack_plan(procedure, run_id=run_id, python=python, score_end=score_end))
+    found: dict[str, str] = {}
+
+    def command_stage(stage: str) -> Callable[[], object]:
+        def run() -> object:
+            command = plan[stage]
+            if command is None:
+                return "skipped: pass --score-end, the last date the next round may read"
+            if stage == "scores":
+                command = [*command[:3], found["walk_forward"], *command[4:]]
+            output = _run_full(command, runner=runner)
+            if stage == "walk_forward":
+                match = re.search(r"walk-forward run id: (walk-forward-[0-9a-f-]+)", output)
+                if match is None:
+                    raise RuntimeError("the walk-forward printed no run id; its windows cannot be found")
+                found["walk_forward"] = match.group(1)
+            return output[-400:]
+
+        return run
+
+    def snapshot() -> str:
+        return str(snapshot_active(ROOT / "ml", ROOT / "ml" / "backups" / f"pre_retrain_{run_id}.zip"))
+
+    def pins() -> dict:
+        return write_artifact_pins(ROOT / "ml" / "versions" / f"{run_id}_base", run_dir / "artifact_pins.json")
+
+    def register() -> dict:
+        source = b"".join((ROOT / trainer).read_bytes() for trainer in procedure["trainers"])
+        sha = procedure_sha256(name, procedure, source)
+        recorded = register_vintage(ROOT / "ml" / "generations" / "registry.json", ROOT / "ml" / "generations" / "lifecycle.jsonl", sha, run_id, created_at=_now())
+        return {"procedure": name, "procedure_sha256": sha, "vintage": run_id, "registered": recorded}
+
+    actions = {stage: command_stage(stage) for stage in stack_stages()}
+    actions.update(snapshot_active=snapshot, pins=pins, register=register, report=lambda: str(run_dir))
+    return actions
 
 
 def smoke_panel(path: Path, *, seed: int = 3) -> None:
@@ -295,6 +345,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--run-id", default=None)
     parser.add_argument("--min-ram-gb", type=float, default=14.0)
     parser.add_argument("--dry-run", action="store_true", help="print the stages and the preflight, and stop")
+    parser.add_argument("--score-end", default=None, help="a stack run: the last date of the walk-forward scores (the next research round's window)")
     parser.add_argument("--on-codespace", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
     if not args.smoke and not args.procedure:
@@ -302,11 +353,18 @@ def main(argv: list[str] | None = None) -> int:
     run_id = args.run_id or f"{datetime.datetime.now(datetime.timezone.utc):%Y%m%d}_{uuid.uuid4().hex[:6]}"
     run_dir = STATE_ROOT / f"retrain_{run_id}"
     state_path = run_dir / "state.json"
-    name = "smoke" if args.smoke else args.procedure
-    procedure = PROCEDURES.get(name, PROCEDURES["k06"])
+    chosen = PROCEDURES.get(args.procedure) if args.procedure else None
+    is_stack = chosen is not None and chosen.get("kind") == "stack"
+    name = args.procedure if is_stack else ("smoke" if args.smoke else args.procedure)
+    procedure = chosen if is_stack else PROCEDURES.get(name, PROCEDURES["k06"])
     preflight = ram_preflight(args.host, min_gb=args.min_ram_gb)
     data_present = args.smoke or (ROOT / "data_wide" / "wide_manifest.json").exists()
-    stages = retrain_stages(data_present=data_present)
+    if args.smoke and args.procedure and is_stack:
+        # a stack's plumbing is proved by its commands: every flag the plan passes is one its trainer lists
+        problems = validate_plan_flags(stack_plan(procedure, run_id=run_id, python=sys.executable, score_end="2023-06-30", resume_id="walk-forward-smoke"), runner=subprocess.run)
+        print(json.dumps({"run": run_id, "procedure": name, "stages": stack_stages(), "flag_problems": problems}, indent=1))
+        return 1 if problems else 0
+    stages = stack_stages() if is_stack else retrain_stages(data_present=data_present)
     print(json.dumps({"run": run_id, "host": args.host, "procedure": name, "smoke": args.smoke, "preflight": preflight, "stages": stages}, indent=1))
     if args.dry_run:
         return 0 if (preflight["ok"] or args.smoke) else 2
@@ -317,7 +375,10 @@ def main(argv: list[str] | None = None) -> int:
         print(f"refusing: {preflight['reason']}", file=sys.stderr)
         return 2
     run_dir.mkdir(parents=True, exist_ok=True)
-    actions = smoke_actions(run_dir=run_dir) if args.smoke else local_actions(name, procedure, run_dir=run_dir)
+    if is_stack:
+        actions = stack_actions(name, procedure, run_dir=run_dir, run_id=run_id, score_end=args.score_end)
+    else:
+        actions = smoke_actions(run_dir=run_dir) if args.smoke else local_actions(name, procedure, run_dir=run_dir)
     run_stages(stages, actions, state_path=state_path)
     print(f"done: {state_path}")
     return 0

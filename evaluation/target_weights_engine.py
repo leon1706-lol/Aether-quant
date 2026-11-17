@@ -33,6 +33,7 @@ from portfolio.financing import daily_financing_usd, rate_asof
 from portfolio.target_weights import (
     NEXT_BAR_CLASSES,
     TargetWeightsConfig,
+    drop_class_weights,
     equity_fee_usd,
     names_to_exit_without_bars,
     no_bar_exit_cost_usd,
@@ -148,6 +149,7 @@ def simulate_target_weights(
     max_drawdown_velocity: float | None = None,
     fee_fn: Callable[[str, float, str, TargetWeightsConfig], float] = default_fee_usd,
     lot_size: Mapping[str, float] | None = None,
+    disabled_classes: frozenset[str] = frozenset(),
 ) -> dict[str, Any]:
     """One path over [start, end]. Returns {"nav", "strategy" (ex-sweep daily return), "strategy_excess" (that, less the
     risk-free return on the net capital invested), "total" (daily return), "gross", "fees", "financing", "turnover", "fills",
@@ -160,6 +162,8 @@ def simulate_target_weights(
     A drawdown lock (on the strategy, ex sweep, as main.py reads it) closes everything at the next fills and stops trading."""
     index = panel.index()
     classes = {ticker: panel.asset_class.get(ticker, "equity") for ticker in panel.tickers}
+    if disabled_classes:
+        weights_by_date = drop_class_weights(weights_by_date, classes, disabled_classes)
     next_bar_columns = [index[ticker] for ticker in panel.tickers if classes[ticker] in NEXT_BAR_CLASSES]
     closes_ff = pd.DataFrame(panel.closes).ffill().to_numpy(copy=True)  # pandas 3 hands out read-only views
     # a crypto or forex bar reaches this row's label when it ended, at the midnight that began this row

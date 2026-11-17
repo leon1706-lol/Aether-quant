@@ -357,3 +357,88 @@ def test_the_codespace_host_drives_the_codespace(monkeypatch, tmp_path):
     monkeypatch.setattr(cycle_retrain, "STATE_ROOT", tmp_path)
     monkeypatch.setattr(cycle_retrain, "drive_codespace", lambda name, procedure, run_id, smoke: calls.append((name, run_id, smoke)))
     assert main(["--host", "codespace", "--smoke", "--run-id", "cs1"]) == 0 and calls == [("smoke", "cs1", True)]
+
+
+# --- V6.6.9: the model stack (#395) -----------------------------------------------------------------------------------------
+
+
+def test_the_stack_procedures_are_registered_and_a_refit_of_stack_is_a_vintage_while_stack_asof_is_a_candidate():
+    assert PROCEDURES["stack"]["kind"] == "stack" and PROCEDURES["stack_asof"]["asof_labels"] is True
+    assert "train_sequence.py" in PROCEDURES["stack"]["trainers"]
+
+
+def test_a_stack_dry_run_lists_the_stack_stages_and_the_pc_refuses_the_real_run(capsys):
+    import cycle_retrain
+
+    assert main(["--host", "codespace", "--procedure", "stack", "--dry-run"]) == 0
+    printed = capsys.readouterr().out
+    assert "snapshot_active" in printed and "walk_forward" in printed and "refresh_data" not in printed
+    assert cycle_retrain.ram_preflight("local", total_bytes=4 * 1024**3)["ok"] is False
+
+
+def test_the_stack_smoke_validates_every_planned_flag_against_the_trainers(monkeypatch, capsys):
+    import cycle_retrain
+
+    helps = {"train.py": "--candidate --version-id --walk-forward --include-multitask --include-sequence --mode --resume-run-id", "train_multitask.py": "--version-id",
+             "train_sequence.py": "--version-id", "train_gating.py": "--version-id", "scripts/feature_parity_audit.py": "--skip-synthetic",
+             "scripts/v650_ml_scores.py": "--run-id --end", "data_pipeline.factor_file_backfill": "--audit"}
+
+    def runner(command, **kwargs):
+        key = command[2] if command[1] == "-m" else command[1]
+        return SimpleNamespace(returncode=0, stdout=helps[key], stderr="")
+
+    monkeypatch.setattr(cycle_retrain.subprocess, "run", runner)
+    assert main(["--host", "local", "--procedure", "stack", "--smoke"]) == 0
+    assert '"flag_problems": []' in capsys.readouterr().out
+    helps["train_gating.py"] = ""
+    assert main(["--host", "local", "--procedure", "stack", "--smoke"]) == 1
+    assert "train_gating.py: --version-id" in capsys.readouterr().out
+
+
+def test_the_stack_stages_run_their_commands_read_the_walk_forward_id_and_register_the_vintage(tmp_path, monkeypatch):
+    import cycle_retrain
+
+    monkeypatch.setattr(cycle_retrain, "ROOT", tmp_path)
+    for name in PROCEDURES["stack"]["trainers"]:
+        (tmp_path / name).write_text("# trainer", encoding="utf-8")
+    ml = tmp_path / "ml"
+    (ml / "versions" / "r1_base").mkdir(parents=True)
+    (ml / "versions" / "r1_base" / "sequence_model.json").write_text("{}", encoding="utf-8")
+    (ml / "sequence_model.json").write_text("{}", encoding="utf-8")
+    seen = []
+
+    def runner(command, **kwargs):
+        seen.append(list(command))
+        out = "walk-forward run id: walk-forward-abc-123\n" if "--walk-forward" in command else "ok"
+        return SimpleNamespace(returncode=0, stdout=out, stderr="")
+
+    actions = cycle_retrain.stack_actions("stack", PROCEDURES["stack"], run_dir=tmp_path / "run", run_id="r1", python="py", runner=runner, score_end="2023-06-30")
+    assert list(actions) == __import__("evaluation.research_cycle", fromlist=["x"]).stack_stages()
+    assert actions["snapshot_active"]().endswith("pre_retrain_r1.zip") and (ml / "backups" / "pre_retrain_r1.zip").exists()
+    actions["factor_audit"](), actions["dataset"](), actions["parity_audit"](), actions["multitask"](), actions["sequence"](), actions["gating"]()
+    actions["walk_forward"]()
+    actions["scores"]()
+    assert seen[-1] == ["py", "scripts/v650_ml_scores.py", "--run-id", "walk-forward-abc-123", "--end", "2023-06-30"]
+    assert "sequence_model.json" in actions["pins"]()
+    registered = actions["register"]()
+    assert registered["procedure"] == "stack" and registered["registered"]["added"] is False and actions["report"]().endswith("run")
+
+
+def test_a_stack_run_without_a_score_end_skips_the_scores_and_a_walk_forward_without_an_id_fails(tmp_path, monkeypatch):
+    import cycle_retrain
+
+    ok = lambda command, **kwargs: SimpleNamespace(returncode=0, stdout="no id here", stderr="")  # noqa: E731
+    actions = cycle_retrain.stack_actions("stack", PROCEDURES["stack"], run_dir=tmp_path, run_id="r2", python="py", runner=ok)
+    assert "pass --score-end" in actions["scores"]()
+    with pytest.raises(RuntimeError, match="no run id"):
+        actions["walk_forward"]()
+
+
+def test_the_stack_runs_through_main_on_a_machine_that_may_train(tmp_path, monkeypatch, capsys):
+    import cycle_retrain
+
+    monkeypatch.setattr(cycle_retrain, "ram_preflight", lambda host, min_gb=14.0: {"ok": True, "reason": "plenty"})
+    monkeypatch.setattr(cycle_retrain, "STATE_ROOT", tmp_path)
+    monkeypatch.setattr(cycle_retrain, "stack_actions", lambda *args, **kwargs: {stage: (lambda stage=stage: stage) for stage in cycle_retrain.stack_stages()})
+    assert main(["--host", "local", "--procedure", "stack", "--run-id", "rX", "--score-end", "2023-06-30"]) == 0
+    assert set(cycle_retrain.load_state(tmp_path / "retrain_rX" / "state.json")["done"]) == set(cycle_retrain.stack_stages())

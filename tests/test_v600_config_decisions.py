@@ -42,7 +42,8 @@ def test_r_crypto_limit_exits_route_aware_fee_and_smaller_graduates():
 
 
 def test_r_fx6_the_forex_sleeve_is_off_through_the_clean_switch():
-    assert V2["forex_risk"]["enabled"] is False and V2["forex_sleeve"]["enabled"] is False
+    # V6.6.9: forex_risk is on because the model book trades forex on the target path (#384); the legacy class sleeve stays off
+    assert V2["forex_risk"]["enabled"] is True and V2["forex_sleeve"]["enabled"] is False
     assert V2["sleeve_guards"]["forex"]["enabled"] is False
     assert V2["bond_sleeve"]["enabled"] is True and V2["sleeve_guards"]["bond"]["enabled"] is True  # untouched
 

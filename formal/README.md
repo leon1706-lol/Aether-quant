@@ -57,6 +57,7 @@ book-construction and neutrality functions).
 | `AccountOverrides.lean` | `execution/accounts.apply_risk_overrides` | an account only tightens (V6.6.5, Problems #349): `lower_never_loosens`, `higher_never_loosens`, `looser_lower_refused`, `looser_higher_refused`, `unset_base_accepts`, `flag_only_off`, `mode_never_raised` |
 | `Authorize.lean` | `monitoring/auth.authorize` | never above a role or outside a scope (V6.6.5, #350): `never_above_role`, `never_outside_scope`, `anonymous_never_writes`, `anonymous_reads_only_when_auth_is_off`, `monotone_in_role` |
 | `RlSizing.lean` | `risk/rl_sizing.py` | V6.6.7 (#368): `clamp_within`, `invalid_bounds_noop` (finding), `nonfinite_low_noop`, `shrink_only`, `guard_off_allows`, `nonpos_window_reads_one_bar` (finding), `window_is_suffix` |
+| `ModelBookGuard.lean` | `portfolio/model_book.permit_model_book_row` | V6.6.9 (#394): the in-Lean model book sends a row only with the pinned models, finite weights and models inside their age limit: `permit_iff`, `pins_required`, `finite_required`, `age_required`, `all_checks_permit` |
 | `DrawdownGuard.lean` | `evaluation/generation_ledger._max_drawdown` | V6.6.7 (#369): `dd_nonneg`, `dd_le_one`, `dd_mono_append`, `trip_latches`, `nonfinite_trips` (finding) |
 | `BacktestGate.lean` | `retraining/backtest_gate.py` | V6.6.7 (#370): `passes_iff`, `missing_candidate_fails` (finding), `invalid_threshold_fails` (finding), `mono_candidate`, `mono_threshold` |
 | `AutoRollback.lean` | `retraining/auto_rollback.py` | V6.6.7 (#371): `rollback_needs_all`, `disabled_never_rolls_back`, `target_sound`, `target_is_first` |
@@ -79,7 +80,12 @@ book-construction and neutrality functions).
   negative multiplier product** escaped `max_position_weight` on the wrong side; **`trailing_drawdown(lookback=0)`** read
   the whole history. All fixed fail-safe.
 - **Hash-chain truncation** is invisible to `verify_chain`; `expected_tail_hash` anchors it.
-- **V6.6.7:** an RL band with `min > max` amplified a shrink-only size and a window below one bar read the whole history; the generation drawdown guard failed open on a NaN return; a missing candidate return or a NaN threshold passed the retraining gate; the string `"false"` enabled auto-rollback; a negative cap flipped the premia book to shorts; an order through zero was sorted as a reduction; a loss past 100% made the strategy value negative; a damaged generation allocation was kept as it was; a zero volatility target left the book unscaled. All fixed fail-safe with defaults unchanged (Problems #368-#376).
+- **Sizing bounds:** an RL band with `min > max` amplified a shrink-only size, a window below one bar read the whole history, and a zero volatility target left the book unscaled (#368, #376).
+- **Guards that failed open:** the generation drawdown guard on a NaN return, the retraining gate on a missing candidate return or a NaN threshold, and auto-rollback on the string `"false"` (#369-#371).
+- **Signs and order:** a negative cap flipped the premia book to shorts, an order through zero was sorted as a reduction, and a loss past 100% made the strategy value negative (#372-#374).
+- **Allocation:** a damaged generation allocation was kept as it was (#375).
+
+Every one is fixed fail-safe with defaults unchanged.
 
 ## Checks beyond the build
 

@@ -1641,8 +1641,12 @@
             "contract_specs_path": "data/reference/futures_contract_specs.json",
             "margin_source": "static"
         },
+        "model_book": {
+            "candidate_path": "ml/target_weights_candidate.json",
+            "artifact_pins_path": "ml/artifact_pins.json"
+        },
         "forex_risk": {
-            "enabled": false,
+            "enabled": true,
             "target_leverage_utilization": 0.2,
             "max_leverage_utilization": 0.4,
             "pair_specs_path": "data/reference/forex_pair_specs.json"
@@ -1650,7 +1654,9 @@
         "target_weights": {
             "enabled": true,
             "weights_path": "ml/target_weights.csv",
-            "weights_sha256": "d6478b444ccea1503b9356a0ba255dda42d39e86573c5d959b78eca5b840860a",
+            "weights_sha256": "71f9fb7b6809d48a4a4adc193b05b5683d97068fecdb65bae09b9ddb38dd0ad6",
+            "uses_model": true,
+            "source": "file",
             "min_weight_change": 0.002,
             "min_trade_usd": 100.0,
             "forex_min_trade_usd": 5000.0,
@@ -1806,6 +1812,8 @@
             "min_rank_confidence_spread": 0.1,
             "rebalance_every_bars": 20,
             "allocation_method": "rank",
+            "hrp_window_bars": 25,
+            "hrp_linkage": "ward",
             "neutrality": {
                 "enabled": true,
                 "dollar_neutral": true,

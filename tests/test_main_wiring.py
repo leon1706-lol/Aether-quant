@@ -72,6 +72,7 @@ def _target_algorithm(main_module, *, weights, holdings=None, trade_lock=False, 
     algorithm._target_class_by_ticker = {"A": "equity", "B": "crypto"}
     algorithm._target_lot_by_ticker = {"A": 1.0, "B": 0.001}
     algorithm._target_financing_date = None
+    algorithm._model_book_in_lean = False
     algorithm._equity_symbols = ["A"]
     algorithm.Time = datetime.datetime(2024, 1, 2, 16)
     algorithm.Portfolio = _Portfolio({key: _holding(key, value) for key, value in (holdings or {}).items()})
@@ -792,6 +793,8 @@ def test_a_fill_forward_copy_is_not_a_bar_for_the_no_bar_exit(main_module):
     algorithm.target_weights_config = TargetWeightsConfig(enabled=True, no_bar_exit=True, no_bar_exit_after=1)
     algorithm._target_missing_bars = {}
     algorithm._target_exited_without_bars = set()
+    algorithm._model_book_in_lean = False
+    algorithm._model_book_row = None
     algorithm.Liquidate = lambda symbol, tag="": algorithm.orders.append((symbol, tag))
     algorithm.Portfolio.CashBook = {"USD": SimpleNamespace(AddAmount=lambda amount: algorithm.calls.append(amount))}
     algorithm.Debug = lambda message: None

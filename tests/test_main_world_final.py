@@ -239,3 +239,14 @@ def test_the_shutdown_closes_queue_clients_and_survives_a_cleanup_that_raises(mo
     monkeypatch.setattr(main.gc, "collect", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("cannot collect")))
     algorithm.on_end_of_algorithm()
     assert algorithm.messages and datetime is not None
+
+
+def test_hierarchical_weights_read_one_close_per_equity_session_over_the_configured_window(monkeypatch, tmp_path):
+    """#383: the closes are kept once per equity session, so a crypto and an equity name are correlated on the same dates."""
+    overrides = {"phase_v2": {"portfolio_book": {"allocation_method": "hrp", "hrp_window_bars": 12, "hrp_linkage": "single", "neutrality": {"enabled": False}}}}
+    _, algorithm, market, _ = make(monkeypatch, tmp_path, overrides, bars=2)
+    market.run(30)
+    assert algorithm.portfolio_book_hrp_window_bars == 12 and algorithm.portfolio_book_hrp_linkage == "single"
+    assert len(algorithm._session_dates) == algorithm.bar_index and len(set(algorithm._session_dates)) == len(algorithm._session_dates)
+    assert {len(series) for series in algorithm._session_closes.values()} == {len(algorithm._session_dates)}
+    assert {"SPY", "BTCUSD"} <= set(algorithm._session_closes)

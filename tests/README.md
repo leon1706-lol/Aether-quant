@@ -42,7 +42,8 @@ def _make_conn_mock():
   - `test_formal_no_sorry.py`: no `sorry`, every spec built and listed.
 - **Property tests:** `test_v664_properties.py` (hypothesis, derandomized) states invariants of the order gate, admission, session resolution, generation shares, weight caps, the hash chain and JSON safety, and checks them on generated inputs.
 - **`on_data()`:** `test_main_on_data_target_weights.py` drives the real entry point for a week of sessions on the stub and compares its orders with the pure rebalance function.
-- **Mutation check:** `scripts/mutation_check.py` (on a Codespace; `test_mutation_check.py` tests the tool) changes one thing at a time in seven safety and ledger modules and counts what their tests miss. `test_v664_mutation_safety.py` and `test_v664_mutation_ledgers.py` are the boundary tests it called for: every threshold in the kill switch, order gate, risk controls, admission rules, forward ledger, research cells and generation blend is tested exactly at its edge and one step past it.
+- **Mutation check:** `scripts/mutation_check.py` (on a Codespace; `test_mutation_check.py` tests the tool) changes one thing at a time in seven safety and ledger modules and counts what their tests miss.
+- **Boundary tests it called for:** `test_v664_mutation_safety.py` and `test_v664_mutation_ledgers.py` test every threshold in the kill switch, order gate, risk controls, admission rules, forward ledger, research cells and generation blend exactly at its edge and one step past it.
 - **Formal cases (`aq test --formal`):** `test_formal_differential_<target>.py` runs each verified function on the inputs Lean 4 generated and compares exact outputs. `test_formal_cases_drift.py` fails when a spec changed after its cases were generated. No Lean install is needed.
 
 ## Before a commit

@@ -1,10 +1,10 @@
 # Problems
 
-Every bug and infrastructure issue found in this codebase, oldest first, with how it was fixed or why it stayed open. Numbers never change, because code and docs cite them; #73-76 don't exist, and #88 and #112 appear twice.
+Every bug and infrastructure issue found in this codebase, oldest first, with how it was fixed or why it stayed open. Numbers never change, because code and docs cite them; #73-76 don't exist, #88's first entry is #88a, and #112 appears twice (the second is marked).
 
-**Entries:** <!--fact:problems.total-->379<!--/fact--> up to #<!--fact:problems.last-->381<!--/fact-->: <!--fact:problems.fixed-->344<!--/fact--> 🟢 `fixed` (changed and verified), <!--fact:problems.partial-->14<!--/fact--> 🟡 `partial` (shipped, verification pending), <!--fact:problems.closed-->18<!--/fact--> 🔴 `closed` (no code fix: declined, moot or superseded). Severity runs from 1 (cosmetic) to 10 (data loss or safety). Full text of older entries: [`backups/`](backups/README.md).
+**Entries:** <!--fact:problems.total-->394<!--/fact--> up to #<!--fact:problems.last-->397<!--/fact-->: <!--fact:problems.fixed-->363<!--/fact--> 🟢 `fixed` (changed and verified), <!--fact:problems.partial-->14<!--/fact--> 🟡 `partial` (shipped, verification pending), <!--fact:problems.closed-->18<!--/fact--> 🔴 `closed` (no code fix: declined, moot or superseded). Severity runs from 1 (cosmetic) to 10 (data loss or safety). Full text of older entries: [`backups/`](backups/README.md).
 
-**Open now** (each needs a broker key, a forward record or the laptop):
+**Open now** (each needs a broker key, a forward record, a Codespace or the laptop):
 
 - **#192** Live crypto cannot fill through Interactive Brokers
 - **#228** L12: the paper-period protocol and its band check
@@ -15,11 +15,12 @@ Every bug and infrastructure issue found in this codebase, oldest first, with ho
 - **#321** Anyone can retrain, on any machine with the RAM
 - **#323** A dynamic glide: three or more generations, smooth, with shares from each one's record
 - **#338** IB field test: what the Lean samples cannot show about options and futures
+- **#385** The installed models were trained with EOSUSD still in the universe (the next retrain removes it)
+- **#393** The model book is installed by rule at 30%, "reinstated, not verified" (the paper period judges it)
+- **#395** Retraining the model stack (the first real run needs a Codespace)
 
-**Waiting on the owner's push, tag or sign-up (V6.6.7, each only needs a GitHub run or an account to confirm):**
+**Waiting on the owner's sign-up (V6.6.7):**
 
-- **#363** Nothing was fuzzed (`fuzz.yml` must be green on GitHub: seven of eight targets were on the first run)
-- **#365** Release provenance (the tag, then the two `backfill_tag` dispatches)
 - **#366** No OpenSSF Best Practices badge (the owner registers)
 
 ---
@@ -574,7 +575,7 @@ Every bug and infrastructure issue found in this codebase, oldest first, with ho
 
 **Problem:** The V5.3.10 extraction of `_midpoint_bar_from_quote_bar()` and `_pad_sequence_history()` into `data_pipeline/bar_synthesis.py` never added the corresponding import to main.py, so the thin delegation bodies referenced unbound names — a runtime `NameError` that `py_compile` and CI both missed since no test imports main.py. **Fix:** Added the module-scope import in main.py, 5 parity tests in `test_bar_synthesis_parity.py` registered in `_SUBSYSTEM_TEST_FILES`, and removed a duplicate "Syntax-check main.py" CI step (a V5.3.11 rebase regression).
 
-### 112. V5.4.2 - residual_rank_20d head documented as non-promotable
+### 112 (second entry of this number). V5.4.2 - residual_rank_20d head documented as non-promotable
 🔴 `closed` (the head is noise; it stays demoted) · n/a (signal quality)
 
 **Problem:** `residual_rank_20d` never cleared its promotion gate (IC ~0.01, t < 1). **Fix:** listed as demoted in `config.json`; the retrain validation gate no longer judges it (#139).
@@ -600,12 +601,12 @@ Every bug and infrastructure issue found in this codebase, oldest first, with ho
 **Problem:** every guard in the family was a one-sided float comparison or an `is not None` check, all pass-through for NaN. **Fix:** finite-or-None normalisation of the kill switch's inputs and its rolling Sharpe, non-finite prices degrade to zero slippage, reconciliation fails closed on non-finite weights, an explicit `non_finite_cost_estimate` reason, a finite-rank eligibility guard in book construction, a skipped non-positive gross cap and a re-clamped minimum position weight.
 
 ### 118. V5.4.5 - HRP equal-weight fallback broke dollar-neutrality on asymmetric two-sided books
- · 
+🟢 `fixed` (V5.4.5) · 4/10
 
 **Problem:** Both fallback paths in `build_hrp_allocation()` (<2 names with usable history; scipy exception) divided gross across both legs combined (`gross / len(longs + shorts)`), so a two-sided book with unequal legs (e.g. 6 longs / 2 shorts) came out +0.75·gross / −0.25·gross instead of dollar-neutral, contradicting the function's own docstring; the main HRP path normalized per leg correctly and existing tests only pinned symmetric cases. **Fix:** One shared `_equal_weight_fallback()` using the same leg-total convention as the HRP path (computed once at the top, shared by all three paths), with new tests for asymmetric thin-history, linkage-exception, and single-sided books.
 
 ### 119. V5.4.5 - V5.4.1's RL asymmetric-penalty reward fix was dead code at its only production call site
- · 
+🟢 `fixed` (V5.4.5) · 3/10
 
 **Problem:** `compute_action_reward()`'s `asymmetric_penalty_weight` (V5.4.1) was dead code at its only production call site — `build_bandit_rows()` never accepted or forwarded it and `main()` never loaded it from config, so real training used the exact symmetric reward whose failure mode motivated the fix; only `test_rl_sizing_v541.py` exercised it via explicit kwargs. **Fix:** Added `phase_v2.rl_sizing.training.asymmetric_penalty_weight` (default 1.0, byte-identical until set), loaded in `main()`, threaded through `build_bandit_rows()` into `compute_action_reward()`, and recorded in `training_metrics_payload` for provenance.
 
@@ -635,7 +636,7 @@ Every bug and infrastructure issue found in this codebase, oldest first, with ho
 **Problem:** promote copied artifacts without verifying them, a rollback to an empty version "succeeded", a null JSONB field froze the Telegram watermark forever, and a Redis-down ping crash-looped both Postgres workers. **Fix:** `verify_version_artifacts()` before any promote, `no_artifacts_found` and a version-id charset check on rollback, junk-tolerant alert formatting that advances the watermark, and a startup that warns and reconnects.
 
 ### 125. V5.4.7 - `aq` help surfaces drifted: stale `--all` text since V5.4.4; README missing five flags; CI covered 2 of ~23 help screens
- · 
+🟢 `fixed` (V5.4.7) · 2/10
 
 **Problem:** `aq evaluate --all`'s help text was stale since V5.4.4 (benchmarks had joined the bundle), the README's `aq train`/`aq evaluate` synopses were missing six shipped flags, CI's cli-smoke job exercised only two help screens, and ci.yml's `ruff` install was unpinned (new ruff releases could change CI independently of repo changes). **Fix:** Updated the `--all` help and code comment and documented all missing flags with per-flag bullets; added `tests/test_cli_help_surface.py` (parametrized exit-0 `--help` across every parser leaf plus a two-directional README↔`build_parser()` flag-sync guard) and pinned `ruff==0.16.4`; reinstalled the editable `aq` per the #115 packaging rule.
 
@@ -1964,7 +1965,7 @@ Lean's paper brokerage starts empty on each run, so the restart proves the state
 **Verification:** before the bump the PC's five model checkpoints hashed identically on torch 2.9.1 and 2.15.0, and `aq test --ml` passed 712 of 712 on 2.15.0. `pip-audit --require-hashes` over all 13 locks reports no known vulnerability (the CPU torch wheel is not on PyPI, so it is skipped by name). After the push (2026-11-15) the Scorecard reads Vulnerabilities **10** (it was 5; the Dependabot merges alone took it to 9, and the pyarrow floor cleared the last advisory).
 
 ### 363. Nothing was fuzzed, and the first fuzz run found five bugs (V6.6.7)
-🟡 `partial` · 6/10
+🟢 `fixed` · 6/10
 
 **Problem:** Fuzzing read 0. Writing the targets showed:
 
@@ -1977,6 +1978,8 @@ Lean's paper brokerage starts empty on each run, so the restart proves the state
 
 **Verification:** `tests/test_fuzz_targets.py` runs every target over its corpus and under hypothesis, `test_fuzz_runner.py` runs the entry against a stand-in Atheris, and each module's own test file holds a regression test. `fuzz/` is at 100%. On the first GitHub run seven of the eight targets were green, and `secret_refs` failed within 50 ms on an input Atheris generated: the secret `*XXXXX` in `aa/Xb*XXXXXXXXXXXXX`. `redact` was right; the invariant was not, because the mask's last `*` plus the five characters after the secret spell `*XXXXX` again, which is no leak. The invariant now says what is true (the output is the message with every occurrence masked, and a secret without a `*` cannot come back), the URL check only covers passwords the mask and separators cannot spell, and the crash is a corpus seed with a regression test. 160,000 more local inputs found nothing. It stays 🟡 until `fuzz.yml` is green on GitHub (Atheris has no Windows wheel).
 
+**Closed (V6.6.9):** the `Fuzz` workflow ran green on `5fd5573` and again on `87d0ddd` (`gh run list --workflow Fuzz`), so every target now builds and runs on GitHub.
+
 ### 364. Branch protection: none on `main` (V6.6.7)
 🟢 `fixed` · 5/10
 
@@ -1987,13 +1990,15 @@ Lean's paper brokerage starts empty on each run, so the restart proves the state
 **Verification:** the ruleset was applied on 2026-11-15 (id 27309425), and a Scorecard run on `main` read it at once: Branch-Protection 8, CI-Tests 10 (14 of 14 merged pull requests checked by CI), total 7.6 (from 6.7). The workflow's default token reads rulesets, so no extra token is needed. The two remaining warnings are the bypass actor ("settings apply to administrators" is the ceiling) and "codeowners review is required but no codeowners file found", which `.github/CODEOWNERS` removes once it is on `main`. After the push put `CODEOWNERS` on `main` the Scorecard reads Branch-Protection **9**, the ceiling with an administrator bypass.
 
 ### 365. Release provenance came from an unpinned reusable workflow (V6.6.7)
-🟡 `partial` · 3/10
+🟢 `fixed` · 3/10
 
 **Problem:** `slsa-github-generator@v2.1.0` was the one action not pinned by commit (it refuses a SHA), and v6.6.5 and v6.6.4 had signatures but no `.intoto.jsonl`, so Signed-Releases read 8 of 10.
 
 **Fix:** the release job writes the build attestation's Sigstore bundle as `aether_quant-<tag>.intoto.jsonl` (`attest-build-provenance`'s `bundle-path`, one JSON value per line) and the generator job is gone. `backfill_tag` attaches the provenance recorded when the files were built: the tag build's GitHub attestation (`gh attestation download`, which v6.6.5 has), else PyPI's PEP 740 provenance (which v6.6.4 has). It never attests files the run did not build. Immutable releases stay off, because the file is uploaded after the release exists.
 
 **Verification:** `tests/test_ci_workflows.py` pins the job shape, the backfill's two sources and that no action is unpinned. It stays 🟡 until the owner's tag and the two `backfill_tag` dispatches show `.intoto.jsonl` on v6.6.7, v6.6.5 and v6.6.4.
+
+**Closed (V6.6.9):** v6.6.4, v6.6.5, v6.6.7 and v6.6.8 each carry an `.intoto.jsonl` asset (`gh release view <tag> --json assets`); the Signed-Releases check no longer reads 8 of 10 for want of provenance.
 
 ### 366. No OpenSSF Best Practices badge (V6.6.7)
 🟡 `partial` · 2/10
@@ -2122,13 +2127,15 @@ Lean's paper brokerage starts empty on each run, so the restart proves the state
 **Verification:** `ruff check .` (the pinned 0.16.4) is clean on all 14 sets, and the full `aq test --coverage` ran all 16 groups green (7,000+ tests) over 48,167 statements at 100% with nothing missed. The first full run found three things the lint sweep itself caused, all fixed before this one: an unsafe C416 autofix turned a comprehension over a pandas `GroupBy` into `dict(groupby)`, which reads the grouping column's name as a `.keys()` method and raised `TypeError` (reverted, with the reason on the line); RUF100 stripped a `noqa: F821` from the four notebooks' install cell that their `notebooks/src` twins still need; and six test fakes of `subprocess.run` did not accept the `check=False` the sweep added. The new CI job needed a row in the verification matrix.
 
 ### 380. The C++ accelerator had never run under a memory sanitizer (V6.6.8)
-🟡 `partial` · 3/10
+🟢 `fixed` · 3/10
 
 **Problem:** `cpp_inference_ext` is the project's only memory-unsafe code (pybind11, `unchecked<>` accessors), and no job built it: CI always took the NumPy path, so OpenSSF `dynamic_analysis_unsafe` was Unmet.
 
 **Fix:** CI job `cpp-sanitizers` builds it with AddressSanitizer and UBSan (`setup.py` reads `AQ_SANITIZE` and `AQ_ASAN_CANARY`; the default build is unchanged) from the new hash-locked `sanitize` profile. A canary heap overflow must abort first, then `tests/test_cpp_inference_kernel.py` (hypothesis over shapes with zero sizes, dtypes, strided and Fortran layouts, NaN and inf; shape and rank mismatches) and `tests/test_exported_model.py` run against the sanitized build with `AQ_REQUIRE_CPP_INFERENCE=1`, so a missing build fails instead of skipping.
 
 **Verification:** the job's steps replayed in `python:3.11-bookworm` on the PC's Docker (`ml/evaluation/v668/sanitizers_local.txt`): the canary aborts with `AddressSanitizer: heap-buffer-overflow` at `read_at`, then 77 tests pass and 3 skip under ASan and UBSan (the skips need the gitignored `ml/expert_models`, as in CI). The replay caught two flaws in the first draft, both fixed before any push: the canary tripped UBSan's object-size check first, so it now reads through a non-inlined helper, and the shape-mismatch tests aborted inside ASan (`CHECK failed: real___cxa_throw`) because `python` is a C program, so the job preloads `libstdc++` next to `libasan` (the plain build raised the expected `RuntimeError` and `ValueError`). Partial until the first green run on `ubuntu-24.04` (gcc 13) after the push: the replay used gcc 12 and `seccomp=unconfined`, because Docker's default profile blocks a syscall the gcc-12 ASan runtime needs at startup (a plain runner VM has no such filter).
+
+**Closed (V6.6.9):** `cpp-sanitizers` ran green on `bbb994f` (CI run 43753719601, job 132933115653), canary step included: the job fails unless the planted overflow aborts first.
 
 ### 381. The repository was not FLOSS as a whole, so the best-practices badge could not pass (V6.6.8)
 🟢 `fixed` · 2/10
@@ -2138,3 +2145,148 @@ Lean's paper brokerage starts empty on each run, so the restart proves the state
 **Fix:** the trading system is AGPL-3.0-only. `LICENSE` is now the verbatim AGPL-3.0 text (GitHub and the Scorecard recognise a licence only from one standard text), `LICENSES/AGPL-3.0-only.txt` replaces the PolyForm text, `REUSE.toml` defaults to `AGPL-3.0-only` with the Apache-2.0 override for the library unchanged, and `LICENSING.md` holds the path map the old `LICENSE` carried. The README's Known Limitations bullet is gone, the badge, `CONTRIBUTING.md`, `docs/` and the answer sheet say AGPL-3.0, and a commercial license without its obligations stays available on request. Releases up to 6.6.7 keep the terms they shipped under; the only other committer is Dependabot.
 
 **Verification:** `tests/test_licensing.py` passes with the new split (`main.py` and the rest are AGPL-3.0-only, the wheel is all Apache-2.0, `LICENSE` equals `LICENSES/AGPL-3.0-only.txt`, no licence text is unused, no living document calls the trading system noncommercial). The Scorecard's License check and GitHub's detection only change after the push.
+
+### 382. The installed scaler no longer matched the installed models (V6.6.9)
+🟢 `fixed` · 4/10
+
+**Problem:** `ml/scaler_stats.json` and `ml/scaler.pkl` were rewritten on 2026-11-14 (1-day-return mean -1e-05, scale 0.0109) under models, schemas and a manifest from 2026-10-12 (mean 0.00070, scale 0.0228). Every file stayed readable and every model input was mis-scaled. Nothing noticed, because the shipped crypto sleeve never reads the models.
+
+**Fix:** the true scaler was restored from the tracked `ml/backups/pre_v630_cleanup.zip` (the overwritten one is kept in `ml/evaluation/v669/scaler_overwritten/`). `train.write_scaler_artifacts` resolves its paths when it runs instead of binding the real ones as defaults. New `retraining/artifact_pins.py` pins the 20 files `main.py` loads (`ml/artifact_pins.json`) and refuses a set that differs; everything that scores with the models checks it first.
+
+**Verification:** `tests/test_v669_fixes.py` writes the scaler with no path after moving the module constants (it writes the moved files, and the old code wrote the real ones); `tests/test_artifact_pins.py` covers a rewritten scaler, a missing model and a damaged record. The writer itself was not found: a one-by-one run of 40 train and retraining test files changed nothing before the run was stopped for memory, so a guard that fails a suite run when any pinned file changes is still to be added. After the restore, `scripts/feature_parity_audit.py` reproduces `close_to_close_return_1d` from the stored dataset with the restored scaler to 2.4e-14 over 317,064 rows (the scaler constants are right). The same audit still reports FAIL on 13 other features with 118-479 unexplained rows each out of 317k (mean delta about 1e-5); that is a separate, smaller defect in the rebuilt dataset's windows and is not fixed here.
+
+### 383. HRP correlated different dates and let one flat name void a whole leg (V6.6.9)
+🟢 `fixed` · 5/10
+
+**Problem:** `build_hrp_allocation` built its frame from per-name lists by position, so a crypto window (seven bars a week) and an equity window (five) put a different date in each column. A constant series made `1 / variance` infinite and the whole result NaN, and a selected name with under 2 returns got weight 0 although the docstring promised the selected set is covered.
+
+**Fix:** `aligned_returns` aligns the lists at their end and leaves out a history under half the longest; `compute_hrp_weights` drops zero-variance names and takes a `linkage_method`; a name HRP could not estimate gets its leg's mean weight, and each leg sums to its total.
+
+**Verification:** `tests/test_hrp_allocation.py` (mixed lengths equal the aligned truth, a flat name, a short history, a hypothesis property: every selected name finite, each leg at its total) and the existing HRP, book-sizing and library tests. The callers still pass `symbol_windows` closes; sampling them on the equity calendar is part of the in-Lean mode (not built yet).
+
+### 384. A forex name on the target-weights path was opened on one bar and closed on the next (V6.6.9)
+🟢 `fixed` · 5/10
+
+**Problem:** `main.py` runs `_liquidate_positions_for_disabled_asset_classes()` before `_target_weights_tick`, and `phase_v2.forex_risk.enabled` is false, so a weight row that named a forex pair opened it and the next bar's sweep closed it. The offline engine had no such sweep, so it held the pair. Separately, `forex_min_trade_usd` is $5,000, so a forex name capped at 3% of $100,000 could never open at all (audit item 4).
+
+**Fix:** `risk/asset_class_router.py::target_path_class_conflicts` names the classes a file holds that the sweep would close, `portfolio/target_weights.py::drop_class_weights` removes them from every row, `main.py::_drop_disabled_class_weights` does it at setup and on every live reload, and `simulate_target_weights(disabled_classes=)` does it offline (`build_context(respect_disabled_classes=True)` opts in, so closed rounds score as they did). The model book's forex name cap is 6% and its class cap 12%.
+
+**Verification:** `tests/test_v669_fixes.py` (the conflict list, the drop, the engine holding nothing with the class disabled, `rebalance_deltas` refusing $3,000 and ordering $6,000 of a forex pair, `main.py`'s method on a stub). The installed config sets `forex_risk.enabled: true` only with the install.
+
+### 385. The installed models were trained with EOSUSD still in the universe (V6.6.9)
+🟡 `partial` · 3/10
+
+**Problem:** `ml/dataset_manifest.json`, the datasets and the walk-forward score tables list 104 assets; Coinbase delisted EOS (#311) and the universe has 103. A retrain is not possible on this host.
+
+**Fix:** every scorer of the model book drops tickers that `config.json` no longer lists (`evaluation/model_book_research.py::universe_tickers`, used by `load_score_table` and `installed_score_tables`), so EOS is never ranked. The retrain procedure (`stack`) builds from the config's universe.
+
+**Verification:** `tests/test_model_book_research.py` (a ticker outside the universe is filtered). Partial until the first real retrain, which removes it from the artefacts.
+
+### 386. The trial counts in the README and the registry were stale (V6.6.9)
+🟢 `fixed` · 2/10
+
+**Problem:** `ml/evaluation/trial_registry.json` and two generated README lines quoted 173 and 206 trials while the ledgers held 217.
+
+**Fix:** the registry was rebuilt with the new ledger (`scripts/build_trial_registry.py`), `evaluation/trial_ledger.py::LEDGER_PHASES` and `aq_cli._phase_deflation_inputs` count `v669/trial_ledger.jsonl`, and the README's generated blocks take the new pin's numbers. The deflated-Sharpe N is now 243.
+
+**Verification:** `tests/test_trial_ledger.py`, `aq docs sync --check`.
+
+### 387. Problems.md had blank statuses, a stale "Open now" list and entries that could close (V6.6.9)
+🟢 `fixed` · 1/10
+
+**Problem:** #118, #119 and #125 had no status, the second #112 looked like the first, the "Open now" list named old work, and #363, #365 and #380 only waited for a GitHub run.
+
+**Fix:** statuses set from each entry's own fix; the second #112 is marked; #363 (`Fuzz` green on `5fd5573`), #365 (an `.intoto.jsonl` on v6.6.4, v6.6.5, v6.6.7 and v6.6.8) and #380 (`cpp-sanitizers` green on `bbb994f`) closed with that evidence; the list rewritten from the real 🟡 set.
+
+**Verification:** `tests/test_docs_facts.py`.
+
+### 388. No model generation existed, so a refit of the models had nowhere to land (V6.6.9)
+🟢 `fixed` · 3/10
+
+**Problem:** `ml/generations/registry.json` held only rule generations (g0001 to g0005), so `register_vintage` could never record a refit of the models and `aq cycle status` never suggested a retrain.
+
+**Fix:** `scripts/v669_book.py register` adds g0006 (`kind: model`, `needs: model`, tier `installed`, stage `active`, the freeze's hash in its definition) with a hash-chained lifecycle row, and `policy.json` records the installed blend's fixed shares (`installed_shares`: g0001 0.7, g0006 0.3) so `aq cycle status` shows them instead of an equal split nobody computed. A host with the models decides it daily (`scripts/model_book_decide.py --ledger ... --generation g0006`); a refit adds a vintage (`stack`'s `register` stage).
+
+**Verification:** `tests/test_model_book_round.py` (the registry accepts it, once; a shadow observer holds nothing) and `tests/test_research_cycle.py` (the status view).
+
+### 389. `aq evaluate --rank-book` read all 825 MB of the dataset at once (V6.6.9)
+🟢 `fixed` · 3/10
+
+**Problem:** `pd.read_csv` of `ml/datasets/full_dataset.csv` needs about 3 GB; the PC has 3.9.
+
+**Fix:** `evaluation/dataset_io.py` reads in chunks: `read_dataset_rows` keeps only the requested split's rows (the evaluate branch), `read_dataset_columns` only the named columns as float32 with a date floor (the model book's scores).
+
+**Verification:** `tests/test_dataset_io.py` (equal to a plain read on what they keep); the installed models' scores for 2023-07-01..2026-11-01 were computed on this PC with it.
+
+### 390. Walk-forward score tables for crypto and forex were used one bar early (V6.6.9)
+🟢 `fixed` · 5/10
+
+**Problem:** `portfolio/premia_signals.py::align_score_table` exists because a crypto or forex score dated D reads bar D, which closes after D's equity decision, but no loader called it: `scripts/v650_research.py::load_context` and `evaluation/research_round.py::score_file_table` pivot by date. The dataset does not lag those rows (the BTCUSD row dated 2026-10-28 holds the bar dated 2026-10-28), so the shift is right and not a double lag.
+
+**Fix:** `evaluation/model_book_research.py::load_score_table` carries crypto and forex scores over the calendar rows and shifts them one row through `align_score_table`; every table of the V6.6.9 round comes through it. Closed rounds are not re-scored: `ml/evaluation/v669/amendment_unaligned_scores.json` lists the V6.5.0 trials that read ML tables for crypto and forex (T2, 12 trials, and T5, 4); none survived, and an early score can only flatter.
+
+**Verification:** a truncation test: changing the crypto bar dated D leaves session D's row unchanged and changes D+1's (`tests/test_model_book_research.py`).
+
+### 391. R-BOOK1: twelve optimizers on one model signal, none survives (V6.6.9)
+🟢 `fixed` · 4/10
+
+**Problem:** the old model book was a formula (top six and bottom six by rank, weight `0.10 + 0.15 x confidence`), with no volatility or covariance in it.
+
+**Fix:** `portfolio/book_optimizer.py` (pooled ranks, inverse volatility, class risk parity, HRP, shrunk mean-variance, a tilted risk-parity core, a no-trade band, a partial move, a forex loss guard) and a pre-registered round (`ml/evaluation/v669/rules.json`, recorded in the vault before any score) scored 12 trials on `ml_a1` through the aligned loader, with V6.5.0's top-6 book (b01) and a model-free risk-parity core as controls. On 2019-01-01..2023-06-30, median of five phases, no trial reaches Sharpe 0.40 in both halves: every second half (2021-04..2023-06) is negative (-0.23 to -1.19) while every first half is strong (0.32 to 1.34). The best pooled Sharpes are b05 HRP 0.54 and b03 inverse volatility 0.53; the controls score b01 0.50 and the core 0.47, so the optimizers add nothing the model-free core does not already have. No placebo ran (no trial passed the Sharpe clauses), PBO is 0.58, and there is no survivor.
+
+**Verification:** `ml/evaluation/v669/r_book1.json` holds every trial's numbers; 26 trials (12 + 6 + 8 diagnostics) were appended to `ml/evaluation/v669/trial_ledger.jsonl`. The deflated-Sharpe N is now 243.
+
+### 392. R-MIX1 and D1: six signal mixes, none survives, and the rank IC is small everywhere (V6.6.9)
+🟢 `fixed` · 4/10
+
+**Problem:** the model score alone might gain from momentum, low volatility, a trend vote, a VIX stress scaler or the other two heads.
+
+**Fix:** six pre-registered mixes (m01 to m06, pooled ranks, every 20 sessions) and eight rank-IC looks (four classes by 5 and 20 sessions). The best mix is m03 (score plus trend vote) at pooled Sharpe 0.48 with a second half of -0.53. The rank IC of `ml_a1` on 2019..2023-06 is 0.005 to 0.007 for equities, 0.019 to 0.043 for bonds, 0.024 to 0.040 for forex and 0.008 to 0.068 for crypto, every HAC t under 1.4: the model carries no measurable rank information in any class on this window.
+
+**Verification:** `ml/evaluation/v669/r_book1.json` and `diagnostics_d1.json`. The diagnostics select nothing; they say where a retrain should look first (bonds and crypto at 20 sessions, forex at 5).
+
+
+### 393. The model book is installed by rule at 30%, "reinstated, not verified" (V6.6.9)
+🟡 `partial` · 5/10
+
+**Problem:** the owner asked for the multi-asset book back. Nothing survived R-SLEEVE2, so by the rule fixed before any score (R-INSTALL2) the best candidate inside the risk ceiling installs at a fixed 30% beside the crypto sleeve (70%), on paper.
+
+**Fix:** the candidate is b03, inverse-volatility ranks of `ml_a1` every 20 sessions, the highest pooled Sharpe (0.53) of the four trials inside the ceiling on the selection window (b03, b06, b12, m05). It was frozen with the code's hashes (`ml/evaluation/v669/freeze.json`, in the vault before any verification row), then scored with the installed models: on 2023-07-01..2026-11-02 the median of five phases has Sharpe 0.37, volatility 7.6%, max drawdown 14.1% and mean gross 0.46 (`verification.json`). Lean run `2026-11-16_16-25-28` of the blend (the PC's Docker, 1,419 s, 1,445 orders; its engine log ends with the python-teardown timeout seen on `2026-11-12_11-22-15` and nothing before it) has Sharpe 0.57, 8.5% a year, drawdown 9.4%; the engine reproduces it at daily correlation 0.99999 and 1.7 bps a year (R-INSTR1: 0.90 and 100). Every R-INSTALL2 clause passes (`r_install2.json`), so `config.json` now has `weights_sha256` `71f9fb7b…`, `uses_model: true` (the kill switch's 180-day model-age limit applies from 2027-04-10) and `forex_risk.enabled: true`; `ml/target_weights.csv` is the blend; `ml/target_weights_candidate.json` is its definition; g0006 is registered (#388).
+
+The model book alone (Lean run `2026-11-17_10-38-53`, same window) has Sharpe 0.04 and 4.7% a year, and the engine tracks it at 0.9975 and 20 bps. The blend is worse than the crypto sleeve alone on the same window (Lean Sharpe 0.65, alpha t 0.15 on `2026-11-07_17-54-01`; now 0.57 and -0.19), as the offline numbers said: the model book adds a little diversification and no alpha. Its first half is strong and its second negative in every trial, the model's rank IC is under 0.07 in every class, and the model-free core scores as well as any optimizer (#391, #392).
+
+**Verification:** `scripts/daily_target_weights.py --candidate ml/target_weights_candidate.json --date 2026-10-28` reproduces that date's row of the installed file to 0.0, and `scripts/model_book_decide.py --session 2026-10-30` reproduces the model book's last verification row to 5e-9. Partial: nothing here is an edge, the paper period (#228) is what judges it, and the rebuilt Docker image is the owner's step.
+### 394. The model book can be computed inside Lean, off by default (V6.6.9)
+🟢 `fixed` · 5/10
+
+**Problem:** the order path could only trade a file of weights, so a model book had to be scored offline and pushed. The owner wanted `main.py` able to compute the book itself, with the file path left alone.
+
+**Fix:** `phase_v2.target_weights.source: "model_book"` (default `"file"`) makes `main.py` run Pass 1 on every tick, keep one close per equity session (`_session_closes`, which the HRP sizing also reads), score the universe with the sequence model's `rank_20d` and `rank_5d` (`portfolio.model_book.session_scores`, the live twin of `ml_a1`), and on a decision day call `lean_session_row`, the same `row_for_session` the research and `scripts/model_book_decide.py` call. The row goes through `_apply_target_row`, so locks, financing, the sweep and next-bar orders are the shared ones. A model file that differs from `ml/artifact_pins.json`, an unreadable definition, a non-finite row or a model past its age limit holds the book (`permit_model_book_row`, proved in `formal/AetherFormal/ModelBookGuard.lean`). Nothing is persisted: warm-up rebuilds the closes and scores, and the rebalance count starts at the first session kept at or after `history_start`, so a run that starts there agrees with the file and a later start has another phase.
+
+**Verification:** R-LEAN23, run `2026-11-16_17-39-35` (the PC's Docker, the installed models, the same window and sizing as BT-B): it completes with the python-teardown timeout only, its 209 logged decision dates are exactly the file's 209, its daily returns correlate 0.998 with BT-B (Sharpe 0.61 against 0.57, 1,441 orders against 1,445), and the mean absolute weight difference between its rows and `blend.csv` is 0.00017 per name (0.016 summed over a row, which holds about 0.18 gross; worst 0.032 on 2025-09-09). By the rule's own measure (correlation at least 0.95, mean absolute weight difference at most 0.01) parity is reached (`ml/evaluation/v669/r_lean23.json`). `source` stays `"file"`: the installed book is the file. `tests/test_main_model_book_mode.py` runs the mode on the synthetic Lean world (a decided row reaches the order path; a bad pin, a missing definition, an old model and a failing row build each hold the book, once-noted). `aq prove --regen-cases` built `ModelBookGuard.lean` on the PC (the theorems check) and regenerated the 29 case files; only the guard's is new.
+### 395. Retraining the model stack needed two hand-run shell scripts and had no generation to land in (V6.6.9)
+🟡 `partial` · 4/10
+
+**Problem:** the only retrain procedures were k06 and k07, so `register_vintage` could never record a refit of the models, and a retrain could overwrite the active `ml/` (the scaler incident, #382).
+
+**Fix:** `aq cycle retrain --procedure stack` (and `stack_asof`, a new procedure) plans the refit as 12 resumable stages (`evaluation/research_cycle.py::stack_plan`), zips the installed files first (`retraining/artifact_pins.py::snapshot_active`), writes every trainer into `ml/versions/<id>_<part>/`, and registers the vintage on generation g0006. `validate_plan_flags` runs each trainer's `--help` and fails on any planned flag it does not list. `aq cycle status` suggests the retrain 30 days before the models reach the kill switch's age limit.
+
+**Verification:** `tests/test_research_cycle.py` and `tests/test_cycle_retrain.py` (the plan, the flag check with a fake runner, the stages with a fake one); `aq cycle retrain --host local --procedure stack --smoke` against the real trainers. Partial until the first real run on a Codespace, as #321.
+
+### 396. The small docs were long paragraphs and a few said things that were no longer true (V6.6.9)
+🟢 `fixed` · 2/10
+
+**Problem:** `CODE_OF_CONDUCT.md`, `REPRODUCIBILITY.md`, `SECURITY.md`, `LICENSING.md`, `CONTRIBUTING.md` and the READMEs of `notebooks/`, `formal/`, `requirements/`, `cpp_inference_ext/`, `data_pipeline/` and `tests/` were dense, version-historical or wrong (a reporting route GitHub does not have, a requirements file that is no longer the install).
+
+**Fix:** rewritten as short headings and bullets, the stale facts replaced (hash-locked requirements, the real reporting route), history left to the Changelog.
+
+**Verification:** `tests/test_docs_facts.py`, `tests/test_licensing.py`, `tests/test_notebooks.py` and `aq docs sync --check`.
+
+### 397. The V6.6.9 audit of the multi-asset book: what was checked and what it changed (V6.6.9)
+🟢 `fixed` · 3/10
+
+**Problem:** the model book's pieces had never run together, so fourteen assumptions needed a look before research read a number.
+
+**Fix:** (1) `scale_and_cap` fills a missing covariance with zero, which inflates a name with no measurable risk; the optimizers only rank names with measurable volatility and a masked signal never reaches it, so it is left as it is. (2) A class with under four live names holds nothing in a pooled or cross-sectional rank, now stated in the code. (3) `combine_sleeves` gives a sleeve with no variance in its trailing year no budget until the next month, stated in its docstring; the model book's blend uses fixed shares. (4) A forex name capped at 3% could never open under the $5,000 minimum: the cap is 6% (#384). (5) Both the engine and `main.py` clip crypto at zero and let a forex weight go short. (6) `_model_age_days` returns None in a backtest, so `uses_model` trips no historical run. (8) The in-Lean score is the mean of the session's percentile ranks of the sequence model's `rank_20d` and `rank_5d`, as `ml_a1` is; the installed table ranks 103 names where the walk-forward tables ranked 104 (EOS). (9) The offline and live sequence windows both left-pad with zeros. (10) The dataset row dated D holds bar D, so the one-row shift is right (#390). (11) `scripts/model_book_decide.py` refuses on scores more than five days older than the session. (12) `aq cycle status` shows an installed blend's fixed shares (`policy.json` `installed_shares`) instead of an equal split nobody computed; once the forward ledger holds an allocation row it shows that row, which is g0001 alone until the first g0006 decision is pushed (a generation with no decision holds nothing). (13) The legacy gated path stays selectable: `ml/evaluation/run_configs/legacy_book_v644_settings.json` is the shipped config with `target_weights.enabled: false` and the nine settings that differ from `03acffd`. (14) README "Known Limitations" updated.
+
+**Verification:** each item has a test or a recorded reading in the file it names. Item 7 (the kill switch's settings on a four-class book) is a hand-over table, not a change: of the target path's switches only the 15% drawdown lock and the 5% daily lock are on; the Sharpe, rank-IC, loss-streak, velocity and slippage triggers are off since V6.5.0 because one ordinary bad crypto day tripped them.
