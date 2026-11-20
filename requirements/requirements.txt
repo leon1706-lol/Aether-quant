@@ -9,7 +9,7 @@ ibapi>=9.81
 # container (docker-compose.yml's retraining-worker service also mounts
 # the host Docker socket, since `lean backtest` itself launches a SEPARATE
 # Docker container to actually run - see that service's own comment).
-lean>=1.0.225
+lean>=1.0.233
 
 # Machine Learning & Data Processing
 torch>=2.15.0

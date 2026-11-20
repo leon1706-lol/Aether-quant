@@ -9,7 +9,7 @@
 # (the Docker image's own requirements file) now also lists it, so
 # retraining-worker's container has it too - kept here as well so a local
 # dev venv installed purely from this file still has it for `aq backtest`.
-lean>=1.0.225
+lean>=1.0.233
 
 # Dashboard / optional local exploration
 plotly>=5.17.0
