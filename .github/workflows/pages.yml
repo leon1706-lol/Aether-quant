@@ -42,7 +42,7 @@ jobs:
 
       - name: Download CI's coverage reports
         if: github.event_name == 'workflow_run' && github.event.workflow_run.head_sha == github.sha
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: "*coverage*"
           path: coverage-artifacts
@@ -66,7 +66,7 @@ jobs:
             mkdir -p site/coverage-webui && cp -r coverage-artifacts/webui-coverage/lcov-report/. site/coverage-webui/
           fi
 
-      - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: site/
 

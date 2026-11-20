@@ -1025,3 +1025,4 @@ What each phase built and why, oldest first (the newest phase is <!--fact:change
 ## Phase V6.7.1 — CI repair, Dependabot, the `aq` CLI to 10/10, the model lab
 
 - **Main green again (#413, #414):** a pipeline file on Python 3.10 now fails with a clear message instead of a `tomllib` import error, and a constant score's R-squared no longer comes from float noise. The pandas `dayofweek` names that pandas 3 deprecates became `day_of_week`.
+- **Dependabot cleared (#415):** the 15 open PRs were applied on main the way the checks accept them (locks rebuilt with uv, paired npm packages and all CodeQL sub-actions bumped together: vitest 5, react 19.3, CodeQL v4, build-push v7, download-artifact v8, upload-pages-artifact v5), then closed. Minor and patch bumps now arrive grouped, one PR per ecosystem.

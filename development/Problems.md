@@ -2,7 +2,7 @@
 
 Every bug and infrastructure issue found in this codebase, oldest first, with how it was fixed or why it stayed open. Numbers never change, because code and docs cite them; #73-76 don't exist, #88's first entry is #88a, and #112 appears twice (the second is marked).
 
-**Entries:** <!--fact:problems.total-->411<!--/fact--> up to #<!--fact:problems.last-->414<!--/fact-->: <!--fact:problems.fixed-->374<!--/fact--> 🟢 `fixed` (changed and verified), <!--fact:problems.partial-->18<!--/fact--> 🟡 `partial` (shipped, verification pending), <!--fact:problems.closed-->20<!--/fact--> 🔴 `closed` (no code fix: declined, moot or superseded). Severity runs from 1 (cosmetic) to 10 (data loss or safety). Full text of older entries: [`backups/`](backups/README.md).
+**Entries:** <!--fact:problems.total-->412<!--/fact--> up to #<!--fact:problems.last-->415<!--/fact-->: <!--fact:problems.fixed-->375<!--/fact--> 🟢 `fixed` (changed and verified), <!--fact:problems.partial-->18<!--/fact--> 🟡 `partial` (shipped, verification pending), <!--fact:problems.closed-->20<!--/fact--> 🔴 `closed` (no code fix: declined, moot or superseded). Severity runs from 1 (cosmetic) to 10 (data loss or safety). Full text of older entries: [`backups/`](backups/README.md).
 
 **Open now** (each needs a broker key, a forward record, a Codespace or the laptop):
 
@@ -2445,3 +2445,12 @@ R-INSTALL3 kept the installed models: on 2023-07-01..2026-11-02 g0007's ml_a1 ha
 **Fix:** both treat a total sum of squares under 1e-12 per row as zero.
 
 **Verification:** `tests/test_alpha_behaviour.py` and a new constant-returns case in `tests/test_factor_neutralization_check.py` pass.
+
+### 415. Dependabot's pip PRs could never pass the lock check (V6.7.1)
+🟢 `fixed` · 4/10
+
+**Problem:** Dependabot rewrote the hash-locked `requirements/lock/*.txt` files by hand, so its pip PRs (#53-#57) failed `tests/test_requirement_locks.py` and most CI jobs. Its npm PRs bumped vitest without `@vitest/coverage-v8` and react-dom without react, and CodeQL's `init` without `analyze`, so those failed too. Fifteen PRs piled up.
+
+**Fix:** every bump is applied on main as the checks accept it: the `.in` inputs, then `scripts/lock_requirements.py --upgrade-package` (new) rebuilds the locks with uv; paired npm packages and every `codeql-action` sub-action move together. Minor and patch updates now come grouped, one PR per ecosystem, and `aq deps apply <n>` does this for any future pip PR. numpy keeps 2.4.6 below Python 3.12, since 2.5 needs 3.12.
+
+**Verification:** the lock, workflow and webui checks pass locally (113 webui tests under vitest 5, `npm audit` clean, `scorecard_pins.py` 0); the PRs closed against main.

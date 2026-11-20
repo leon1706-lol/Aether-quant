@@ -4,7 +4,9 @@
 # four ecosystems so none can be dropped silently. V6.6.6 (#357): the actions
 # and the Dockerfiles' base images are pinned by commit and digest; Dependabot
 # moves the pins. Base images get digest refreshes only (no Python or Node
-# version jump without a deliberate edit).
+# version jump without a deliberate edit). V6.7.1 (#415): minor and patch bumps come grouped, one PR per ecosystem a
+# week; majors stay one PR each. A pip PR edits the hash locks by hand, which can't pass tests/test_requirement_locks.py:
+# rebuild them with `aq deps apply <n>` (scripts/lock_requirements.py --upgrade-package).
 version: 2
 updates:
   - package-ecosystem: "pip"
@@ -12,16 +14,25 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
+    groups:
+      minor-and-patch:
+        update-types: ["minor", "patch"]
   - package-ecosystem: "npm"
     directory: "/webui"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
+    groups:
+      minor-and-patch:
+        update-types: ["minor", "patch"]
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
+    groups:
+      minor-and-patch:
+        update-types: ["minor", "patch"]
   - package-ecosystem: "docker"
     directory: "/"
     schedule:

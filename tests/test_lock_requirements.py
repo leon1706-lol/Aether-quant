@@ -70,3 +70,11 @@ def test_main_runs_each_profile_with_an_in_file_and_stops_on_failure(tmp_path, m
 def test_script_runs_as_main(monkeypatch, capsys):
     assert run_script("lock_requirements", ["--print", "--profile", "light"], monkeypatch) == 0
     assert "light.in" in capsys.readouterr().out
+
+
+def test_upgrade_package_lets_uv_move_one_pin(capsys):
+    command = lock.build_command(lock.PROFILES["light"], uv="uv", upgrade=["numpy", "fastapi"])
+    assert command[-4:] == ["--upgrade-package", "numpy", "--upgrade-package", "fastapi"]
+    assert "--upgrade-package" not in lock.build_command(lock.PROFILES["light"], uv="uv")
+    assert lock.main(["--print", "--profile", "light", "--upgrade-package", "numpy"]) == 0
+    assert "--upgrade-package numpy" in capsys.readouterr().out

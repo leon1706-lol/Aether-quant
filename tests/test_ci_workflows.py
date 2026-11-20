@@ -359,6 +359,8 @@ def test_dependabot_covers_pip_npm_github_actions_and_docker():
     docker = next(update for update in config["updates"] if update["package-ecosystem"] == "docker")
     assert docker["ignore"][0]["update-types"] == ["version-update:semver-major", "version-update:semver-minor"], "digest refreshes only"
     assert all(update["schedule"]["interval"] == "weekly" for update in config["updates"])
+    grouped = {update["package-ecosystem"] for update in config["updates"] if update.get("groups", {}).get("minor-and-patch", {}).get("update-types") == ["minor", "patch"]}
+    assert grouped == {"pip", "npm", "github-actions"}, "V6.7.1 (#415): one grouped minor/patch PR per ecosystem; majors and docker digests stay single"
 
 
 def test_dev_requirements_pin_the_same_ruff_as_the_lint_job():
@@ -402,7 +404,7 @@ def test_v665_jobs_exist_with_timeouts_and_check_what_they_claim():
     assert "python -m build --wheel" in lite and "aq hello --offline" in lite and "pip install -e" not in lite
     assert all(heavy in lite for heavy in ("torch", "lean", "fastapi", "scipy")), "the light install is checked for every heavy package"
     tools = (ROOT / "requirements" / "lock" / "tools.in").read_text(encoding="utf-8")
-    assert "scripts/type_completeness.py" in _scripts(jobs["typecheck"]) and "pyright==1.1.409" in tools and "pyright --verifytypes" in _scripts(jobs["typecheck"])
+    assert "scripts/type_completeness.py" in _scripts(jobs["typecheck"]) and re.search(r"^pyright==\d+\.\d+\.\d+$", tools, re.MULTILINE) and "pyright --verifytypes" in _scripts(jobs["typecheck"])
     docs = _scripts(jobs["docs"])
     assert "mkdocs build --strict" in docs and "scripts/build_docs.py --check" in docs and "requirements/lock/docs.txt" in docs
     assert "-r ../requirements-docs.txt" in (ROOT / "requirements" / "lock" / "docs.in").read_text(encoding="utf-8")
