@@ -43,6 +43,8 @@ import copy
 import gc
 import json
 import logging
+import os
+import random
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -53,8 +55,11 @@ import torch
 import torch.nn as nn
 
 from performance_probe import install_sigterm_witness
+from retraining.slicing import PROFILES, gather_windows, log_peak, memory_profile, read_csv_float32, sequence_window_index
 from train import (
+    CONTEXT_OBJECTIVES,
     HORIZON_HEAD_SPECS,
+    RANKING_OBJECTIVES,
     AetherNetSequenceMultiTaskHorizons,
     add_rank_label_noise,
     assess_net_performance_quality,
@@ -80,6 +85,7 @@ from train import (
     is_new_best_epoch,
     load_sector_mapping,
     resolve_horizon_head_config,
+    row_context_targets,
     run_net_performance_simulation,
     set_seed,
     smoothed_metric,
@@ -120,9 +126,14 @@ def parse_args() -> argparse.Namespace:
         "--ranking-objective",
         type=str,
         default=None,
-        choices=["mse", "soft_spearman", "listnet"],
-        help="Override config.json's ranking_loss.objective for this run only (A/B testing)",
+        choices=list(RANKING_OBJECTIVES),
+        help="Override config.json's ranking_loss.objective for this run only (A/B testing; V6.6.10 adds R-LOSS1's ic_pearson, ls_sharpe, class_balanced, cost_aware)",
     )
+    # V6.6.10: `low` gathers each batch's windows from one row matrix instead of a dense per-split array, evaluates in
+    # smaller chunks and checkpoints every epoch, so the stack trains on a 4 GB machine. `standard` is unchanged.
+    parser.add_argument("--memory-profile", choices=sorted(PROFILES), default="standard", help="standard (default) or low: train on a small machine")
+    parser.add_argument("--resume", action="store_true", help="continue from the version's checkpoint.pt (the low profile writes one per epoch)")
+    parser.add_argument("--log-peak-memory", type=str, default=None, help="append this run's peak memory to this JSONL file")
     return parser.parse_args()
 
 
@@ -150,17 +161,58 @@ def read_dataset_compact(path: Path, chunk_rows: int = 40_000) -> pd.DataFrame:
     pandas parses and again for the filtered copy), which with the sequence windows pushed the 8 GB Codespace into the
     kernel's memory-pressure SIGTERM. The model path converts every feature and target to float32 anyway; dates, tickers
     and the boolean flags keep their types."""
-    parts = []
-    for chunk in pd.read_csv(path, chunksize=chunk_rows):
-        float_columns = dict.fromkeys(chunk.columns[chunk.dtypes == np.float64], np.float32)
-        parts.append(chunk.astype(float_columns))
-    return pd.concat(parts, ignore_index=True) if parts else pd.DataFrame()
+    return read_csv_float32(path, chunk_rows=chunk_rows)
+
+
+def rng_state(generator: torch.Generator | None) -> dict:
+    """Every random stream a training epoch draws from, so a resumed run continues the interrupted one's draws."""
+    return {
+        "torch": torch.get_rng_state(), "numpy": np.random.get_state(), "python": random.getstate(),
+        "generator": generator.get_state() if generator is not None else None,
+    }
+
+
+def restore_rng_state(state: dict, generator: torch.Generator | None) -> None:
+    torch.set_rng_state(state["torch"])
+    np.random.set_state(state["numpy"])
+    random.setstate(state["python"])
+    if generator is not None and state["generator"] is not None:
+        generator.set_state(state["generator"])
+
+
+def save_checkpoint(path: Path, state: dict) -> None:
+    """Writes the checkpoint beside its final name and renames it into place: an interrupted save never leaves a torn file to resume from."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    partial = path.with_suffix(".pt.partial")
+    torch.save(state, partial)
+    os.replace(partial, path)
+
+
+class LazySequenceWindows:
+    """One split's sequence windows, gathered when indexed (V6.6.10, the low memory profile). `windows[rows]` is the float32 tensor
+    the dense split tensor holds at those rows (retraining/slicing.py proves the gather equal to build_sequence_tensor_dataset), so
+    the training loop, `forward_in_batches` and the metrics index it exactly as they index a tensor."""
+
+    def __init__(self, matrix: np.ndarray, index: np.ndarray):
+        self.matrix = matrix
+        self.index = index
+
+    def __len__(self) -> int:
+        return len(self.index)
+
+    def __getitem__(self, key) -> torch.Tensor:
+        if isinstance(key, torch.Tensor):
+            key = key.cpu().numpy()
+        return torch.from_numpy(gather_windows(self.matrix, self.index[key]))
+
+    def to(self, device) -> LazySequenceWindows:
+        return self
 
 
 def _split_sequence_tensors(
     dataset: pd.DataFrame, sequences: np.ndarray | None, split_name: str, *, feature_names: list[str] | None = None,
-    window_size: int | None = None,
-) -> tuple[torch.Tensor, dict[str, torch.Tensor], pd.Series]:
+    window_size: int | None = None, matrix: np.ndarray | None = None, context: bool = False,
+) -> tuple[torch.Tensor | LazySequenceWindows, dict[str, torch.Tensor], pd.Series]:
     """Returns (features, targets, dates) for one split - targets is a dict
     keyed by head name, same shape as train_multitask.py::frame_to_multitask_tensors()'s
     return, so compute_sequence_multitask_metrics() below can share its
@@ -169,12 +221,15 @@ def _split_sequence_tensors(
     V5.8.0: with `sequences=None` the split's windows are built directly (build_sequence_tensor_dataset(row_mask=...))
     and wrapped without a copy, so the full-dataset array and its two copies never exist at once."""
     mask = (dataset["split"] == split_name).to_numpy()
-    if sequences is None:
-        split_sequences = build_sequence_tensor_dataset(dataset, feature_names, window_size, row_mask=mask)
+    if matrix is not None:
+        features = LazySequenceWindows(matrix, sequence_window_index(dataset["ticker"].to_numpy(), window_size, row_mask=mask))
     else:
-        split_sequences = sequences[mask]
+        if sequences is None:
+            split_sequences = build_sequence_tensor_dataset(dataset, feature_names, window_size, row_mask=mask)
+        else:
+            split_sequences = sequences[mask]
+        features = torch.from_numpy(np.ascontiguousarray(split_sequences, dtype=np.float32))
     split_frame = dataset[mask]
-    features = torch.from_numpy(np.ascontiguousarray(split_sequences, dtype=np.float32))
     targets = {
         "direction": torch.tensor(split_frame["target_direction"].to_numpy(dtype=np.float32), dtype=torch.float32),
         "magnitude": torch.tensor(split_frame["target_return_1d"].to_numpy(dtype=np.float32), dtype=torch.float32),
@@ -184,6 +239,8 @@ def _split_sequence_tensors(
     }
     for head_name, (column, _kind, _stride) in HORIZON_HEAD_SPECS.items():
         targets[head_name] = torch.tensor(split_frame[column].to_numpy(dtype=np.float32), dtype=torch.float32)
+    if context:
+        targets.update(row_context_targets(dataset, np.flatnonzero(mask)))
     return features, targets, split_frame["date"]
 
 
@@ -199,7 +256,7 @@ def forward_in_batches(model: nn.Module, features: torch.Tensor, batch_rows: int
     batch_rows = int(batch_rows or FORWARD_BATCH_ROWS)
     with torch.no_grad():
         if len(features) <= batch_rows:
-            return model(features)
+            return model(features[0 : len(features)])  # a slice: a tensor's own view, or a lazy split's gathered windows
         pieces: dict[str, list[torch.Tensor]] = {}
         for start in range(0, len(features), batch_rows):
             for head, value in model(features[start : start + batch_rows]).items():
@@ -282,6 +339,7 @@ def main() -> int:
     install_sigterm_witness(LOGGER)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     args = parse_args()
+    profile = memory_profile(args.memory_profile)
 
     try:
         training_config = load_sequence_training_config(Path(args.config_path))
@@ -373,7 +431,7 @@ def main() -> int:
         if not dataset_path.exists():
             LOGGER.info("train_sequence: dataset not found at %s - skipping.", dataset_path)
             return 0
-        dataset = read_dataset_compact(dataset_path)
+        dataset = read_dataset_compact(dataset_path, chunk_rows=profile.read_chunk_rows)
 
         required_columns = set(feature_names) | {
             "target_direction",
@@ -429,6 +487,10 @@ def main() -> int:
         LOGGER.info("train_sequence: building (rows=%d, window=%d, features=%d) sequence tensor...", len(eligible), window_size, len(feature_names))
         sequences = None  # V5.8.0: each split builds its own windows (no full-dataset array, no copies)
         split_kwargs = {"feature_names": feature_names, "window_size": window_size}
+        if profile.lazy_windows:
+            split_kwargs["matrix"] = eligible[feature_names].to_numpy(dtype=np.float32)
+        if ranking_loss_config is not None and ranking_loss_config.get("objective") in CONTEXT_OBJECTIVES:
+            split_kwargs["context"] = True
 
         train_features, train_targets, train_dates = _split_sequence_tensors(eligible, sequences, "train", **split_kwargs)
         validation_features, validation_targets, validation_dates = _split_sequence_tensors(
@@ -459,6 +521,9 @@ def main() -> int:
         target_names_sorted = sorted(train_targets)
         if batch_mode == "cross_sectional":
             train_loader = None
+        elif profile.lazy_windows:
+            # the same shuffle a TensorDataset loader draws (one RandomSampler over len rows), as row indices into the lazy split
+            train_loader = torch.utils.data.DataLoader(range(len(train_features)), batch_size=batch_size, shuffle=True)
         else:
             train_loader = torch.utils.data.DataLoader(
                 torch.utils.data.TensorDataset(
@@ -549,7 +614,22 @@ def main() -> int:
         if early_stop_metric == "rank_ic_non_overlapping":
             monitored_metric_key = f"validation_{early_stop_head}_non_overlapping_mean_ic"
 
-        for epoch in range(1, max_epochs + 1):
+        checkpoint_path = sequence_candidate_output_paths(args.version_id)["version_dir"] / "checkpoint.pt" if profile.checkpoint_every else None
+        start_epoch, stopped = 1, False
+        if args.resume and checkpoint_path is not None and checkpoint_path.exists():
+            saved = torch.load(checkpoint_path, weights_only=False)
+            model.load_state_dict(saved["model"])
+            optimizer.load_state_dict(saved["optimizer"])
+            if scheduler is not None and saved["scheduler"] is not None:
+                scheduler.load_state_dict(saved["scheduler"])
+            best_state, best_epoch, best_validation_metric = saved["best_state"], saved["best_epoch"], saved["best_validation_metric"]
+            epochs_without_improvement, history = saved["epochs_without_improvement"], saved["history"]
+            swa_state, swa_count = saved["swa_state"], saved["swa_count"]
+            restore_rng_state(saved["rng"], label_noise_generator)
+            start_epoch, stopped = int(saved["epoch"]) + 1, bool(saved["stopped"])
+            LOGGER.info("train_sequence: resumed from %s after epoch %d", checkpoint_path, start_epoch - 1)
+
+        for epoch in range(start_epoch, max_epochs + 1) if not stopped else ():
             model.train()
             running_loss = 0.0
             sample_count = 0
@@ -577,6 +657,11 @@ def main() -> int:
                         else None,
                     )
                     for row_indices in epoch_batches
+                )
+            elif profile.lazy_windows:
+                batch_source = (
+                    (train_features[rows].to(device), {name: train_targets[name][rows].to(device) for name in target_names_sorted}, None, None)
+                    for rows in train_loader
                 )
             else:
                 batch_source = (
@@ -612,7 +697,7 @@ def main() -> int:
                 running_loss += float(loss.item()) * len(batch_features)
                 sample_count += len(batch_features)
 
-            if scheduler is not None:
+            if scheduler is not None and sample_count:  # an epoch with no batch made no optimizer step (torch warns)
                 scheduler.step()
 
             model.eval()
@@ -678,7 +763,15 @@ def main() -> int:
             else:
                 epochs_without_improvement += 1
 
-            if epoch >= min_best_epoch and epochs_without_improvement >= patience:
+            stop = epoch >= min_best_epoch and epochs_without_improvement >= patience
+            if checkpoint_path is not None and epoch % profile.checkpoint_every == 0:
+                save_checkpoint(checkpoint_path, {
+                    "epoch": epoch, "stopped": stop, "model": model.state_dict(), "optimizer": optimizer.state_dict(),
+                    "scheduler": scheduler.state_dict() if scheduler is not None else None, "best_state": best_state, "best_epoch": best_epoch,
+                    "best_validation_metric": best_validation_metric, "epochs_without_improvement": epochs_without_improvement, "history": history,
+                    "swa_state": swa_state, "swa_count": swa_count, "rng": rng_state(label_noise_generator),
+                })
+            if stop:
                 break
 
         if swa_enabled and swa_state is not None:
@@ -860,6 +953,10 @@ def main() -> int:
         paths["sequence_model"].write_text(json.dumps(model_payload, indent=2), encoding="utf-8")
         paths["sequence_feature_schema"].write_text(json.dumps(feature_schema_payload, indent=2), encoding="utf-8")
         paths["sequence_training_metrics"].write_text(json.dumps(metrics, indent=2), encoding="utf-8")
+        if checkpoint_path is not None:
+            checkpoint_path.unlink(missing_ok=True)
+        if args.log_peak_memory:
+            log_peak(Path(args.log_peak_memory), "sequence", profile=profile.name)
 
         rank_5d_ic = metrics["backtest"].get("rank_5d_ic") or {}
         LOGGER.info(

@@ -1,0 +1,67 @@
+name: Model cycle
+
+# V6.6.10: every Monday on a free runner, the automated quant pipeline end to end with what a fresh clone has: `aq pipeline run`
+# on the bundled sample (data, signal, evaluate, gate, report), the example models trained under --memory-profile low and scored
+# with the numpy pass, and one row of the result appended to forward/model_cycle.jsonl on the branch `forward-ledger`.
+# The project's own models never run here: they are not on GitHub.
+on:
+  schedule:
+    - cron: "15 5 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: forward-ledger
+  cancel-in-progress: false
+
+jobs:
+  cycle:
+    runs-on: ubuntu-24.04
+    # the job pushes the ledger branch
+    permissions:
+      contents: write
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: code
+
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies (hash-locked, CPU torch)
+        run: |
+          python -m pip install --require-hashes -r code/requirements/lock/ci.txt
+          python -m pip install --no-deps -e code
+
+      - name: The pipeline on the bundled sample
+        working-directory: code
+        run: aq pipeline run --run-id model-cycle || test $? -eq 3
+
+      - name: The example models, trained small and scored
+        working-directory: code
+        run: |
+          python scripts/build_example_models.py --out example-models
+          aq models install example-crypto-mlp --from example-models/example-crypto-mlp.zip
+          aq models score example-crypto-mlp --out example-scores.csv
+
+      - name: Check out the ledger branch, creating it the first time
+        working-directory: code
+        run: |
+          git fetch origin forward-ledger:forward-ledger || git branch forward-ledger "$(git commit-tree "$(git hash-object -t tree /dev/null)" -m 'Forward ledger')"
+          git worktree add ../ledger forward-ledger
+
+      - name: Append this week's row
+        working-directory: code
+        run: python scripts/model_cycle_row.py --run-dir runs/model-cycle --examples example-models --ledger ../ledger/forward/model_cycle.jsonl
+
+      - name: Commit and push the ledger
+        working-directory: ledger
+        run: |
+          git add forward/model_cycle.jsonl || exit 0
+          git diff --cached --quiet && exit 0
+          git -c user.name="model-cycle" -c user.email="model-cycle@users.noreply.github.com" commit -m "model cycle $(date -u +%F)"
+          git push origin forward-ledger

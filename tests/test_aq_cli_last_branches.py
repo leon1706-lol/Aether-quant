@@ -87,7 +87,8 @@ def test_train_warns_about_flags_that_do_not_apply_and_builds_each_command(monke
     assert "only apply to --walk-forward" in capsys.readouterr().err
     walk = _train_args(walk_forward=True, step_days=5, mode="fast", include_multitask=True, include_sequence=True, metrics="m.json", resume_run_id="r1")
     assert aq_cli.cmd_train(walk) == 0
-    assert ran[-1][2:] == ["--walk-forward", "--step-days", "5", "--mode", "fast", "--include-multitask", "--include-sequence", "--metrics", "m.json", "--resume-run-id", "r1"]
+    assert ran[-1][2:11] == ["--walk-forward", "--step-days", "5", "--mode", "fast", "--include-multitask", "--include-sequence", "--metrics", "m.json"]
+    assert ran[-1][11] == "--run-id-file" and ran[-1][-2:] == ["--resume-run-id", "r1"]
 
 
 def test_the_strategy_selector_installs_its_artifacts_or_leaves_ml_alone(tmp_path, monkeypatch, capsys):

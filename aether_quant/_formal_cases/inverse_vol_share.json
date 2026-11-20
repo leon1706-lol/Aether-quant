@@ -1,0 +1,3609 @@
+{
+ "target": "inverse_vol_share",
+ "spec_files": [
+  "AetherFormal/InverseVolShare.lean"
+ ],
+ "cases": [
+  {
+   "input": {
+    "model_volatility": {
+     "num": 19,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 39,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 39,
+     "den": 58
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 51,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 45,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 15,
+     "den": 32
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 35,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 45,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 9,
+     "den": 16
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 53,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 61,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 61,
+     "den": 114
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 5,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 37,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 37,
+     "den": 42
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 1,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 47,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 47,
+     "den": 48
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 41,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 1,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 1,
+     "den": 42
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 31,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 23,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 23,
+     "den": 54
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 5,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 5,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 1,
+     "den": 2
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 3,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 47,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 47,
+     "den": 50
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 37,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 43,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 43,
+     "den": 80
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 43,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 29,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 29,
+     "den": 72
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 23,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 35,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 35,
+     "den": 58
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 17,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 33,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 33,
+     "den": 50
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 33,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 49,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 49,
+     "den": 82
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 49,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 65,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 65,
+     "den": 114
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 43,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 3,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 3,
+     "den": 46
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 7,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 55,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 55,
+     "den": 62
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 45,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 65,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 13,
+     "den": 22
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 39,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 63,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 21,
+     "den": 34
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 33,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 21,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 7,
+     "den": 18
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 21,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 11,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 11,
+     "den": 32
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 7,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 19,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 19,
+     "den": 26
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 29,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 27,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 27,
+     "den": 56
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 21,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 19,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 19,
+     "den": 40
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 45,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 27,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 3,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 51,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 53,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 53,
+     "den": 104
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 13,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 53,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 53,
+     "den": 66
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 37,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 51,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 51,
+     "den": 88
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 25,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 59,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 59,
+     "den": 84
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 57,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 3,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 1,
+     "den": 20
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 3,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 7,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 7,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 59,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 55,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 55,
+     "den": 114
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 39,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 39,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 1,
+     "den": 2
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 15,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 47,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 47,
+     "den": 62
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 63,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 57,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 19,
+     "den": 40
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 57,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 29,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 29,
+     "den": 86
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 55,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 17,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 17,
+     "den": 72
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 29,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 37,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 37,
+     "den": 66
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 3,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 59,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 59,
+     "den": 62
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 23,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 51,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 51,
+     "den": 74
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 43,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 21,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 21,
+     "den": 64
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 53,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 45,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 45,
+     "den": 98
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 31,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 35,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 35,
+     "den": 66
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 41,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 31,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 31,
+     "den": 72
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 39,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 23,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 23,
+     "den": 62
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 13,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 21,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 21,
+     "den": 34
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 23,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 29,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 29,
+     "den": 52
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 49,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 39,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 39,
+     "den": 88
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 27,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 47,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 47,
+     "den": 74
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 13,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 5,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 5,
+     "den": 18
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 51,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 11,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 11,
+     "den": 62
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 3,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 35,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 35,
+     "den": 38
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 51,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 37,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 37,
+     "den": 88
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 15,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 17,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 17,
+     "den": 32
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 27,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 63,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 7,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 57,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 5,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 5,
+     "den": 62
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 25,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 61,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 61,
+     "den": 86
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 35,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 59,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 59,
+     "den": 94
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 61,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 9,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 9,
+     "den": 70
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 37,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 41,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 41,
+     "den": 78
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 5,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 25,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 5,
+     "den": 6
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 37,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 33,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 33,
+     "den": 70
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 43,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 3,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 3,
+     "den": 46
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 15,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 7,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 7,
+     "den": 22
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 35,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 7,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 1,
+     "den": 6
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 63,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 9,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 1,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 47,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 21,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 21,
+     "den": 68
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 11,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 15,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 15,
+     "den": 26
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 45,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 17,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 17,
+     "den": 62
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 63,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 51,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 17,
+     "den": 38
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 31,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 25,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 25,
+     "den": 56
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 57,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 7,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 7,
+     "den": 64
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 39,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 21,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 7,
+     "den": 20
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 19,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 3,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 3,
+     "den": 22
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 25,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 27,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 27,
+     "den": 52
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 37,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 25,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 25,
+     "den": 62
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 35,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 59,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 59,
+     "den": 94
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 31,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 3,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 3,
+     "den": 34
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 35,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 41,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 41,
+     "den": 76
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 35,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 61,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 61,
+     "den": 96
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 15,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 15,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 1,
+     "den": 2
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 25,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 7,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 7,
+     "den": 32
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 35,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 45,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 9,
+     "den": 16
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 63,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 3,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 1,
+     "den": 22
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 7,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 51,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 51,
+     "den": 58
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 3,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 49,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 49,
+     "den": 52
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 9,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 15,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 5,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 1,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 61,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 61,
+     "den": 62
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 45,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 33,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 11,
+     "den": 26
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 29,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 55,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 55,
+     "den": 84
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 23,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 29,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 29,
+     "den": 52
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 33,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 53,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 53,
+     "den": 86
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 43,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 33,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 33,
+     "den": 76
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 59,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 51,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 51,
+     "den": 110
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 23,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 39,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 39,
+     "den": 62
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 5,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 3,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 3,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 27,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 55,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 55,
+     "den": 82
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 35,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 21,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 3,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 31,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 9,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 9,
+     "den": 40
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 39,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 43,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 43,
+     "den": 82
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 57,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 21,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 7,
+     "den": 26
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 55,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 65,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 13,
+     "den": 24
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 29,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 47,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 47,
+     "den": 76
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 9,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 41,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 41,
+     "den": 50
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 55,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 13,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 13,
+     "den": 68
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 57,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 51,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 17,
+     "den": 36
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 59,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 49,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 49,
+     "den": 108
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 31,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 63,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 63,
+     "den": 94
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 61,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 49,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 49,
+     "den": 110
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 31,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 13,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 13,
+     "den": 44
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 59,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 19,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 19,
+     "den": 78
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 43,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 41,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 41,
+     "den": 84
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 39,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 17,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 17,
+     "den": 56
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 55,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 31,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 31,
+     "den": 86
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 17,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 39,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 39,
+     "den": 56
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 43,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 3,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 3,
+     "den": 46
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 29,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 59,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 59,
+     "den": 88
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 41,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 57,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 57,
+     "den": 98
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 63,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 45,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 5,
+     "den": 12
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 25,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 39,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 39,
+     "den": 64
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 7,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 33,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 33,
+     "den": 40
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 1,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 43,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 43,
+     "den": 44
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 53,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 29,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 29,
+     "den": 82
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 13,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 3,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 3,
+     "den": 16
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 57,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 59,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 59,
+     "den": 116
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 7,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 59,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 59,
+     "den": 66
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 53,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 39,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 39,
+     "den": 92
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 1,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 5,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 5,
+     "den": 6
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 41,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 47,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 47,
+     "den": 88
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 3,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 53,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 53,
+     "den": 56
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 5,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 21,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 21,
+     "den": 26
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 33,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 55,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 5,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 61,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 35,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 35,
+     "den": 96
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 11,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 55,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 5,
+     "den": 6
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 13,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 59,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 59,
+     "den": 72
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 15,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 65,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 13,
+     "den": 16
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 13,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 55,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 55,
+     "den": 68
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 5,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 51,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 51,
+     "den": 56
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 61,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 55,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 55,
+     "den": 116
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 1,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 55,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 55,
+     "den": 56
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 15,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 25,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 5,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 23,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 31,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 31,
+     "den": 54
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 1,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 51,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 51,
+     "den": 52
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 33,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 1,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 1,
+     "den": 34
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 43,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 13,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 13,
+     "den": 56
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 7,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 49,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 7,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 11,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 37,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 37,
+     "den": 48
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 23,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 35,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 35,
+     "den": 58
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 3,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 49,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 49,
+     "den": 52
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 19,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 63,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 63,
+     "den": 82
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 21,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 65,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 65,
+     "den": 86
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 43,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 17,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 17,
+     "den": 60
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 19,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 23,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 23,
+     "den": 42
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 13,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 45,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 45,
+     "den": 58
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 53,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 33,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 33,
+     "den": 86
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 1,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 43,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 43,
+     "den": 44
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 63,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 63,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 1,
+     "den": 2
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 57,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 41,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 41,
+     "den": 98
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 19,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 29,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 29,
+     "den": 48
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 61,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 45,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 45,
+     "den": 106
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 33,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 49,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 49,
+     "den": 82
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 53,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 5,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 5,
+     "den": 58
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 31,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 31,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 1,
+     "den": 2
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 31,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 53,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 53,
+     "den": 84
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 1,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 49,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 49,
+     "den": 50
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 33,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 9,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 3,
+     "den": 14
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 23,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 61,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 61,
+     "den": 84
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 29,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 5,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 5,
+     "den": 34
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 25,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 41,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 41,
+     "den": 66
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 57,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 19,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 1,
+     "den": 4
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 55,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 33,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 3,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 49,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 21,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 3,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 1,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 21,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 21,
+     "den": 22
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 5,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 65,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 13,
+     "den": 14
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 39,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 23,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 23,
+     "den": 62
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 59,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 27,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 27,
+     "den": 86
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 37,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 9,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 9,
+     "den": 46
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 7,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 65,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 65,
+     "den": 72
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 47,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 1,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 1,
+     "den": 48
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 53,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 27,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 27,
+     "den": 80
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 57,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 15,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 5,
+     "den": 24
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 41,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 21,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 21,
+     "den": 62
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 23,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 61,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 61,
+     "den": 84
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 27,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 57,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 19,
+     "den": 28
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 19,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 37,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 37,
+     "den": 56
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 11,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 41,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 41,
+     "den": 52
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 45,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 31,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 31,
+     "den": 76
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 57,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 45,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 15,
+     "den": 34
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 19,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 25,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 25,
+     "den": 44
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 49,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 17,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 17,
+     "den": 66
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 1,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 45,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 45,
+     "den": 46
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 29,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 39,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 39,
+     "den": 68
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 35,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 47,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 47,
+     "den": 82
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 63,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 37,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 37,
+     "den": 100
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 47,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 25,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 25,
+     "den": 72
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 49,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 51,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 51,
+     "den": 100
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 5,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 11,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 11,
+     "den": 16
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 63,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 9,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 1,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "model_volatility": {
+     "num": 27,
+     "den": 64
+    },
+    "crypto_volatility": {
+     "num": 59,
+     "den": 64
+    }
+   },
+   "expected": {
+    "share": {
+     "num": 59,
+     "den": 86
+    }
+   }
+  }
+ ],
+ "spec_sha256": "3c7c970b899d5203a3930d602b1d1f4c68167c6a50fb4279cc6f9d771b089df7"
+}

@@ -269,3 +269,37 @@ def test_an_installed_blend_gives_a_row_on_a_decision_day_and_none_between(small
     rows = {day: rnd.blend_row(raw, context, day) for day in sessions}
     decided = [day for day, row in rows.items() if row is not None]
     assert 0 < len(decided) < len(sessions) and all(isinstance(rows[day], dict) for day in decided)
+
+
+def test_another_round_runs_every_stage_on_its_own_trials_and_controls(small_round, monkeypatch, project):
+    """V6.6.10 (R-BOOK2): the stages take a round's own trial list and controls; with no survivor the report names no candidate and
+    nothing can be frozen, and a survivor is frozen from that round's list."""
+    from portfolio.premia_signals import XS, SleeveSpec
+
+    context, out, _ = small_round
+    trial = SleeveSpec("q01", "B2", XS, "external_score", research.CLASSES, 20, {"table": "ml_a2", **research.GUARD, "optimizer": "inverse_vol"})
+    control = SleeveSpec("q00", "B2C", XS, "external_score", research.CLASSES, 20, {"table": "ml_a1", **research.GUARD, "optimizer": "inverse_vol"})
+    scores = rnd.score_stage(context, out, window=WINDOW, specs=[trial, control], control_ids=("q00",), log=lambda text: None)
+    assert set(scores) == {"q01", "q00"}
+    ledger = {json.loads(line)["trial_id"]: json.loads(line)["role"] for line in (out / "trial_ledger.jsonl").read_text(encoding="utf-8").splitlines()}
+    assert ledger == {"q01": "candidate", "q00": "plumbing"}
+    monkeypatch.setattr(rnd, "passes_sharpe_clauses", lambda score: True)
+    assert set(rnd.placebo_stage(context, out, draws=2, window=WINDOW, log=lambda text: None, pool=[trial])) == {"q01"}
+    gate = rnd.gate_stage(out, pool=[trial])
+    assert gate["unscored"] == [] and set(gate["failed"]) | set(gate["survivors"]) == {"q01"}
+    pbo = rnd.pbo_stage(out, root=project / "nowhere", blocks=4, pool=[trial])
+    assert pbo["num_trials"] == 1 and set(pbo["absent"]) == set(rnd.PBO_PRIOR_COLUMNS), "the pool's own column, no prior on this root"
+    rnd.write_json(out / "selection_pbo.json", {"pbo": 0.9})
+    report = rnd.report_stage(out, name="r_book2.json", survivors_only=True)
+    assert report["install"] == {"candidate": None, "reason": "no trial survived the gate and the PBO"} and (out / "r_book2.json").exists()
+    with pytest.raises(SystemExit, match="nothing to freeze"):
+        rnd.freeze_stage(out, root=project, code_files=[], report_name="r_book2.json", specs=[trial, control])
+    rnd.write_json(out / "selection_pbo.json", {"pbo": 0.1})
+    rnd.write_json(out / "selection_gate.json", {"survivors": ["q01"], "failed": {}})
+    report = rnd.report_stage(out, name="r_book2.json", survivors_only=True)
+    assert report["survivors"] == ["q01"] and report["install"]["candidate"] in ("q01", "core")
+    rnd.write_json(out / "r_book2.json", {"install": {"candidate": "q01", "reason": "test"}, "survivors": ["q01"]})
+    rnd.freeze_stage(out, root=project, code_files=[], report_name="r_book2.json", specs=[trial, control])
+    frozen = rnd.check_freeze(out)
+    assert frozen["candidate"] == "q01" and frozen["survivor"] is True and frozen["definition"]["table"] == "ml_a2"
+

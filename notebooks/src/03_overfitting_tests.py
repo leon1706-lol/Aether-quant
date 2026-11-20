@@ -58,14 +58,17 @@ pd.Series({key: value for key, value in result.items() if isinstance(value, (int
 # %% [markdown]
 # ## 2. The deflated Sharpe falls as the number of trials grows
 #
-# The same best variant, judged against the maximum Sharpe expected from N trials with this grid's spread of Sharpes. The project's own record stands at 217 trials.
+# The same best variant, judged against the maximum Sharpe expected from N trials with this grid's spread of Sharpes. The project's own record, `RESEARCH_TRIALS`, is marked on the curve.
 
 # %%
 import matplotlib.pyplot as plt
 
+from aether_quant.hello import RESEARCH_TRIALS
+
 best = returns[sharpes.idxmax()].to_numpy()
 variance = float(np.var(sharpes, ddof=1))
-curve = pd.Series({n: overfitting.deflated_sharpe_from_inputs(best, num_trials=n, trial_variance=variance, annualization=365)["value"] for n in (2, 5, 10, 16, 50, 100, 217, 500)})
+curve = pd.Series({n: overfitting.deflated_sharpe_from_inputs(best, num_trials=n, trial_variance=variance, annualization=365)["value"] for n in sorted({2, 5, 10, 16, 50, 100, 500, RESEARCH_TRIALS})})
+print(f"the project's own record: {RESEARCH_TRIALS} pre-registered trials")
 print(f"PSR of the best variant against 0: {overfitting.probabilistic_sharpe_ratio(best, 0.0):.1%}")
 axes = curve.plot(marker="o", logx=True, figsize=(7, 3.2), title="Deflated Sharpe of the best variant by number of trials")
 axes.axhline(0.95, color="#d97706", linestyle="--", linewidth=0.8)
@@ -77,7 +80,7 @@ plt.show()
 # %%
 rows = {}
 for method in ("bonferroni", "holm", "bhy"):
-    cut = overfitting.haircut_sharpe(float(sharpes.max()), len(best), 217, method=method, periods_per_year=365)
+    cut = overfitting.haircut_sharpe(float(sharpes.max()), len(best), RESEARCH_TRIALS, method=method, periods_per_year=365)
     rows[method] = {"Sharpe": cut["sharpe"], "haircut Sharpe": cut["haircut_sharpe"], "haircut": cut["haircut"], "adjusted p": cut["adjusted_p_value"]}
 print(f"Minimum track record for Sharpe > 0 at 95%: {overfitting.minimum_track_record_length(best, periods_per_year=365) / 365:.1f} years (the sample has {len(best) / 365:.1f})")
 pd.DataFrame(rows).T.round(3)
@@ -130,4 +133,4 @@ axes = pd.DataFrame(path).plot(figsize=(7, 3), title="Capital share by session")
 plt.show()
 
 # %% [markdown]
-# *Nothing in this project has passed these tests yet: 217 pre-registered trials, no survivor, and the holdouts still unread. That is the point of running them.*
+# *Nothing in this project has passed these tests yet: every pre-registered trial (`RESEARCH_TRIALS` of them) without a survivor, and the holdouts still unread. That is the point of running them.*

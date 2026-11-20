@@ -142,16 +142,23 @@ def settings_for(spec: SleeveSpec) -> WeightSettings:
     return WeightSettings() if spec.id == "b01" else research.model_settings()
 
 
-def _selection_specs(ids: Sequence[str] | None = None) -> list[SleeveSpec]:
-    specs = [*research.candidate_pool(), *research.control_trials()]
+def _selection_specs(ids: Sequence[str] | None = None, specs: Sequence[SleeveSpec] | None = None) -> list[SleeveSpec]:
+    specs = [*research.candidate_pool(), *research.control_trials()] if specs is None else list(specs)
     return [spec for spec in specs if ids is None or spec.id in ids]
+
+
+def _pool(pool: Sequence[SleeveSpec] | None) -> list[SleeveSpec]:
+    """The round's selectable trials: R-BOOK1 and R-MIX1's by default, or another round's own list (V6.6.10, R-BOOK2)."""
+    return research.candidate_pool() if pool is None else list(pool)
 
 
 def score_stage(
     context: ResearchContext, out: Path, *, window: tuple[str, str, str] = research.SELECTION, ids: Sequence[str] | None = None,
-    force: bool = False, log: Callable[[str], None] = print,
+    force: bool = False, log: Callable[[str], None] = print, specs: Sequence[SleeveSpec] | None = None,
+    control_ids: Sequence[str] = research.CONTROL_IDS,
 ) -> dict[str, Any]:
-    """Scores every trial (controls too) on the selection window and appends the candidates to the ledger."""
+    """Scores every trial (controls too) on the selection window and appends the candidates to the ledger. `specs` and `control_ids`
+    name another round's trials and controls (V6.6.10)."""
     check_rules(out)
     start, split, end = window
     if end > research.SELECTION[2]:
@@ -162,14 +169,14 @@ def score_stage(
     if daily_path.exists():
         stored = pd.read_parquet(daily_path)
         frames = {column: stored[column].dropna() for column in stored.columns}
-    for spec in _selection_specs(ids):
+    for spec in _selection_specs(ids, specs):
         if spec.id in scores and not force:
             continue
         score = score_sleeve(spec, dataclasses.replace(context, settings=settings_for(spec)), start=start, split=split, end=end)
         daily = score.pop("daily")
         frames[spec.id] = daily[min(daily)]
         scores[spec.id] = score
-        role = "plumbing" if spec.id in research.CONTROL_IDS else "candidate"
+        role = "plumbing" if spec.id in control_ids else "candidate"
         append_trial(out / "trial_ledger.jsonl", trial_id=spec.id, track=spec.track, window=TRIAL_WINDOW, role=role,
                      annualised_sharpe=score["sharpe"], n_obs=len(frames[spec.id]), engine="offline")
         log(f"{spec.id:6s} sharpe {_show(score['sharpe'])} h1 {_show(score['sharpe_first_half'])} h2 {_show(score['sharpe_second_half'])} "
@@ -186,6 +193,7 @@ def _show(value: float | None) -> str:
 def placebo_stage(
     context: ResearchContext, out: Path, *, draws: int = 100, only: Sequence[str] | None = None, force: bool = False,
     window: tuple[str, str, str] = research.SELECTION, log: Callable[[str], None] = print, suffix: str = "", modes: Sequence[str] | None = None,
+    pool: Sequence[SleeveSpec] | None = None,
 ) -> dict[str, Any]:
     """Placebo p-values for the trials that pass R-SLEEVE2's Sharpe clauses (and only those: the clause is the gate to the expensive test)."""
     check_rules(out)
@@ -193,7 +201,7 @@ def placebo_stage(
     path = out / f"selection_placebos{suffix}.json"
     done = read_json(path, {})
     start, _, end = window
-    for spec in research.candidate_pool():
+    for spec in _pool(pool):
         score = scores.get(spec.id)
         if score is None or not passes_sharpe_clauses(score) or (spec.id in done and not force) or (only and spec.id not in only):
             continue
@@ -215,7 +223,7 @@ def placebo_stage(
     return done
 
 
-def gate_stage(out: Path) -> dict[str, Any]:
+def gate_stage(out: Path, *, pool: Sequence[SleeveSpec] | None = None) -> dict[str, Any]:
     """R-SLEEVE2 over the pool: survivors, the clause each other trial failed, and the trials with no placebo run."""
     check_rules(out)
     scores = read_json(out / "selection_scores.json", {})
@@ -224,16 +232,16 @@ def gate_stage(out: Path) -> dict[str, Any]:
         for name, tests in read_json(part, {}).items():
             placebos.setdefault(name, {}).update(tests)
     daily = pd.read_parquet(out / "selection_daily.parquet")
-    pool = {spec.id for spec in research.candidate_pool()}
-    rows = [{**score, "id": name, "daily": {0: daily[name].dropna()}} for name, score in scores.items() if name in pool and name in daily]
+    ids = {spec.id for spec in _pool(pool)}
+    rows = [{**score, "id": name, "daily": {0: daily[name].dropna()}} for name, score in scores.items() if name in ids and name in daily]
     p_values = {name: {mode: entry["p"] for mode, entry in tests.items()} for name, tests in placebos.items()}
     gate = selection_gate(rows, p_values)
-    gate["unscored"] = sorted(pool - set(scores))
+    gate["unscored"] = sorted(ids - set(scores))
     write_json(out / "selection_gate.json", gate)
     return gate
 
 
-def pbo_stage(out: Path, *, root: Path, blocks: int = 16) -> dict[str, Any]:
+def pbo_stage(out: Path, *, root: Path, blocks: int = 16, pool: Sequence[SleeveSpec] | None = None) -> dict[str, Any]:
     """The probability of backtest overfitting over this round's daily columns plus V6.5.0's model sleeves on the shared window."""
     from evaluation.research_round import pbo_report
 
@@ -242,7 +250,7 @@ def pbo_stage(out: Path, *, root: Path, blocks: int = 16) -> dict[str, Any]:
     prior = Path(root) / PBO_PRIOR
     if prior.exists():
         frames.append(pd.read_parquet(prior))
-    columns = [spec.id for spec in research.candidate_pool()] + list(PBO_PRIOR_COLUMNS)
+    columns = [spec.id for spec in _pool(pool)] + list(PBO_PRIOR_COLUMNS)
     report = pbo_report(frames, columns, window=(research.SELECTION[0], research.SELECTION[2]), blocks=blocks)
     write_json(out / "selection_pbo.json", report)
     return report
@@ -265,31 +273,36 @@ def diagnostics_stage(context: ResearchContext, out: Path, *, table: str = "ml_a
     return looks
 
 
-def report_stage(out: Path) -> dict[str, Any]:
-    """One file with every trial's numbers, the gate, the PBO, the diagnostics and the candidate R-INSTALL2 names."""
+def report_stage(out: Path, *, name: str = "r_book1.json", survivors_only: bool = False) -> dict[str, Any]:
+    """One file with every trial's numbers, the gate, the PBO, the diagnostics and the candidate R-INSTALL2 names. `survivors_only`
+    (V6.6.10, R-BOOK2): only a gate survivor can be the candidate, and with none there is no candidate."""
     check_rules(out)
     scores = read_json(out / "selection_scores.json", {})
-    pool = [{"id": name, **score} for name, score in scores.items()]
-    pick = research.pick_candidate(pool)
     gate = read_json(out / "selection_gate.json", {})
     pbo = read_json(out / "selection_pbo.json", {})
     survivors = [] if (pbo.get("pbo") is None or pbo["pbo"] >= 0.5) else gate.get("survivors", [])
+    pool = [{"id": key, **score} for key, score in scores.items() if not survivors_only or key in survivors]
+    pick = research.pick_candidate(pool) if pool or not survivors_only else {"candidate": None, "reason": "no trial survived the gate and the PBO"}
     report = {"trials": scores, "gate": gate, "pbo": pbo, "survivors": survivors, "diagnostics": read_json(out / "diagnostics_d1.json", {}), "install": pick}
-    write_json(out / "r_book1.json", report)
+    write_json(out / name, report)
     return report
 
 
-def freeze_stage(out: Path, *, root: Path, code_files: Sequence[str]) -> tuple[Path, str]:
+def freeze_stage(
+    out: Path, *, root: Path, code_files: Sequence[str], report_name: str = "r_book1.json", specs: Sequence[SleeveSpec] | None = None,
+) -> tuple[Path, str]:
     """Freezes the candidate's definition and the code that produces its rows, once. Nothing after the selection window is read before this."""
     check_rules(out)
     path = out / "freeze.json"
     if path.exists():
         raise FileExistsError(f"{path} exists: a candidate is frozen once")
-    report = read_json(out / "r_book1.json")
+    report = read_json(out / report_name)
     if report is None:
         raise SystemExit("run `report` first: there is no candidate to freeze")
     name = report["install"]["candidate"]
-    spec = next(item for item in [*research.candidate_pool(), *research.control_trials()] if item.id == name)
+    if name is None:
+        raise SystemExit(f"nothing to freeze: {report['install']['reason']}")
+    spec = next(item for item in _selection_specs(None, specs) if item.id == name)
     payload = {
         "candidate": name, "survivor": name in report["survivors"], "kind": "model_book",
         "definition": {"id": spec.id, "table": spec.params["table"], "every": spec.rebalance_every, "params": dict(spec.params), "universe": list(spec.universe)},

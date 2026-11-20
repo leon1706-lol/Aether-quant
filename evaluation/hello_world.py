@@ -42,7 +42,7 @@ HELLO_RULE: dict[str, object] = {
     "params": {"lookback_a": 20, "lookback_b": 60, "lookback_c": 120},
 }
 # The deflated-Sharpe N of the project's research record after V6.6.4 (development/Problems.md #336).
-RESEARCH_TRIALS = 217
+RESEARCH_TRIALS = 258
 GRID_A = (10, 20, 30, 40)
 GRID_C = (120, 180)
 DEADBAND = 0.002  # portfolio.target_weights.TargetWeightsConfig.min_weight_change

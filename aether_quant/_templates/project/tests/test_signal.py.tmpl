@@ -1,0 +1,37 @@
+"""The signal's own checks: its shape, and that no later close changes an earlier score (no look-ahead)."""
+
+from __future__ import annotations
+
+import importlib.util
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+
+SIGNAL = Path(__file__).resolve().parents[1] / "my_signal.py"
+
+
+def _score():
+    spec = importlib.util.spec_from_file_location("project_signal", SIGNAL)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.score
+
+
+def _closes(sessions=150, names=5):
+    rng = np.random.default_rng(0)
+    index = [str(day.date()) for day in pd.bdate_range("2024-01-01", periods=sessions)]
+    return pd.DataFrame(100 * np.exp(np.cumsum(rng.normal(0, 0.02, (sessions, names)), axis=0)), index=index, columns=[f"T{i}" for i in range(names)])
+
+
+def test_the_score_has_the_closes_shape():
+    closes = _closes()
+    assert _score()(closes).shape == closes.shape
+
+
+def test_a_later_close_never_changes_an_earlier_score():
+    closes = _closes()
+    later = closes.copy()
+    later.iloc[-1] *= 2.0
+    score = _score()
+    pd.testing.assert_frame_equal(score(closes).iloc[:-1], score(later).iloc[:-1])

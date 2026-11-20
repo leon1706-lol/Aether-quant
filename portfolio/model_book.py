@@ -209,6 +209,9 @@ def signal_tables(panel: ResearchPanel, scores: Mapping[str, pd.DataFrame]) -> d
         "mix_lowvol": composite_signal([(0.5, base), (0.5, calm)], classes),
         "mix_all4": composite_signal([(1.0, base), (1.0, momentum), (1.0, calm), (1.0, carry)], classes),
     }
+    for name in ("ml_a2", "ml_a3"):  # V6.6.10 (R-BOOK2): the other two tables as signals of their own, when they are given
+        if name in scores:
+            tables[name] = scores[name].reindex(index=known.index, columns=columns)
     if "ml_a2" in scores and "ml_a3" in scores:
         tables["mix_a23"] = composite_signal(
             [(0.5, scores["ml_a2"].reindex(index=known.index, columns=columns)), (0.5, scores["ml_a3"].reindex(index=known.index, columns=columns))], classes,

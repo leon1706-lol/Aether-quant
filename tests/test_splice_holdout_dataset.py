@@ -131,6 +131,9 @@ def test_the_cli_builds_then_splices(tmp_path, monkeypatch, capsys):
     assert splice.main() == 0
     assert json.loads((tmp_path / "windows.json").read_text(encoding="utf-8"))["phase1"]["windows"]["holdout"]
     assert "build_holdout_dataset.py" in calls[0][1] and '"spliced": true' in capsys.readouterr().out
+    assert "--scaler-stats" not in calls[0], "the active scaler unless another is named"
+    monkeypatch.setattr(sys, "argv", ["x", "--build", "--scaler-stats", "s.json", "--manifest", "m.json"])
+    assert splice.main() == 0 and calls[-1][-4:] == ["--scaler-stats", "s.json", "--manifest", "m.json"], "V6.6.10: a candidate's own scaler and pool"
     monkeypatch.setattr(splice.subprocess, "call", lambda command: 3)
     monkeypatch.setattr(sys, "argv", ["x", "--build", "--build-start", "2025-01-01", "--build-end", "2026-09-30"])
     assert splice.main() == 1

@@ -36,6 +36,13 @@ on:
       - "portfolio/class_sleeve.py"
       - "risk/forex_risk.py"
       - "risk/vol_target.py"
+      # V6.6.10
+      - "portfolio/book_optimizer.py"
+      - "evaluation/multi_asset_round.py"
+      - "evaluation/model_book_round.py"
+      - "evaluation/premia_research.py"
+      - "retraining/slicing.py"
+      - "risk/kelly.py"
       - "scripts/check_axioms.py"
       - ".github/workflows/formal.yml"
   pull_request:

@@ -72,6 +72,10 @@ def test_the_phase_deflation_inputs_come_from_the_ledgers_and_the_registry_once_
     monkeypatch.setattr(aq_cli, "ML_DIR", tmp_path / "ml")
     result = aq_cli._phase_deflation_inputs()
     assert result["same_window_trials"] == 2 and result["N"] >= 4 and result["floored"] is False
+    (evaluation / "v6610" / "book2").mkdir(parents=True)
+    (evaluation / "v6610" / "trial_ledger.jsonl").write_text(json.dumps({"role": "candidate", "window": "v6610_validation", "trial_id": "v6610_L0_s0", "annualised_sharpe": None}) + "\n", encoding="utf-8")
+    (evaluation / "v6610" / "book2" / "trial_ledger.jsonl").write_text(json.dumps({"role": "candidate", "window": "selection", "trial_id": "n01", "annualised_sharpe": 0.5}) + "\n", encoding="utf-8")
+    assert aq_cli._phase_deflation_inputs()["N"] == result["N"] + 2, "V6.6.10: both of the phase's ledgers count"
 
 
 def test_an_aqr_workbook_is_read_below_its_prose_without_a_spreadsheet_library(monkeypatch):

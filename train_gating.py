@@ -59,9 +59,11 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, TensorDataset
 
+from evaluation.dataset_io import read_dataset_rows
 from inference import run_exported_model
 from moe.gating import EXPERT_NAMES, GATING_MODEL_FEATURE_KEYS, build_gating_decision, build_gating_model_features
 from regime import build_market_regime_vector
+from retraining.slicing import PROFILES, log_peak, memory_profile
 from train import (
     AetherNet,
     compute_binary_metrics,
@@ -89,6 +91,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--version-id", type=str, required=True, help="Candidate model_version_id (UUID)")
     parser.add_argument("--config-path", type=str, default=str(CONFIG_PATH))
     parser.add_argument("--dataset-path", type=str, default=str(DATASET_PATH))
+    parser.add_argument("--memory-profile", choices=sorted(PROFILES), default="standard", help="standard (default) or low: read only the validation and backtest rows")
+    parser.add_argument("--log-peak-memory", type=str, default=None, help="append this run's peak memory to this JSONL file")
     return parser.parse_args()
 
 
@@ -263,7 +267,11 @@ def main() -> int:
         if not dataset_path.exists():
             LOGGER.info("train_gating: dataset not found at %s - skipping.", dataset_path)
             return 0
-        dataset = pd.read_csv(dataset_path)
+        if args.memory_profile == "low":
+            # only the two splits the gate replays, in chunks; the values are a plain read's (V6.6.10)
+            dataset = read_dataset_rows(dataset_path, split=("validation", "backtest"), chunk_rows=memory_profile("low").read_chunk_rows)
+        else:
+            dataset = pd.read_csv(dataset_path)
 
         validation_frame = dataset[dataset["split"] == "validation"].reset_index(drop=True)
         backtest_frame = dataset[dataset["split"] == "backtest"].reset_index(drop=True)
@@ -436,6 +444,8 @@ def main() -> int:
         paths["gating_model"].write_text(json.dumps(model_payload, indent=2), encoding="utf-8")
         paths["gating_feature_schema"].write_text(json.dumps(feature_schema_payload, indent=2), encoding="utf-8")
         paths["gating_training_metrics"].write_text(json.dumps(training_metrics_payload, indent=2), encoding="utf-8")
+        if args.log_peak_memory:
+            log_peak(Path(args.log_peak_memory), "gating", profile=args.memory_profile)
 
         LOGGER.info(
             "train_gating: wrote gating artifacts for version %s (backtest balanced_accuracy=%.4f, mcc=%.4f).",

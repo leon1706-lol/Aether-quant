@@ -1,6 +1,6 @@
 """The coverage worklist (V6.6.7, #367): which lines a run left uncovered, grouped by function, with their context.
 
-Reads the `coverage.json` that `aq test --coverage` (or `coverage json`) writes. The gate is 100% of every tracked module
+Reads the `coverage-report/coverage.json` that `aq test --coverage` (or `coverage json`) writes. The gate is 100% of every tracked module
 (AGENTS.md "Coverage: 100% after every commit"), so a run's misses are the next tests to write.
 
     python scripts/coverage_misses.py                                  # every file with a miss, by count
@@ -76,7 +76,7 @@ def context(source: str, lines: Sequence[int], radius: int = 2) -> str:
 
 def main(argv: Sequence[str] | None = None, *, root: Path = ROOT) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--json", default=str(root / "coverage.json"), help="coverage.json to read (default: the repo's)")
+    parser.add_argument("--json", default=str(root / "coverage-report" / "coverage.json"), help="coverage.json to read (default: the repo's)")
     parser.add_argument("--include", action="append", help="glob of files to show (repeatable)")
     parser.add_argument("--by-function", action="store_true", help="group each file's misses by function")
     parser.add_argument("--context", type=int, default=None, metavar="N", help="print each miss with N lines around it")

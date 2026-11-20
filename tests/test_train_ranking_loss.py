@@ -415,3 +415,88 @@ def test_dispatcher_date_weights_does_not_affect_mse_anchor_term():
     expected_anchor = masked_mse_loss(predictions, targets, mask)
 
     assert combined.item() == pytest.approx((expected_ranking + 0.3 * expected_anchor).item(), abs=1e-6)
+
+
+# V6.6.10 (R-LOSS1): the four new objectives
+
+
+def _dates(*sizes):
+    return torch.cat([torch.full((size,), index, dtype=torch.int64) for index, size in enumerate(sizes)])
+
+
+def test_ic_pearson_is_minus_the_mean_correlation_and_skips_what_is_undefined():
+    import train
+
+    target = torch.tensor([0.0, 0.5, 1.0, 0.0, 0.5, 1.0])
+    groups = _dates(3, 3)
+    mask = torch.ones(6, dtype=torch.bool)
+    assert train.ic_pearson_loss(target * 3.0, target, groups, mask).item() == pytest.approx(-1.0)
+    assert train.ic_pearson_loss(-target, target, groups, mask).item() == pytest.approx(1.0)
+    flat = torch.tensor([1.0, 1.0, 1.0, 0.0, 0.5, 1.0])
+    assert train.ic_pearson_loss(flat, target, groups, mask).item() == pytest.approx(-1.0), "a flat date is skipped, not a zero"
+    weights = torch.tensor([3.0, 3.0, 3.0, 1.0, 1.0, 1.0])
+    mixed = torch.tensor([0.0, 0.5, 1.0, 1.0, 0.5, 0.0])
+    assert train.ic_pearson_loss(mixed, target, groups, mask, weights).item() == pytest.approx(-(3.0 - 1.0) / 4.0)
+    assert train.ic_pearson_loss(target, torch.full((6,), float("nan")), groups, mask).item() == 0.0
+    assert train.ic_pearson_loss(flat[:3], target[:3], groups[:3], mask[:3]).item() == 0.0
+
+
+def test_the_long_short_sharpe_rewards_predictions_that_order_the_returns():
+    import train
+
+    returns = torch.tensor([-0.02, 0.0, 0.03, -0.01, 0.01, 0.02])
+    groups = _dates(3, 3)
+    mask = torch.ones(6, dtype=torch.bool)
+    aligned = train.long_short_sharpe_loss(returns * 10, returns, groups, mask)
+    assert aligned.item() < 0 < train.long_short_sharpe_loss(-returns * 10, returns, groups, mask).item()
+    one = train.long_short_sharpe_loss(returns[:3] * 10, returns[:3], groups[:3], mask[:3])
+    weights = torch.softmax(returns[:3] * 100, 0) - torch.softmax(-returns[:3] * 100, 0)
+    assert one.item() == pytest.approx(-((weights * returns[:3]).sum() / returns[:3].std(unbiased=False)).item(), rel=1e-5), "one date: minus its z"
+    assert train.long_short_sharpe_loss(returns, torch.full((6,), float("nan")), groups, mask).item() == 0.0
+    assert train.long_short_sharpe_loss(returns, torch.ones(6), groups, mask).item() == 0.0, "no dispersion: skipped"
+    prediction = (returns * 10).requires_grad_(True)
+    train.long_short_sharpe_loss(prediction, returns, groups, mask).backward()
+    assert torch.isfinite(prediction.grad).all()
+
+
+def test_class_groups_and_the_turnover_penalty():
+    import train
+
+    groups = torch.tensor([0, 0, 1, 1])
+    assert len(set(train.class_group_ids(groups, torch.tensor([0.0, 1.0, 0.0, 1.0])).tolist())) == 4
+    tickers = torch.tensor([0.0, 1.0, 0.0, 1.0])
+    steady = train.rank_turnover_penalty(torch.tensor([0.0, 1.0, 0.0, 1.0]), groups, tickers, temperature=0.001)
+    flipped = train.rank_turnover_penalty(torch.tensor([0.0, 1.0, 1.0, 0.0]), groups, tickers, temperature=0.001)
+    assert steady.item() == pytest.approx(0.0, abs=1e-6) and flipped.item() == pytest.approx(1.0, abs=1e-6)
+    assert train.rank_turnover_penalty(torch.tensor([0.0, 1.0]), torch.tensor([0, 0]), torch.tensor([0.0, 1.0]), 0.05).item() == 0.0
+
+
+def test_the_dispatcher_runs_every_objective_and_names_missing_context():
+    import train
+
+    rng = np.random.default_rng(0)
+    target = torch.tensor(rng.random(12), dtype=torch.float32)
+    groups = _dates(6, 6)
+    context = {"class_ids": torch.tensor([0, 0, 0, 3, 3, 3] * 2, dtype=torch.float32), "ticker_ids": torch.tensor(list(range(6)) * 2, dtype=torch.float32),
+               "returns": torch.tensor(rng.normal(0, 0.02, 12), dtype=torch.float32)}
+    for objective in ("ic_pearson", "ls_sharpe", "class_balanced", "cost_aware"):
+        output = torch.tensor(rng.random(12), dtype=torch.float32, requires_grad=True)
+        loss = train.compute_cross_sectional_ranking_loss(output, target, groups, {"objective": objective, "temperature": 0.05, "mse_anchor_weight": 0.1}, None, context)
+        loss.backward()
+        assert torch.isfinite(loss) and torch.isfinite(output.grad).all(), objective
+    with pytest.raises(ValueError, match="needs row context"):
+        train.compute_cross_sectional_ranking_loss(target, target, groups, {"objective": "cost_aware"})
+    with pytest.raises(ValueError, match="needs row context"):
+        train.compute_cross_sectional_ranking_loss(target, target, groups, {"objective": "ls_sharpe"}, None, {**context, "returns": None})
+    assert set(train.RANKING_OBJECTIVES) >= {"soft_spearman", "listnet", *train.CONTEXT_OBJECTIVES, "ic_pearson"}
+
+
+def test_row_context_reads_classes_tickers_and_returns():
+    import pandas as pd
+
+    import train
+
+    frame = pd.DataFrame({"ticker": ["A", "B", "A", "C"], "asset_class_equity": [1, 0, 1, 0], "asset_class_crypto": [0, 1, 0, 0], "target_return_20d": [0.1, -0.1, 0.2, 0.0]})
+    context = train.row_context_targets(frame, np.array([1, 2, 3]))
+    assert context["_class_ids"].tolist() == [3.0, 0.0, 4.0] and context["_ticker_ids"].tolist() == [1.0, 0.0, 2.0]
+    assert context["_return_20d"].tolist() == pytest.approx([-0.1, 0.2, 0.0]) and torch.isnan(context["_return_5d"]).all()

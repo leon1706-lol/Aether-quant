@@ -48,6 +48,8 @@ def test_rows_of_one_split_equal_a_plain_filtered_read(csv):
     pd.testing.assert_frame_equal(got, frame[frame["split"] == "backtest"].reset_index(drop=True))
     assert len(read_dataset_rows(path, chunk_rows=6)) == len(frame)
     assert read_dataset_rows(path, split="nothing").empty
+    several = read_dataset_rows(path, split=("backtest", "absent"), chunk_rows=6)
+    pd.testing.assert_frame_equal(several, frame[frame["split"] == "backtest"].reset_index(drop=True))
 
 
 def test_a_header_only_file_reads_as_an_empty_frame(tmp_path):

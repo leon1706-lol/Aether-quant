@@ -69,6 +69,23 @@ def test_the_audit_prints_its_summary_or_json_and_refuses_a_bad_period(env, monk
     assert aq_cli.cmd_evaluate(args) == 1 and "no results" in capsys.readouterr().err
 
 
+def test_the_audit_reads_the_runs_own_config_and_skips_the_book_of_a_target_weights_run(env, monkeypatch, capsys):
+    import evaluation.backtest_audit as audit
+
+    monkeypatch.setattr(audit, "load_backtest_run", lambda run_dir: {"result": {}})
+    monkeypatch.setattr(audit, "load_book_history", lambda path: [])
+    seen = {}
+    report = _audit() | {"book": dict(audit.BOOK_NOT_APPLICABLE)}
+    monkeypatch.setattr(audit, "audit_backtest_run", lambda run, history, **kwargs: seen.update(kwargs) or report)
+    frozen = env.root / "ml" / "evaluation" / "run_configs" / f"{env.run.name}.json"
+    frozen.parent.mkdir(parents=True)
+    frozen.write_text(json.dumps({"phase_v2": {"target_weights": {"enabled": True}}}), encoding="utf-8")
+    assert aq_cli.cmd_evaluate(ns(audit_backtest=True, backtest_dir=str(env.run))) == 0
+    assert seen["member_book"] is False and "book: not applicable (target-weights run" in capsys.readouterr().out
+    frozen.write_text(json.dumps({"phase_v2": {"target_weights": {"enabled": False}}}), encoding="utf-8")
+    assert aq_cli.cmd_evaluate(ns(audit_backtest=True, backtest_dir=str(env.run))) == 0 and seen["member_book"] is True
+
+
 def test_lean_stats_prints_the_replica_for_each_rate_file(env, monkeypatch, capsys):
     import evaluation.lean_statistics as lean_statistics
 

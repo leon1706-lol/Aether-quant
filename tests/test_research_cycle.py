@@ -47,6 +47,33 @@ def test_an_unknown_host_is_an_error():
         ram_preflight("somewhere")
 
 
+def test_the_low_profile_lets_this_pc_train_and_names_itself():
+    """V6.6.10: the low memory profile's minimum is 3.5 GB; the standard refusal points at it."""
+    from evaluation.research_cycle import MIN_RAM_GB
+    from retraining.slicing import PROFILES
+
+    expected = {name: profile.min_total_gb for name, profile in PROFILES.items()}
+    assert expected == MIN_RAM_GB, "one minimum per profile, in both modules"
+    assert "--memory-profile low" in ram_preflight("local", total_bytes=4 * GIB)["reason"]
+    low = ram_preflight("local", total_bytes=int(3.9 * GIB), profile="low")
+    assert low["ok"] is True and low["min_gb"] == 3.5 and low["profile"] == "low"
+    refused = ram_preflight("local", total_bytes=2 * GIB, profile="low")
+    assert refused["ok"] is False and "--memory-profile" not in refused["reason"]
+    assert ram_preflight("local", total_bytes=None, profile="low")["ok"] in (True, False)
+    with pytest.raises(ValueError, match="memory profile"):
+        ram_preflight("local", profile="tiny")
+
+
+def test_the_low_stack_plan_passes_the_profile_to_every_trainer():
+    from evaluation.research_cycle import stack_plan
+
+    commands = dict(stack_plan({}, run_id="r1", python="py", profile="low"))
+    for stage in ("dataset", "multitask", "sequence", "gating", "walk_forward"):
+        assert commands[stage][commands[stage].index("--memory-profile") + 1] == "low", stage
+    assert commands["sequence"][-2:] == ["--log-peak-memory", "ml/cycle/retrain_r1/memory_peaks.jsonl"]
+    assert "--log-peak-memory" not in commands["walk_forward"] and "--log-peak-memory" not in commands["dataset"]
+
+
 def test_this_machines_memory_reads_as_a_number():
     total = total_memory_bytes()
     assert total is None or total > GIB // 2
@@ -162,13 +189,17 @@ def test_the_stack_plan_names_every_stage_and_never_writes_over_the_installed_mo
     plan = stack_plan({"mode": "expanding"}, run_id="r1", python="py", score_end="2023-06-30", resume_id="walk-forward-abc")
     assert [stage for stage, _ in plan] == list(STACK_STAGES) == stack_stages()
     commands = dict(plan)
-    assert commands["dataset"] == ["py", "train.py", "--candidate", "--version-id", "r1_base"]
-    assert commands["multitask"][-1] == "r1_mt" and commands["sequence"][-1] == "r1_seq" and commands["gating"][-1] == "r1_gate"
+    assert commands["dataset"] == ["py", "train.py", "--candidate", "--version-id", "r1_base", "--write-dataset"], "the standard profile adds no memory flag"
+    assert commands["multitask"][3] == "r1_mt" and commands["sequence"][3] == "r1_seq" and commands["gating"][-1] == "r1_gate"
+    assert commands["parity_audit"][-2:] == ["--output", "ml/cycle/retrain_r1/feature_parity_report.json"] and "ml/versions/r1_base/full_dataset.csv" in commands["parity_audit"]
+    for stage in ("multitask", "sequence"):
+        assert commands[stage][-4:] == ["--dataset-path", "ml/versions/r1_base/full_dataset.csv", "--feature-schema-path", "ml/versions/r1_base/feature_schema.json"], "the run's own dataset (#385)"
     assert commands["walk_forward"][-2:] == ["--resume-run-id", "walk-forward-abc"] and "--include-sequence" in commands["walk_forward"]
-    assert commands["scores"] == ["py", "scripts/v650_ml_scores.py", "--run-id", "walk-forward-abc", "--end", "2023-06-30"]
+    assert commands["scores"] == ["py", "scripts/v650_ml_scores.py", "--run-id", "walk-forward-abc", "--end", "2023-06-30", "--out", "ml/cycle/retrain_r1/scores"]
     assert commands["snapshot_active"] is None and commands["pins"] is None and commands["register"] is None
     bare = dict(stack_plan({}, run_id="r1"))
-    assert bare["scores"] is None and "--resume-run-id" not in bare["walk_forward"] and bare["walk_forward"][-1] == "expanding"
+    assert bare["scores"] is None and "--resume-run-id" not in bare["walk_forward"] and bare["walk_forward"][6] == "expanding"
+    assert bare["walk_forward"][-2:] == ["--run-id-file", "ml/cycle/retrain_r1/walk_forward_run_id"], "a stopped walk-forward can be found again (V6.6.10)"
     assert dict(stack_plan({}, run_id="r1", score_end="2023-06-30"))["scores"][3] == "<walk-forward run id>"
 
 
@@ -178,9 +209,9 @@ def test_a_planned_flag_a_trainer_does_not_list_is_named():
     from evaluation.research_cycle import stack_plan, validate_plan_flags
 
     plan = stack_plan({}, run_id="r1", python="py", score_end="2023-06-30", resume_id="x")
-    helps = {"train.py": "--candidate --version-id --walk-forward --include-multitask --include-sequence --mode --resume-run-id",
-             "train_multitask.py": "--version-id", "train_sequence.py": "--version-id", "train_gating.py": "--version-id",
-             "scripts/feature_parity_audit.py": "--skip-synthetic", "scripts/v650_ml_scores.py": "--run-id --end", "data_pipeline.factor_file_backfill": "--audit"}
+    helps = {"train.py": "--candidate --version-id --write-dataset --walk-forward --include-multitask --include-sequence --mode --resume-run-id --run-id-file",
+             "train_multitask.py": "--version-id --dataset-path --feature-schema-path", "train_sequence.py": "--version-id --dataset-path --feature-schema-path", "train_gating.py": "--version-id",
+             "scripts/feature_parity_audit.py": "--skip-synthetic --dataset --scaler-stats --schema --output", "scripts/v650_ml_scores.py": "--run-id --end --out", "data_pipeline.factor_file_backfill": "--audit"}
     seen = []
 
     def runner(command, **kwargs):

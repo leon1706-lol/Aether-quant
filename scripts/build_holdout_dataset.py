@@ -66,6 +66,9 @@ def main() -> int:
     parser.add_argument("--output", default=str(ROOT_DIR / "ml" / "datasets" / "holdout_dataset.csv"))
     parser.add_argument("--full-splits", action="store_true", help="V6.0.0: train/validation/backtest/holdout in one file")
     parser.add_argument("--write-split-files", action="store_true", help="V6.0.0: also the per-split files the trainers read")
+    # V6.6.10: a retrained candidate's rows past its own dataset are scaled with ITS scaler and pool, not the installed ones
+    parser.add_argument("--scaler-stats", default=str(ROOT_DIR / "ml" / "scaler_stats.json"), help="the scaler to apply (default: the active one)")
+    parser.add_argument("--manifest", default=str(ROOT_DIR / "ml" / "dataset_manifest.json"), help="the asset-quality flags to apply (default: the active ones)")
     args = parser.parse_args()
 
     config = json.loads(Path(args.config_path).read_text(encoding="utf-8"))
@@ -81,8 +84,8 @@ def main() -> int:
     args.end = args.end or holdout_window.get("end")
     if not args.start or not args.end:
         parser.error("no --start/--end and no phase1.windows.holdout in --windows-config")
-    scaler_stats = json.loads((ROOT_DIR / "ml" / "scaler_stats.json").read_text(encoding="utf-8"))
-    manifest = json.loads((ROOT_DIR / "ml" / "dataset_manifest.json").read_text(encoding="utf-8"))
+    scaler_stats = json.loads(Path(args.scaler_stats).read_text(encoding="utf-8"))
+    manifest = json.loads(Path(args.manifest).read_text(encoding="utf-8"))
 
     holdout_config, dropped = train.build_holdout_config(config, args.root, args.start, args.end)
     print(f"assets kept: {len(holdout_config['phase1']['universe']['assets'])}, dropped (no holdout zip): {dropped}")

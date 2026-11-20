@@ -125,9 +125,11 @@ def test_train_bare_chains_gating_multitask_sequence_after_train_py():
         exit_code = args.func(args)
 
     assert exit_code == 0
-    gating_mock.assert_called_once_with()
-    multitask_mock.assert_called_once_with()
-    sequence_mock.assert_called_once_with()
+    # V6.6.10: each chained trainer gets the version id kept in the run's record (so a resumed step reuses its folder)
+    gating_mock.assert_called_once()
+    multitask_mock.assert_called_once()
+    sequence_mock.assert_called_once()
+    assert gating_mock.call_args.kwargs["version_id"].startswith("gating-only-") and sequence_mock.call_args.kwargs["resume"] is False
 
 
 def test_train_bare_stops_after_train_py_failure_without_chaining():
@@ -207,14 +209,16 @@ def test_train_walk_forward_flag():
     run_mock = MagicMock(return_value=0)
     _parse_and_dispatch(["train", "--walk-forward"], run_mock)
 
-    assert run_mock.call_args.args[0] == [sys.executable, "train.py", "--walk-forward"]
+    command = run_mock.call_args.args[0]
+    assert command[:3] == [sys.executable, "train.py", "--walk-forward"]
+    assert command[3] == "--run-id-file" and command[4].endswith("walk_forward_run_id"), "V6.6.10: the run's folder keeps the walk-forward's id"
 
 
 def test_train_walk_forward_passes_through_step_days_and_mode():
     run_mock = MagicMock(return_value=0)
     _parse_and_dispatch(["train", "--walk-forward", "--step-days", "90", "--mode", "rolling"], run_mock)
 
-    assert run_mock.call_args.args[0] == [
+    assert run_mock.call_args.args[0][:7] == [
         sys.executable,
         "train.py",
         "--walk-forward",

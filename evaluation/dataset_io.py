@@ -35,11 +35,12 @@ def read_dataset_columns(path: Path | str, columns: Sequence[str], *, start: str
     return pd.concat(pieces, ignore_index=True)
 
 
-def read_dataset_rows(path: Path | str, *, split: str | None = None, chunk_rows: int = 50_000) -> pd.DataFrame:
-    """Every column of the rows whose `split` is `split` (all rows when None), read in chunks so the rows of the other splits
-    are never held. The values are exactly those of a plain `pd.read_csv`: a rank-book evaluation reads closes and returns,
-    which stay float64."""
+def read_dataset_rows(path: Path | str, *, split: str | Sequence[str] | None = None, chunk_rows: int = 50_000) -> pd.DataFrame:
+    """Every column of the rows whose `split` is `split` (or one of several; all rows when None), read in chunks so the rows of the
+    other splits are never held. The values are exactly those of a plain `pd.read_csv`: a rank-book evaluation reads closes and
+    returns, which stay float64."""
+    wanted = None if split is None else ({split} if isinstance(split, str) else set(split))
     pieces = []
     for chunk in pd.read_csv(path, chunksize=max(1, int(chunk_rows))):
-        pieces.append(chunk if split is None else chunk[chunk["split"] == split])
+        pieces.append(chunk if wanted is None else chunk[chunk["split"].isin(wanted)])
     return pd.concat(pieces, ignore_index=True) if pieces else pd.DataFrame()

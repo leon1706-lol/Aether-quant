@@ -5,10 +5,18 @@ The full record of every phase lives in the repository: [`development/Changelog.
 The latest phases, generated from that file by `aq docs sync`:
 
 <!-- AQ:CHANGELOG_LATEST_START -->
+- [Phase V6.6.10 — Training on a 4 GB machine, resumable retrains, example models, one-command pipelines, more proofs, and no 70/30 flip](https://github.com/leon1706-lol/Aether-quant/blob/main/development/Changelog.md#phase-v6610--training-on-a-4-gb-machine-resumable-retrains-example-models-one-command-pipelines-more-proofs-and-no-7030-flip)
 - [Phase V6.6.9 — The multi-asset model book back on the trusted path, an optimizer, a docs pass](https://github.com/leon1706-lol/Aether-quant/blob/main/development/Changelog.md#phase-v669--the-multi-asset-model-book-back-on-the-trusted-path-an-optimizer-a-docs-pass)
 - [Phase V6.6.8 — Close the best-practices gaps: strict lint, the C++ accelerator under sanitizers, the licence decision](https://github.com/leon1706-lol/Aether-quant/blob/main/development/Changelog.md#phase-v668--close-the-best-practices-gaps-strict-lint-the-c-accelerator-under-sanitizers-the-licence-decision)
-- [Phase V6.6.7 — The last tidy-up: the Scorecard near its ceiling, fuzzing, coverage after every commit, ten more proofs](https://github.com/leon1706-lol/Aether-quant/blob/main/development/Changelog.md#phase-v667--the-last-tidy-up-the-scorecard-near-its-ceiling-fuzzing-coverage-after-every-commit-ten-more-proofs)
 <!-- AQ:CHANGELOG_LATEST_END -->
+
+**6.6.10: training on a 4 GB machine, and an honest answer on the 70/30 flip.**
+
+- **Retrain on a small machine.** `--memory-profile low` trains the whole model stack in about 1.4 GB (`aq cycle retrain --host local --memory-profile low`); the models were retrained this way on a 3.9 GB PC. `--estimate` prints each profile's peak first.
+- **Stop and continue.** `aq train --resume`, `aq cycle retrain --resume` and `aq pipeline run --resume` pick a stopped run up where it ended: finished steps are skipped, a walk-forward continues at its next window, the sequence trainer at its last epoch. `--list-runs` shows them.
+- **Models for everyone.** `aq models` installs small example models from each release and scores them with numpy, no torch (`aether_quant.models`, the new `04_models` tutorial); the project's own models stay private. `aq init` starts a signal project with a pipeline, tests and a CI workflow.
+- **The research said no.** The retrained models rank better (IC 0.065 against 0.050) but did not beat the pin in Lean (Sharpe 0.568 against 0.571); five new training losses and nine books on the strongest score all failed their pre-registered bars. The book stays 30% models, 70% crypto trend.
+- **More proofs.** Every public numeric function is now listed with how it is proved (`formal/inventory.json`), and eight more Lean 4 specs cover the book's guards, Kelly, inverse-volatility shares and the sequence windows.
 
 **6.6.9: the multi-asset model book is back.**
 

@@ -25,6 +25,14 @@ def test_the_cycle_example_hands_over_and_takes_risk_off():
     assert "dead" in result.stdout and "T-bills" in result.stdout
 
 
+def test_the_models_example_loads_a_folder_and_scores_the_sample():
+    """V6.6.10: the catalog, then any exported model folder loaded and scored with the numpy pass, offline."""
+    result = subprocess.run([sys.executable, str(ROOT / "examples" / "aether_quant_models.py")], capture_output=True, text=True, timeout=300, check=False)
+    assert result.returncode == 0, result.stderr
+    assert "example-crypto-mlp (multitask)" in result.stdout and "loaded momentum-minus-volatility (multitask)" in result.stdout
+    assert "11 coins" in result.stdout and "ranking on " in result.stdout
+
+
 def test_every_example_finds_the_package_without_an_install():
     """CI runs the suite without `pip install -e .`, and pytest's pythonpath does not reach a child process: an example that
     imports aether_quant must put the repo root on sys.path itself (V6.6.1 and V6.6.2 failed CI on exactly this)."""

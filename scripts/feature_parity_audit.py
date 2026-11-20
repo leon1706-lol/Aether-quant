@@ -159,7 +159,9 @@ def check_synthetic_formula_parity() -> dict:
     return result
 
 
-def check_artifact_consistency(dataset: pd.DataFrame, scaler_mapping: dict[str, tuple[float, float, float]], long_window_bars: int) -> tuple[dict, dict]:
+def check_artifact_consistency(
+    dataset: pd.DataFrame, scaler_mapping: dict[str, tuple[float, float, float]], long_window_bars: int, forex_holidays: frozenset[int] = frozenset(),
+) -> tuple[dict, dict]:
     """Real-data forward check: replica raw -> scaler artifact -> stored column.
 
     Residual mismatches are POSITIONALLY CLASSIFIED per ticker:
@@ -192,7 +194,7 @@ def check_artifact_consistency(dataset: pd.DataFrame, scaler_mapping: dict[str, 
         for i in bad_indices:
             if i < warmup:
                 continue  # already excluded upstream; defensive
-            if any(h < i <= h + memory_rows for h in holes):
+            if any(h <= i <= h + memory_rows for h in holes):  # the first row after a gap reads across it too
                 boundary += 1
             else:
                 unexplained += 1
@@ -202,7 +204,8 @@ def check_artifact_consistency(dataset: pd.DataFrame, scaler_mapping: dict[str, 
         group = group.sort_values("date").reset_index(drop=True)
         security_type = str(group["security_type"].iloc[0]) if "security_type" in group.columns else "equity"
         dates = pd.to_datetime(group["date"])
-        holes = set(np.where(dates.diff().dt.days > 3)[0])
+        # a crypto market trades every day, so any skipped day is a hole (a label-guard drop); equities and forex skip weekends
+        holes = set(np.where(dates.diff().dt.days > (1 if security_type == "crypto" else 3))[0])
 
         ohlcv = group[["open", "high", "low", "close", "volume"]]
         row_positions = None
@@ -211,7 +214,7 @@ def check_artifact_consistency(dataset: pd.DataFrame, scaler_mapping: dict[str, 
             # replicate on the filled frame, then read the replica at the dataset's own dates.
             import train as train_module
 
-            filled = train_module.fill_forward_forex_frame(group[["date", "open", "high", "low", "close", "volume"]].assign(date=dates.to_numpy()))
+            filled = train_module.fill_forward_forex_frame(group[["date", "open", "high", "low", "close", "volume"]].assign(date=dates.to_numpy()), forex_holidays)
             row_positions = np.flatnonzero(filled["date"].isin(set(dates)).to_numpy())
             ohlcv = filled[["open", "high", "low", "close", "volume"]]
         base = compute_base_technicals_replica(ohlcv, long_window_bars=long_window_bars)
@@ -274,22 +277,37 @@ def check_cross_sectional_and_macro(dataset: pd.DataFrame, scaler_mapping: dict[
     momentum_long = build_momentum_pool(dataset, security_types, resolve_forex_lean_holidays(config))
     dataset = dataset.assign(date=pd.to_datetime(dataset["date"]))
 
-    ranks = compute_cs_momentum_rank_replica(momentum_long, security_types)
-    merged = dataset.merge(ranks, on=["date", "ticker"], how="left")
+    # V6.6.10: the warm-up is the dataset's first 45 sessions (the pool needs every name's history, which starts there), not its
+    # first 45 rows; and a session that follows any name's hole (a label-guard drop: a skipped day for crypto, more than three
+    # for the rest) pools that name's stale momentum, a boundary artifact like the per-ticker ones
+    sessions = sorted(dataset["date"].unique())
+    warm = dataset["date"].isin(set(sessions[:45])).to_numpy()
+    hole_dates: set = set()
+    for ticker, group in dataset.groupby("ticker"):
+        dates = group["date"].sort_values()
+        hole_dates |= set(dates[dates.diff().dt.days > (1 if security_types.get(ticker) == "crypto" else 3)])
 
+    def compare(merged: pd.DataFrame, column: str, mean: float, scale: float, clip: float) -> dict:
+        keep = ~warm
+        boundary = keep & merged["date"].isin(hole_dates).to_numpy()
+        clean = keep & ~boundary
+        stored, recomputed = merged[column].to_numpy(dtype=float), merged["recomputed"].to_numpy(dtype=float)
+        result = summarize_comparison(stored[clean], recomputed[clean], mean, scale, clip, warmup_excluded=45)
+        edge = summarize_comparison(stored[boundary], recomputed[boundary], mean, scale, clip)
+        result["n_boundary_artifact"] = edge["n_mismatch_gt_1e-9"]
+        if result["verdict"] == "PASS" and result["n_boundary_artifact"]:
+            result["verdict"] = "PASS_BOUNDARY_ARTIFACTS_ONLY"
+        return result
+
+    ranks = compute_cs_momentum_rank_replica(momentum_long, security_types)
+    merged = dataset.merge(ranks.rename(columns={"cs_momentum_rank_recomputed": "recomputed"}), on=["date", "ticker"], how="left")
     name = "cs_momentum_rank_20"
-    mean, scale, clip = scaler_mapping[name]
-    stored = merged[f"{name}_scaled"].to_numpy(dtype=float)[45:]
-    recomputed = merged["cs_momentum_rank_recomputed"].to_numpy(dtype=float)[45:]
-    results[name] = summarize_comparison(stored, recomputed, mean, scale, clip, warmup_excluded=45)
+    results[name] = compare(merged, f"{name}_scaled", *scaler_mapping[name])
 
     macro = compute_macro_proxies_replica(momentum_long, security_types)
     for feature in ("macro_yield_curve_slope_proxy", "macro_credit_spread_proxy", "macro_crypto_risk_appetite_proxy"):
         merged_f = dataset.merge(macro[["date", "ticker", feature]].rename(columns={feature: "recomputed"}), on=["date", "ticker"], how="left")
-        mean, scale, clip = scaler_mapping[feature]
-        stored = merged_f[f"{feature}_scaled"].to_numpy(dtype=float)[45:]
-        recomputed = merged_f["recomputed"].to_numpy(dtype=float)[45:]
-        results[feature] = summarize_comparison(stored, recomputed, mean, scale, clip, warmup_excluded=45)
+        results[feature] = compare(merged_f, f"{feature}_scaled", *scaler_mapping[feature])
 
     return results
 
@@ -407,7 +425,10 @@ def main() -> int:
         print(f"    status={report['synthetic_formula_parity'].get('_status')} failures={failures or 'none'}")
 
     print("\n[2/3] Real-data artifact consistency...")
-    artifact_results, _slices = check_artifact_consistency(dataset, scaler_mapping, DEFAULT_LONG_LOOKBACK_WINDOW_BARS)
+    import train as train_module
+
+    forex_holidays = train_module.resolve_forex_lean_holidays(json.loads((ROOT_DIR / "config.json").read_text(encoding="utf-8")))
+    artifact_results, _slices = check_artifact_consistency(dataset, scaler_mapping, DEFAULT_LONG_LOOKBACK_WINDOW_BARS, forex_holidays)
     report["artifact_consistency"] = artifact_results
     for name, stats in artifact_results.items():
         print(f"    {name:<32} {stats['verdict']:<5} n={stats['n_compared']:>7} "

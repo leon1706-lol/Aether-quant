@@ -157,7 +157,7 @@ def test_promotion_with_generations_on_or_a_corrupt_candidate_stops(monkeypatch,
 
 def test_hours_since_handles_a_missing_and_a_naive_timestamp():
     assert orch._hours_since(None) is None
-    assert 0.0 <= orch._hours_since(datetime.utcnow().replace(tzinfo=None) - timedelta(minutes=1)) < 24 * 7
+    assert 0.0 <= orch._hours_since(datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(minutes=1)) < 24 * 7
 
 
 def test_status_and_auto_rollback_assemble_their_inputs(monkeypatch):

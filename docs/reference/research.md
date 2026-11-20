@@ -10,6 +10,7 @@ Research and audit tools (V6.4.3): one report for any signal, the probability of
         - WideCell
         - alpha_proof_report
         - alpha_regression
+        - alpha_report
         - annual_sharpe
         - annual_volatility
         - append_trial
@@ -17,6 +18,7 @@ Research and audit tools (V6.4.3): one report for any signal, the probability of
         - benchmark_daily_returns
         - block_bootstrap_mean_ci
         - book_trials
+        - breadth
         - build_context
         - build_factor_returns
         - build_factor_scores
@@ -42,8 +44,15 @@ Research and audit tools (V6.4.3): one report for any signal, the probability of
         - fit_ridge_rank
         - fresh_sessions
         - gap_report
+        - half_life
         - head_ic
+        - horizon_forward_returns
+        - ic_by_group
+        - ic_by_period
+        - ic_hac_summary
+        - ic_lag_profile
         - ic_summary
+        - ic_term_structure
         - identity_check
         - install_verdict
         - installed_score_tables
@@ -70,10 +79,12 @@ Research and audit tools (V6.4.3): one report for any signal, the probability of
         - placebo_p_value
         - placebo_sharpes
         - predict_scores
+        - premia_exposure
         - probability_of_backtest_overfitting
         - project_tickers
         - r_alpha1
         - rank_ic_diagnostics
+        - rank_weights
         - read_dataset_columns
         - read_dataset_rows
         - read_info
@@ -81,12 +92,14 @@ Research and audit tools (V6.4.3): one report for any signal, the probability of
         - rung_attribution
         - score_sleeve
         - selection_gate
+        - session_rank_ic
         - sharpe
         - sharpe_at_sessions
         - sharpe_bootstrap_ci
         - signal_ic_t
         - single_feature_ic
         - slice_market
+        - spread_after_costs
         - strategy_daily_returns
         - tail_nan_check
         - to_sessions

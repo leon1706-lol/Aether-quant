@@ -256,7 +256,7 @@ def ic_by_group(table: pd.DataFrame, label: pd.DataFrame, groups: dict[str, pd.D
         rows["year"].setdefault(date[:4], []).append(float(pair["s"].rank().corr(pair["y"].rank())))
         for name, grouping in groups.items():
             membership = grouping.loc[date] if isinstance(grouping, pd.DataFrame) else grouping
-            for group, part in pair.groupby(membership.reindex(pair.index)):
+            for group, part in pair.groupby(membership.reindex(pair.index), observed=True):
                 if len(part) >= 12:
                     rows[name].setdefault(str(group), []).append(float(part["s"].rank().corr(part["y"].rank())))
     return {name: {group: {"ic": float(np.mean(values)), "dates": len(values)} for group, values in sorted(by.items())} for name, by in rows.items()}

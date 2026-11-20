@@ -67,6 +67,14 @@ book-construction and neutrality functions).
 | `DynamicTargets.lean` | `portfolio/generation_blend.py` | V6.6.7 (#375): `fill_le_cap`, `fill_names`, `repair_nonneg`, `repair_sum_le` (finding) |
 | `ForexCap.lean` | `risk/forex_risk.cap_forex_target_to_book_weight` | V6.6.7 (#376): `abs_le_book`, `sign_kept`, `shrinks`, `idempotent`, `nonfinite_zero` |
 | `VolTarget.lean` | `risk/vol_target.py` | V6.6.7 (#376): `uniform_scale`, `gross_le_leverage`, `target_zero_flat` (finding) |
+| `NoTradeBand.lean` | `portfolio/book_optimizer.no_trade_band` | V6.6.10: `value_mem`, `value_idem`, `bandRow_idem` (applying the band twice is applying it once), `no_zero`, `dropped_goes` |
+| `PaperLossGuard.lean` | `portfolio/book_optimizer.paper_loss_guard` | V6.6.10: `guard_iff`, `short_record_blocks`, `nonpos_lookback_blocks`, `mono_max_loss`, `no_loss_passes` |
+| `MultiAssetRules.lean` | `evaluation/multi_asset_round.py` | V6.6.10, R-FLIP1 / R-INSTALL3 / R-LOSS1: `flip_iff`, `no_survivor_no_flip`, `unclean_run_no_flip`, `floor_bounds`, `lean_mono`, `shares_sum`, `install3_needs_the_ic`, `install3_needs_a_clean_run`, `control_never_survives` |
+| `WindowIndex.lean` | `retraining/slicing.sequence_window_index` | V6.6.10, the lazy sequence windows: `window_length`, `window_causal` (no look-ahead), `window_same_ticker`, `self_mem` |
+| `Kelly.lean` | `risk/kelly.kelly_fraction` | V6.6.10: `within_cap`, `zero_without_variance`, `zero_without_fraction`, `nonneg_of_mean`, `mono_mean` |
+| `InverseVolShare.lean` | `evaluation/model_book_round.inverse_vol_share` | V6.6.10: `share_pos`, `share_lt_one`, `shares_sum`, `antitone_model` |
+| `BookGuards.lean` | `portfolio/book_optimizer.drop_classes`, `class_gross`, `stress_scaler` | V6.6.10: `dropped_class_holds_nothing`, `kept_unchanged`, `gross_nonneg`, `class_gross_nonneg`, `stress_never_raises`, `missing_ratio_unchanged` |
+| `SharpeClauses.lean` | `evaluation/premia_research.passes_sharpe_clauses` | V6.6.10: `missing_fails`, `passes_iff`, `mono_sharpes`, `antitone_floors` |
 | `Real.lean` | the headline theorems above | restated at `ℝ` |
 
 ## Findings
@@ -86,6 +94,14 @@ book-construction and neutrality functions).
 - **Allocation:** a damaged generation allocation was kept as it was (#375).
 
 Every one is fixed fail-safe with defaults unchanged.
+
+## The inventory (V6.6.10)
+
+`formal/inventory.json` classifies every public function of the trading and research paths (`risk/`, `portfolio/`, `execution/`,
+`features/`, `evaluation/`, `retraining/`, `inference/`, `moe/`, `regime/`, `topology/`, `json_safety.py`, `risk_controls.py`):
+`spec:<Target>`, `excluded:<reason>` (I/O, orchestration, CLI and the like, with nothing to prove), or `backlog` (pure numeric, no
+spec yet). `scripts/formal_inventory.py` fails on an unclassified function and on a backlog above `BACKLOG_CEILING`, which only
+goes down; it runs in the pre-commit hook and in CI's fast-guards. `python scripts/formal_inventory.py --report` gives the counts.
 
 ## Checks beyond the build
 

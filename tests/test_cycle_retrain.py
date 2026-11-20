@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -60,7 +61,7 @@ def test_a_trainer_command_says_everything_and_holds_no_free_form():
 def test_this_pc_refuses_a_real_local_retrain(monkeypatch, capsys):
     import cycle_retrain
 
-    monkeypatch.setattr(cycle_retrain, "ram_preflight", lambda host, min_gb=14.0: {"ok": False, "reason": "4.0 GB of RAM, 14 GB needed"})
+    monkeypatch.setattr(cycle_retrain, "ram_preflight", lambda host, **kwargs: {"ok": False, "reason": "4.0 GB of RAM, 14 GB needed"})
     assert main(["--host", "local", "--procedure", "k06"]) == 2
     assert "refusing" in capsys.readouterr().err
 
@@ -208,6 +209,7 @@ def test_the_codespace_job_runs_the_same_script_locally_there():
     command = remote_command("k06", run_id="r3")
     assert command == ["python3", "/workspaces/Aether-quant/scripts/cycle_retrain.py", "--host", "local", "--procedure", "k06", "--run-id", "r3", "--on-codespace"]
     assert "--smoke" in remote_command("smoke", run_id="r3", smoke=True)
+    assert remote_command("k06", run_id="r3", resume=True)[-2:] == ["--resume", "r3"], "the settings come along, in case that machine has no record yet"
     assert not any(" " in part or '"' in part for part in command), "Windows OpenSSH strips quotes from a command line"
 
 
@@ -225,6 +227,8 @@ def test_a_dropped_session_resumes_and_a_lasting_failure_still_stops_the_codespa
 
     out = drive_codespace("k06", PROCEDURES["k06"], run_id="r4", smoke=False, runner=flaky, emit=lambda _: None, scratch=tmp_path, sleep=lambda _: None)
     assert out["state"]["done"] == {"report": {}} and sum("cycle_retrain.py" in " ".join(item) for item in runs) == 3
+    attempts = [item for item in runs if "cycle_retrain.py" in " ".join(item)]
+    assert "--resume" not in attempts[0] and all("--resume" in item for item in attempts[1:]), "a retry continues that machine's run (V6.6.10)"
     assert runs[-1][:3] == ["gh", "codespace", "stop"]
 
 
@@ -355,8 +359,10 @@ def test_the_codespace_host_drives_the_codespace(monkeypatch, tmp_path):
 
     calls = []
     monkeypatch.setattr(cycle_retrain, "STATE_ROOT", tmp_path)
-    monkeypatch.setattr(cycle_retrain, "drive_codespace", lambda name, procedure, run_id, smoke: calls.append((name, run_id, smoke)))
-    assert main(["--host", "codespace", "--smoke", "--run-id", "cs1"]) == 0 and calls == [("smoke", "cs1", True)]
+    monkeypatch.setattr(cycle_retrain, "drive_codespace", lambda name, procedure, run_id, smoke, resume: calls.append((name, run_id, smoke, resume)))
+    assert main(["--host", "codespace", "--smoke", "--run-id", "cs1"]) == 0 and calls == [("smoke", "cs1", True, False)]
+    assert (tmp_path / "retrain_cs1" / "resume.json").exists(), "a Codespace run has a resume record on the driving machine too (V6.6.10)"
+    assert main(["--resume", "cs1"]) == 0 and calls[-1] == ("smoke", "cs1", True, True)
 
 
 # --- V6.6.9: the model stack (#395) -----------------------------------------------------------------------------------------
@@ -379,9 +385,9 @@ def test_a_stack_dry_run_lists_the_stack_stages_and_the_pc_refuses_the_real_run(
 def test_the_stack_smoke_validates_every_planned_flag_against_the_trainers(monkeypatch, capsys):
     import cycle_retrain
 
-    helps = {"train.py": "--candidate --version-id --walk-forward --include-multitask --include-sequence --mode --resume-run-id", "train_multitask.py": "--version-id",
-             "train_sequence.py": "--version-id", "train_gating.py": "--version-id", "scripts/feature_parity_audit.py": "--skip-synthetic",
-             "scripts/v650_ml_scores.py": "--run-id --end", "data_pipeline.factor_file_backfill": "--audit"}
+    helps = {"train.py": "--candidate --version-id --write-dataset --walk-forward --include-multitask --include-sequence --mode --resume-run-id --run-id-file",
+             "train_multitask.py": "--version-id --dataset-path --feature-schema-path", "train_sequence.py": "--version-id --dataset-path --feature-schema-path", "train_gating.py": "--version-id",
+             "scripts/feature_parity_audit.py": "--skip-synthetic --dataset --scaler-stats --schema --output", "scripts/v650_ml_scores.py": "--run-id --end --out", "data_pipeline.factor_file_backfill": "--audit"}
 
     def runner(command, **kwargs):
         key = command[2] if command[1] == "-m" else command[1]
@@ -418,7 +424,7 @@ def test_the_stack_stages_run_their_commands_read_the_walk_forward_id_and_regist
     actions["factor_audit"](), actions["dataset"](), actions["parity_audit"](), actions["multitask"](), actions["sequence"](), actions["gating"]()
     actions["walk_forward"]()
     actions["scores"]()
-    assert seen[-1] == ["py", "scripts/v650_ml_scores.py", "--run-id", "walk-forward-abc-123", "--end", "2023-06-30"]
+    assert seen[-1] == ["py", "scripts/v650_ml_scores.py", "--run-id", "walk-forward-abc-123", "--end", "2023-06-30", "--out", "ml/cycle/retrain_r1/scores"]
     assert "sequence_model.json" in actions["pins"]()
     registered = actions["register"]()
     assert registered["procedure"] == "stack" and registered["registered"]["added"] is False and actions["report"]().endswith("run")
@@ -437,8 +443,149 @@ def test_a_stack_run_without_a_score_end_skips_the_scores_and_a_walk_forward_wit
 def test_the_stack_runs_through_main_on_a_machine_that_may_train(tmp_path, monkeypatch, capsys):
     import cycle_retrain
 
-    monkeypatch.setattr(cycle_retrain, "ram_preflight", lambda host, min_gb=14.0: {"ok": True, "reason": "plenty"})
+    monkeypatch.setattr(cycle_retrain, "ram_preflight", lambda host, **kwargs: {"ok": True, "reason": "plenty"})
     monkeypatch.setattr(cycle_retrain, "STATE_ROOT", tmp_path)
     monkeypatch.setattr(cycle_retrain, "stack_actions", lambda *args, **kwargs: {stage: (lambda stage=stage: stage) for stage in cycle_retrain.stack_stages()})
     assert main(["--host", "local", "--procedure", "stack", "--run-id", "rX", "--score-end", "2023-06-30"]) == 0
     assert set(cycle_retrain.load_state(tmp_path / "retrain_rX" / "state.json")["done"]) == set(cycle_retrain.stack_stages())
+
+
+def test_the_estimate_reads_the_dataset_shape_and_prints_each_profile(tmp_path, monkeypatch, capsys):
+    """V6.6.10: `--estimate` says what each memory profile would need before a night is spent on a run."""
+    import json
+
+    import cycle_retrain
+
+    config = tmp_path / "config.json"
+    config.write_text(json.dumps({"phase_v2": {"retraining": {"sequence_training": {"window_size": 30}}}}), encoding="utf-8")
+    missing = cycle_retrain.memory_estimate(tmp_path / "ml" / "datasets" / "full_dataset.csv", config)
+    assert "no dataset" in missing["error"]
+    (tmp_path / "ml" / "datasets").mkdir(parents=True)
+    dataset = tmp_path / "ml" / "datasets" / "full_dataset.csv"
+    dataset.write_text("a,b,c\n1,2,3\n4,5,6\n", encoding="utf-8")
+    report = cycle_retrain.memory_estimate(dataset, config)
+    assert report["rows"] == 2 and report["columns"] == 3 and report["features"] == 3 and set(report["estimated_peak_gb"]) == {"standard", "low"}
+    (tmp_path / "ml" / "feature_schema.json").write_text(json.dumps({"model_input_names": ["a", "b"]}), encoding="utf-8")
+    assert cycle_retrain.memory_estimate(dataset, config)["features"] == 2
+    monkeypatch.setattr(cycle_retrain, "ROOT", tmp_path)
+    (tmp_path / "config.json").write_text(config.read_text(encoding="utf-8"), encoding="utf-8")
+    assert main(["--host", "local", "--estimate"]) == 0
+    assert '"estimated_peak_gb"' in capsys.readouterr().out
+
+
+def test_a_low_profile_run_reaches_the_preflight_and_the_stack_actions(tmp_path, monkeypatch, capsys):
+    import cycle_retrain
+
+    seen = {}
+    monkeypatch.setattr(cycle_retrain, "ram_preflight", lambda host, **kwargs: seen.setdefault("preflight", kwargs) and {"ok": True, "reason": "fits"})
+    monkeypatch.setattr(cycle_retrain, "STATE_ROOT", tmp_path)
+
+    def actions(*args, **kwargs):
+        seen["actions"] = kwargs
+        return {stage: (lambda stage=stage: stage) for stage in cycle_retrain.stack_stages()}
+
+    monkeypatch.setattr(cycle_retrain, "stack_actions", actions)
+    assert main(["--host", "local", "--procedure", "stack", "--run-id", "rL", "--memory-profile", "low"]) == 0
+    assert seen["preflight"] == {"min_gb": None, "profile": "low"} and seen["actions"]["profile"] == "low"
+    assert '"memory_profile": "low"' in capsys.readouterr().out
+
+
+def test_a_stopped_walk_forward_resumes_its_own_windows_and_the_id_is_read_from_stdout(tmp_path):
+    """V6.6.10: `--resume-walk-forward` continues a stopped run; the id is found in train.py's last stdout line, or kept from the resume."""
+    import cycle_retrain
+
+    seen = []
+
+    def runner(command, **kwargs):
+        seen.append(list(command))
+        return SimpleNamespace(returncode=0, stdout="Walk-forward run walk-forward-1a2b-3c: 12 windows trained" if "--walk-forward" in command else "", stderr="")
+
+    actions = cycle_retrain.stack_actions("stack", PROCEDURES["stack"], run_dir=tmp_path, run_id="r3", python="py", runner=runner, score_end="2023-06-30",
+                                          resume_walk_forward="walk-forward-old")
+    actions["walk_forward"]()
+    assert seen[-1][-2:] == ["--resume-run-id", "walk-forward-old"]
+    actions["scores"]()
+    assert seen[-1][3] == "walk-forward-1a2b-3c"
+    silent = lambda command, **kwargs: SimpleNamespace(returncode=0, stdout="", stderr="")  # noqa: E731
+    resumed = cycle_retrain.stack_actions("stack", PROCEDURES["stack"], run_dir=tmp_path, run_id="r4", python="py", runner=silent, score_end="2023-06-30",
+                                          resume_walk_forward="walk-forward-kept")
+    resumed["walk_forward"]()
+    seen.clear()
+    resumed_scores = cycle_retrain.stack_actions("stack", PROCEDURES["stack"], run_dir=tmp_path, run_id="r4", python="py", runner=runner, score_end="2023-06-30",
+                                                 resume_walk_forward="walk-forward-kept")
+    resumed_scores["scores"]()
+    assert seen[-1][3] == "walk-forward-kept"
+
+
+def test_resume_continues_a_stopped_run_with_its_own_settings(tmp_path, monkeypatch, capsys):
+    """V6.6.10: `--resume` reads the run folder's resume.json and walk_forward_run_id, skips finished stages and needs no other flag."""
+    import cycle_retrain
+
+    monkeypatch.setattr(cycle_retrain, "ram_preflight", lambda host, **kwargs: {"ok": True, "reason": "fits"})
+    monkeypatch.setattr(cycle_retrain, "STATE_ROOT", tmp_path)
+    seen = {}
+
+    def actions(*args, **kwargs):
+        seen.update(kwargs)
+        return {stage: (lambda stage=stage: stage) for stage in cycle_retrain.stack_stages()}
+
+    monkeypatch.setattr(cycle_retrain, "stack_actions", actions)
+    monkeypatch.setattr(cycle_retrain, "run_stages", lambda stages, acts, state_path: seen.setdefault("state", state_path))
+    assert main(["--host", "local", "--procedure", "stack", "--run-id", "rR", "--memory-profile", "low", "--score-end", "2023-06-30"]) == 0
+    record = json.loads((tmp_path / "retrain_rR" / "resume.json").read_text(encoding="utf-8"))
+    assert record["memory_profile"] == "low" and record["score_end"] == "2023-06-30" and record["snapshot"].endswith("pre_retrain_rR.zip")
+    (tmp_path / "retrain_rR" / "walk_forward_run_id").write_text("walk-forward-abc\n", encoding="utf-8")
+    seen.clear()
+    assert main(["--resume"]) == 0
+    assert seen["resume_walk_forward"] == "walk-forward-abc" and seen["profile"] == "low" and seen["score_end"] == "2023-06-30"
+    assert "resuming rR (walk-forward walk-forward-abc)" in capsys.readouterr().out
+    assert main(["--resume", "rR"]) == 0 and main(["--resume", "nope"]) == 1
+    assert "nothing to resume" in capsys.readouterr().err
+
+
+def test_resume_picks_the_newest_unfinished_run_and_needs_a_host_otherwise(tmp_path, monkeypatch):
+    import argparse as _argparse
+    import os as _os
+
+    import cycle_retrain
+
+    for name, done in (("old", {}), ("finished", {"report": {}}), ("new", {})):
+        folder = tmp_path / f"retrain_{name}"
+        folder.mkdir()
+        (folder / "resume.json").write_text(json.dumps({"run_id": name}), encoding="utf-8")
+        (folder / "state.json").write_text(json.dumps({"done": done}), encoding="utf-8")
+    _os.utime(tmp_path / "retrain_old" / "resume.json", (1, 1))
+    assert cycle_retrain.find_resumable(tmp_path).name == "retrain_new"
+    assert cycle_retrain.find_resumable(tmp_path / "empty") is None
+    args = _argparse.Namespace(resume="latest", resume_walk_forward="walk-forward-forced", host=None, procedure=None, smoke=False, memory_profile="standard",
+                               score_end=None, min_ram_gb=None, run_id=None)
+    assert cycle_retrain.resume_args(args, state_root=tmp_path).resume_walk_forward == "walk-forward-forced"
+    with pytest.raises(SystemExit):
+        main(["--procedure", "stack"])
+    assert main(["--estimate"]) == 0
+
+
+def test_list_runs_shows_every_retrain_and_train_run(tmp_path, monkeypatch, capsys):
+    """V6.6.10: `--list-runs` lists the run folders with their finished stages, so a run id never has to be looked up."""
+    import cycle_retrain
+
+    monkeypatch.setattr(cycle_retrain, "STATE_ROOT", tmp_path)
+    for name, done in (("retrain_g1", {"dataset": {}}), ("retrain_g0", {"report": {}}), ("train_t1", {"train_py": {}})):
+        (tmp_path / name).mkdir()
+        (tmp_path / name / "resume.json").write_text(json.dumps({"run_id": name}), encoding="utf-8")
+        (tmp_path / name / "state.json").write_text(json.dumps({"done": done}), encoding="utf-8")
+    assert main(["--list-runs"]) == 0
+    out = capsys.readouterr().out
+    assert "g1" in out and "t1" in out and "finished" in out and "resumable" in out and "dataset" in out
+
+
+def test_a_resume_with_its_settings_but_no_record_yet_starts_the_run(tmp_path, monkeypatch, capsys):
+    """V6.6.10: a Codespace retry sends the settings with `--resume`; when the first attempt never wrote its record, the run starts."""
+    import cycle_retrain
+
+    monkeypatch.setattr(cycle_retrain, "ram_preflight", lambda host, **kwargs: {"ok": True, "reason": "fits"})
+    monkeypatch.setattr(cycle_retrain, "STATE_ROOT", tmp_path)
+    monkeypatch.setattr(cycle_retrain, "stack_actions", lambda *args, **kwargs: {})
+    monkeypatch.setattr(cycle_retrain, "run_stages", lambda stages, acts, state_path: None)
+    assert main(["--host", "local", "--procedure", "stack", "--run-id", "fresh", "--on-codespace", "--resume", "fresh"]) == 0
+    assert "no resume record for fresh yet: starting it" in capsys.readouterr().out and (tmp_path / "retrain_fresh" / "resume.json").exists()

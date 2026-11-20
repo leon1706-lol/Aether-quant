@@ -1,0 +1,7809 @@
+{
+ "target": "kelly",
+ "spec_files": [
+  "AetherFormal/Kelly.lean"
+ ],
+ "cases": [
+  {
+   "input": {
+    "variance": {
+     "num": -3,
+     "den": 4
+    },
+    "mean": {
+     "num": 1,
+     "den": 1
+    },
+    "fraction": {
+     "num": 1,
+     "den": 2
+    },
+    "cap": {
+     "num": 5,
+     "den": 4
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 13,
+     "den": 8
+    },
+    "mean": {
+     "num": -5,
+     "den": 8
+    },
+    "fraction": {
+     "num": 1,
+     "den": 1
+    },
+    "cap": {
+     "num": 11,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": -5,
+     "den": 13
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 5,
+     "den": 8
+    },
+    "mean": {
+     "num": -7,
+     "den": 8
+    },
+    "fraction": {
+     "num": 1,
+     "den": 4
+    },
+    "cap": {
+     "num": 3,
+     "den": 2
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": -7,
+     "den": 20
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 1,
+     "den": 4
+    },
+    "mean": {
+     "num": 1,
+     "den": 1
+    },
+    "fraction": {
+     "num": 1,
+     "den": 2
+    },
+    "cap": {
+     "num": -5,
+     "den": 4
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 5,
+     "den": 4
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 15,
+     "den": 8
+    },
+    "mean": {
+     "num": 5,
+     "den": 8
+    },
+    "fraction": {
+     "num": 0,
+     "den": 1
+    },
+    "cap": {
+     "num": 11,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": -1,
+     "den": 8
+    },
+    "mean": {
+     "num": 7,
+     "den": 8
+    },
+    "fraction": {
+     "num": 1,
+     "den": 1
+    },
+    "cap": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": -7,
+     "den": 8
+    },
+    "mean": {
+     "num": 1,
+     "den": 8
+    },
+    "fraction": {
+     "num": 1,
+     "den": 4
+    },
+    "cap": {
+     "num": 11,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 5,
+     "den": 4
+    },
+    "mean": {
+     "num": -3,
+     "den": 4
+    },
+    "fraction": {
+     "num": 1,
+     "den": 4
+    },
+    "cap": {
+     "num": 11,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": -3,
+     "den": 20
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": -3,
+     "den": 8
+    },
+    "mean": {
+     "num": 0,
+     "den": 1
+    },
+    "fraction": {
+     "num": 0,
+     "den": 1
+    },
+    "cap": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": -3,
+     "den": 4
+    },
+    "mean": {
+     "num": 7,
+     "den": 8
+    },
+    "fraction": {
+     "num": 1,
+     "den": 4
+    },
+    "cap": {
+     "num": 3,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 1,
+     "den": 2
+    },
+    "mean": {
+     "num": -3,
+     "den": 4
+    },
+    "fraction": {
+     "num": 1,
+     "den": 4
+    },
+    "cap": {
+     "num": -11,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": -3,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 7,
+     "den": 4
+    },
+    "mean": {
+     "num": -1,
+     "den": 8
+    },
+    "fraction": {
+     "num": 0,
+     "den": 1
+    },
+    "cap": {
+     "num": -1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": -1,
+     "den": 4
+    },
+    "mean": {
+     "num": 5,
+     "den": 8
+    },
+    "fraction": {
+     "num": 1,
+     "den": 2
+    },
+    "cap": {
+     "num": 9,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": -5,
+     "den": 8
+    },
+    "mean": {
+     "num": 5,
+     "den": 8
+    },
+    "fraction": {
+     "num": 1,
+     "den": 2
+    },
+    "cap": {
+     "num": -7,
+     "den": 4
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": -1,
+     "den": 1
+    },
+    "mean": {
+     "num": 5,
+     "den": 8
+    },
+    "fraction": {
+     "num": 1,
+     "den": 2
+    },
+    "cap": {
+     "num": -1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 1,
+     "den": 4
+    },
+    "mean": {
+     "num": -5,
+     "den": 8
+    },
+    "fraction": {
+     "num": 1,
+     "den": 2
+    },
+    "cap": {
+     "num": -3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": -3,
+     "den": 4
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 7,
+     "den": 4
+    },
+    "mean": {
+     "num": -1,
+     "den": 4
+    },
+    "fraction": {
+     "num": 0,
+     "den": 1
+    },
+    "cap": {
+     "num": 15,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 11,
+     "den": 8
+    },
+    "mean": {
+     "num": 1,
+     "den": 4
+    },
+    "fraction": {
+     "num": 0,
+     "den": 1
+    },
+    "cap": {
+     "num": -11,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 3,
+     "den": 8
+    },
+    "mean": {
+     "num": -3,
+     "den": 4
+    },
+    "fraction": {
+     "num": 1,
+     "den": 1
+    },
+    "cap": {
+     "num": 7,
+     "den": 4
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": -7,
+     "den": 4
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 3,
+     "den": 4
+    },
+    "mean": {
+     "num": 1,
+     "den": 8
+    },
+    "fraction": {
+     "num": 1,
+     "den": 1
+    },
+    "cap": {
+     "num": 2,
+     "den": 1
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 1,
+     "den": 6
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": -3,
+     "den": 4
+    },
+    "mean": {
+     "num": 1,
+     "den": 8
+    },
+    "fraction": {
+     "num": 0,
+     "den": 1
+    },
+    "cap": {
+     "num": 1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": -1,
+     "den": 2
+    },
+    "mean": {
+     "num": 1,
+     "den": 4
+    },
+    "fraction": {
+     "num": -1,
+     "den": 2
+    },
+    "cap": {
+     "num": 5,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 5,
+     "den": 4
+    },
+    "mean": {
+     "num": 1,
+     "den": 8
+    },
+    "fraction": {
+     "num": -1,
+     "den": 2
+    },
+    "cap": {
+     "num": 13,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 5,
+     "den": 4
+    },
+    "mean": {
+     "num": 5,
+     "den": 8
+    },
+    "fraction": {
+     "num": 1,
+     "den": 2
+    },
+    "cap": {
+     "num": 1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 1,
+     "den": 4
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 9,
+     "den": 8
+    },
+    "mean": {
+     "num": -5,
+     "den": 8
+    },
+    "fraction": {
+     "num": 1,
+     "den": 1
+    },
+    "cap": {
+     "num": -5,
+     "den": 4
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": -5,
+     "den": 9
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 1,
+     "den": 4
+    },
+    "mean": {
+     "num": 3,
+     "den": 8
+    },
+    "fraction": {
+     "num": 1,
+     "den": 4
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 3,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 1,
+     "den": 1
+    },
+    "mean": {
+     "num": 3,
+     "den": 8
+    },
+    "fraction": {
+     "num": -1,
+     "den": 2
+    },
+    "cap": {
+     "num": -1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": -1,
+     "den": 8
+    },
+    "mean": {
+     "num": -3,
+     "den": 8
+    },
+    "fraction": {
+     "num": 0,
+     "den": 1
+    },
+    "cap": {
+     "num": -1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 2,
+     "den": 1
+    },
+    "mean": {
+     "num": 3,
+     "den": 8
+    },
+    "fraction": {
+     "num": 1,
+     "den": 1
+    },
+    "cap": {
+     "num": -5,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 3,
+     "den": 16
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": -3,
+     "den": 8
+    },
+    "mean": {
+     "num": 7,
+     "den": 8
+    },
+    "fraction": {
+     "num": 0,
+     "den": 1
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 1,
+     "den": 8
+    },
+    "mean": {
+     "num": 5,
+     "den": 8
+    },
+    "fraction": {
+     "num": 0,
+     "den": 1
+    },
+    "cap": {
+     "num": 11,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 9,
+     "den": 8
+    },
+    "mean": {
+     "num": 1,
+     "den": 1
+    },
+    "fraction": {
+     "num": 1,
+     "den": 4
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 2,
+     "den": 9
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 7,
+     "den": 4
+    },
+    "mean": {
+     "num": 5,
+     "den": 8
+    },
+    "fraction": {
+     "num": 1,
+     "den": 4
+    },
+    "cap": {
+     "num": -5,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 5,
+     "den": 56
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": -1,
+     "den": 1
+    },
+    "mean": {
+     "num": 5,
+     "den": 8
+    },
+    "fraction": {
+     "num": 1,
+     "den": 2
+    },
+    "cap": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": -1,
+     "den": 2
+    },
+    "mean": {
+     "num": 7,
+     "den": 8
+    },
+    "fraction": {
+     "num": 1,
+     "den": 1
+    },
+    "cap": {
+     "num": -3,
+     "den": 2
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": -1,
+     "den": 2
+    },
+    "mean": {
+     "num": 0,
+     "den": 1
+    },
+    "fraction": {
+     "num": 1,
+     "den": 1
+    },
+    "cap": {
+     "num": 1,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 5,
+     "den": 4
+    },
+    "mean": {
+     "num": 1,
+     "den": 2
+    },
+    "fraction": {
+     "num": 0,
+     "den": 1
+    },
+    "cap": {
+     "num": -11,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 3,
+     "den": 4
+    },
+    "mean": {
+     "num": 5,
+     "den": 8
+    },
+    "fraction": {
+     "num": 1,
+     "den": 4
+    },
+    "cap": {
+     "num": -11,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 5,
+     "den": 24
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": -1,
+     "den": 4
+    },
+    "mean": {
+     "num": 0,
+     "den": 1
+    },
+    "fraction": {
+     "num": 1,
+     "den": 4
+    },
+    "cap": {
+     "num": 3,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 3,
+     "den": 2
+    },
+    "mean": {
+     "num": -3,
+     "den": 4
+    },
+    "fraction": {
+     "num": 1,
+     "den": 1
+    },
+    "cap": {
+     "num": -2,
+     "den": 1
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": -1,
+     "den": 2
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": -1,
+     "den": 1
+    },
+    "mean": {
+     "num": 3,
+     "den": 8
+    },
+    "fraction": {
+     "num": 1,
+     "den": 1
+    },
+    "cap": {
+     "num": 13,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 1,
+     "den": 4
+    },
+    "mean": {
+     "num": 3,
+     "den": 8
+    },
+    "fraction": {
+     "num": -1,
+     "den": 2
+    },
+    "cap": {
+     "num": -13,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 5,
+     "den": 8
+    },
+    "mean": {
+     "num": 3,
+     "den": 4
+    },
+    "fraction": {
+     "num": 0,
+     "den": 1
+    },
+    "cap": {
+     "num": -15,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": -1,
+     "den": 2
+    },
+    "mean": {
+     "num": -1,
+     "den": 1
+    },
+    "fraction": {
+     "num": 0,
+     "den": 1
+    },
+    "cap": {
+     "num": -3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": -3,
+     "den": 4
+    },
+    "mean": {
+     "num": 1,
+     "den": 1
+    },
+    "fraction": {
+     "num": 1,
+     "den": 4
+    },
+    "cap": {
+     "num": 3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": -3,
+     "den": 4
+    },
+    "mean": {
+     "num": 1,
+     "den": 4
+    },
+    "fraction": {
+     "num": 1,
+     "den": 4
+    },
+    "cap": {
+     "num": -7,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 9,
+     "den": 8
+    },
+    "mean": {
+     "num": 0,
+     "den": 1
+    },
+    "fraction": {
+     "num": -1,
+     "den": 2
+    },
+    "cap": {
+     "num": -1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": -1,
+     "den": 2
+    },
+    "mean": {
+     "num": 0,
+     "den": 1
+    },
+    "fraction": {
+     "num": 0,
+     "den": 1
+    },
+    "cap": {
+     "num": 5,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 7,
+     "den": 4
+    },
+    "mean": {
+     "num": 1,
+     "den": 1
+    },
+    "fraction": {
+     "num": -1,
+     "den": 2
+    },
+    "cap": {
+     "num": -5,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 1,
+     "den": 2
+    },
+    "mean": {
+     "num": 3,
+     "den": 4
+    },
+    "fraction": {
+     "num": 0,
+     "den": 1
+    },
+    "cap": {
+     "num": 1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 3,
+     "den": 4
+    },
+    "mean": {
+     "num": 1,
+     "den": 8
+    },
+    "fraction": {
+     "num": -1,
+     "den": 2
+    },
+    "cap": {
+     "num": -3,
+     "den": 2
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 7,
+     "den": 8
+    },
+    "mean": {
+     "num": 7,
+     "den": 8
+    },
+    "fraction": {
+     "num": -1,
+     "den": 2
+    },
+    "cap": {
+     "num": -13,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": -3,
+     "den": 4
+    },
+    "mean": {
+     "num": 1,
+     "den": 4
+    },
+    "fraction": {
+     "num": -1,
+     "den": 2
+    },
+    "cap": {
+     "num": 9,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": -1,
+     "den": 2
+    },
+    "mean": {
+     "num": -1,
+     "den": 1
+    },
+    "fraction": {
+     "num": 1,
+     "den": 1
+    },
+    "cap": {
+     "num": 15,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 3,
+     "den": 8
+    },
+    "mean": {
+     "num": 0,
+     "den": 1
+    },
+    "fraction": {
+     "num": -1,
+     "den": 2
+    },
+    "cap": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 13,
+     "den": 8
+    },
+    "mean": {
+     "num": 1,
+     "den": 2
+    },
+    "fraction": {
+     "num": 1,
+     "den": 4
+    },
+    "cap": {
+     "num": 3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 1,
+     "den": 13
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": -1,
+     "den": 2
+    },
+    "mean": {
+     "num": -1,
+     "den": 1
+    },
+    "fraction": {
+     "num": 1,
+     "den": 2
+    },
+    "cap": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 3,
+     "den": 2
+    },
+    "mean": {
+     "num": 1,
+     "den": 2
+    },
+    "fraction": {
+     "num": 1,
+     "den": 4
+    },
+    "cap": {
+     "num": 7,
+     "den": 4
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 1,
+     "den": 12
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 3,
+     "den": 4
+    },
+    "mean": {
+     "num": 1,
+     "den": 1
+    },
+    "fraction": {
+     "num": 0,
+     "den": 1
+    },
+    "cap": {
+     "num": 5,
+     "den": 4
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 2,
+     "den": 1
+    },
+    "mean": {
+     "num": -7,
+     "den": 8
+    },
+    "fraction": {
+     "num": 1,
+     "den": 2
+    },
+    "cap": {
+     "num": -1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": -7,
+     "den": 32
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": -1,
+     "den": 4
+    },
+    "mean": {
+     "num": 5,
+     "den": 8
+    },
+    "fraction": {
+     "num": 1,
+     "den": 2
+    },
+    "cap": {
+     "num": -1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 1,
+     "den": 4
+    },
+    "mean": {
+     "num": -5,
+     "den": 8
+    },
+    "fraction": {
+     "num": 0,
+     "den": 1
+    },
+    "cap": {
+     "num": 15,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 5,
+     "den": 4
+    },
+    "mean": {
+     "num": -1,
+     "den": 1
+    },
+    "fraction": {
+     "num": 1,
+     "den": 4
+    },
+    "cap": {
+     "num": -13,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": -1,
+     "den": 5
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": -3,
+     "den": 4
+    },
+    "mean": {
+     "num": -1,
+     "den": 4
+    },
+    "fraction": {
+     "num": 1,
+     "den": 2
+    },
+    "cap": {
+     "num": -3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": -3,
+     "den": 4
+    },
+    "mean": {
+     "num": 0,
+     "den": 1
+    },
+    "fraction": {
+     "num": 1,
+     "den": 1
+    },
+    "cap": {
+     "num": -1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 1,
+     "den": 4
+    },
+    "mean": {
+     "num": 7,
+     "den": 8
+    },
+    "fraction": {
+     "num": 1,
+     "den": 2
+    },
+    "cap": {
+     "num": 5,
+     "den": 4
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 5,
+     "den": 4
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 0,
+     "den": 1
+    },
+    "mean": {
+     "num": 3,
+     "den": 4
+    },
+    "fraction": {
+     "num": 0,
+     "den": 1
+    },
+    "cap": {
+     "num": -5,
+     "den": 4
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 5,
+     "den": 8
+    },
+    "mean": {
+     "num": -1,
+     "den": 8
+    },
+    "fraction": {
+     "num": -1,
+     "den": 2
+    },
+    "cap": {
+     "num": -15,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 5,
+     "den": 4
+    },
+    "mean": {
+     "num": 1,
+     "den": 1
+    },
+    "fraction": {
+     "num": 0,
+     "den": 1
+    },
+    "cap": {
+     "num": 3,
+     "den": 2
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": -7,
+     "den": 8
+    },
+    "mean": {
+     "num": 1,
+     "den": 4
+    },
+    "fraction": {
+     "num": -1,
+     "den": 2
+    },
+    "cap": {
+     "num": -3,
+     "den": 2
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": -1,
+     "den": 4
+    },
+    "mean": {
+     "num": -7,
+     "den": 8
+    },
+    "fraction": {
+     "num": 1,
+     "den": 4
+    },
+    "cap": {
+     "num": 3,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": -7,
+     "den": 8
+    },
+    "mean": {
+     "num": -1,
+     "den": 1
+    },
+    "fraction": {
+     "num": 1,
+     "den": 4
+    },
+    "cap": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": -1,
+     "den": 2
+    },
+    "mean": {
+     "num": -1,
+     "den": 1
+    },
+    "fraction": {
+     "num": 1,
+     "den": 4
+    },
+    "cap": {
+     "num": -1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 11,
+     "den": 8
+    },
+    "mean": {
+     "num": -7,
+     "den": 8
+    },
+    "fraction": {
+     "num": 1,
+     "den": 2
+    },
+    "cap": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": -7,
+     "den": 22
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 1,
+     "den": 8
+    },
+    "mean": {
+     "num": 7,
+     "den": 8
+    },
+    "fraction": {
+     "num": 1,
+     "den": 1
+    },
+    "cap": {
+     "num": 1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 1,
+     "den": 4
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 11,
+     "den": 8
+    },
+    "mean": {
+     "num": 0,
+     "den": 1
+    },
+    "fraction": {
+     "num": 1,
+     "den": 4
+    },
+    "cap": {
+     "num": -3,
+     "den": 2
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 13,
+     "den": 8
+    },
+    "mean": {
+     "num": -1,
+     "den": 2
+    },
+    "fraction": {
+     "num": 1,
+     "den": 2
+    },
+    "cap": {
+     "num": -1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": -2,
+     "den": 13
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 0,
+     "den": 1
+    },
+    "mean": {
+     "num": -5,
+     "den": 8
+    },
+    "fraction": {
+     "num": 0,
+     "den": 1
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": -1,
+     "den": 2
+    },
+    "mean": {
+     "num": 7,
+     "den": 8
+    },
+    "fraction": {
+     "num": 1,
+     "den": 2
+    },
+    "cap": {
+     "num": 7,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": -1,
+     "den": 4
+    },
+    "mean": {
+     "num": 3,
+     "den": 8
+    },
+    "fraction": {
+     "num": -1,
+     "den": 2
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 3,
+     "den": 2
+    },
+    "mean": {
+     "num": 0,
+     "den": 1
+    },
+    "fraction": {
+     "num": 0,
+     "den": 1
+    },
+    "cap": {
+     "num": -7,
+     "den": 4
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": -3,
+     "den": 4
+    },
+    "mean": {
+     "num": -1,
+     "den": 1
+    },
+    "fraction": {
+     "num": -1,
+     "den": 2
+    },
+    "cap": {
+     "num": -3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 1,
+     "den": 1
+    },
+    "mean": {
+     "num": -7,
+     "den": 8
+    },
+    "fraction": {
+     "num": 1,
+     "den": 2
+    },
+    "cap": {
+     "num": 5,
+     "den": 4
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": -7,
+     "den": 16
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 7,
+     "den": 8
+    },
+    "mean": {
+     "num": -1,
+     "den": 2
+    },
+    "fraction": {
+     "num": -1,
+     "den": 2
+    },
+    "cap": {
+     "num": 3,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 15,
+     "den": 8
+    },
+    "mean": {
+     "num": -1,
+     "den": 2
+    },
+    "fraction": {
+     "num": 1,
+     "den": 2
+    },
+    "cap": {
+     "num": 3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": -2,
+     "den": 15
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": -3,
+     "den": 4
+    },
+    "mean": {
+     "num": -1,
+     "den": 4
+    },
+    "fraction": {
+     "num": 1,
+     "den": 1
+    },
+    "cap": {
+     "num": -9,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 3,
+     "den": 8
+    },
+    "mean": {
+     "num": -1,
+     "den": 8
+    },
+    "fraction": {
+     "num": 1,
+     "den": 1
+    },
+    "cap": {
+     "num": -3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": -1,
+     "den": 3
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 5,
+     "den": 4
+    },
+    "mean": {
+     "num": 0,
+     "den": 1
+    },
+    "fraction": {
+     "num": 1,
+     "den": 1
+    },
+    "cap": {
+     "num": 1,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 1,
+     "den": 1
+    },
+    "mean": {
+     "num": 7,
+     "den": 8
+    },
+    "fraction": {
+     "num": 1,
+     "den": 1
+    },
+    "cap": {
+     "num": -1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 7,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": -1,
+     "den": 8
+    },
+    "mean": {
+     "num": 1,
+     "den": 8
+    },
+    "fraction": {
+     "num": 1,
+     "den": 2
+    },
+    "cap": {
+     "num": 3,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 1,
+     "den": 2
+    },
+    "mean": {
+     "num": 1,
+     "den": 4
+    },
+    "fraction": {
+     "num": 1,
+     "den": 4
+    },
+    "cap": {
+     "num": 3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 1,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 11,
+     "den": 8
+    },
+    "mean": {
+     "num": 1,
+     "den": 4
+    },
+    "fraction": {
+     "num": 1,
+     "den": 1
+    },
+    "cap": {
+     "num": -2,
+     "den": 1
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 2,
+     "den": 11
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 5,
+     "den": 4
+    },
+    "mean": {
+     "num": 1,
+     "den": 4
+    },
+    "fraction": {
+     "num": 0,
+     "den": 1
+    },
+    "cap": {
+     "num": 2,
+     "den": 1
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 5,
+     "den": 4
+    },
+    "mean": {
+     "num": 0,
+     "den": 1
+    },
+    "fraction": {
+     "num": 1,
+     "den": 1
+    },
+    "cap": {
+     "num": -5,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 7,
+     "den": 4
+    },
+    "mean": {
+     "num": 1,
+     "den": 4
+    },
+    "fraction": {
+     "num": 0,
+     "den": 1
+    },
+    "cap": {
+     "num": -1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": -5,
+     "den": 8
+    },
+    "mean": {
+     "num": -5,
+     "den": 8
+    },
+    "fraction": {
+     "num": 1,
+     "den": 1
+    },
+    "cap": {
+     "num": -1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 1,
+     "den": 4
+    },
+    "mean": {
+     "num": 5,
+     "den": 8
+    },
+    "fraction": {
+     "num": 0,
+     "den": 1
+    },
+    "cap": {
+     "num": -7,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 3,
+     "den": 4
+    },
+    "mean": {
+     "num": 3,
+     "den": 8
+    },
+    "fraction": {
+     "num": 1,
+     "den": 2
+    },
+    "cap": {
+     "num": -7,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 1,
+     "den": 4
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 7,
+     "den": 8
+    },
+    "mean": {
+     "num": 0,
+     "den": 1
+    },
+    "fraction": {
+     "num": 1,
+     "den": 1
+    },
+    "cap": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 5,
+     "den": 4
+    },
+    "mean": {
+     "num": 0,
+     "den": 1
+    },
+    "fraction": {
+     "num": 0,
+     "den": 1
+    },
+    "cap": {
+     "num": -5,
+     "den": 4
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": -1,
+     "den": 1
+    },
+    "mean": {
+     "num": -3,
+     "den": 4
+    },
+    "fraction": {
+     "num": 1,
+     "den": 2
+    },
+    "cap": {
+     "num": -15,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 3,
+     "den": 4
+    },
+    "mean": {
+     "num": 7,
+     "den": 8
+    },
+    "fraction": {
+     "num": 1,
+     "den": 1
+    },
+    "cap": {
+     "num": -11,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 7,
+     "den": 6
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 3,
+     "den": 4
+    },
+    "mean": {
+     "num": 5,
+     "den": 8
+    },
+    "fraction": {
+     "num": 1,
+     "den": 1
+    },
+    "cap": {
+     "num": 11,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 5,
+     "den": 6
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 7,
+     "den": 8
+    },
+    "mean": {
+     "num": 3,
+     "den": 4
+    },
+    "fraction": {
+     "num": 1,
+     "den": 2
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 3,
+     "den": 7
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": -7,
+     "den": 8
+    },
+    "mean": {
+     "num": 3,
+     "den": 8
+    },
+    "fraction": {
+     "num": -1,
+     "den": 2
+    },
+    "cap": {
+     "num": 9,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 1,
+     "den": 1
+    },
+    "mean": {
+     "num": 1,
+     "den": 2
+    },
+    "fraction": {
+     "num": 1,
+     "den": 1
+    },
+    "cap": {
+     "num": -1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 1,
+     "den": 2
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 13,
+     "den": 8
+    },
+    "mean": {
+     "num": 1,
+     "den": 8
+    },
+    "fraction": {
+     "num": 1,
+     "den": 1
+    },
+    "cap": {
+     "num": 7,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 1,
+     "den": 13
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 9,
+     "den": 8
+    },
+    "mean": {
+     "num": -1,
+     "den": 4
+    },
+    "fraction": {
+     "num": 0,
+     "den": 1
+    },
+    "cap": {
+     "num": -15,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 13,
+     "den": 8
+    },
+    "mean": {
+     "num": 1,
+     "den": 1
+    },
+    "fraction": {
+     "num": 1,
+     "den": 1
+    },
+    "cap": {
+     "num": -1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 1,
+     "den": 2
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 3,
+     "den": 8
+    },
+    "mean": {
+     "num": 3,
+     "den": 8
+    },
+    "fraction": {
+     "num": 1,
+     "den": 2
+    },
+    "cap": {
+     "num": -7,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 1,
+     "den": 2
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 1,
+     "den": 8
+    },
+    "mean": {
+     "num": 3,
+     "den": 4
+    },
+    "fraction": {
+     "num": 1,
+     "den": 4
+    },
+    "cap": {
+     "num": 1,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 1,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 11,
+     "den": 8
+    },
+    "mean": {
+     "num": 5,
+     "den": 8
+    },
+    "fraction": {
+     "num": 0,
+     "den": 1
+    },
+    "cap": {
+     "num": 11,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 5,
+     "den": 4
+    },
+    "mean": {
+     "num": -1,
+     "den": 8
+    },
+    "fraction": {
+     "num": 1,
+     "den": 1
+    },
+    "cap": {
+     "num": -2,
+     "den": 1
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": -1,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": -7,
+     "den": 8
+    },
+    "mean": {
+     "num": -1,
+     "den": 8
+    },
+    "fraction": {
+     "num": -1,
+     "den": 2
+    },
+    "cap": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": -1,
+     "den": 2
+    },
+    "mean": {
+     "num": -7,
+     "den": 8
+    },
+    "fraction": {
+     "num": 1,
+     "den": 4
+    },
+    "cap": {
+     "num": 2,
+     "den": 1
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 3,
+     "den": 2
+    },
+    "mean": {
+     "num": -3,
+     "den": 8
+    },
+    "fraction": {
+     "num": 1,
+     "den": 1
+    },
+    "cap": {
+     "num": -7,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": -1,
+     "den": 4
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": -1,
+     "den": 1
+    },
+    "mean": {
+     "num": 1,
+     "den": 2
+    },
+    "fraction": {
+     "num": -1,
+     "den": 2
+    },
+    "cap": {
+     "num": -1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": -7,
+     "den": 8
+    },
+    "mean": {
+     "num": -1,
+     "den": 4
+    },
+    "fraction": {
+     "num": 1,
+     "den": 1
+    },
+    "cap": {
+     "num": -15,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": -1,
+     "den": 4
+    },
+    "mean": {
+     "num": -1,
+     "den": 4
+    },
+    "fraction": {
+     "num": 1,
+     "den": 4
+    },
+    "cap": {
+     "num": 1,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 1,
+     "den": 4
+    },
+    "mean": {
+     "num": 0,
+     "den": 1
+    },
+    "fraction": {
+     "num": -1,
+     "den": 2
+    },
+    "cap": {
+     "num": 3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 3,
+     "den": 2
+    },
+    "mean": {
+     "num": 1,
+     "den": 8
+    },
+    "fraction": {
+     "num": 1,
+     "den": 2
+    },
+    "cap": {
+     "num": 7,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 1,
+     "den": 24
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": -1,
+     "den": 2
+    },
+    "mean": {
+     "num": -7,
+     "den": 8
+    },
+    "fraction": {
+     "num": 1,
+     "den": 2
+    },
+    "cap": {
+     "num": 2,
+     "den": 1
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 15,
+     "den": 8
+    },
+    "mean": {
+     "num": 7,
+     "den": 8
+    },
+    "fraction": {
+     "num": 1,
+     "den": 1
+    },
+    "cap": {
+     "num": 13,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 7,
+     "den": 15
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 7,
+     "den": 8
+    },
+    "mean": {
+     "num": -1,
+     "den": 1
+    },
+    "fraction": {
+     "num": 0,
+     "den": 1
+    },
+    "cap": {
+     "num": -9,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 1,
+     "den": 2
+    },
+    "mean": {
+     "num": 1,
+     "den": 4
+    },
+    "fraction": {
+     "num": -1,
+     "den": 2
+    },
+    "cap": {
+     "num": 1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 5,
+     "den": 8
+    },
+    "mean": {
+     "num": -1,
+     "den": 1
+    },
+    "fraction": {
+     "num": 0,
+     "den": 1
+    },
+    "cap": {
+     "num": 2,
+     "den": 1
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 3,
+     "den": 2
+    },
+    "mean": {
+     "num": -7,
+     "den": 8
+    },
+    "fraction": {
+     "num": 0,
+     "den": 1
+    },
+    "cap": {
+     "num": 2,
+     "den": 1
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 7,
+     "den": 4
+    },
+    "mean": {
+     "num": -3,
+     "den": 4
+    },
+    "fraction": {
+     "num": 1,
+     "den": 4
+    },
+    "cap": {
+     "num": 15,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": -3,
+     "den": 28
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 11,
+     "den": 8
+    },
+    "mean": {
+     "num": 5,
+     "den": 8
+    },
+    "fraction": {
+     "num": 1,
+     "den": 1
+    },
+    "cap": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": -1,
+     "den": 8
+    },
+    "mean": {
+     "num": -3,
+     "den": 8
+    },
+    "fraction": {
+     "num": -1,
+     "den": 2
+    },
+    "cap": {
+     "num": 9,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": -5,
+     "den": 8
+    },
+    "mean": {
+     "num": 1,
+     "den": 8
+    },
+    "fraction": {
+     "num": 1,
+     "den": 2
+    },
+    "cap": {
+     "num": 3,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 3,
+     "den": 4
+    },
+    "mean": {
+     "num": 3,
+     "den": 8
+    },
+    "fraction": {
+     "num": -1,
+     "den": 2
+    },
+    "cap": {
+     "num": -1,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 1,
+     "den": 8
+    },
+    "mean": {
+     "num": -7,
+     "den": 8
+    },
+    "fraction": {
+     "num": 1,
+     "den": 1
+    },
+    "cap": {
+     "num": 13,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": -13,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": -3,
+     "den": 8
+    },
+    "mean": {
+     "num": 0,
+     "den": 1
+    },
+    "fraction": {
+     "num": 1,
+     "den": 1
+    },
+    "cap": {
+     "num": 5,
+     "den": 4
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 1,
+     "den": 2
+    },
+    "mean": {
+     "num": -5,
+     "den": 8
+    },
+    "fraction": {
+     "num": 0,
+     "den": 1
+    },
+    "cap": {
+     "num": 1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 5,
+     "den": 8
+    },
+    "mean": {
+     "num": 5,
+     "den": 8
+    },
+    "fraction": {
+     "num": 1,
+     "den": 4
+    },
+    "cap": {
+     "num": -2,
+     "den": 1
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 1,
+     "den": 4
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 11,
+     "den": 8
+    },
+    "mean": {
+     "num": 7,
+     "den": 8
+    },
+    "fraction": {
+     "num": -1,
+     "den": 2
+    },
+    "cap": {
+     "num": 9,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 7,
+     "den": 4
+    },
+    "mean": {
+     "num": -7,
+     "den": 8
+    },
+    "fraction": {
+     "num": -1,
+     "den": 2
+    },
+    "cap": {
+     "num": 3,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 11,
+     "den": 8
+    },
+    "mean": {
+     "num": -3,
+     "den": 4
+    },
+    "fraction": {
+     "num": 1,
+     "den": 4
+    },
+    "cap": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": -3,
+     "den": 22
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 0,
+     "den": 1
+    },
+    "mean": {
+     "num": -3,
+     "den": 8
+    },
+    "fraction": {
+     "num": 1,
+     "den": 1
+    },
+    "cap": {
+     "num": -7,
+     "den": 4
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": -7,
+     "den": 8
+    },
+    "mean": {
+     "num": -1,
+     "den": 2
+    },
+    "fraction": {
+     "num": 1,
+     "den": 1
+    },
+    "cap": {
+     "num": 3,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": -7,
+     "den": 8
+    },
+    "mean": {
+     "num": 1,
+     "den": 4
+    },
+    "fraction": {
+     "num": 1,
+     "den": 4
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 11,
+     "den": 8
+    },
+    "mean": {
+     "num": 3,
+     "den": 8
+    },
+    "fraction": {
+     "num": 1,
+     "den": 2
+    },
+    "cap": {
+     "num": -1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 3,
+     "den": 22
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 0,
+     "den": 1
+    },
+    "mean": {
+     "num": 3,
+     "den": 4
+    },
+    "fraction": {
+     "num": -1,
+     "den": 2
+    },
+    "cap": {
+     "num": -3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 5,
+     "den": 4
+    },
+    "mean": {
+     "num": 0,
+     "den": 1
+    },
+    "fraction": {
+     "num": -1,
+     "den": 2
+    },
+    "cap": {
+     "num": -7,
+     "den": 4
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": -1,
+     "den": 4
+    },
+    "mean": {
+     "num": -1,
+     "den": 1
+    },
+    "fraction": {
+     "num": 1,
+     "den": 4
+    },
+    "cap": {
+     "num": -3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 13,
+     "den": 8
+    },
+    "mean": {
+     "num": -1,
+     "den": 1
+    },
+    "fraction": {
+     "num": 1,
+     "den": 4
+    },
+    "cap": {
+     "num": 7,
+     "den": 4
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": -2,
+     "den": 13
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 15,
+     "den": 8
+    },
+    "mean": {
+     "num": -1,
+     "den": 1
+    },
+    "fraction": {
+     "num": 1,
+     "den": 4
+    },
+    "cap": {
+     "num": -1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": -2,
+     "den": 15
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 1,
+     "den": 8
+    },
+    "mean": {
+     "num": 1,
+     "den": 2
+    },
+    "fraction": {
+     "num": 1,
+     "den": 4
+    },
+    "cap": {
+     "num": -1,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 1,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 5,
+     "den": 8
+    },
+    "mean": {
+     "num": 1,
+     "den": 2
+    },
+    "fraction": {
+     "num": -1,
+     "den": 2
+    },
+    "cap": {
+     "num": -2,
+     "den": 1
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 3,
+     "den": 8
+    },
+    "mean": {
+     "num": 3,
+     "den": 8
+    },
+    "fraction": {
+     "num": -1,
+     "den": 2
+    },
+    "cap": {
+     "num": -7,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 9,
+     "den": 8
+    },
+    "mean": {
+     "num": -1,
+     "den": 8
+    },
+    "fraction": {
+     "num": 1,
+     "den": 4
+    },
+    "cap": {
+     "num": 1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": -1,
+     "den": 36
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": -1,
+     "den": 1
+    },
+    "mean": {
+     "num": -5,
+     "den": 8
+    },
+    "fraction": {
+     "num": 1,
+     "den": 4
+    },
+    "cap": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 3,
+     "den": 2
+    },
+    "mean": {
+     "num": 7,
+     "den": 8
+    },
+    "fraction": {
+     "num": 1,
+     "den": 4
+    },
+    "cap": {
+     "num": -1,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 1,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": -1,
+     "den": 1
+    },
+    "mean": {
+     "num": -1,
+     "den": 8
+    },
+    "fraction": {
+     "num": 1,
+     "den": 4
+    },
+    "cap": {
+     "num": 5,
+     "den": 4
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 5,
+     "den": 8
+    },
+    "mean": {
+     "num": -5,
+     "den": 8
+    },
+    "fraction": {
+     "num": 0,
+     "den": 1
+    },
+    "cap": {
+     "num": -1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": -5,
+     "den": 8
+    },
+    "mean": {
+     "num": -1,
+     "den": 4
+    },
+    "fraction": {
+     "num": 1,
+     "den": 1
+    },
+    "cap": {
+     "num": -1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": -1,
+     "den": 1
+    },
+    "mean": {
+     "num": 1,
+     "den": 1
+    },
+    "fraction": {
+     "num": 1,
+     "den": 1
+    },
+    "cap": {
+     "num": -13,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 1,
+     "den": 1
+    },
+    "mean": {
+     "num": 1,
+     "den": 1
+    },
+    "fraction": {
+     "num": 1,
+     "den": 4
+    },
+    "cap": {
+     "num": -3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 1,
+     "den": 4
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 5,
+     "den": 4
+    },
+    "mean": {
+     "num": -5,
+     "den": 8
+    },
+    "fraction": {
+     "num": 1,
+     "den": 4
+    },
+    "cap": {
+     "num": 5,
+     "den": 4
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": -1,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 3,
+     "den": 8
+    },
+    "mean": {
+     "num": -1,
+     "den": 1
+    },
+    "fraction": {
+     "num": 1,
+     "den": 1
+    },
+    "cap": {
+     "num": -15,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": -15,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": -1,
+     "den": 2
+    },
+    "mean": {
+     "num": 1,
+     "den": 1
+    },
+    "fraction": {
+     "num": 1,
+     "den": 1
+    },
+    "cap": {
+     "num": 5,
+     "den": 4
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 15,
+     "den": 8
+    },
+    "mean": {
+     "num": -3,
+     "den": 4
+    },
+    "fraction": {
+     "num": 0,
+     "den": 1
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 11,
+     "den": 8
+    },
+    "mean": {
+     "num": 3,
+     "den": 8
+    },
+    "fraction": {
+     "num": 1,
+     "den": 1
+    },
+    "cap": {
+     "num": -7,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 3,
+     "den": 11
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": -1,
+     "den": 2
+    },
+    "mean": {
+     "num": 7,
+     "den": 8
+    },
+    "fraction": {
+     "num": -1,
+     "den": 2
+    },
+    "cap": {
+     "num": -1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": -1,
+     "den": 1
+    },
+    "mean": {
+     "num": 0,
+     "den": 1
+    },
+    "fraction": {
+     "num": 1,
+     "den": 2
+    },
+    "cap": {
+     "num": -11,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 1,
+     "den": 4
+    },
+    "mean": {
+     "num": 1,
+     "den": 1
+    },
+    "fraction": {
+     "num": -1,
+     "den": 2
+    },
+    "cap": {
+     "num": -1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": -1,
+     "den": 4
+    },
+    "mean": {
+     "num": -3,
+     "den": 4
+    },
+    "fraction": {
+     "num": 0,
+     "den": 1
+    },
+    "cap": {
+     "num": 2,
+     "den": 1
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 0,
+     "den": 1
+    },
+    "mean": {
+     "num": -1,
+     "den": 4
+    },
+    "fraction": {
+     "num": 1,
+     "den": 1
+    },
+    "cap": {
+     "num": 11,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": -1,
+     "den": 1
+    },
+    "mean": {
+     "num": 7,
+     "den": 8
+    },
+    "fraction": {
+     "num": 1,
+     "den": 1
+    },
+    "cap": {
+     "num": -5,
+     "den": 4
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 11,
+     "den": 8
+    },
+    "mean": {
+     "num": 1,
+     "den": 1
+    },
+    "fraction": {
+     "num": 1,
+     "den": 4
+    },
+    "cap": {
+     "num": 2,
+     "den": 1
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 2,
+     "den": 11
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 0,
+     "den": 1
+    },
+    "mean": {
+     "num": 5,
+     "den": 8
+    },
+    "fraction": {
+     "num": 1,
+     "den": 2
+    },
+    "cap": {
+     "num": 5,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 15,
+     "den": 8
+    },
+    "mean": {
+     "num": 1,
+     "den": 1
+    },
+    "fraction": {
+     "num": 1,
+     "den": 4
+    },
+    "cap": {
+     "num": -5,
+     "den": 4
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 2,
+     "den": 15
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 11,
+     "den": 8
+    },
+    "mean": {
+     "num": -3,
+     "den": 8
+    },
+    "fraction": {
+     "num": 0,
+     "den": 1
+    },
+    "cap": {
+     "num": 1,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 11,
+     "den": 8
+    },
+    "mean": {
+     "num": -1,
+     "den": 1
+    },
+    "fraction": {
+     "num": 1,
+     "den": 2
+    },
+    "cap": {
+     "num": 2,
+     "den": 1
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": -4,
+     "den": 11
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 9,
+     "den": 8
+    },
+    "mean": {
+     "num": 3,
+     "den": 4
+    },
+    "fraction": {
+     "num": 1,
+     "den": 1
+    },
+    "cap": {
+     "num": -3,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 3,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 1,
+     "den": 8
+    },
+    "mean": {
+     "num": -7,
+     "den": 8
+    },
+    "fraction": {
+     "num": 1,
+     "den": 1
+    },
+    "cap": {
+     "num": 15,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": -15,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 0,
+     "den": 1
+    },
+    "mean": {
+     "num": 1,
+     "den": 1
+    },
+    "fraction": {
+     "num": 1,
+     "den": 4
+    },
+    "cap": {
+     "num": -3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 1,
+     "den": 8
+    },
+    "mean": {
+     "num": -1,
+     "den": 1
+    },
+    "fraction": {
+     "num": 1,
+     "den": 4
+    },
+    "cap": {
+     "num": 7,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": -7,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 5,
+     "den": 4
+    },
+    "mean": {
+     "num": -1,
+     "den": 8
+    },
+    "fraction": {
+     "num": 1,
+     "den": 2
+    },
+    "cap": {
+     "num": -7,
+     "den": 4
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": -1,
+     "den": 20
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 5,
+     "den": 4
+    },
+    "mean": {
+     "num": 7,
+     "den": 8
+    },
+    "fraction": {
+     "num": 1,
+     "den": 1
+    },
+    "cap": {
+     "num": -9,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 7,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 3,
+     "den": 8
+    },
+    "mean": {
+     "num": -1,
+     "den": 4
+    },
+    "fraction": {
+     "num": 1,
+     "den": 2
+    },
+    "cap": {
+     "num": -15,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": -1,
+     "den": 3
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": -7,
+     "den": 8
+    },
+    "mean": {
+     "num": 1,
+     "den": 1
+    },
+    "fraction": {
+     "num": 0,
+     "den": 1
+    },
+    "cap": {
+     "num": -7,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 7,
+     "den": 4
+    },
+    "mean": {
+     "num": 1,
+     "den": 2
+    },
+    "fraction": {
+     "num": -1,
+     "den": 2
+    },
+    "cap": {
+     "num": 3,
+     "den": 2
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 11,
+     "den": 8
+    },
+    "mean": {
+     "num": -3,
+     "den": 4
+    },
+    "fraction": {
+     "num": 1,
+     "den": 2
+    },
+    "cap": {
+     "num": 5,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": -3,
+     "den": 11
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 1,
+     "den": 8
+    },
+    "mean": {
+     "num": -1,
+     "den": 8
+    },
+    "fraction": {
+     "num": 0,
+     "den": 1
+    },
+    "cap": {
+     "num": -5,
+     "den": 4
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": -3,
+     "den": 4
+    },
+    "mean": {
+     "num": -7,
+     "den": 8
+    },
+    "fraction": {
+     "num": 1,
+     "den": 4
+    },
+    "cap": {
+     "num": -1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 9,
+     "den": 8
+    },
+    "mean": {
+     "num": -5,
+     "den": 8
+    },
+    "fraction": {
+     "num": 1,
+     "den": 1
+    },
+    "cap": {
+     "num": -11,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": -5,
+     "den": 9
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": -1,
+     "den": 4
+    },
+    "mean": {
+     "num": 3,
+     "den": 8
+    },
+    "fraction": {
+     "num": -1,
+     "den": 2
+    },
+    "cap": {
+     "num": 2,
+     "den": 1
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 3,
+     "den": 2
+    },
+    "mean": {
+     "num": 7,
+     "den": 8
+    },
+    "fraction": {
+     "num": 1,
+     "den": 2
+    },
+    "cap": {
+     "num": -11,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 7,
+     "den": 24
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 2,
+     "den": 1
+    },
+    "mean": {
+     "num": -1,
+     "den": 4
+    },
+    "fraction": {
+     "num": 1,
+     "den": 4
+    },
+    "cap": {
+     "num": -2,
+     "den": 1
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": -1,
+     "den": 32
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 13,
+     "den": 8
+    },
+    "mean": {
+     "num": -7,
+     "den": 8
+    },
+    "fraction": {
+     "num": 1,
+     "den": 1
+    },
+    "cap": {
+     "num": 2,
+     "den": 1
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": -7,
+     "den": 13
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": -7,
+     "den": 8
+    },
+    "mean": {
+     "num": 1,
+     "den": 8
+    },
+    "fraction": {
+     "num": 1,
+     "den": 2
+    },
+    "cap": {
+     "num": -1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 3,
+     "den": 8
+    },
+    "mean": {
+     "num": 1,
+     "den": 1
+    },
+    "fraction": {
+     "num": -1,
+     "den": 2
+    },
+    "cap": {
+     "num": -2,
+     "den": 1
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": -5,
+     "den": 8
+    },
+    "mean": {
+     "num": 1,
+     "den": 1
+    },
+    "fraction": {
+     "num": 1,
+     "den": 2
+    },
+    "cap": {
+     "num": 5,
+     "den": 4
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 2,
+     "den": 1
+    },
+    "mean": {
+     "num": -3,
+     "den": 4
+    },
+    "fraction": {
+     "num": 1,
+     "den": 2
+    },
+    "cap": {
+     "num": -1,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": -1,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": -1,
+     "den": 8
+    },
+    "mean": {
+     "num": 1,
+     "den": 2
+    },
+    "fraction": {
+     "num": 1,
+     "den": 4
+    },
+    "cap": {
+     "num": -7,
+     "den": 4
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 2,
+     "den": 1
+    },
+    "mean": {
+     "num": 3,
+     "den": 8
+    },
+    "fraction": {
+     "num": 0,
+     "den": 1
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": -1,
+     "den": 4
+    },
+    "mean": {
+     "num": -1,
+     "den": 1
+    },
+    "fraction": {
+     "num": 1,
+     "den": 4
+    },
+    "cap": {
+     "num": -5,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 5,
+     "den": 4
+    },
+    "mean": {
+     "num": 0,
+     "den": 1
+    },
+    "fraction": {
+     "num": -1,
+     "den": 2
+    },
+    "cap": {
+     "num": -11,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 3,
+     "den": 4
+    },
+    "mean": {
+     "num": -1,
+     "den": 1
+    },
+    "fraction": {
+     "num": 1,
+     "den": 1
+    },
+    "cap": {
+     "num": -13,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": -4,
+     "den": 3
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 3,
+     "den": 4
+    },
+    "mean": {
+     "num": -5,
+     "den": 8
+    },
+    "fraction": {
+     "num": 0,
+     "den": 1
+    },
+    "cap": {
+     "num": -9,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": -3,
+     "den": 8
+    },
+    "mean": {
+     "num": -3,
+     "den": 8
+    },
+    "fraction": {
+     "num": 1,
+     "den": 4
+    },
+    "cap": {
+     "num": -13,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 0,
+     "den": 1
+    },
+    "mean": {
+     "num": -5,
+     "den": 8
+    },
+    "fraction": {
+     "num": 1,
+     "den": 2
+    },
+    "cap": {
+     "num": 7,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 1,
+     "den": 2
+    },
+    "mean": {
+     "num": 3,
+     "den": 4
+    },
+    "fraction": {
+     "num": 0,
+     "den": 1
+    },
+    "cap": {
+     "num": -15,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 1,
+     "den": 1
+    },
+    "mean": {
+     "num": -1,
+     "den": 2
+    },
+    "fraction": {
+     "num": 1,
+     "den": 2
+    },
+    "cap": {
+     "num": -3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": -1,
+     "den": 4
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 3,
+     "den": 2
+    },
+    "mean": {
+     "num": 1,
+     "den": 1
+    },
+    "fraction": {
+     "num": 1,
+     "den": 1
+    },
+    "cap": {
+     "num": -1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 2,
+     "den": 3
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 2,
+     "den": 1
+    },
+    "mean": {
+     "num": -1,
+     "den": 1
+    },
+    "fraction": {
+     "num": 1,
+     "den": 4
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": -1,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": -1,
+     "den": 4
+    },
+    "mean": {
+     "num": -3,
+     "den": 8
+    },
+    "fraction": {
+     "num": 1,
+     "den": 2
+    },
+    "cap": {
+     "num": 7,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": -1,
+     "den": 4
+    },
+    "mean": {
+     "num": -1,
+     "den": 1
+    },
+    "fraction": {
+     "num": -1,
+     "den": 2
+    },
+    "cap": {
+     "num": 1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": -7,
+     "den": 8
+    },
+    "mean": {
+     "num": -5,
+     "den": 8
+    },
+    "fraction": {
+     "num": -1,
+     "den": 2
+    },
+    "cap": {
+     "num": -5,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 3,
+     "den": 8
+    },
+    "mean": {
+     "num": 3,
+     "den": 4
+    },
+    "fraction": {
+     "num": 1,
+     "den": 1
+    },
+    "cap": {
+     "num": 7,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 7,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 1,
+     "den": 2
+    },
+    "mean": {
+     "num": 5,
+     "den": 8
+    },
+    "fraction": {
+     "num": -1,
+     "den": 2
+    },
+    "cap": {
+     "num": 3,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": -5,
+     "den": 8
+    },
+    "mean": {
+     "num": -1,
+     "den": 2
+    },
+    "fraction": {
+     "num": 1,
+     "den": 2
+    },
+    "cap": {
+     "num": 1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 5,
+     "den": 8
+    },
+    "mean": {
+     "num": 0,
+     "den": 1
+    },
+    "fraction": {
+     "num": 0,
+     "den": 1
+    },
+    "cap": {
+     "num": -1,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": -1,
+     "den": 8
+    },
+    "mean": {
+     "num": -1,
+     "den": 8
+    },
+    "fraction": {
+     "num": 1,
+     "den": 1
+    },
+    "cap": {
+     "num": 13,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 5,
+     "den": 8
+    },
+    "mean": {
+     "num": -1,
+     "den": 2
+    },
+    "fraction": {
+     "num": 0,
+     "den": 1
+    },
+    "cap": {
+     "num": -3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": -1,
+     "den": 2
+    },
+    "mean": {
+     "num": -1,
+     "den": 1
+    },
+    "fraction": {
+     "num": 0,
+     "den": 1
+    },
+    "cap": {
+     "num": -7,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 0,
+     "den": 1
+    },
+    "mean": {
+     "num": -3,
+     "den": 8
+    },
+    "fraction": {
+     "num": 1,
+     "den": 1
+    },
+    "cap": {
+     "num": 1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 11,
+     "den": 8
+    },
+    "mean": {
+     "num": 1,
+     "den": 8
+    },
+    "fraction": {
+     "num": 1,
+     "den": 2
+    },
+    "cap": {
+     "num": 11,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 1,
+     "den": 22
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 1,
+     "den": 4
+    },
+    "mean": {
+     "num": 1,
+     "den": 2
+    },
+    "fraction": {
+     "num": 1,
+     "den": 2
+    },
+    "cap": {
+     "num": -7,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 7,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 0,
+     "den": 1
+    },
+    "mean": {
+     "num": -3,
+     "den": 8
+    },
+    "fraction": {
+     "num": 1,
+     "den": 4
+    },
+    "cap": {
+     "num": -3,
+     "den": 2
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 13,
+     "den": 8
+    },
+    "mean": {
+     "num": 7,
+     "den": 8
+    },
+    "fraction": {
+     "num": 1,
+     "den": 1
+    },
+    "cap": {
+     "num": 5,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 7,
+     "den": 13
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 5,
+     "den": 4
+    },
+    "mean": {
+     "num": 7,
+     "den": 8
+    },
+    "fraction": {
+     "num": 1,
+     "den": 4
+    },
+    "cap": {
+     "num": -3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 7,
+     "den": 40
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": -1,
+     "den": 4
+    },
+    "mean": {
+     "num": 0,
+     "den": 1
+    },
+    "fraction": {
+     "num": 1,
+     "den": 4
+    },
+    "cap": {
+     "num": 1,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 1,
+     "den": 2
+    },
+    "mean": {
+     "num": 7,
+     "den": 8
+    },
+    "fraction": {
+     "num": 1,
+     "den": 2
+    },
+    "cap": {
+     "num": 7,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 7,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 1,
+     "den": 8
+    },
+    "mean": {
+     "num": 0,
+     "den": 1
+    },
+    "fraction": {
+     "num": 0,
+     "den": 1
+    },
+    "cap": {
+     "num": 5,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 15,
+     "den": 8
+    },
+    "mean": {
+     "num": 3,
+     "den": 4
+    },
+    "fraction": {
+     "num": 1,
+     "den": 1
+    },
+    "cap": {
+     "num": 13,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 2,
+     "den": 5
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": -7,
+     "den": 8
+    },
+    "mean": {
+     "num": 1,
+     "den": 8
+    },
+    "fraction": {
+     "num": 0,
+     "den": 1
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 5,
+     "den": 4
+    },
+    "mean": {
+     "num": -7,
+     "den": 8
+    },
+    "fraction": {
+     "num": 1,
+     "den": 2
+    },
+    "cap": {
+     "num": 2,
+     "den": 1
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": -7,
+     "den": 20
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": -1,
+     "den": 2
+    },
+    "mean": {
+     "num": -1,
+     "den": 1
+    },
+    "fraction": {
+     "num": -1,
+     "den": 2
+    },
+    "cap": {
+     "num": -7,
+     "den": 4
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": -3,
+     "den": 8
+    },
+    "mean": {
+     "num": 1,
+     "den": 1
+    },
+    "fraction": {
+     "num": -1,
+     "den": 2
+    },
+    "cap": {
+     "num": 1,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 13,
+     "den": 8
+    },
+    "mean": {
+     "num": -3,
+     "den": 8
+    },
+    "fraction": {
+     "num": -1,
+     "den": 2
+    },
+    "cap": {
+     "num": 1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 3,
+     "den": 8
+    },
+    "mean": {
+     "num": 1,
+     "den": 2
+    },
+    "fraction": {
+     "num": 1,
+     "den": 2
+    },
+    "cap": {
+     "num": -15,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 2,
+     "den": 3
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": -1,
+     "den": 4
+    },
+    "mean": {
+     "num": -3,
+     "den": 4
+    },
+    "fraction": {
+     "num": 1,
+     "den": 1
+    },
+    "cap": {
+     "num": 1,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 2,
+     "den": 1
+    },
+    "mean": {
+     "num": -1,
+     "den": 4
+    },
+    "fraction": {
+     "num": -1,
+     "den": 2
+    },
+    "cap": {
+     "num": 1,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": -3,
+     "den": 4
+    },
+    "mean": {
+     "num": 0,
+     "den": 1
+    },
+    "fraction": {
+     "num": -1,
+     "den": 2
+    },
+    "cap": {
+     "num": -9,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 1,
+     "den": 4
+    },
+    "mean": {
+     "num": 5,
+     "den": 8
+    },
+    "fraction": {
+     "num": 1,
+     "den": 1
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 1,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 5,
+     "den": 8
+    },
+    "mean": {
+     "num": -1,
+     "den": 4
+    },
+    "fraction": {
+     "num": 1,
+     "den": 4
+    },
+    "cap": {
+     "num": -7,
+     "den": 4
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": -1,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 3,
+     "den": 8
+    },
+    "mean": {
+     "num": -7,
+     "den": 8
+    },
+    "fraction": {
+     "num": 1,
+     "den": 4
+    },
+    "cap": {
+     "num": 1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": -1,
+     "den": 4
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 9,
+     "den": 8
+    },
+    "mean": {
+     "num": -5,
+     "den": 8
+    },
+    "fraction": {
+     "num": 1,
+     "den": 1
+    },
+    "cap": {
+     "num": -3,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": -3,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 9,
+     "den": 8
+    },
+    "mean": {
+     "num": 3,
+     "den": 8
+    },
+    "fraction": {
+     "num": -1,
+     "den": 2
+    },
+    "cap": {
+     "num": 15,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 0,
+     "den": 1
+    },
+    "mean": {
+     "num": -1,
+     "den": 2
+    },
+    "fraction": {
+     "num": 0,
+     "den": 1
+    },
+    "cap": {
+     "num": -1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 9,
+     "den": 8
+    },
+    "mean": {
+     "num": -5,
+     "den": 8
+    },
+    "fraction": {
+     "num": -1,
+     "den": 2
+    },
+    "cap": {
+     "num": -1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 13,
+     "den": 8
+    },
+    "mean": {
+     "num": 1,
+     "den": 1
+    },
+    "fraction": {
+     "num": 0,
+     "den": 1
+    },
+    "cap": {
+     "num": -3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 5,
+     "den": 4
+    },
+    "mean": {
+     "num": -1,
+     "den": 4
+    },
+    "fraction": {
+     "num": 1,
+     "den": 2
+    },
+    "cap": {
+     "num": 15,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": -1,
+     "den": 10
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 1,
+     "den": 8
+    },
+    "mean": {
+     "num": -1,
+     "den": 2
+    },
+    "fraction": {
+     "num": 1,
+     "den": 2
+    },
+    "cap": {
+     "num": -11,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": -11,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 7,
+     "den": 4
+    },
+    "mean": {
+     "num": 3,
+     "den": 4
+    },
+    "fraction": {
+     "num": 1,
+     "den": 2
+    },
+    "cap": {
+     "num": -2,
+     "den": 1
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 3,
+     "den": 14
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 0,
+     "den": 1
+    },
+    "mean": {
+     "num": 3,
+     "den": 4
+    },
+    "fraction": {
+     "num": 1,
+     "den": 4
+    },
+    "cap": {
+     "num": 1,
+     "den": 1
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": -1,
+     "den": 4
+    },
+    "mean": {
+     "num": 1,
+     "den": 1
+    },
+    "fraction": {
+     "num": -1,
+     "den": 2
+    },
+    "cap": {
+     "num": 1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": -1,
+     "den": 4
+    },
+    "mean": {
+     "num": 3,
+     "den": 8
+    },
+    "fraction": {
+     "num": 1,
+     "den": 1
+    },
+    "cap": {
+     "num": -7,
+     "den": 4
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 1,
+     "den": 8
+    },
+    "mean": {
+     "num": -1,
+     "den": 1
+    },
+    "fraction": {
+     "num": 1,
+     "den": 4
+    },
+    "cap": {
+     "num": 9,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": -9,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 3,
+     "den": 4
+    },
+    "mean": {
+     "num": 1,
+     "den": 2
+    },
+    "fraction": {
+     "num": -1,
+     "den": 2
+    },
+    "cap": {
+     "num": 7,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 3,
+     "den": 2
+    },
+    "mean": {
+     "num": 1,
+     "den": 1
+    },
+    "fraction": {
+     "num": -1,
+     "den": 2
+    },
+    "cap": {
+     "num": 5,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": -7,
+     "den": 8
+    },
+    "mean": {
+     "num": 0,
+     "den": 1
+    },
+    "fraction": {
+     "num": 1,
+     "den": 4
+    },
+    "cap": {
+     "num": -1,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 5,
+     "den": 4
+    },
+    "mean": {
+     "num": 1,
+     "den": 2
+    },
+    "fraction": {
+     "num": -1,
+     "den": 2
+    },
+    "cap": {
+     "num": -15,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 11,
+     "den": 8
+    },
+    "mean": {
+     "num": 0,
+     "den": 1
+    },
+    "fraction": {
+     "num": 1,
+     "den": 2
+    },
+    "cap": {
+     "num": -3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 5,
+     "den": 8
+    },
+    "mean": {
+     "num": 7,
+     "den": 8
+    },
+    "fraction": {
+     "num": 0,
+     "den": 1
+    },
+    "cap": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 3,
+     "den": 2
+    },
+    "mean": {
+     "num": -3,
+     "den": 4
+    },
+    "fraction": {
+     "num": 1,
+     "den": 4
+    },
+    "cap": {
+     "num": 1,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": -1,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 9,
+     "den": 8
+    },
+    "mean": {
+     "num": -1,
+     "den": 4
+    },
+    "fraction": {
+     "num": -1,
+     "den": 2
+    },
+    "cap": {
+     "num": 3,
+     "den": 2
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 13,
+     "den": 8
+    },
+    "mean": {
+     "num": 1,
+     "den": 2
+    },
+    "fraction": {
+     "num": -1,
+     "den": 2
+    },
+    "cap": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 7,
+     "den": 4
+    },
+    "mean": {
+     "num": -3,
+     "den": 4
+    },
+    "fraction": {
+     "num": -1,
+     "den": 2
+    },
+    "cap": {
+     "num": 3,
+     "den": 2
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 1,
+     "den": 1
+    },
+    "mean": {
+     "num": -7,
+     "den": 8
+    },
+    "fraction": {
+     "num": 1,
+     "den": 1
+    },
+    "cap": {
+     "num": 15,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": -7,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 1,
+     "den": 8
+    },
+    "mean": {
+     "num": -1,
+     "den": 4
+    },
+    "fraction": {
+     "num": -1,
+     "den": 2
+    },
+    "cap": {
+     "num": 15,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 0,
+     "den": 1
+    },
+    "mean": {
+     "num": -1,
+     "den": 1
+    },
+    "fraction": {
+     "num": 0,
+     "den": 1
+    },
+    "cap": {
+     "num": 13,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 7,
+     "den": 4
+    },
+    "mean": {
+     "num": -1,
+     "den": 8
+    },
+    "fraction": {
+     "num": -1,
+     "den": 2
+    },
+    "cap": {
+     "num": -1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": -1,
+     "den": 1
+    },
+    "mean": {
+     "num": 1,
+     "den": 4
+    },
+    "fraction": {
+     "num": 1,
+     "den": 2
+    },
+    "cap": {
+     "num": -9,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 5,
+     "den": 4
+    },
+    "mean": {
+     "num": 1,
+     "den": 2
+    },
+    "fraction": {
+     "num": 0,
+     "den": 1
+    },
+    "cap": {
+     "num": -1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 3,
+     "den": 2
+    },
+    "mean": {
+     "num": 1,
+     "den": 2
+    },
+    "fraction": {
+     "num": 1,
+     "den": 4
+    },
+    "cap": {
+     "num": -11,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 1,
+     "den": 12
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 3,
+     "den": 4
+    },
+    "mean": {
+     "num": 5,
+     "den": 8
+    },
+    "fraction": {
+     "num": 0,
+     "den": 1
+    },
+    "cap": {
+     "num": -7,
+     "den": 4
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 9,
+     "den": 8
+    },
+    "mean": {
+     "num": 3,
+     "den": 8
+    },
+    "fraction": {
+     "num": 1,
+     "den": 2
+    },
+    "cap": {
+     "num": 5,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 1,
+     "den": 6
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 3,
+     "den": 8
+    },
+    "mean": {
+     "num": -3,
+     "den": 4
+    },
+    "fraction": {
+     "num": 1,
+     "den": 4
+    },
+    "cap": {
+     "num": -7,
+     "den": 4
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": -1,
+     "den": 2
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 9,
+     "den": 8
+    },
+    "mean": {
+     "num": -1,
+     "den": 1
+    },
+    "fraction": {
+     "num": 1,
+     "den": 2
+    },
+    "cap": {
+     "num": 11,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": -4,
+     "den": 9
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 3,
+     "den": 2
+    },
+    "mean": {
+     "num": 1,
+     "den": 8
+    },
+    "fraction": {
+     "num": 0,
+     "den": 1
+    },
+    "cap": {
+     "num": 2,
+     "den": 1
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 7,
+     "den": 8
+    },
+    "mean": {
+     "num": -1,
+     "den": 4
+    },
+    "fraction": {
+     "num": -1,
+     "den": 2
+    },
+    "cap": {
+     "num": -7,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 15,
+     "den": 8
+    },
+    "mean": {
+     "num": -1,
+     "den": 4
+    },
+    "fraction": {
+     "num": 1,
+     "den": 2
+    },
+    "cap": {
+     "num": -7,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": -1,
+     "den": 15
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": -1,
+     "den": 4
+    },
+    "mean": {
+     "num": 0,
+     "den": 1
+    },
+    "fraction": {
+     "num": 0,
+     "den": 1
+    },
+    "cap": {
+     "num": -1,
+     "den": 4
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 0,
+     "den": 1
+    },
+    "mean": {
+     "num": -5,
+     "den": 8
+    },
+    "fraction": {
+     "num": 1,
+     "den": 4
+    },
+    "cap": {
+     "num": -9,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 1,
+     "den": 2
+    },
+    "mean": {
+     "num": 3,
+     "den": 4
+    },
+    "fraction": {
+     "num": 1,
+     "den": 4
+    },
+    "cap": {
+     "num": 2,
+     "den": 1
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 3,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 3,
+     "den": 8
+    },
+    "mean": {
+     "num": -1,
+     "den": 1
+    },
+    "fraction": {
+     "num": 1,
+     "den": 1
+    },
+    "cap": {
+     "num": -3,
+     "den": 2
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": -3,
+     "den": 2
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 1,
+     "den": 2
+    },
+    "mean": {
+     "num": 1,
+     "den": 1
+    },
+    "fraction": {
+     "num": 1,
+     "den": 1
+    },
+    "cap": {
+     "num": -11,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 11,
+     "den": 8
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 11,
+     "den": 8
+    },
+    "mean": {
+     "num": -7,
+     "den": 8
+    },
+    "fraction": {
+     "num": 1,
+     "den": 4
+    },
+    "cap": {
+     "num": 5,
+     "den": 4
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": -7,
+     "den": 44
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 15,
+     "den": 8
+    },
+    "mean": {
+     "num": -3,
+     "den": 4
+    },
+    "fraction": {
+     "num": 0,
+     "den": 1
+    },
+    "cap": {
+     "num": 11,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": -5,
+     "den": 8
+    },
+    "mean": {
+     "num": 3,
+     "den": 4
+    },
+    "fraction": {
+     "num": 0,
+     "den": 1
+    },
+    "cap": {
+     "num": -9,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 1,
+     "den": 1
+    },
+    "mean": {
+     "num": 0,
+     "den": 1
+    },
+    "fraction": {
+     "num": -1,
+     "den": 2
+    },
+    "cap": {
+     "num": -7,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": -1,
+     "den": 2
+    },
+    "mean": {
+     "num": -1,
+     "den": 4
+    },
+    "fraction": {
+     "num": 1,
+     "den": 1
+    },
+    "cap": {
+     "num": -11,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 0,
+     "den": 1
+    },
+    "mean": {
+     "num": 1,
+     "den": 4
+    },
+    "fraction": {
+     "num": 1,
+     "den": 1
+    },
+    "cap": {
+     "num": 5,
+     "den": 4
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": -1,
+     "den": 4
+    },
+    "mean": {
+     "num": -7,
+     "den": 8
+    },
+    "fraction": {
+     "num": 0,
+     "den": 1
+    },
+    "cap": {
+     "num": -5,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 3,
+     "den": 8
+    },
+    "mean": {
+     "num": 3,
+     "den": 4
+    },
+    "fraction": {
+     "num": -1,
+     "den": 2
+    },
+    "cap": {
+     "num": 9,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 11,
+     "den": 8
+    },
+    "mean": {
+     "num": 1,
+     "den": 2
+    },
+    "fraction": {
+     "num": 1,
+     "den": 2
+    },
+    "cap": {
+     "num": -1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 2,
+     "den": 11
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 7,
+     "den": 8
+    },
+    "mean": {
+     "num": 1,
+     "den": 1
+    },
+    "fraction": {
+     "num": 1,
+     "den": 1
+    },
+    "cap": {
+     "num": 5,
+     "den": 4
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 8,
+     "den": 7
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 1,
+     "den": 1
+    },
+    "mean": {
+     "num": -1,
+     "den": 4
+    },
+    "fraction": {
+     "num": 0,
+     "den": 1
+    },
+    "cap": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 3,
+     "den": 2
+    },
+    "mean": {
+     "num": 1,
+     "den": 1
+    },
+    "fraction": {
+     "num": 1,
+     "den": 1
+    },
+    "cap": {
+     "num": 0,
+     "den": 1
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 0,
+     "den": 1
+    },
+    "mean": {
+     "num": -1,
+     "den": 4
+    },
+    "fraction": {
+     "num": 1,
+     "den": 1
+    },
+    "cap": {
+     "num": -2,
+     "den": 1
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": -1,
+     "den": 8
+    },
+    "mean": {
+     "num": 3,
+     "den": 4
+    },
+    "fraction": {
+     "num": 1,
+     "den": 2
+    },
+    "cap": {
+     "num": 1,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 1,
+     "den": 8
+    },
+    "mean": {
+     "num": -5,
+     "den": 8
+    },
+    "fraction": {
+     "num": -1,
+     "den": 2
+    },
+    "cap": {
+     "num": 5,
+     "den": 4
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": -1,
+     "den": 8
+    },
+    "mean": {
+     "num": -1,
+     "den": 1
+    },
+    "fraction": {
+     "num": 1,
+     "den": 2
+    },
+    "cap": {
+     "num": 2,
+     "den": 1
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": -1,
+     "den": 8
+    },
+    "mean": {
+     "num": -3,
+     "den": 8
+    },
+    "fraction": {
+     "num": 1,
+     "den": 1
+    },
+    "cap": {
+     "num": 7,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": 7,
+     "den": 4
+    },
+    "mean": {
+     "num": 5,
+     "den": 8
+    },
+    "fraction": {
+     "num": 0,
+     "den": 1
+    },
+    "cap": {
+     "num": -15,
+     "den": 8
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  },
+  {
+   "input": {
+    "variance": {
+     "num": -1,
+     "den": 8
+    },
+    "mean": {
+     "num": -1,
+     "den": 8
+    },
+    "fraction": {
+     "num": 1,
+     "den": 1
+    },
+    "cap": {
+     "num": 3,
+     "den": 4
+    }
+   },
+   "expected": {
+    "kelly": {
+     "num": 0,
+     "den": 1
+    }
+   }
+  }
+ ],
+ "spec_sha256": "29c9fbd8efdfedb8681d9902cd0aa6ee048829d6df4fdbcda6ded1f253be8d9e"
+}

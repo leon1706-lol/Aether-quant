@@ -24,7 +24,7 @@ from typing import Any
 
 ROLES = ("candidate", "verification", "placebo", "plumbing")
 VARIANCE_FLOOR = 0.04
-LEDGER_PHASES = ("v650", "v660", "v669")
+LEDGER_PHASES = ("v650", "v660", "v669", "v6610")
 
 
 def append_trial(

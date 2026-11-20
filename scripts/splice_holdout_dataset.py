@@ -186,6 +186,8 @@ def main() -> int:
     parser.add_argument("--old", type=Path, default=DEFAULT_OLD)
     parser.add_argument("--window", type=Path, default=DEFAULT_WINDOW)
     parser.add_argument("--out", type=Path, default=None, help="default: --old (written through a temp file)")
+    parser.add_argument("--scaler-stats", default=None, help="with --build: the scaler to apply (default: the active one; V6.6.10, a retrained candidate's own)")
+    parser.add_argument("--manifest", default=None, help="with --build: the asset-quality flags to apply (default: the active ones)")
     args = parser.parse_args()
     config = json.loads((ROOT_DIR / "config.json").read_text(encoding="utf-8"))
     holdout = config["phase1"]["windows"]["holdout"]
@@ -196,7 +198,8 @@ def main() -> int:
         DEFAULT_WINDOWS_CONFIG.parent.mkdir(parents=True, exist_ok=True)
         DEFAULT_WINDOWS_CONFIG.write_text(json.dumps(windows_config, indent=2), encoding="utf-8")
         command = [sys.executable, str(ROOT_DIR / "scripts" / "build_holdout_dataset.py"), "--windows-config", str(DEFAULT_WINDOWS_CONFIG),
-                   "--start", build_start, "--end", args.build_end or holdout["end"], "--output", str(args.window)]
+                   "--start", build_start, "--end", args.build_end or holdout["end"], "--output", str(args.window),
+                   *(["--scaler-stats", args.scaler_stats] if args.scaler_stats else []), *(["--manifest", args.manifest] if args.manifest else [])]
         print(" ".join(command))
         if subprocess.call(command) != 0:
             return 1

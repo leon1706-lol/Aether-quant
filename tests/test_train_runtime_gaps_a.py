@@ -88,7 +88,16 @@ def test_assets_are_synchronised_to_their_common_dates():
     assert train.synchronize_assets({})[1] == []
 
 
+def test_resident_memory_on_windows_comes_from_the_probe(monkeypatch):
+    from retraining import slicing
+
+    monkeypatch.setattr(train.sys, "platform", "win32")
+    monkeypatch.setattr(slicing, "process_memory_mb", lambda: (1.0, 3.0))
+    assert train.resident_memory_mb() == (1.0, 3.0)
+
+
 def test_resident_memory_is_read_from_proc_when_it_exists_and_logged(monkeypatch):
+    monkeypatch.setattr(train.sys, "platform", "linux")
     PROC_STATUS = "Name:\tpython\nVmRSS:\t2048 kB\nVmHWM:\t4096 kB\n"
     real_open = builtins.open
     monkeypatch.setattr(train, "open", lambda path, *a, **k: io.StringIO(PROC_STATUS) if path == "/proc/self/status" else real_open(path, *a, **k), raising=False)

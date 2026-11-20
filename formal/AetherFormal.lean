@@ -27,5 +27,13 @@ import AetherFormal.DynamicTargets
 import AetherFormal.ForexCap
 import AetherFormal.VolTarget
 import AetherFormal.ModelBookGuard
+import AetherFormal.NoTradeBand
+import AetherFormal.PaperLossGuard
+import AetherFormal.MultiAssetRules
+import AetherFormal.WindowIndex
+import AetherFormal.Kelly
+import AetherFormal.InverseVolShare
+import AetherFormal.SharpeClauses
+import AetherFormal.BookGuards
 import AetherFormal.Real
 import AetherFormal.GenCases

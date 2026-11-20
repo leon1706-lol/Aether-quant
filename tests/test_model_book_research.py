@@ -114,6 +114,7 @@ def test_signal_tables_name_every_table_the_trials_use():
     assert (tables["const"] == 1.0).all().all()
     without_carry = mbr.signal_tables(ResearchPanel(panel.known, CLASSES, {}, {}), {"ml_a1": score})
     assert "mix_a23" not in without_carry and without_carry["mix_all4"].notna().any().any()
+    assert "ml_a2" not in without_carry and tables["ml_a3"].equals((score * 0.5).reindex(index=panel.known.index, columns=tables["ml_a1"].columns)), "V6.6.10: a2 and a3 as signals when given"
 
 
 def test_the_trial_lists_are_the_registered_sizes_and_only_the_book_names_an_optimizer():

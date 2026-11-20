@@ -89,6 +89,8 @@ ml/_backup_pre_v528_gate_aware_smoke_test/
 # full production retrain with gate_aware_ranking_weights enabled) - a
 # local backup, never meant to be committed.
 ml/_backup_pre_v529_full_retrain/
+# Backups of the installed models (model.pt, scaler.pkl, the weights): production models are never published (V6.6.10).
+ml/backups/*.zip
 ml/model.pt
 ml/scaler.pkl
 ml/*.pkl
@@ -155,6 +157,7 @@ visualization/book_history*.jsonl
 ml/evaluation/
 
 # Logs and temporary files
+coverage-report/
 .coverage
 .coverage.*
 coverage.json

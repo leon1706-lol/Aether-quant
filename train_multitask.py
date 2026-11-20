@@ -54,6 +54,7 @@ import torch.nn as nn
 from torch.utils.data import DataLoader, TensorDataset
 
 from features.cross_sectional_inputs import apply_cross_sectional_inputs, expand_input_names, settings_from_config
+from retraining.slicing import PROFILES, log_peak, memory_profile
 from train import (
     HORIZON_HEAD_SPECS,
     AetherNetMultiTaskHorizons,
@@ -133,6 +134,10 @@ def parse_args() -> argparse.Namespace:
         choices=["mse", "soft_spearman", "listnet"],
         help="Override config.json's ranking_loss.objective for this run only (A/B testing)",
     )
+    # V6.6.10: `low` reads the dataset in float32 chunks and keeps no second copy of the eligible rows (about 0.3 GB instead of
+    # 2 GB for the 825 MB dataset); `standard` is unchanged.
+    parser.add_argument("--memory-profile", choices=sorted(PROFILES), default="standard", help="standard (default) or low: train on a small machine")
+    parser.add_argument("--log-peak-memory", type=str, default=None, help="append this run's peak memory to this JSONL file")
     return parser.parse_args()
 
 
@@ -258,6 +263,7 @@ def compute_multitask_metrics(
 def main() -> int:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     args = parse_args()
+    profile = memory_profile(args.memory_profile)
 
     try:
         training_config = load_multitask_training_config(Path(args.config_path))
@@ -348,7 +354,12 @@ def main() -> int:
         if not dataset_path.exists():
             LOGGER.info("train_multitask: dataset not found at %s - skipping.", dataset_path)
             return 0
-        dataset = pd.read_csv(dataset_path)
+        if profile.name == "low":
+            from train_sequence import read_dataset_compact
+
+            dataset = read_dataset_compact(dataset_path, chunk_rows=profile.read_chunk_rows)
+        else:
+            dataset = pd.read_csv(dataset_path)
         # V6.4.4: ranked inputs (phase1.features.cross_sectional_inputs, default off) - the same transform main.py and
         # the offline scorer apply; "append" mode adds `<name>_csr` inputs to the schema this run writes.
         cross_sectional_settings = settings_from_config(full_config)
@@ -384,7 +395,9 @@ def main() -> int:
 
         eligible = dataset
         if "training_eligible" in dataset.columns:
-            eligible = dataset[dataset["training_eligible"]].copy()
+            eligible = dataset[dataset["training_eligible"]]
+            eligible = eligible if profile.name == "low" else eligible.copy()  # a boolean mask already copies; `low` keeps that one copy
+        del dataset
 
         train_frame = eligible[eligible["split"] == "train"].reset_index(drop=True)
         validation_frame = eligible[eligible["split"] == "validation"].reset_index(drop=True)
@@ -581,7 +594,7 @@ def main() -> int:
                 running_loss += float(loss.item()) * len(batch_features)
                 sample_count += len(batch_features)
 
-            if scheduler is not None:
+            if scheduler is not None and sample_count:  # an epoch with no batch made no optimizer step (torch warns)
                 scheduler.step()
 
             model.eval()
@@ -849,6 +862,8 @@ def main() -> int:
         paths["multitask_model"].write_text(json.dumps(model_payload, indent=2), encoding="utf-8")
         paths["multitask_feature_schema"].write_text(json.dumps(feature_schema_payload, indent=2), encoding="utf-8")
         paths["multitask_training_metrics"].write_text(json.dumps(metrics, indent=2), encoding="utf-8")
+        if args.log_peak_memory:
+            log_peak(Path(args.log_peak_memory), "multitask", profile=profile.name)
 
         rank_5d_ic = metrics["backtest"].get("rank_5d_ic") or {}
         LOGGER.info(

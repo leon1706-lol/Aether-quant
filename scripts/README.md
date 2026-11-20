@@ -66,6 +66,11 @@ Tools run by hand, outside the runtime and the `aq` CLI. Most Lean-reading work 
 | `model_book_decide.py` | The model book's holding after one session as `ticker,weight`, refused on a changed model file or stale data or scores; `--ledger` appends the dated decision for g0006 |
 | `check_artifact_pins.py` | Fails when an installed model file differs from `ml/artifact_pins.json`; `aq verify --quick` runs it |
 | `ml_manifest.py` | SHA-256 of the installed models. Diff it across hosts and before a Lean run |
+| `v6610_research.py` | V6.6.10: the multi-asset push's rules once (`rules`), then the verdicts R-LOSS1 (`loss-gate`), R-INSTALL3 (`install3`) and R-FLIP1 (`flip`) from the evidence files. Logic in `evaluation/multi_asset_round.py` |
+| `lowmem_proof.py` | A synthetic dataset the size of the real one, the multitask and sequence trainers under `--memory-profile low`, each peak against a budget (CI's `lowmem-proof`) |
+| `build_example_models.py` | The example models `aq models install` downloads: trained on the bundled sample only, zipped with a manifest of hashes (the release's `example-models` job); refuses a file whose hash is an installed model's |
+| `formal_inventory.py` | Every public function of the trading and research paths: proved in Lean, excluded with a reason, or in a backlog that only shrinks (`formal/inventory.json`; pre-commit hook and fast-guards) |
+| `model_cycle_row.py` | The weekly model cycle's row (`model-cycle.yml`): the pipeline's gate and the example models' hashes, once per session |
 
 ## Analysis and profiling
 

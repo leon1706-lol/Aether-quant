@@ -224,3 +224,15 @@ def test_the_gating_script_reports_a_failure_and_runs_as_main(monkeypatch, tmp_p
     with pytest.raises(SystemExit) as stop:
         runpy.run_path(str(train_gating.__file__), run_name="__main__")
     assert stop.value.code == 1
+
+
+def test_the_low_profile_gate_reads_only_its_two_splits_and_trains_the_same_network(monkeypatch, tmp_path):
+    """V6.6.10: `--memory-profile low` reads the validation and backtest rows in chunks, with a plain read's values."""
+    exports = {}
+    for name, extra in (("standard", []), ("low", ["--memory-profile", "low", "--log-peak-memory", str(tmp_path / "peaks.jsonl")])):
+        gating_world(monkeypatch, tmp_path / name)
+        monkeypatch.setattr(sys, "argv", [*sys.argv, *extra])
+        assert train_gating.main() == 0
+        exports[name] = json.loads((tmp_path / name / "ml" / "versions" / "g1" / "gating_model.json").read_text(encoding="utf-8"))["export"]
+    assert exports["standard"] == exports["low"]
+    assert json.loads((tmp_path / "peaks.jsonl").read_text(encoding="utf-8"))["stage"] == "gating"

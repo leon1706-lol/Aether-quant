@@ -48,9 +48,9 @@ The book trading today is two parts, on paper only: a long-only crypto trend sle
 <!-- AQ:STATUS_START -->
 | Lean Sharpe | Net profit | Max drawdown | Sharpe without T-bill carry | Alpha t | Deflated Sharpe |
 |---|---|---|---|---|---|
-| 0.57 | 31.249% | 9.40% | 0.66 | -0.19 | 1.63% |
+| 0.57 | 31.249% | 9.40% | 0.66 | -0.19 | 1.54% |
 
-_Lean run `2026-11-16_16-25-28`, 2023-07-01 to 2026-11-02, computed 2026-11-17 10:10 UTC. Details: [Backtest Statistics](#backtest-statistics)._
+_Lean run `2026-11-16_16-25-28`, 2023-07-01 to 2026-11-02, computed 2026-11-20 11:27 UTC. Details: [Backtest Statistics](#backtest-statistics)._
 <!-- AQ:STATUS_END -->
 
 ## Quickstart
@@ -58,14 +58,18 @@ _Lean run `2026-11-16_16-25-28`, 2023-07-01 to 2026-11-02, computed 2026-11-17 1
 ```bash
 pip install aether-quant        # numpy and pandas only: no torch, no Lean, no Docker
 aq hello                        # downloads 11 coins (keyless), runs the shipped rule with costs, prints the report
+aq models install example-crypto-mlp && aq models score example-crypto-mlp   # an example model from the release, scored with numpy
+aq init my-signal && cd my-signal && aq pipeline run   # your own signal: data, evaluate, gate, report
 ```
+
+Retraining the model stack fits a 4 GB machine: `aq cycle retrain --host local --procedure stack --memory-profile low` ([Train on a small machine](docs/getting-started/train-small-machine.md)).
 
 `aq hello --offline` uses the sample shipped in the wheel. The [tutorials](notebooks/README.md) cover signal evaluation, book construction and overfitting tests, and each opens in Colab. The [docs](https://leon1706-lol.github.io/Aether-quant/) hold the guide and the API reference. The dashboard runs with demo data in one command: `docker run --rm -p 8080:8000 ghcr.io/leon1706-lol/aether-quant-dashboard:latest`.
 
 ## Known Limitations
 
 - **No demonstrated edge.** The book is mostly crypto exposure, and almost all of its result came before mid-2025. The model book's 12 optimizers and 6 signal mixes (R-BOOK1, R-MIX1) all scored a negative Sharpe in 2021-04 to 2023-06 and none survived, and the model's rank IC is under 0.07 in every class. See [Alpha by Period](#alpha-by-period).
-- **Nothing has survived selection.** None of the project's <!--fact:research.trials-->243<!--/fact--> pre-registered trials survived, so the holdouts stay unread. See [Research Record](#research-record).
+- **Nothing has survived selection.** None of the project's <!--fact:research.trials-->258<!--/fact--> pre-registered trials survived, so the holdouts stay unread. See [Research Record](#research-record).
 - **Hindsight in the universe.** The 11 coins are today's survivors. The same rule scored Sharpe -0.06 on coins no rule had read (#301). EOS, which Coinbase delisted, left the book on 2026-11-07 (#311).
 - **Paper only, and no broker yet.** Interactive Brokers cannot fill this sleeve, and the crypto venue (Coinbase assumed) needs an API key (#192). See RUNBOOK "When the keys arrive".
 - **IB is unverified end to end.** Connection, live futures margin and all <!--fact:options.structures-->43<!--/fact--> option structures have only met Lean's samples, never a real Gateway. Futures and options stay data-empty until a key is connected (`aq ib status`).
@@ -104,6 +108,9 @@ aq hello                        # downloads 11 coins (keyless), runs the shipped
 - [Test Suite](#test-suite)
 - [CLI Reference](#cli-reference)
   - [`aq hello`](#aq-hello)
+  - [`aq models`](#aq-models)
+  - [`aq init`](#aq-init)
+  - [`aq pipeline`](#aq-pipeline)
   - [`aq train`](#aq-train)
   - [`aq test`](#aq-test)
   - [`aq backtest`](#aq-backtest)
@@ -145,7 +152,7 @@ aq hello                        # downloads 11 coins (keyless), runs the shipped
 
 ## The `aether_quant` Library
 
-One importable package over the same pure functions the live algorithm and the research chain call: <!--fact:library.names-->999<!--/fact--> public names across <!--fact:library.modules-->32<!--/fact--> modules.
+One importable package over the same pure functions the live algorithm and the research chain call: <!--fact:library.names-->1041<!--/fact--> public names across <!--fact:library.modules-->33<!--/fact--> modules.
 
 ```powershell
 pip install "aether-quant[research]"    # the library is Apache-2.0; scipy, scikit-learn and friends come with [research]
@@ -246,7 +253,7 @@ aq cycle status                 # what is due today
 - **For backtests:** Docker and the Lean CLI (`pip install lean`). The first run pulls the pinned engine image, <!--fact:lean.engine-->quantconnect/lean:17900<!--/fact-->, about 40 GB.
 - **For the infrastructure:** Docker Compose (Redis, Postgres, workers). Everything degrades gracefully without it.
 - **For the dashboard:** Node.js.
-- **For retraining:** 14 GB of RAM, or the training Codespace through the GitHub CLI (`gh`).
+- **For retraining:** 4 GB of RAM with `--memory-profile low` (14 GB for the standard profile), or the training Codespace through the GitHub CLI (`gh`).
 
 Dependency sets are listed in [`requirements/README.md`](requirements/README.md).
 
@@ -328,11 +335,11 @@ The guide, the live-operations pages and the API reference are published at [htt
 | Section | Pages |
 |---|---|
 | Home | [Home](docs/index.md) |
-| Getting started | [Install](docs/getting-started/install.md) · [Hello world](docs/getting-started/hello-world.md) · [The dashboard](docs/getting-started/dashboard.md) |
-| Tutorials | [Hello world](notebooks/00_hello_world.ipynb) · [Signal evaluation](notebooks/01_signal_evaluation.ipynb) · [Book construction](notebooks/02_book_construction.ipynb) · [Overfitting tests](notebooks/03_overfitting_tests.ipynb) |
-| Guide | [Signals](docs/guide/signals.md) · [Sizing](docs/guide/sizing.md) · [Neutrality](docs/guide/neutrality.md) · [Costs](docs/guide/costs.md) · [Backtesting](docs/guide/backtesting.md) · [Overfitting](docs/guide/overfitting.md) · [Research cycle](docs/guide/research-cycle.md) · [Safety](docs/guide/safety.md) |
+| Getting started | [Install](docs/getting-started/install.md) · [Hello world](docs/getting-started/hello-world.md) · [The dashboard](docs/getting-started/dashboard.md) · [Train on a small machine](docs/getting-started/train-small-machine.md) |
+| Tutorials | [Hello world](notebooks/00_hello_world.ipynb) · [Signal evaluation](notebooks/01_signal_evaluation.ipynb) · [Book construction](notebooks/02_book_construction.ipynb) · [Overfitting tests](notebooks/03_overfitting_tests.ipynb) · [Models](notebooks/04_models.ipynb) |
+| Guide | [Signals](docs/guide/signals.md) · [Sizing](docs/guide/sizing.md) · [Neutrality](docs/guide/neutrality.md) · [Costs](docs/guide/costs.md) · [Backtesting](docs/guide/backtesting.md) · [Overfitting](docs/guide/overfitting.md) · [Research cycle](docs/guide/research-cycle.md) · [Models](docs/guide/models.md) · [Your own pipeline](docs/guide/your-own-pipeline.md) · [Safety](docs/guide/safety.md) |
 | Live trading | [Paper to live](docs/live/paper-to-live.md) · [Secrets](docs/live/secrets.md) · [Accounts](docs/live/accounts.md) · [Users](docs/live/users.md) · [Field test](docs/live/field-test.md) |
-| API reference | [Overview](docs/reference/index.md), one page per facade (32), generated by `scripts/build_docs.py` |
+| API reference | [Overview](docs/reference/index.md), one page per facade (33), generated by `scripts/build_docs.py` |
 | About | [License](docs/about/license.md) · [Security](docs/about/security.md) · [Changelog](docs/about/changelog.md) |
 <!-- AQ:DOCS_SITE_END -->
 
@@ -427,7 +434,7 @@ The shipped book's numbers from the real Lean engine. Every table is generated, 
 | Bitcoin, buy and hold | +157.01% | +32.83% | 46.20% | 0.84 | 53.06% |
 | The book's 11 coins, equal weight | +156.78% | +32.79% | 65.28% | 0.76 | 57.09% |
 
-_Run `2026-11-16_16-25-28` · computed 2026-11-17 10:10 UTC · same sessions to the last equity close, no risk-free rate_
+_Run `2026-11-16_16-25-28` · computed 2026-11-20 11:27 UTC · same sessions to the last equity close, no risk-free rate_
 <!-- AQ:BTSTATS_BENCHMARKS_END -->
 
 ### Alpha by Period
@@ -435,16 +442,16 @@ _Run `2026-11-16_16-25-28` · computed 2026-11-17 10:10 UTC · same sessions to 
 <!-- AQ:ALPHA_START -->
 | Period | Dates | Sharpe | 95% interval | Alpha per year | Alpha t | Deflated Sharpe |
 |---|---|---|---|---|---|---|
-| Whole run | 2023-07-02 to 2026-11-04 | 0.66 | -0.54 to 1.86 | -0.45% | -0.19 | 1.63% |
-| First half | 2023-07-02 to 2025-06-30 | 1.21 | -0.42 to 2.87 | -0.83% | -0.25 | 19.14% |
-| Second half | 2025-07-01 to 2026-11-02 | -0.16 | -1.84 to 1.55 | +0.87% | 0.26 | 1.10% |
+| Whole run | 2023-07-02 to 2026-11-04 | 0.66 | -0.54 to 1.86 | -0.45% | -0.19 | 1.54% |
+| First half | 2023-07-02 to 2025-06-30 | 1.21 | -0.42 to 2.87 | -0.83% | -0.25 | 18.66% |
+| Second half | 2025-07-01 to 2026-11-02 | -0.16 | -1.84 to 1.55 | +0.87% | 0.26 | 1.06% |
 | Long run, same rule | 2019-01-02 to 2026-11-04 | 0.71 | -0.04 to 1.54 | -0.32% | -0.19 | 0.10% |
 
 **Proof of alpha (R-ALPHA1): not demonstrated** (full-window alpha t < 2.0; deflated Sharpe < 0.95).
 
 _With SPY and AGG read a session late, as the crypto series is, the full-window alpha t is -0.22 (#330). R-ALPHA1 reads the figure in the table._
 
-_Run `2026-11-16_16-25-28` · computed 2026-11-17 10:10 UTC · alpha against SPY / AGG / BTCUSD with a Newey-West t · deflated over 243 ledger trials_
+_Run `2026-11-16_16-25-28` · computed 2026-11-20 11:27 UTC · alpha against SPY / AGG / BTCUSD with a Newey-West t · deflated over 258 ledger trials_
 <!-- AQ:ALPHA_END -->
 
 ### General Characteristics
@@ -470,7 +477,7 @@ _Run `2026-11-16_16-25-28` · computed 2026-11-17 10:10 UTC · alpha against SPY
 | Total orders | 1,445 |  |  |
 | Lean portfolio turnover (daily mean) | 0.810% |  |  |
 
-_Run `2026-11-16_16-25-28` · computed 2026-11-17 10:10 UTC_
+_Run `2026-11-16_16-25-28` · computed 2026-11-20 11:27 UTC_
 <!-- AQ:BTSTATS_GENERAL_END -->
 
 ### Performance
@@ -494,7 +501,7 @@ _Run `2026-11-16_16-25-28` · computed 2026-11-17 10:10 UTC_
 | Expectancy (Lean) | 0.377 |  |
 | Unrealized at the end (Lean) | +$11,548 |  |
 
-_Run `2026-11-16_16-25-28` · computed 2026-11-17 10:10 UTC_
+_Run `2026-11-16_16-25-28` · computed 2026-11-20 11:27 UTC_
 <!-- AQ:BTSTATS_PERFORMANCE_END -->
 
 ### Runs and Drawdowns
@@ -514,7 +521,7 @@ _Run `2026-11-16_16-25-28` · computed 2026-11-17 10:10 UTC_
 | Drawdown recovery (Lean, days) | 241 |  |
 | Maximum drawdown duration (Lean) | 209.04:00:00 |  |
 
-_Run `2026-11-16_16-25-28` · computed 2026-11-17 10:10 UTC_
+_Run `2026-11-16_16-25-28` · computed 2026-11-20 11:27 UTC_
 <!-- AQ:BTSTATS_RUNS_END -->
 
 ### Implementation Shortfall
@@ -530,7 +537,7 @@ _Run `2026-11-16_16-25-28` · computed 2026-11-17 10:10 UTC_
 | Return on execution costs (net PnL / (fees + slippage)) | 4.01x | 2.14x |
 | Total fees (Lean) | $6,912 |  |
 
-_Run `2026-11-16_16-25-28` · computed 2026-11-17 10:10 UTC_
+_Run `2026-11-16_16-25-28` · computed 2026-11-20 11:27 UTC_
 <!-- AQ:BTSTATS_SHORTFALL_END -->
 
 ### Return/Risk Efficiency
@@ -553,7 +560,7 @@ _Run `2026-11-16_16-25-28` · computed 2026-11-17 10:10 UTC_
 | Treynor ratio (Lean) | 0.272 |  |  |
 | Sharpe, Lean formula (shipped rate file/365) | 0.571 |  |  |
 
-_Run `2026-11-16_16-25-28` · computed 2026-11-17 10:10 UTC_
+_Run `2026-11-16_16-25-28` · computed 2026-11-20 11:27 UTC_
 <!-- AQ:BTSTATS_EFFICIENCY_END -->
 
 ### Attribution
@@ -567,7 +574,7 @@ _Run `2026-11-16_16-25-28` · computed 2026-11-17 10:10 UTC_
 | equity | -$475 | -0.12% | 0.16% | -0.70 | 0.51% | 0.36% | $139 |
 | unattributed (Lean minus rebuilt) | -$49 | | | | | | |
 
-_Run `2026-11-16_16-25-28` · computed 2026-11-17 10:10 UTC_
+_Run `2026-11-16_16-25-28` · computed 2026-11-20 11:27 UTC_
 <!-- AQ:BTSTATS_ATTRIBUTION_END -->
 
 ### Robustness
@@ -584,7 +591,7 @@ _Run `2026-11-16_16-25-28` · computed 2026-11-17 10:10 UTC_
 | Max drawdown | 5.060089% | 8.029595% | 13.509692% |
 | P(negative total return): **0.034** |||
 
-_1000 block-bootstrapped histories (block 20 days, seed 42) of Lean run `2026-11-16_16-25-28`'s 1222 daily returns, 2023-07-01 to 2026-11-02. The run itself returned 31.25%; computed 2026-11-17 10:09 UTC (rendered 2026-11-17 10:10 UTC)._
+_1000 block-bootstrapped histories (block 20 days, seed 42) of Lean run `2026-11-16_16-25-28`'s 1222 daily returns, 2023-07-01 to 2026-11-02. The run itself returned 31.25%; computed 2026-11-20 11:26 UTC (rendered 2026-11-20 15:21 UTC)._
 <!-- AQ:MONTECARLO_END -->
 
 <details>
@@ -634,6 +641,8 @@ Each search used rules written before any score. Details are in [`development/Pr
 | Round 4C: crypto risk, liquidity and trend filters, a boosted model | 14 | 0; overfitting probability 0.58 | Idiosyncratic volatility, Sharpe 0.62 (halves 0.39, 0.69) | #336 |
 | Round 4E: EDGAR filings, seasonality, insiders, cash profitability, ETF trend, macro timing | 9, two voided by a runner defect | 0 | Cash profitability, Sharpe 0.39 | #336 |
 | Round 4F: the two voided trials again | 2 | 0 | SPY on term and credit, Sharpe 0.75 on one name, failed the placebo | #336 |
+| R-LOSS1: five training losses against the control, on the retrained stack | 6 | 0 | `ic_pearson`, mean class IC 0.035 against the control's 0.048 | #407 |
+| R-BOOK2: the model book rebuilt on the strongest score (`ml_a2`), for the 70/30 flip | 9 | 0; overfitting probability 0.79 | Pooled ranks of `ml_a2`, Sharpe 0.74, second half 0.33 | #409 |
 
 ### Disclaimer
 
@@ -647,7 +656,7 @@ One test file per source module; the badge above counts them on CI's last green 
 
 ## CLI Reference
 
-`aq --help` lists <!--fact:aq.commands-->35<!--/fact--> commands, and `aq <command> --help` gives every flag. Dry run is the default wherever a command writes data or config.
+`aq --help` lists <!--fact:aq.commands-->38<!--/fact--> commands, and `aq <command> --help` gives every flag. Dry run is the default wherever a command writes data or config.
 
 #### `aq hello`
 ```text
@@ -660,17 +669,41 @@ Start here: one command, no key, no Docker. It downloads daily bars for the ship
 - **`--no-cache`:** download again instead of reading `~/.cache/aether-quant/candles`.
 - **From Python:** `aether_quant.hello.run(offline=True)`.
 
+#### `aq models`
+```text
+aq models list | install NAME [--version V] [--from ZIP] | info NAME | score NAME [--csv CLOSES] [--head rank_20d] [--out FILE]
+```
+Example models published with each GitHub release: small networks trained on the bundled sample only, installed into `~/.cache/aether-quant/models` after their sha256 is checked against the release manifest, and scored with the numpy forward pass (no torch). The project's own trading models are not published. `score` also takes any folder holding an exported model, such as your own retrain's `ml/versions/<id>/`. From Python: `aether_quant.models`.
+
+#### `aq init`
+```text
+aq init DIRECTORY [--name NAME]
+```
+A new signal project: `my_signal.py` (your `score(closes)`), its tests (shape and no look-ahead), `pipeline.toml` with a gate you set before the first run, and a GitHub workflow that runs both on free runners every week. Refuses a folder that is not empty.
+
+#### `aq pipeline`
+```text
+aq pipeline run [--config pipeline.toml] [--run-id ID | --resume] [--runs-dir runs]
+aq pipeline status [--run-id ID]
+```
+Data, signal, an optional small model, evaluate (IC by horizon, half-life, the spread after costs), gate and report, each stage resumable, into `runs/<id>/`. `--resume` continues the newest stopped run with the pipeline file it started with. Without a file it runs the bundled sample with 20-session momentum. Exit 3 means a signal failed its gate.
+
 #### `aq train`
 ```text
-aq train [--dataset-only|--init-only|--experts-only|--gating-only|--multitask-only|--sequence-only|--topology-only|--strategy-selector-only|--rl-sizing-only]
+aq train [--dataset-only|--init-only|--experts-only|--candidate|--gating-only|--multitask-only|--sequence-only|--topology-only|--strategy-selector-only|--rl-sizing-only]
 aq train --walk-forward [--step-days N] [--mode rolling|expanding] [--include-multitask] [--include-sequence] [--metrics M] [--resume-run-id ID]
-aq train [--seed N] [--ranking-objective mse|soft_spearman|listnet]
+aq train [--seed N] [--ranking-objective mse|soft_spearman|listnet|ic_pearson|ls_sharpe|class_balanced|cost_aware] [--memory-profile standard|low]
+aq train --resume [RUN_ID]
+aq train --list-runs
 ```
 Builds the dataset and trains the models into `ml/`.
 
 - **No flag:** trains everything.
-- **`--*-only`:** one piece. `--topology-only` and `--strategy-selector-only` need outcome events in Postgres and skip cleanly without them.
+- **`--*-only`:** one piece. `--topology-only` and `--strategy-selector-only` need outcome events in Postgres and skip cleanly without them. The four newer ranking objectives read each row's class and returns, so they need `--sequence-only`.
+- **`--candidate`:** the baseline and experts into `ml/versions/candidate-<uuid>/`, never touching the active models.
 - **`--walk-forward`:** one diagnostic run per window, never touches the active models.
+- **`--memory-profile low`:** trains on a 4 GB machine, slower; every trainer the run calls gets it.
+- **`--resume [RUN_ID]`:** every mode but `--init-only` records a folder `ml/cycle/train_<id>/` when it starts (its settings, its version ids, the walk-forward's id, its finished steps). `--resume` continues the newest stopped run, or `RUN_ID`, with those settings. Finished steps are skipped, a walk-forward continues at its next window, a window reuses its dataset and baseline when they were written completely, and the sequence trainer continues from its last epoch. `--list-runs` lists the `aq train` and `aq cycle retrain` runs with their finished steps.
 
 #### `aq test`
 ```text
@@ -681,7 +714,7 @@ Runs pytest, then syncs the doc facts on a full run. The test badge is CI's.
 
 - **`--ruff`:** lint first and fail fast.
 - **`--coverage`:** each group in turn under coverage, then the combined report; every tracked module must reach 100%.
-- **`--coverage --changed`:** the fast gate before a commit (the pre-commit hook runs it). It runs the tests that name each module changed since HEAD, new files included, and fails on any uncovered line in those modules; a fresh full `coverage.json` that already shows them covered passes at once.
+- **`--coverage --changed`:** the fast gate before a commit (the pre-commit hook runs it). It runs the tests that name each module changed since HEAD, new files included, and fails on any uncovered line in those modules; a fresh full `coverage-report/coverage.json` that already shows them covered passes at once.
 - **`--parallel`:** xdist. Don't use it on a low-memory machine, because each worker imports torch.
 - **`--lean`, `--full`:** add the real Lean integration test, over an hour.
 - **Subsystem flags:** run only those test files; they combine.
@@ -716,14 +749,17 @@ aq cycle status [--ledger-file F]
 aq cycle research {rules|score|placebo|gate|pbo|freeze|hold|report} --round R [--draft D] [--only T...] [--draws N] [--force] [--trial T] [--digest H]
 aq cycle daily [--ledger-file F] [--dry-run]
 aq cycle decide --generation G --weights W --ledger-file F --session D
-aq cycle retrain --host {local,codespace} [--procedure P] [--smoke] [--dry-run] [--if-due]
+aq cycle retrain --host {local,codespace} [--procedure P] [--memory-profile {standard,low}] [--min-ram-gb GB] [--score-end D] [--smoke] [--dry-run] [--if-due] [--estimate]
+aq cycle retrain --resume [RUN_ID]
+aq cycle retrain --list-runs
 aq cycle promote --generation G --to {shadow,ramping,active,fading,winding_down,retired,rejected} [--ledger-file F]
 aq cycle schedule {show|install} [--platform {windows,linux}] [--host {local,codespace}] [--dry-run]
 ```
 The research cycle: rounds, generations, decay and retraining.
 
 - **`status`:** what is due today.
-- **`retrain --host local`:** refuses under 14 GB of RAM; `--smoke` proves the plumbing anywhere.
+- **`retrain --host local`:** needs 14 GB of RAM, or 3.5 GB with `--memory-profile low` (the same models, slower); `--estimate` prints each profile's peak for your dataset, `--min-ram-gb` overrides a profile's minimum, and `--smoke` proves the plumbing anywhere.
+- **`retrain --resume [RUN_ID]`:** continues a stopped retrain (the newest unfinished one, or `RUN_ID`) with its own settings. Its folder `ml/cycle/retrain_<id>/` holds `resume.json`, `state.json` and `walk_forward_run_id`: finished stages and walk-forward windows are skipped, a window's finished trainers are reused, and the sequence trainer continues from its last epoch. A Codespace run and its retries resume the same way on that machine. `k06` and `k07` keep each test year's scores in `years/`, so they continue at their next year. `--list-runs` lists every run with its finished stages.
 - **`promote`:** follows R-ADMIT1 and never touches a broker setting.
 
 #### `aq api`

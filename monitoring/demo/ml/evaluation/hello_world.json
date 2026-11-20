@@ -54,7 +54,7 @@
  "note": "No verified edge: this is the project's shipped book, labelled improved, not verified. Past results say nothing certain about the future.",
  "pbo": 0.842857,
  "psr": 0.826522,
- "research_trials": 217,
+ "research_trials": 258,
  "rule": "t3_crypto_trend_blend_x_eos",
  "start": "2022-01-01",
  "strategy": {

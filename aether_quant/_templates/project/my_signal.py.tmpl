@@ -1,0 +1,11 @@
+"""Your signal. `aq pipeline run` calls score(closes) once with every close it has, so the score of a date must use only that date's
+close and earlier ones (a value from a later row is a look-ahead the backtest would reward and live trading never pays)."""
+
+from __future__ import annotations
+
+import pandas as pd
+
+
+def score(closes: pd.DataFrame) -> pd.DataFrame:
+    """Dates x tickers, higher = expected to do better. This starter is 60-session momentum, skipping the last 5 sessions."""
+    return closes.shift(5) / closes.shift(60) - 1.0

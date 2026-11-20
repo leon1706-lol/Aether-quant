@@ -57,10 +57,11 @@ ruff check .              # must be clean before commit: 14 rule sets, each excl
 | `risk/` · `portfolio/` · `execution/` | Sizing, kill switch · target weights, book construction, HRP, the book optimizers and the model book (`book_optimizer.py`, `model_book.py`), options · order gate, cost model, reconciliation |
 | `features/` · `inference/` · `moe/` | Pure features · model loading and batch inference · gating |
 | `train.py` · `train_*.py` | Training loop · specialized trainers |
-| `evaluation/` · `retraining/` | Offline eval, research rounds, generations' registry and ledger · candidate gates, versioning |
+| `evaluation/` · `retraining/` | Offline eval, research rounds, generations' registry and ledger, `pipeline.py` (`aq pipeline`) · candidate gates, versioning, `slicing.py` (the low memory profile), `run_resume.py` (resumable runs), `model_catalog.py` (the example models) |
 | `ml/artifact_pins.json` · `retraining/artifact_pins.py` | The sha256 of every installed model file, checked before anything scores with them and by `tests/conftest.py` after every suite run |
 | `ml/generations/` | Generations, glide policy, lifecycle log, the once-only holdout ledger (tracked; nothing in Lean reads it) |
-| `aether_quant/` | The library, pinned by `tests/data/aether_quant_api.json` |
+| `aether_quant/` | The library, pinned by `tests/data/aether_quant_api.json`; `_templates/project/` is what `aq init` copies |
+| `formal/inventory.json` | Every public function of the trading and research paths and how it is proved (`scripts/formal_inventory.py`; the backlog only shrinks) |
 | `fuzz/` | Atheris fuzz targets (`targets.py`, run by `.github/workflows/fuzz.yml`; hypothesis drives them in the suite) |
 | `requirements/lock/` | Hash-locked install sets per job (`*.in` → `*.txt`, `scripts/lock_requirements.py`) |
 | `development/openssf_best_practices.md` | The OpenSSF Best Practices answers, ready for the owner to enter |
@@ -92,11 +93,11 @@ ruff check .              # must be clean before commit: 14 rule sets, each excl
 Every tracked `.py` outside `tests/` is measured, and the gate is literally 100%. Nothing is excluded but `if TYPE_CHECKING:` (`tests/test_coverage_scope.py`). CI's `python-tests` fails under 100, and the pre-commit hook runs the fast gate.
 
 - **Before every commit: `aq test --coverage --changed`.** The hook runs it. It runs every registered test that names a module changed since HEAD (new files included) and fails on any uncovered line in those files.
-  - A fresh full `coverage.json` that already shows them covered passes at once.
+  - A fresh full `coverage-report/coverage.json` that already shows them covered passes at once. Every coverage output (data, json, xml, html, JUnit) lives in `coverage-report/`.
   - More than 40 changed modules means a phase: run `aq test --coverage`.
   - `AQ_SKIP_COVERAGE_HOOK=1` is only for the commit right after a full run on that tree.
 - **A new line ships with the test that runs it,** in the module's own `tests/test_<module>.py`, registered in `_SUBSYSTEM_TEST_FILES` (the gate refuses an unregistered test that names the module). Never `# pragma: no cover`, never a new `omit`, never a test that only imports.
-- **Finding misses.** After a run: `python scripts/coverage_misses.py --include "risk/*" --by-function --context 2`. The last full run's `coverage.json` is the worklist.
+- **Finding misses.** After a run: `python scripts/coverage_misses.py --include "risk/*" --by-function --context 2`. The last full run's `coverage-report/coverage.json` is the worklist.
 - **Use the synthetic worlds, not a fresh stub:**
   - `tests/lean_world.py` with `tests/lean_fakes.py` (main.py against a fake Lean);
   - `tests/train_world.py` with `tests/trainer_fakes.py` (train*.py);
@@ -112,7 +113,7 @@ Every tracked `.py` outside `tests/` is measured, and the gate is literally 100%
 
 ## Model training
 
-Train on the Codespace `aq-Training-Ground-Fixed` through the CLI, or locally only on a host that passes `aq cycle retrain`'s RAM preflight (14 GB; `--smoke` proves the plumbing anywhere). Sync the full local project first, including gitignored files; bring model, data and extra files back afterwards.
+Train locally with `aq cycle retrain --host local --memory-profile low` (fits the 4 GB dev PC, slower; 14 GB for the standard profile; `--estimate` prints each profile's peak, `--smoke` proves the plumbing anywhere), or on the Codespace `aq-Training-Ground-Fixed` through the CLI (sync the full local project first, including gitignored files; bring model, data and extra files back afterwards). A stopped retrain continues with `aq cycle retrain --resume [RUN_ID]` (its folder `ml/cycle/retrain_<id>/` holds `resume.json`, `state.json`, `walk_forward_run_id`), a stopped `aq train` with `aq train --resume` (`ml/cycle/train_<id>/`, `retraining/run_resume.py`), and `--list-runs` lists both. On the 4 GB PC start a long run detached (`Start-Process`) and run nothing else heavy beside it: a background shell is stopped when memory runs low.
 
 Lean backtests run on a temporary DinD Codespace (`scripts/codespace_lean_run.ps1`, `development/infrastructure.md`). Delete it when its runs are pulled.
 

@@ -2,7 +2,7 @@
 
 Every bug and infrastructure issue found in this codebase, oldest first, with how it was fixed or why it stayed open. Numbers never change, because code and docs cite them; #73-76 don't exist, #88's first entry is #88a, and #112 appears twice (the second is marked).
 
-**Entries:** <!--fact:problems.total-->394<!--/fact--> up to #<!--fact:problems.last-->397<!--/fact-->: <!--fact:problems.fixed-->363<!--/fact--> 🟢 `fixed` (changed and verified), <!--fact:problems.partial-->14<!--/fact--> 🟡 `partial` (shipped, verification pending), <!--fact:problems.closed-->18<!--/fact--> 🔴 `closed` (no code fix: declined, moot or superseded). Severity runs from 1 (cosmetic) to 10 (data loss or safety). Full text of older entries: [`backups/`](backups/README.md).
+**Entries:** <!--fact:problems.total-->409<!--/fact--> up to #<!--fact:problems.last-->412<!--/fact-->: <!--fact:problems.fixed-->372<!--/fact--> 🟢 `fixed` (changed and verified), <!--fact:problems.partial-->18<!--/fact--> 🟡 `partial` (shipped, verification pending), <!--fact:problems.closed-->20<!--/fact--> 🔴 `closed` (no code fix: declined, moot or superseded). Severity runs from 1 (cosmetic) to 10 (data loss or safety). Full text of older entries: [`backups/`](backups/README.md).
 
 **Open now** (each needs a broker key, a forward record, a Codespace or the laptop):
 
@@ -2290,3 +2290,141 @@ The model book alone (Lean run `2026-11-17_10-38-53`, same window) has Sharpe 0.
 **Fix:** (1) `scale_and_cap` fills a missing covariance with zero, which inflates a name with no measurable risk; the optimizers only rank names with measurable volatility and a masked signal never reaches it, so it is left as it is. (2) A class with under four live names holds nothing in a pooled or cross-sectional rank, now stated in the code. (3) `combine_sleeves` gives a sleeve with no variance in its trailing year no budget until the next month, stated in its docstring; the model book's blend uses fixed shares. (4) A forex name capped at 3% could never open under the $5,000 minimum: the cap is 6% (#384). (5) Both the engine and `main.py` clip crypto at zero and let a forex weight go short. (6) `_model_age_days` returns None in a backtest, so `uses_model` trips no historical run. (8) The in-Lean score is the mean of the session's percentile ranks of the sequence model's `rank_20d` and `rank_5d`, as `ml_a1` is; the installed table ranks 103 names where the walk-forward tables ranked 104 (EOS). (9) The offline and live sequence windows both left-pad with zeros. (10) The dataset row dated D holds bar D, so the one-row shift is right (#390). (11) `scripts/model_book_decide.py` refuses on scores more than five days older than the session. (12) `aq cycle status` shows an installed blend's fixed shares (`policy.json` `installed_shares`) instead of an equal split nobody computed; once the forward ledger holds an allocation row it shows that row, which is g0001 alone until the first g0006 decision is pushed (a generation with no decision holds nothing). (13) The legacy gated path stays selectable: `ml/evaluation/run_configs/legacy_book_v644_settings.json` is the shipped config with `target_weights.enabled: false` and the nine settings that differ from `03acffd`. (14) README "Known Limitations" updated.
 
 **Verification:** each item has a test or a recorded reading in the file it names. Item 7 (the kill switch's settings on a four-class book) is a hand-over table, not a change: of the target path's switches only the 15% drawdown lock and the 5% daily lock are on; the Sharpe, rank-IC, loss-streak, velocity and slippage triggers are off since V6.5.0 because one ordinary bad crypto day tripped them.
+
+### 398. Retraining the model stack needed 14 GB of RAM, so it could only run on a Codespace (V6.6.10)
+🟡 `partial` · 6/10
+
+**Problem:** the sequence trainer built a dense (rows, window, features) array per split (about 2 GB for the 2014-2021 window), the multitask trainer read the 825 MB dataset as float64 and copied it, and the gate read all of it for two splits; `ram_preflight` refused any local host under 14 GB, so the owner's 4 GB laptop and most users could not retrain at all.
+
+**Fix:** `--memory-profile low` (default `standard`, unchanged) on `train.py`, `train_sequence.py`, `train_multitask.py` and `train_gating.py`, passed through `aq cycle retrain` and every walk-forward window: lazy sequence windows gathered from one row matrix (`retraining/slicing.py`, proved by `WindowIndex.lean`), float32 chunked reads, the gate's two splits only, a checkpoint after every epoch with `--resume`, and a measured peak per stage (`--log-peak-memory`, Windows' peak working set now read). The preflight asks 3.5 GB under `low`; `aq cycle retrain --estimate` prints each profile's peak for the dataset (1.0 GB against 2.5 GB on the real one).
+
+**Verification:** the low profile trains bit-identical sequence and multitask weights on the same seed and an interrupted run resumes to the same weights (`tests/test_train_sequence.py`, `tests/test_train_multitask.py`); CI's new `lowmem-proof` job trains both stages on a 280,000 x 254 synthetic dataset within 2.6 GB (partial until its first green run); the real g0007 retrain on the laptop is #406 (its parity stage needed #404, its pause #405).
+
+### 399. The stack retrain trained on the installed dataset and wrote over an earlier round's scores (V6.6.10)
+🟢 `fixed` · 5/10
+
+**Problem:** the stack's `dataset` stage built a fresh dataset but wrote only its baseline model, so the multitask and sequence stages trained on the installed `ml/datasets/full_dataset.csv` and schema (which still held EOSUSD, #385); and its `scores` stage wrote into `ml/evaluation/v650/scores`, the selection scores V6.6.9's research reads.
+
+**Fix:** `train.py --candidate --write-dataset` leaves the run's dataset beside its schema in `ml/versions/<id>_base/`, `stack_plan` points `--dataset-path` and `--feature-schema-path` of the multitask and sequence stages at them, and `scripts/v650_ml_scores.py --out` writes into the run's own folder (`ml/cycle/retrain_<id>/scores`); the scorer also reads each 2.2 GB window dataset in float32 chunks.
+
+**Verification:** `tests/test_research_cycle.py`, `tests/test_cycle_retrain.py`, `tests/test_v650_ml_scores.py`, `tests/test_train_pipeline_runtime.py`, and `scripts/cycle_retrain.py --procedure stack --smoke --memory-profile low` against the real trainers (no flag problem).
+
+### 400. Coverage files were scattered across the repository root (V6.6.10)
+🟢 `fixed` · 1/10
+
+**Problem:** `.coverage`, 49 `.coverage.changed.*` leftovers, `coverage.json`, `coverage.xml`, `htmlcov/` and `junit.xml` were written next to the code.
+
+**Fix:** pyproject's `[tool.coverage.*]` sections, `aq test --coverage` (and `--changed`), CI's `python-tests` job and `scripts/coverage_misses.py` write and read `coverage-report/`; the existing files were moved there. CI uploads the folder as before, so `pages.yml` reads the same artifact paths.
+
+**Verification:** `tests/test_aq_cli_coverage_changed.py`, `tests/test_aq_cli_last_branches.py`, `tests/test_ci_workflows.py`, `tests/test_coverage_scope.py`.
+
+### 401. The public library had no models anyone could use (V6.6.10)
+🟡 `partial` · 4/10
+
+**Problem:** `aether_quant.inference` exposed the numpy forward pass but shipped no model to run it on, and the trading models must stay private.
+
+**Fix:** two example models trained on the bundled sample only (`scripts/build_example_models.py`, which refuses any file whose hash is an installed model's), zipped with a manifest of sha256, built and signed by the release's new `example-models` job; `aether_quant.models` and `aq models list | install | info | score` download them, check the release manifest and the zip's own manifest, and score with numpy. `load` also opens any folder with an exported model.
+
+**Verification:** `tests/test_model_catalog.py`, `tests/test_build_example_models.py`, `tests/test_aq_models_cli.py`, `tests/test_ci_workflows.py`; a local build installed and scored the real sample end to end. Partial until the next tag publishes the assets.
+
+### 402. Nothing helped a user start a pipeline of their own (V6.6.10)
+🟡 `partial` · 4/10
+
+**Problem:** the toolkit had a hello-world and notebooks but no project template, no one command from data to a verdict, and no scheduled run that a fresh clone could do.
+
+**Fix:** `aq init` writes a signal project (signal, tests including a no-look-ahead check, `pipeline.toml` with a gate, a pinned GitHub workflow); `aq pipeline run | status` runs data, signal, an optional small model, evaluate (`evaluation/alpha_behaviour.py`), gate and report, each stage resumable; `model-cycle.yml` runs the pipeline and the example models every Monday and records a row on `forward-ledger`, and `keepalive.yml` keeps it enabled.
+
+**Verification:** `tests/test_pipeline.py`, `tests/test_project_template.py` (a generated project's own tests pass and its pipeline runs), `tests/test_model_cycle_row.py`, `tests/test_ci_workflows.py`. Partial until the first scheduled run.
+
+### 403. Most numeric functions had no proof, and nothing counted them (V6.6.10)
+🟡 `partial` · 5/10
+
+**Problem:** 29 Lean specs covered 48 public functions, while the trading and research paths have 1,252, and no check kept a new numeric function from arriving without one.
+
+**Fix:** `formal/inventory.json` classifies every one (`spec:`, `excluded:<reason>`, `backlog`) and `scripts/formal_inventory.py` fails on an unclassified function or a backlog above its ceiling (pre-commit hook, CI fast-guards, `aq verify`); eight new specs, each with a differential test: `NoTradeBand`, `PaperLossGuard`, `BookGuards`, `MultiAssetRules` (R-FLIP1, R-INSTALL3, R-LOSS1), `WindowIndex` (no look-ahead in the lazy windows), `Kelly`, `InverseVolShare`, `SharpeClauses`.
+
+**Verification:** each spec compiles with no `sorry`; `tests/test_formal_inventory.py`. Partial: the backlog is 881 pure numeric functions without a spec (it started at 889 and only goes down).
+
+### 404. The feature-parity audit failed every real dataset on rows the build handles correctly (V6.6.10)
+🟢 `fixed` · 4/10
+
+**Problem:** the stack retrain's `parity_audit` stage failed 14 features with the same unexplained counts on the installed and on a freshly built dataset: the replica filled Lean's forex holidays the build leaves out (32 rows a pair after each weekday Christmas or New Year), took a one-day gap in a coin (DOGEUSD's label-guard drop on 2021-01-27) for an unexplained mismatch, and compared the cross-sectional rank from the dataset's 46th row instead of its 46th session.
+
+**Fix:** `scripts/feature_parity_audit.py` replicates forex with the build's holidays (`train.resolve_forex_lean_holidays`), counts any skipped crypto day as a hole and the first row after a hole as a boundary artifact, and classifies the cross-sectional and macro comparisons the same way (warm-up of 45 sessions, boundary sessions after a name's hole). The stack's `parity_audit` stage now audits the run's own dataset, scaler and schema.
+
+**Verification:** the audit passes on the g0007 dataset (every remaining mismatch a classified boundary artifact; the rank matches exactly outside them); `tests/test_feature_parity_audit_runtime.py` covers each case (100% of the script).
+
+### 405. A stopped retrain could not be continued from the command line (V6.6.10)
+🟢 `fixed` · 5/10
+
+**Problem:** stages resumed only when the same command and run id were typed again, a restarted stack began a new walk-forward (the windows done were lost), a window's finished trainers ran again, and a Codespace retry repeated the run from the start of its stage; on the 4 GB PC a day-long retrain has to survive a pause for the night. Added at the owner's request, outside the phase plan (W1).
+
+**Fix:** `aq cycle retrain --resume [RUN_ID]` (the newest unfinished run, or the named one) reads the run's folder `ml/cycle/retrain_<id>/`: `resume.json` (its settings and its snapshot, written when it starts), `state.json` (finished stages) and `walk_forward_run_id` (written by `train.py --run-id-file` as the walk-forward starts). Finished windows are skipped, a resumed window reuses the trainers that finished in it and the sequence trainer continues from its per-epoch checkpoint; a Codespace run and every retry after a dropped session resume on that machine, with the settings sent along in case its record was never written. The stack runner also reads the walk-forward's id from its stdout line, where it once looked only at the stderr log. Built out the next day (`retraining/run_resume.py`): every `aq train` mode records `ml/cycle/train_<id>/` and continues with `aq train --resume`, a resumed window reuses its dataset and baseline behind completion markers, `k06`/`k07` keep each test year's scores (`--year-cache`), `aq pipeline run --resume` and `--list-runs`.
+
+**Verification:** `tests/test_cycle_retrain.py`, `tests/test_research_cycle.py`, `tests/test_aq_cycle_cli.py`, `tests/test_train_pipeline_runtime.py`, `tests/test_run_resume.py`, `tests/test_aq_train_resume.py`, `tests/test_train_cross_sectional.py`; `aq cycle retrain --resume --dry-run` finds the paused g0007 run and its walk-forward (windows 0-5 of 12 done).
+
+### 406. The models had never been retrained, because a retrain needed 14 GB of RAM (V6.6.10)
+🟢 `fixed` · 7/10
+
+**Problem:** the installed stack dates from 2026-10-12, still carries EOSUSD (#385) and was never retrained: the standard profile needs 14 GB, and the Codespace budget was spent. The 30% model book depends on these models.
+
+**Fix:** generation g0007 retrained on the 3.9 GB dev PC with `aq cycle retrain --host local --procedure stack --memory-profile low --score-end 2023-06-30` (run `v6610_g0007`, 2026-11-17 to 2026-11-19, paused and resumed twice through #405). Its own dataset (205,994 rows in the last window), parity audit clean (#404), multitask, sequence and gate, a 12-window walk-forward (`walk-forward-b652a610-…`, backtest MCC mean 0.020, 95% CI 0.016 to 0.025) and the `ml_a1`/`ml_a2`/`ml_a3` walk-forward scores to 2023-06-30; peaks 1.37 GB at most. Window 6 had stopped before the completion markers existed: its markers were written by hand from the files written after its dataset and its baseline (`training_metrics.json` is the exact dict the marker carries). Models recorded in the vault (commit 5e420e00). The register stage leaves it a candidate: R-INSTALL3 decides whether it replaces the installed models.
+
+R-INSTALL3 kept the installed models: on 2023-07-01..2026-11-02 g0007's ml_a1 has the higher mean class IC (0.065 against 0.050; its rows past its dataset were built with its own scaler and matched the dataset exactly on the overlap month), but the Lean run of the shipped blend on its scores, BT-R1 `2026-11-20_12-07-55` (clean engine log, teardown ended), reached Sharpe 0.568 against the bar of 0.57 (the pin: 0.571; drawdown 9.2% against 9.4%).
+
+**Verification:** `ml/cycle/retrain_v6610_g0007/state.json` (every stage done), `artifact_pins.json`, `memory_peaks.jsonl`; `ml/evaluation/v6610/retrain_compare.json`, `r_install3.json`, `bt_r1_stats.json`, `lean_bt_r1.log`; vault 5e420e00 (models), 90264039 (R-INSTALL3).
+
+### 407. The training loss rewarded nothing the book trades on (V6.6.10, R-LOSS1)
+🔴 `closed` · 5/10
+
+**Problem:** the sequence model trains on soft-Spearman plus MSE/BCE; nothing in the loss rewards class balance, a long-short return or low turnover, and the model book's rank IC sits below 0.07 in every class.
+
+**Fix:** none kept. Five new objectives in `train.py` (`ic_pearson`, `ls_sharpe`, `class_balanced`, `cost_aware`, with the existing `listnet`) ran as counted trials beside the control on g0007's own dataset (low profile, seed 0). Mean class IC / pooled HAC t on the validation window (27 non-overlapping dates): L0 soft_spearman 0.048 / 0.83 (control), L1 listnet -0.046 / -0.72, L2 ic_pearson 0.035 / 1.00, L3 ls_sharpe 0.038 / 0.52, L4 class_balanced 0.032 / -0.27, L5 cost_aware -0.012 / -1.07. None reaches the control + 0.01 or t >= 2.0, so no verification seeds were trained and R-BOOK2 uses L0 (g0007).
+
+**Verification:** `ml/evaluation/v6610/loss_scores.json`, `loss_verdict.json`, six `R-LOSS1` rows in `ml/evaluation/trial_ledger.jsonl`; rules (vault 6cd4edbe) before the first score, the gate in the vault (f7394437).
+
+### 408. A low-profile walk-forward silently dropped the trainers it timed out (V6.6.10)
+🟢 `fixed` · 6/10
+
+**Problem:** each walk-forward window gives its multitask and sequence trainers the config's 2400 s; under the low profile the later, larger windows need longer, so g0007's windows 8, 9 and 11 lost trainers to the timeout (window 8 both, 9 the sequence model, 11 both). The walk-forward treats a trainer as best effort, saved those windows as complete, and the scores for `ml_a1`/`ml_a3` stopped at 2023-05-12 (earlier windows covered the dates, so R-ALPHA1's first read stayed out of sample).
+
+**Fix:** `MemoryProfile.timeout_factor` (standard 1, low 4) scales both timeouts, and a failed or timed-out trainer writes `<trainer>.failed` beside its window, so a resumed walk-forward retries that window (dataset, baseline and finished trainers reused, the sequence trainer from its checkpoint) and a success clears it. g0007's three windows got the markers by hand from their missing artifacts and are being retrained; the scores and R-ALPHA1 are then rerun.
+
+**Verification:** `tests/test_train_pipeline_runtime.py` (a timed-out and a failing trainer mark the window, a retry clears it, a low-profile window passes 4x the timeout), `tests/test_slicing.py`; the repair run retrained all five missing trainers (window 9's multitask took 47 minutes, past the old 40), left no marker, and the rescored tables run to 2023-06-30 for all three heads.
+
+### 409. The multi-asset book has no edge that survives its gate, so it stays at 30% (V6.6.10, R-ALPHA1, R-BOOK2, R-FLIP1)
+🔴 `closed` · 7/10
+
+**Problem:** the owner asked whether a better multi-asset book could earn the 70% share (R-FLIP1), with the book built on what the retrained models actually predict.
+
+**Fix:** none earned. R-ALPHA1 (diagnostic, selection window, repaired g0007 walk-forward scores): ml_a2 (the multitask sector-neutral head) is the one table with a pooled 20-session rank IC that clears t 2 (0.078, t 2.70; 0.081 at 40 sessions, half-life 47 sessions, 0.036 left after momentum, low volatility, carry and beta), ml_a3 carries the bonds (0.126), and ml_a1, which b03 trades, is weak (0.015, t 0.62). R-BOOK2 listed nine trials from that (mostly ml_a2, two at a 40-session cadence), recorded in the vault before any score: none passes R-SLEEVE2 (every second half 2021-04..2023-06 is below 0.40; the best, n04 pooled ranks of ml_a2, has 0.74 pooled and 0.33 in its second half), and the PBO over the round is 0.79. With no survivor, R-FLIP1 fails clause (a), the shares stay 30% model book and 70% crypto sleeve, and no text may call the book multi-asset-led.
+
+**Verification:** `ml/evaluation/v6610/alpha_behaviour.json` (and `_first_read.json`, before the #408 repair), `book2/` (rules, scores, gate, PBO, `r_book2.json`), `r_flip1.json`; vault commits 2fa970ef (R-ALPHA1), a1959397 (the list, before any score), 152d0dc0 (the gate). R-LOSS1's six and R-BOOK2's nine candidates are in `ml/evaluation/v6610/trial_ledger.jsonl` and `book2/trial_ledger.jsonl`, both counted by `aq_cli._phase_deflation_inputs`. The deflated-Sharpe N is now 258.
+
+### 410. The order-level audit reported an older run's book vetoes for a target-weights run (V6.6.10)
+🟢 `fixed` · 6/10
+
+**Problem:** the audit of the pin and of BT-R1 both said "38 of 171 rebalances engaged, 133 vetoed by `rolling_ic_below_floor`", and the hand-over read it as the model book barely trading. Both runs trade a weights file: `main.py` returns into the target-weights path before the member book and its rolling-IC gate, so they write no book history, and the audit took the latest segment of `visualization/book_history.jsonl`, an older run's from 2026-11-03 (identical counts for two different runs gave it away). The rolling-IC floor never acts on the shipped book, so loosening it would change nothing.
+
+**Fix:** `backtest_audit.member_book_runs(config)` reads the run's own config (`lean_attribution.run_config_path`, else the current one); for a target-weights run the audit ignores the book history and reports the book as not applicable. What limits the 30% book is its own design: it rebalances every 20 sessions (42 rows in 2023-07..2026-11), each non-crypto name gets at most 1.5% (bonds) or 0.5% (equities), and forex weights move at most 1.0% of equity, under `forex_min_trade_usd` 5,000, so forex never trades.
+
+**Verification:** `tests/test_backtest_audit.py`, `tests/test_aq_cli_evaluate_runs.py`; the audit rerun on the pin and on BT-R1 prints "book: not applicable (target-weights run ...)" (`ml/evaluation/backtest_audit.json`, `ml/evaluation/v6610/bt_r1_report/backtest_audit.json`; BT-R1's config frozen as `ml/evaluation/run_configs/2026-11-20_12-07-55.json`).
+
+### 411. The installed models were tracked inside a backup zip (V6.6.10)
+🟢 `fixed` · 6/10
+
+**Problem:** `ml/model.pt` and `ml/scaler.pkl` are ignored, but `ml/backups/pre_v630_cleanup.zip` (tracked since V6.3.0) holds them, the expert `model.pt` files and the JSON weights of the production stack, which are never to be published. The phase's own backup `ml/backups/pre_retrain_v6610_g0007.zip` was about to join it.
+
+**Fix:** the zip is untracked (`git rm --cached`, the local file stays, #382 still restores from it) and `.gitignore` ignores `ml/backups/*.zip`. Earlier commits still contain it; removing it from history needs a rewrite and a force-push, an owner decision.
+
+**Verification:** `git ls-files` lists no `.pt`, `.pkl`, `.zip` or weights file; `git check-ignore` matches both backups.
+
+### 412. The example-model build left the trainers pointed at its deleted work folder (V6.6.10)
+🟢 `fixed` · 4/10
+
+**Problem:** `scripts/build_example_models.train` set `train_multitask.ML_DIR` (or `train_sequence.ML_DIR`) to its work folder and never set it back. A later in-process trainer, such as the walk-forward tests' trainers, wrote into that deleted folder, the walk-forward treated it as a failed trainer, and the tests still passed (best effort). The commit hook's coverage run therefore missed `train.py`'s multitask lines, while a full run, in a different order, did not. `evaluation/hello_world.py`'s two tests also lived in a file that does not name the module, so the hook never chose them. The same run showed four warnings from this project's own code: the learning-rate scheduler stepped after an epoch with no optimizer step (`train_multitask.py`, `train_sequence.py` and one test), `aq_cli.py` added a bare 1 to a `datetime64`, `scripts/v660_round2.py` relied on pandas' changing `observed` default, and a test used `datetime.utcnow`.
+
+**Fix:** `train()` restores the folder and `sys.argv` in `finally`; the `hello_world` tests moved to `tests/test_hello_world.py`. The scheduler steps only after an epoch that trained, which changes nothing in practice: an epoch's batches have the same group sizes every epoch, so an empty epoch means none trained. The date range uses explicit day units, the groupby passes `observed=True` (empty groups were already skipped by the 12-row minimum), and the test uses `datetime.now(timezone.utc)`. The rest are left with their reason: NumPy's generic-timedelta deprecation fires inside pandas and matplotlib on `pd.Timedelta(days=...)` under Python 3.14, Agg's non-interactive `plt.show()` comes from the notebooks, httpx comes from Starlette's test client, and the divide and convergence warnings come from tests that feed degenerate inputs on purpose.
+
+**Verification:** `tests/test_build_example_models.py` asserts the folder is restored. Run after it, the walk-forward test reaches `train.py` 7527 and 7570-7572; `hello_world.py` and `build_example_models.py` reach 100% from their own tests.
+

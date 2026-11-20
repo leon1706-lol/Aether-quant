@@ -72,6 +72,21 @@ def test_the_four_split_file_labels_the_holdout_and_writes_the_per_split_files(m
     assert {path.name for path in out.parent.iterdir()} == {"full.csv", "train_dataset.csv", "validation_dataset.csv", "backtest_dataset.csv"} and "rows per split" in capsys.readouterr().out
 
 
+def test_a_candidate_scaler_and_manifest_replace_the_active_ones(module, monkeypatch, tmp_path):
+    """V6.6.10: a retrained candidate's rows past its own dataset are scaled with its scaler and flagged with its pool."""
+    import train
+
+    config = _config(tmp_path)
+    (tmp_path / "stats.json").write_text(json.dumps({"mine": 1}), encoding="utf-8")
+    (tmp_path / "manifest.json").write_text(json.dumps({"asset_quality": {"BBB": "ok"}}), encoding="utf-8")
+    used = {}
+    monkeypatch.setattr(train, "apply_scaler_stats", lambda frame, stats: used.update(stats=stats) or frame)
+    monkeypatch.setattr(train, "apply_asset_quality_flags", lambda frame, quality: used.update(quality=quality) or frame)
+    monkeypatch.setattr(sys, "argv", ["build_holdout_dataset", "--config-path", config, "--windows-config", config, "--output", str(tmp_path / "w.csv"),
+                                      "--scaler-stats", str(tmp_path / "stats.json"), "--manifest", str(tmp_path / "manifest.json")])
+    assert module.main() == 0 and used == {"stats": {"mine": 1}, "quality": {"BBB": "ok"}}
+
+
 def test_without_a_holdout_window_or_explicit_dates_the_command_refuses(module, monkeypatch, tmp_path):
     config = _config(tmp_path, holdout=False)
     monkeypatch.setattr(sys, "argv", ["build_holdout_dataset", "--config-path", config, "--windows-config", config, "--output", str(tmp_path / "x.csv")])

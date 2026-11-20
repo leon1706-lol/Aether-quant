@@ -64,11 +64,13 @@ nav:
       - Install: getting-started/install.md
       - Hello world: getting-started/hello-world.md
       - The dashboard: getting-started/dashboard.md
+      - Train on a small machine: getting-started/train-small-machine.md
   - Tutorials:
       - Hello world: tutorials/00_hello_world.ipynb
       - Signal evaluation: tutorials/01_signal_evaluation.ipynb
       - Book construction: tutorials/02_book_construction.ipynb
       - Overfitting tests: tutorials/03_overfitting_tests.ipynb
+      - Models: tutorials/04_models.ipynb
   - Guide:
       - Signals: guide/signals.md
       - Sizing: guide/sizing.md
@@ -77,6 +79,8 @@ nav:
       - Backtesting: guide/backtesting.md
       - Overfitting: guide/overfitting.md
       - Research cycle: guide/research-cycle.md
+      - Models: guide/models.md
+      - Your own pipeline: guide/your-own-pipeline.md
       - Safety: guide/safety.md
   - Live trading:
       - Paper to live: live/paper-to-live.md
@@ -103,6 +107,7 @@ nav:
       - aether_quant.inference: reference/inference.md
       - aether_quant.io: reference/io.md
       - aether_quant.liquidity: reference/liquidity.md
+      - aether_quant.models: reference/models.md
       - aether_quant.moe: reference/moe.md
       - aether_quant.monitoring: reference/monitoring.md
       - aether_quant.neutrality: reference/neutrality.md

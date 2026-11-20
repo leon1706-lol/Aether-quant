@@ -210,6 +210,25 @@ def parse_args() -> argparse.Namespace:
     # leaves config.json's own values unchanged, only --walk-forward reads
     # these (aq_cli.py::cmd_train() warns, doesn't silently ignore, if
     # passed without --walk-forward - same convention as --seed there).
+    # V6.6.10: `low` keeps the frame float32 before training and passes the profile to every walk-forward window's trainers
+    # (lazy sequence windows, chunked reads, per-epoch checkpoints), so the stack retrains on a 4 GB machine.
+    parser.add_argument(
+        "--run-id-file",
+        type=str,
+        default=None,
+        help="With --walk-forward: write the run id here as soon as it is known, so a stopped run can be resumed (`aq cycle retrain --resume`)",
+    )
+    parser.add_argument(
+        "--write-dataset",
+        action="store_true",
+        help="With --candidate: also write the built dataset to ml/versions/<version-id>/full_dataset.csv (the stack retrain's later trainers read it)",
+    )
+    parser.add_argument(
+        "--memory-profile",
+        choices=("standard", "low"),
+        default="standard",
+        help="standard (default) or low: train on a small machine (the trainers' own --memory-profile)",
+    )
     parser.add_argument(
         "--include-multitask",
         action="store_true",
@@ -632,7 +651,12 @@ from features.training_splits import _SPLIT_ORDER, assign_split, assign_split_se
 
 
 def resident_memory_mb() -> tuple[float, float] | None:
-    """(current, peak) resident set of this process in MB from /proc/self/status; None where that file does not exist."""
+    """(current, peak) resident set of this process in MB from /proc/self/status; on Windows from GetProcessMemoryInfo (V6.6.10,
+    so a run on the 4 GB PC logs its memory too); None where neither exists."""
+    if sys.platform == "win32":
+        from retraining.slicing import process_memory_mb
+
+        return process_memory_mb()
     try:
         values = {}
         with open("/proc/self/status", encoding="ascii") as handle:
@@ -4019,12 +4043,106 @@ def listnet_loss(
     return (stacked_losses * stacked_weights).sum() / stacked_weights.sum()
 
 
+CONTEXT_OBJECTIVES = frozenset({"ls_sharpe", "class_balanced", "cost_aware"})  # V6.6.10 (R-LOSS1): objectives that read the row context
+RANKING_OBJECTIVES = ("mse", "soft_spearman", "listnet", "ic_pearson", "ls_sharpe", "class_balanced", "cost_aware")
+CONTEXT_CLASSES = ("equity", "bond", "forex", "crypto")
+
+
+def ic_pearson_loss(
+    predictions: torch.Tensor, targets: torch.Tensor, group_ids: torch.Tensor, mask: torch.Tensor, date_weights: torch.Tensor | None = None,
+) -> torch.Tensor:
+    """R-LOSS1 L2: minus the mean over dates of the Pearson correlation of the raw prediction with the realised rank. Unlike
+    soft_spearman_loss it never ranks the prediction, so a date's extreme predictions pull harder. Same skipping rules and date-weight
+    contract as soft_spearman_loss."""
+    valid = mask & ~torch.isnan(targets)
+    if not torch.any(valid):
+        return torch.zeros((), device=predictions.device)
+    correlations, weights = [], []
+    for group in torch.unique(group_ids[valid]):
+        member = valid & (group_ids == group)
+        prediction, target = predictions[member], targets[member]
+        if prediction.shape[0] < 2 or torch.var(prediction, unbiased=False) <= 1e-12 or torch.var(target, unbiased=False) <= 1e-12:
+            continue
+        p, t = prediction - prediction.mean(), target - target.mean()
+        correlations.append((p * t).sum() / torch.sqrt((p ** 2).sum() * (t ** 2).sum()))
+        weights.append(date_weights[member].mean() if date_weights is not None else torch.ones((), device=predictions.device))
+    if not correlations:
+        return torch.zeros((), device=predictions.device)
+    stacked, stacked_weights = torch.stack(correlations), torch.stack(weights)
+    return -(stacked * stacked_weights).sum() / stacked_weights.sum()
+
+
+def long_short_sharpe_loss(
+    predictions: torch.Tensor, returns: torch.Tensor, group_ids: torch.Tensor, mask: torch.Tensor, temperature: float = 0.1,
+) -> torch.Tensor:
+    """R-LOSS1 L3: minus a shrunk Sharpe, across a batch's dates, of a softmax long-short book on the realised forward return.
+
+    Per date, w = softmax(p / T) - softmax(-p / T) (long the top, short the bottom, net zero, gross 2) and the book's return r = w . ret,
+    divided by that date's cross-sectional return dispersion so a volatile date does not dominate. Over the dates, loss = -mean(z) /
+    sqrt(var(z) + 1): a Sharpe with a variance prior of one, so a batch of one date is minus its return and many dates approach the Sharpe.
+    Dates with fewer than 2 valid rows or no dispersion are skipped."""
+    valid = mask & ~torch.isnan(returns)
+    scores = []
+    for group in torch.unique(group_ids[valid]) if torch.any(valid) else ():
+        member = valid & (group_ids == group)
+        prediction, realised = predictions[member], returns[member]
+        spread = torch.std(realised, unbiased=False)
+        if prediction.shape[0] < 2 or spread <= 1e-12:
+            continue
+        weights = torch.softmax(prediction / temperature, dim=0) - torch.softmax(-prediction / temperature, dim=0)
+        scores.append((weights * realised).sum() / spread)
+    if not scores:
+        return torch.zeros((), device=predictions.device)
+    stacked = torch.stack(scores)
+    return -stacked.mean() / torch.sqrt(torch.var(stacked, unbiased=False) + 1.0)
+
+
+def row_context_targets(frame: pd.DataFrame, rows: np.ndarray) -> dict[str, torch.Tensor]:
+    """The `_`-keyed row context an R-LOSS1 objective reads, for `frame`'s rows at `rows`: the asset class (index into CONTEXT_CLASSES from
+    the `asset_class_<name>` one-hot context columns, len(CONTEXT_CLASSES) for anything else), a ticker id (consistent across the frame's
+    splits) and the realised 5- and 20-day forward returns (NaN where the dataset lacks them)."""
+    class_ids = np.full(len(frame), len(CONTEXT_CLASSES), dtype=np.float32)
+    for index, name in enumerate(CONTEXT_CLASSES):
+        column = f"asset_class_{name}"
+        if column in frame.columns:
+            class_ids[frame[column].to_numpy(dtype=np.float32) > 0.5] = index
+    ticker_ids = pd.factorize(frame["ticker"])[0].astype(np.float32)
+    context = {"_class_ids": class_ids[rows], "_ticker_ids": ticker_ids[rows]}
+    for horizon in ("5d", "20d"):
+        column = f"target_return_{horizon}"
+        values = frame[column].to_numpy(dtype=np.float32) if column in frame.columns else np.full(len(frame), np.nan, dtype=np.float32)
+        context[f"_return_{horizon}"] = values[rows]
+    return {key: torch.from_numpy(np.ascontiguousarray(value)) for key, value in context.items()}
+
+
+def class_group_ids(group_ids: torch.Tensor, class_ids: torch.Tensor) -> torch.Tensor:
+    """One group per (date, asset class): a ranking within each class on each date, every class one group (R-LOSS1 L4)."""
+    return group_ids.long() * (len(CONTEXT_CLASSES) + 1) + class_ids.long()
+
+
+def rank_turnover_penalty(predictions: torch.Tensor, group_ids: torch.Tensor, ticker_ids: torch.Tensor, temperature: float) -> torch.Tensor:
+    """R-LOSS1 L5's turnover term: the mean absolute change of a ticker's soft rank (within its date) between the consecutive dates of
+    the batch it appears on. Zero when no ticker appears on two dates."""
+    ranks = soft_rank_within_groups(predictions, group_ids, temperature)
+    changes = []
+    for ticker in torch.unique(ticker_ids):
+        member = ticker_ids == ticker
+        if int(member.sum()) < 2:
+            continue
+        order = torch.argsort(group_ids[member])
+        changes.append(torch.abs(torch.diff(ranks[member][order])))
+    if not changes:
+        return torch.zeros((), device=predictions.device)
+    return torch.cat(changes).mean()
+
+
 def compute_cross_sectional_ranking_loss(
     head_output: torch.Tensor,
     head_target: torch.Tensor,
     group_ids: torch.Tensor,
     ranking_loss_config: dict,
     date_weights: torch.Tensor | None = None,
+    context: dict[str, torch.Tensor] | None = None,
 ) -> torch.Tensor:
     """Dispatcher on ranking_loss_config["objective"] in
     {"mse", "soft_spearman", "listnet"} (default "mse", reproducing
@@ -4062,6 +4180,21 @@ def compute_cross_sectional_ranking_loss(
     elif objective == "listnet":
         listnet_temperature = float(ranking_loss_config.get("listnet_temperature", temperature))
         ranking_loss = listnet_loss(head_output, head_target, group_ids, mask, listnet_temperature, date_weights)
+    elif objective == "ic_pearson":
+        ranking_loss = ic_pearson_loss(head_output, head_target, group_ids, mask, date_weights)
+    elif objective in CONTEXT_OBJECTIVES:
+        # V6.6.10 (R-LOSS1): these read per-row context the trainer adds to the batch (`_class_ids`, `_ticker_ids`, the head's returns)
+        missing = [key for key in ("class_ids", "ticker_ids", "returns") if context is None or context.get(key) is None]
+        if missing:
+            raise ValueError(f"compute_cross_sectional_ranking_loss: objective {objective!r} needs row context {missing}")
+        if objective == "ls_sharpe":
+            ranking_loss = long_short_sharpe_loss(head_output, context["returns"], group_ids, mask, float(ranking_loss_config.get("ls_temperature", 0.1)))
+        else:
+            within = class_group_ids(group_ids, context["class_ids"])
+            ranking_loss = soft_spearman_loss(head_output, head_target, within, mask, temperature, date_weights)
+            if objective == "cost_aware":
+                penalty = float(ranking_loss_config.get("turnover_penalty", 0.1))
+                ranking_loss = ranking_loss + penalty * rank_turnover_penalty(head_output, group_ids, context["ticker_ids"], temperature)
     else:
         raise ValueError(f"compute_cross_sectional_ranking_loss: unknown objective {objective!r}")
 
@@ -4930,8 +5063,13 @@ def compute_combined_multitask_loss(
         if kind == "binary":
             head_loss = masked_bce_with_logits_loss(outputs[head_name], targets[head_name], mask)
         elif use_ranking_loss:
+            # V6.6.10: the row context a trainer added under `_`-keys (absent for every objective that needs none)
+            context = {
+                "class_ids": targets.get("_class_ids"), "ticker_ids": targets.get("_ticker_ids"),
+                "returns": targets.get("_return_5d" if "5d" in head_name else "_return_20d"),
+            }
             head_loss = compute_cross_sectional_ranking_loss(
-                outputs[head_name], targets[head_name], date_group_ids, ranking_loss_config, date_weights
+                outputs[head_name], targets[head_name], date_group_ids, ranking_loss_config, date_weights, context
             )
         else:
             head_loss = masked_mse_loss(outputs[head_name], targets[head_name], mask)
@@ -7017,6 +7155,8 @@ def _run_walk_forward_trainer(
     feature_schema_path: Path,
     config_path: Path,
     timeout_seconds: int,
+    memory_profile: str = "standard",
+    resume: bool = False,
 ) -> dict | None:
     """V5.1 Phase 4 (Step 4.2) - best-effort per-window subprocess call to
     train_multitask.py/train_sequence.py, same never-fatal contract as
@@ -7029,8 +7169,18 @@ def _run_walk_forward_trainer(
     docstring, added in this same phase). Returns the written
     *_training_metrics.json dict, or None on any failure (launch error,
     nonzero exit, or a "skipped, no artifacts written" run - e.g. too few
-    rows in a short window)."""
+    rows in a short window).
+
+    V6.6.10, `resume` (a resumed walk-forward): a trainer that already finished in this window (its metrics file is written last) is
+    not run again, and the sequence trainer continues from its per-epoch checkpoint (`--resume`, written under the low profile)."""
+    metrics_name = "multitask_training_metrics.json" if "multitask" in script_name else "sequence_training_metrics.json"
+    metrics_path = ML_DIR / "versions" / version_id / metrics_name
+    if resume and metrics_path.exists():
+        LOGGER.info("walk-forward: %s already finished for %s - reusing its metrics.", script_name, version_id)
+        return json.loads(metrics_path.read_text(encoding="utf-8"))
+    continue_checkpoint = resume and "sequence" in script_name and memory_profile != "standard"
     script_path = ROOT / script_name
+    failed_marker = metrics_path.parent / f"{Path(script_name).stem}{WALK_FORWARD_TRAINER_FAILED_SUFFIX}"
     try:
         result = subprocess.run(
             [
@@ -7039,24 +7189,27 @@ def _run_walk_forward_trainer(
                 "--dataset-path", str(dataset_path),
                 "--feature-schema-path", str(feature_schema_path),
                 "--config-path", str(config_path),
+                *(["--memory-profile", memory_profile] if memory_profile != "standard" else []),
+                *(["--resume"] if continue_checkpoint else []),
             ],
             cwd=str(ROOT),
             capture_output=True,
             text=True,
             timeout=timeout_seconds, check=False,
         )
-    except Exception as exc:  # never let a best-effort subprocess crash the walk-forward run
-        LOGGER.warning("walk-forward: %s subprocess failed to launch for %s - %s", script_name, version_id, exc)
+    except Exception as exc:  # never let a best-effort subprocess crash the walk-forward run (a timeout lands here too)
+        LOGGER.warning("walk-forward: %s subprocess failed for %s - %s", script_name, version_id, exc)
+        _mark_trainer_failed(failed_marker, f"{type(exc).__name__}: {exc}")
         return None
     if result.returncode != 0:
         LOGGER.warning(
             "walk-forward: %s failed for %s (rc=%d) - %s",
             script_name, version_id, result.returncode, result.stderr[-2000:],
         )
+        _mark_trainer_failed(failed_marker, f"exit {result.returncode}")
         return None
+    failed_marker.unlink(missing_ok=True)
 
-    metrics_name = "multitask_training_metrics.json" if "multitask" in script_name else "sequence_training_metrics.json"
-    metrics_path = ML_DIR / "versions" / version_id / metrics_name
     if not metrics_path.exists():
         LOGGER.info("walk-forward: %s skipped writing artifacts for %s (insufficient rows).", script_name, version_id)
         return None
@@ -7106,12 +7259,49 @@ def _run_walk_forward_net_performance(
 
 
 WALK_FORWARD_WINDOW_RESULT_FILENAME = "window_result.json"
+WALK_FORWARD_TRAINER_FAILED_SUFFIX = ".failed"
+
+
+def _mark_trainer_failed(marker: Path, reason: str) -> None:
+    """V6.6.10 (#408): a window trainer that failed or timed out leaves `<trainer>.failed` beside its version, so a resumed walk-forward
+    retries that window (its dataset, baseline and finished trainers are reused) instead of keeping it as complete."""
+    marker.parent.mkdir(parents=True, exist_ok=True)
+    marker.write_text(reason + "\n", encoding="utf-8")
+
+
+WALK_FORWARD_DATASET_DONE_FILENAME = "dataset_complete.json"
+WALK_FORWARD_BASELINE_DONE_FILENAME = "baseline_complete.json"
+
+
+def _reusable_window_parts(paths: dict) -> dict:
+    """V6.6.10: what a resumed walk-forward window can take from its earlier attempt. The dataset counts only with its completion marker
+    (written after the CSV, scaler, manifest and schema), the baseline only with its own (written after its export): anything torn reruns."""
+    parts: dict = {}
+    version_dir = paths["version_dir"]
+    manifest = load_json_lenient(paths["dataset_manifest"])
+    if (version_dir / WALK_FORWARD_DATASET_DONE_FILENAME).exists() and isinstance(manifest, dict) and paths["full_dataset"].exists():
+        parts["dataset_manifest"] = manifest
+        baseline = load_json_lenient(version_dir / WALK_FORWARD_BASELINE_DONE_FILENAME)
+        if isinstance(baseline, dict) and isinstance(baseline.get("metrics"), dict):
+            parts["metrics"] = baseline["metrics"]
+    return parts
+
+
+def _read_window_dataset(path: Path, memory_profile: str) -> pd.DataFrame:
+    """A window's own dataset, read back for a resumed window or for its net-performance step (float32 under the low profile)."""
+    if memory_profile == "low":
+        from retraining.slicing import read_csv_float32
+
+        return read_csv_float32(path)
+    return pd.read_csv(path)
 
 
 def _load_walk_forward_window_result(run_id: str, window_index: int) -> dict | None:
     """The saved outcome of a COMPLETED walk-forward window (written as that window's last step), else None -
     a missing or torn file means the window reruns, never that it is trusted."""
     path = ML_DIR / "versions" / run_id / f"window_{window_index}" / WALK_FORWARD_WINDOW_RESULT_FILENAME
+    if any(path.parent.glob(f"*{WALK_FORWARD_TRAINER_FAILED_SUFFIX}")):
+        return None  # a trainer failed in it: the window is retried (#408)
     payload = load_json_lenient(path)
     if not isinstance(payload, dict) or not isinstance(payload.get("window_result"), dict) or "backtest_mcc" not in payload:
         return None
@@ -7119,7 +7309,8 @@ def _load_walk_forward_window_result(run_id: str, window_index: int) -> dict | N
 
 
 def _run_walk_forward(
-    config: dict, data_summary: dict, step_days: int, mode: str, resume_run_id: str | None = None
+    config: dict, data_summary: dict, step_days: int, mode: str, resume_run_id: str | None = None, memory_profile: str = "standard",
+    run_id_file: str | None = None,
 ) -> dict:
     """Phase 4 of the 5/10 -> 9/10 roadmap: `python train.py --walk-forward`'s
     implementation - runs the baseline model's existing dataset-build +
@@ -7155,8 +7346,11 @@ def _run_walk_forward(
     train_sequence_enabled = bool(walk_forward_config.get("train_sequence", False))
     net_performance_enabled = bool(walk_forward_config.get("net_performance", False))
     net_performance_head = str(walk_forward_config.get("net_performance_head", "rank_20d"))
-    multitask_timeout_seconds = int(walk_forward_config.get("multitask_timeout_seconds", 2400))
-    sequence_timeout_seconds = int(walk_forward_config.get("sequence_timeout_seconds", 2400))
+    from retraining.slicing import memory_profile as _memory_profile
+
+    timeout_factor = _memory_profile(memory_profile).timeout_factor
+    multitask_timeout_seconds = int(int(walk_forward_config.get("multitask_timeout_seconds", 2400)) * timeout_factor)
+    sequence_timeout_seconds = int(int(walk_forward_config.get("sequence_timeout_seconds", 2400)) * timeout_factor)
     tracked_metrics_config = list(
         walk_forward_config.get(
             "tracked_metrics", [{"name": "backtest_mcc", "artifact": "training_metrics.json", "path": "backtest.mcc"}]
@@ -7184,6 +7378,9 @@ def _run_walk_forward(
 
     run_id = resume_run_id or f"walk-forward-{uuid.uuid4()}"
     LOGGER.info("walk-forward run id: %s", run_id)
+    if run_id_file:
+        Path(run_id_file).parent.mkdir(parents=True, exist_ok=True)
+        Path(run_id_file).write_text(run_id + "\n", encoding="utf-8")
     feature_names = config["phase1"]["features"]["input_set"]
     window_results: list[dict] = []
     backtest_mcc_by_window: list[float] = []
@@ -7220,52 +7417,70 @@ def _run_walk_forward(
             window["backtest"]["start"], window["backtest"]["end"],
         )
 
-        dataset, metadata = build_feature_dataset(window_config)
-        asset_quality = build_asset_quality(window_config, dataset, metadata)
-        dataset = apply_asset_quality_flags(dataset, asset_quality)
-
-        feature_config = window_config["phase1"]["features"]
-        winsorize_quantiles = tuple(feature_config.get("winsorize_quantiles", (0.001, 0.999)))
-        clip_sigma = float(feature_config.get("scaled_feature_clip_sigma", 10.0))
-        dataset, scaler, clip_sigma = fit_and_apply_scaler(
-            dataset, feature_names, winsorize_quantiles=winsorize_quantiles, clip_sigma=clip_sigma,
-        )
-        dataset, _ = add_asset_context_features(
-            dataset, [asset["ticker"] for asset in window_config["phase1"]["universe"]["assets"]],
-        )
-        dataset, _ = add_asset_class_context_features(dataset, asset_class_by_ticker_from_config(window_config))
-        dataset_manifest = build_dataset_manifest(window_config, dataset, {}, metadata, asset_quality)
-
         version_id = f"{run_id}/window_{window_index}"
         paths = candidate_output_paths(version_id)
-        paths["version_dir"].mkdir(parents=True, exist_ok=True)
-        write_scaler_artifacts(
-            scaler, dataset_manifest, scaler_path=paths["scaler"], scaler_stats_path=paths["scaler_stats"],
-            clip_sigma=clip_sigma,
-        )
-        paths["dataset_manifest"].write_text(json.dumps(dataset_manifest, indent=2), encoding="utf-8")
-        # V5.1 Phase 4, Step 4.1 - per-window dataset + schema, needed by the
-        # multitask/sequence subprocesses below (they can't read the active
-        # ml/feature_schema.json - it doesn't match this window's data).
-        dataset.to_csv(paths["full_dataset"], index=False)
-        paths["feature_schema"].write_text(
-            json.dumps(build_feature_schema_payload(dataset_manifest), indent=2), encoding="utf-8"
-        )
+        reused = _reusable_window_parts(paths) if resume_run_id else {}
+        dataset = None
+        if "dataset_manifest" in reused:
+            dataset_manifest = reused["dataset_manifest"]
+            LOGGER.info("walk-forward window %s/%s: its dataset was written completely before - reusing it.", window_index + 1, len(windows))
+        else:
+            dataset, metadata = build_feature_dataset(window_config)
+            asset_quality = build_asset_quality(window_config, dataset, metadata)
+            dataset = apply_asset_quality_flags(dataset, asset_quality)
 
-        training_result = train_model(
-            window_config, dataset,
-            checkpoint_path=paths["model_checkpoint"], metrics_path=paths["training_metrics"],
-            strategy_report_path=paths["strategy_report"], equity_curves_path=paths["equity_curves"],
-        )
-        write_model_export(
-            window_config, data_summary, dataset_manifest=dataset_manifest, training_result=training_result,
-            weights_path=paths["model_weights"], dataset_manifest_path=paths["dataset_manifest"],
-            scaler_path=paths["scaler"], scaler_stats_path=paths["scaler_stats"],
-            checkpoint_path=paths["model_checkpoint"], metrics_path=paths["training_metrics"],
-            strategy_report_path=paths["strategy_report"],
-        )
+            feature_config = window_config["phase1"]["features"]
+            winsorize_quantiles = tuple(feature_config.get("winsorize_quantiles", (0.001, 0.999)))
+            clip_sigma = float(feature_config.get("scaled_feature_clip_sigma", 10.0))
+            dataset, scaler, clip_sigma = fit_and_apply_scaler(
+                dataset, feature_names, winsorize_quantiles=winsorize_quantiles, clip_sigma=clip_sigma,
+            )
+            dataset, _ = add_asset_context_features(
+                dataset, [asset["ticker"] for asset in window_config["phase1"]["universe"]["assets"]],
+            )
+            dataset, _ = add_asset_class_context_features(dataset, asset_class_by_ticker_from_config(window_config))
+            dataset_manifest = build_dataset_manifest(window_config, dataset, {}, metadata, asset_quality)
 
-        backtest_mcc = float(training_result["metrics"]["backtest"].get("mcc", 0.0) or 0.0)
+            paths["version_dir"].mkdir(parents=True, exist_ok=True)
+            write_scaler_artifacts(
+                scaler, dataset_manifest, scaler_path=paths["scaler"], scaler_stats_path=paths["scaler_stats"],
+                clip_sigma=clip_sigma,
+            )
+            paths["dataset_manifest"].write_text(json.dumps(dataset_manifest, indent=2), encoding="utf-8")
+            # Per-window dataset + schema for the multitask/sequence subprocesses below (the active schema does not match this window).
+            # Written beside its name and renamed, then marked complete: a resumed window reuses only a dataset written to its end.
+            partial = paths["full_dataset"].with_name(paths["full_dataset"].name + ".partial")
+            dataset.to_csv(partial, index=False)
+            partial.replace(paths["full_dataset"])
+            paths["feature_schema"].write_text(
+                json.dumps(build_feature_schema_payload(dataset_manifest), indent=2), encoding="utf-8"
+            )
+            atomic_write_json(paths["version_dir"] / WALK_FORWARD_DATASET_DONE_FILENAME, {"rows": len(dataset)})
+
+        if "metrics" in reused:
+            training_metrics = reused["metrics"]
+            LOGGER.info("walk-forward window %s/%s: its baseline finished before - reusing it.", window_index + 1, len(windows))
+        else:
+            if dataset is None:
+                dataset = _read_window_dataset(paths["full_dataset"], memory_profile)
+            if memory_profile == "low":
+                dataset = compact_dataset_for_training(dataset)  # after the CSV is written: the trainers' inputs are float32 anyway
+            training_result = train_model(
+                window_config, dataset,
+                checkpoint_path=paths["model_checkpoint"], metrics_path=paths["training_metrics"],
+                strategy_report_path=paths["strategy_report"], equity_curves_path=paths["equity_curves"],
+            )
+            write_model_export(
+                window_config, data_summary, dataset_manifest=dataset_manifest, training_result=training_result,
+                weights_path=paths["model_weights"], dataset_manifest_path=paths["dataset_manifest"],
+                scaler_path=paths["scaler"], scaler_stats_path=paths["scaler_stats"],
+                checkpoint_path=paths["model_checkpoint"], metrics_path=paths["training_metrics"],
+                strategy_report_path=paths["strategy_report"],
+            )
+            training_metrics = training_result["metrics"]
+            atomic_write_json(paths["version_dir"] / WALK_FORWARD_BASELINE_DONE_FILENAME, {"metrics": training_metrics})
+
+        backtest_mcc = float(training_metrics["backtest"].get("mcc", 0.0) or 0.0)
         backtest_mcc_by_window.append(backtest_mcc)
 
         # V5.1 Phase 4 memory fix - the parent process's own `dataset`
@@ -7285,7 +7500,7 @@ def _run_walk_forward(
         # re-reading only if/when net-performance actually needs it removes
         # the parent's contribution to that peak, at the cost of one extra
         # CSV read per window (cheap relative to a subprocess retrain).
-        del dataset
+        dataset = None
         gc.collect()
 
         # V5.1 Phase 4, Step 4.2 - config-gated multi-model walk-forward.
@@ -7295,19 +7510,19 @@ def _run_walk_forward(
         multitask_metrics = (
             _run_walk_forward_trainer(
                 "train_multitask.py", version_id, paths["full_dataset"], paths["feature_schema"],
-                window_config_path, timeout_seconds=multitask_timeout_seconds,
+                window_config_path, timeout_seconds=multitask_timeout_seconds, memory_profile=memory_profile, resume=resume_run_id is not None,
             )
             if train_multitask_enabled else None
         )
         sequence_metrics = (
             _run_walk_forward_trainer(
                 "train_sequence.py", version_id, paths["full_dataset"], paths["feature_schema"],
-                window_config_path, timeout_seconds=sequence_timeout_seconds,
+                window_config_path, timeout_seconds=sequence_timeout_seconds, memory_profile=memory_profile, resume=resume_run_id is not None,
             )
             if train_sequence_enabled else None
         )
 
-        window_metrics_artifacts: dict[str, dict] = {"training_metrics.json": training_result["metrics"]}
+        window_metrics_artifacts: dict[str, dict] = {"training_metrics.json": training_metrics}
         if multitask_metrics is not None:
             window_metrics_artifacts["multitask_training_metrics.json"] = multitask_metrics
         if sequence_metrics is not None:
@@ -7325,7 +7540,7 @@ def _run_walk_forward(
             # Re-read from the CSV written earlier this iteration - see the
             # `del dataset` comment above for why the parent doesn't hold
             # this in memory continuously through the subprocess calls.
-            dataset = pd.read_csv(paths["full_dataset"])
+            dataset = _read_window_dataset(paths["full_dataset"], memory_profile)
             # V5.1 Phase 4 bugfix - must use THIS window's own
             # model_input_names (dataset_manifest["model_input_names"],
             # 66 columns including scaled/categorical/context features),
@@ -7454,7 +7669,8 @@ def main() -> int:
                     entry for entry in existing_tracked if entry.get("name") in requested_names
                 ]
         run_summary = _run_walk_forward(
-            config, data_summary, step_days=step_days, mode=mode, resume_run_id=args.resume_run_id
+            config, data_summary, step_days=step_days, mode=mode, resume_run_id=args.resume_run_id, memory_profile=args.memory_profile,
+            run_id_file=args.run_id_file,
         )
         if run_summary["num_windows"] == 0:
             print("Walk-forward run produced no windows - common_window too short for the configured spans.")
@@ -7539,8 +7755,13 @@ def main() -> int:
             encoding="utf-8",
         )
         paths["dataset_manifest"].write_text(json.dumps(dataset_manifest, indent=2), encoding="utf-8")
+        if args.write_dataset:
+            # V6.6.10: the stack's later trainers read this run's own dataset, built from today's universe, not the installed one
+            dataset.to_csv(paths["full_dataset"], index=False)
 
         LOGGER.info("Training candidate model %s.", args.version_id)
+        if args.memory_profile == "low":
+            dataset = compact_dataset_for_training(dataset)
         training_result = train_model(
             config,
             dataset,

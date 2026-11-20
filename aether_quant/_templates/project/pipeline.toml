@@ -1,0 +1,14 @@
+# The pipeline `aq pipeline run` follows (aether-quant). Write the gate before the first run: a threshold chosen after
+# seeing the result is not a test.
+
+[pipeline]
+name = "{{name}}"
+data = "sample"          # the bundled 11-coin sample; or a wide CSV such as "data/closes.csv" (date, then one column per ticker)
+signal = "my_signal.py"  # defines score(closes); not "signal.py", which would shadow Python's own signal module
+train = false            # true trains and scores a small model too (needs a source checkout of aether-quant with [train])
+cost_bps = 10.0
+
+[gate]
+horizon = 20             # sessions ahead the signal is judged on
+min_ic = 0.02
+min_t = 2.0

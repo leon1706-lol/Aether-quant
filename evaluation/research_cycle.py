@@ -45,19 +45,27 @@ def total_memory_bytes() -> int | None:
         return None
 
 
-def ram_preflight(host: str, *, total_bytes: int | None = None, min_gb: float = 14.0) -> dict[str, Any]:
-    """Whether this host may train. A local machine below the minimum refuses with the numbers: a retrain killed for memory hours in costs more than a clear no. Unknown RAM refuses too."""
+MIN_RAM_GB = {"standard": 14.0, "low": 3.5}  # retraining/slicing.PROFILES' min_total_gb; this module stays stdlib only
+
+
+def ram_preflight(host: str, *, total_bytes: int | None = None, min_gb: float | None = None, profile: str = "standard") -> dict[str, Any]:
+    """Whether this host may train. A local machine below the minimum refuses with the numbers: a retrain killed for memory hours in costs more than a clear no. Unknown RAM refuses too.
+    The minimum is the memory profile's unless `min_gb` overrides it: `low` (V6.6.10) trains the stack on a 4 GB machine, slower."""
     if host not in HOSTS:
         raise ValueError(f"unknown host {host!r}; expected one of {HOSTS}")
+    if profile not in MIN_RAM_GB:
+        raise ValueError(f"unknown memory profile {profile!r}; expected one of {sorted(MIN_RAM_GB)}")
+    min_gb = MIN_RAM_GB[profile] if min_gb is None else float(min_gb)
     if host == "codespace":
         return {"host": host, "ok": True, "reason": "the Codespace is the host: this machine only drives it"}
     total = total_memory_bytes() if total_bytes is None else int(total_bytes)
     if total is None:
-        return {"host": host, "ok": False, "total_gb": None, "min_gb": float(min_gb), "reason": "this machine's RAM could not be read: refusing rather than guessing"}
+        return {"host": host, "ok": False, "total_gb": None, "min_gb": min_gb, "profile": profile, "reason": "this machine's RAM could not be read: refusing rather than guessing"}
     gigabytes = total / GIB
-    ok = gigabytes >= float(min_gb)
-    reason = f"{gigabytes:.1f} GB of RAM, {float(min_gb):.0f} GB needed" + ("" if ok else ": use --host codespace, or --smoke to prove the plumbing on this machine")
-    return {"host": host, "ok": ok, "total_gb": round(gigabytes, 1), "min_gb": float(min_gb), "reason": reason}
+    ok = gigabytes >= min_gb
+    advice = ": use --memory-profile low (slower, fits 4 GB), --host codespace, or --smoke to prove the plumbing" if profile == "standard" else ": use --host codespace, or --smoke to prove the plumbing"
+    reason = f"{gigabytes:.1f} GB of RAM, {min_gb:g} GB needed under the {profile} profile" + ("" if ok else advice)
+    return {"host": host, "ok": ok, "total_gb": round(gigabytes, 1), "min_gb": min_gb, "profile": profile, "reason": reason}
 
 
 def retrain_stages(*, data_present: bool) -> list[str]:
@@ -70,22 +78,35 @@ def stack_stages() -> list[str]:
     return list(STACK_STAGES)
 
 
-def stack_plan(procedure: Mapping[str, Any], *, run_id: str, python: str = "python", score_end: str | None = None, resume_id: str | None = None) -> list[tuple[str, list[str] | None]]:
+def stack_plan(
+    procedure: Mapping[str, Any], *, run_id: str, python: str = "python", score_end: str | None = None, resume_id: str | None = None, profile: str = "standard",
+) -> list[tuple[str, list[str] | None]]:
     """(stage, command) for each stage of the stack retrain; a stage with no command (None) runs in this process. Every trainer writes to
-    `ml/versions/<run id>_<part>/` (`--candidate`, `--version-id`), never over the installed models. `stack_asof` is a new procedure, so its scores are only written for a research round."""
+    `ml/versions/<run id>_<part>/` (`--candidate`, `--version-id`), never over the installed models. `stack_asof` is a new procedure, so its scores are only written for a research round.
+    A `low` profile passes `--memory-profile low` to every trainer (V6.6.10); `standard` leaves the commands as they were."""
     candidate = f"{run_id}_base"
-    walk_forward = [python, "train.py", "--walk-forward", "--include-multitask", "--include-sequence", "--mode", str(procedure.get("mode", "expanding"))]
+    memory = ["--memory-profile", profile] if profile != "standard" else []
+    peaks = ["--log-peak-memory", f"ml/cycle/retrain_{run_id}/memory_peaks.jsonl"] if profile != "standard" else []
+    walk_forward = [python, "train.py", "--walk-forward", "--include-multitask", "--include-sequence", "--mode", str(procedure.get("mode", "expanding")), *memory,
+                    "--run-id-file", f"ml/cycle/retrain_{run_id}/walk_forward_run_id"]
     if resume_id:
         walk_forward += ["--resume-run-id", resume_id]
-    scores = [python, "scripts/v650_ml_scores.py", "--run-id", resume_id or "<walk-forward run id>", "--end", score_end] if score_end else None
+    # the run's own folder (V6.6.10): the default ml/evaluation/v650/scores holds an earlier round's selection scores
+    scores = [python, "scripts/v650_ml_scores.py", "--run-id", resume_id or "<walk-forward run id>", "--end", score_end, "--out", f"ml/cycle/retrain_{run_id}/scores"] if score_end else None
+    # V6.6.10: the multitask and sequence trainers read the dataset and schema this run built, never the installed ones (which hold the
+    # universe of the last build: EOSUSD was still in it, #385)
+    built = ["--dataset-path", f"ml/versions/{candidate}/full_dataset.csv", "--feature-schema-path", f"ml/versions/{candidate}/feature_schema.json"]
     return [
         ("snapshot_active", None),
         ("factor_audit", [python, "-m", "data_pipeline.factor_file_backfill", "--audit"]),
-        ("dataset", [python, "train.py", "--candidate", "--version-id", candidate]),
-        ("parity_audit", [python, "scripts/feature_parity_audit.py", "--skip-synthetic"]),
-        ("multitask", [python, "train_multitask.py", "--version-id", f"{run_id}_mt"]),
-        ("sequence", [python, "train_sequence.py", "--version-id", f"{run_id}_seq"]),
-        ("gating", [python, "train_gating.py", "--version-id", f"{run_id}_gate"]),
+        ("dataset", [python, "train.py", "--candidate", "--version-id", candidate, "--write-dataset", *memory]),
+        # the run's own dataset against its own scaler (V6.6.10): the installed dataset is not what this run trains on
+        ("parity_audit", [python, "scripts/feature_parity_audit.py", "--skip-synthetic", "--dataset", f"ml/versions/{candidate}/full_dataset.csv",
+                          "--scaler-stats", f"ml/versions/{candidate}/scaler_stats.json", "--schema", f"ml/versions/{candidate}/feature_schema.json",
+                          "--output", f"ml/cycle/retrain_{run_id}/feature_parity_report.json"]),
+        ("multitask", [python, "train_multitask.py", "--version-id", f"{run_id}_mt", *built, *memory, *peaks]),
+        ("sequence", [python, "train_sequence.py", "--version-id", f"{run_id}_seq", *built, *memory, *peaks]),
+        ("gating", [python, "train_gating.py", "--version-id", f"{run_id}_gate", *memory, *peaks]),
         ("walk_forward", walk_forward),
         ("scores", scores),
         ("pins", None),

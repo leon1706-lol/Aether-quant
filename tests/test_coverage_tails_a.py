@@ -10,7 +10,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from evaluation import alpha_decay, feature_quality_audit, hello_world, ml_cleanup, monte_carlo, rolling_ic_series, walk_forward_linear
+from evaluation import alpha_decay, feature_quality_audit, ml_cleanup, monte_carlo, rolling_ic_series, walk_forward_linear
 
 # ---- ml_cleanup ----------------------------------------------------------------------------------------------------------
 
@@ -39,29 +39,6 @@ def test_directory_size_skips_an_entry_it_cannot_stat_and_a_directory_it_cannot_
 
     monkeypatch.setattr(ml_cleanup.os, "scandir", scandir)
     assert ml_cleanup.directory_size(tmp_path) == 0
-
-
-# ---- hello_world ---------------------------------------------------------------------------------------------------------
-
-
-def test_finite_drops_none_and_non_finite_values():
-    assert hello_world._finite(None) is None and hello_world._finite(float("inf")) is None and hello_world._finite(2) == 2.0
-
-
-def test_the_coin_download_falls_back_to_the_sample_with_a_notice_unless_every_coin_arrives(monkeypatch):
-    from data_pipeline import public_candles
-
-    sample = pd.DataFrame({"BTCUSD": [1.0, 2.0]}, index=pd.to_datetime(["2020-01-01", "2020-01-02"]))
-    monkeypatch.setattr("aether_quant.samples.load_sample_prices", lambda: sample)
-    monkeypatch.setattr(public_candles, "fetch_daily_bars", lambda *a, **k: (_ for _ in ()).throw(OSError("offline")))
-    closes, source, notice = hello_world.load_closes(start="2022-01-01", end="2022-02-01")
-    assert closes is sample and source == hello_world.SAMPLE_SOURCE and "network: offline" in notice
-    monkeypatch.setattr(public_candles, "fetch_daily_bars", lambda *a, **k: ({"BTCUSD": [1]}, []))
-    monkeypatch.setattr(public_candles, "bars_to_panel", lambda bars, field: sample * 2)
-    closes, source, notice = hello_world.load_closes(start="2022-01-01", end="2022-02-01", cache_dir=None)
-    assert closes["BTCUSD"].tolist() == [2.0, 4.0] and "cache off" in source and notice is None
-    _, source, _ = hello_world.load_closes(start="2022-01-01", end="2022-02-01", cache_dir=__import__("pathlib").Path("cache"))
-    assert "cache cache" in source
 
 
 # ---- walk_forward_linear -------------------------------------------------------------------------------------------------

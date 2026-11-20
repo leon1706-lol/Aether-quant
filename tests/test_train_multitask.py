@@ -608,3 +608,25 @@ def test_main_with_ranked_inputs_appends_csr_inputs_and_stamps_the_schema(tmp_pa
     schema = json.loads((out_dir / "s.json").read_text(encoding="utf-8"))
     assert schema["model_input_names"] == ["x_scaled", "y_scaled", "asset_class_equity", "x_scaled_csr", "y_scaled_csr"]
     assert schema["cross_sectional_inputs"] == {"group": "asset_class", "mode": "append", "min_group_size": 3}
+
+
+# V6.6.10: the low memory profile reads the dataset in float32 chunks and trains the same model
+
+
+def test_the_low_profile_trains_the_same_multitask_model(monkeypatch, tmp_path):
+    import sys
+
+    import train_multitask
+    from trainer_fakes import write_world
+
+    exports = {}
+    for name, extra in (("standard", []), ("low", ["--memory-profile", "low", "--log-peak-memory", str(tmp_path / "peaks.jsonl")])):
+        root = tmp_path / name
+        paths = write_world(root, epochs=3)
+        monkeypatch.setattr(train_multitask, "ML_DIR", root / "ml")
+        monkeypatch.setattr(sys, "argv", ["train_multitask", "--version-id", "m1", "--config-path", str(paths["config"]), "--dataset-path", str(paths["dataset"]),
+                                          "--feature-schema-path", str(paths["schema"]), "--seed", "4", *extra])
+        assert train_multitask.main() == 0
+        exports[name] = json.loads((root / "ml" / "versions" / "m1" / "multitask_model.json").read_text(encoding="utf-8"))["export"]
+    assert exports["standard"] == exports["low"], "float32 reading changes no input the model sees"
+    assert json.loads((tmp_path / "peaks.jsonl").read_text(encoding="utf-8"))["stage"] == "multitask"

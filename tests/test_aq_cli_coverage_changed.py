@@ -107,7 +107,7 @@ def test_run_changed_coverage_paths(tmp_path, monkeypatch, capsys):
     assert "--fail-under=100" in report_cmd and "--include=risk/kelly.py" in report_cmd
     assert aq_cli._run_changed_coverage(run=git, grep=lambda needle: [registered], runner=lambda cmd: 2 if "pytest" in cmd else 0) == 2
 
-    (tmp_path / "coverage.json").write_text(json.dumps({"files": {"risk/kelly.py": {"missing_lines": []}}}), encoding="utf-8")
+    (tmp_path / aq_cli.COVERAGE_DIR / "coverage.json").write_text(json.dumps({"files": {"risk/kelly.py": {"missing_lines": []}}}), encoding="utf-8")
     assert aq_cli._run_changed_coverage(run=git) == 0
     assert "shows them at 100%" in capsys.readouterr().out
 

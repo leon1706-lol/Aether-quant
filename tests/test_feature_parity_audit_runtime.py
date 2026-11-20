@@ -95,6 +95,29 @@ def test_a_forex_pair_is_replicated_on_leans_fill_forward_calendar(audit):
     assert results["momentum_20d"]["n_compared"] > 0 and results["momentum_20d"]["verdict"] in ("PASS", "PASS_BOUNDARY_ARTIFACTS_ONLY")
 
 
+def test_a_forex_holiday_the_build_left_out_is_left_out_by_the_replica_too(audit):
+    """V6.6.10: the build does not fill a Lean forex holiday (`fill_forward_forex_frame(frame, holidays)`); a replica that filled it read
+    one bar more in every window after a weekday Christmas, about 32 unexplained rows a pair on the real dataset."""
+    import train as train_module
+
+    frame = audit._synthetic_frame(rows=300, seed=11)
+    dates = pd.to_datetime(frame["date"])
+    holiday = dates.iloc[150]
+    frame = frame[dates != holiday].reset_index(drop=True)
+    dates = pd.to_datetime(frame["date"])
+    holidays = frozenset({holiday.toordinal()})
+    filled = train_module.fill_forward_forex_frame(frame[["date", "open", "high", "low", "close", "volume"]].assign(date=dates.to_numpy()), holidays)
+    positions = np.flatnonzero(filled["date"].isin(set(dates)).to_numpy())
+    base = compute_base_technicals_replica(filled[["open", "high", "low", "close", "volume"]], long_window_bars=DEFAULT_LONG_LOOKBACK_WINDOW_BARS)
+    liquidity = compute_liquidity_replica(filled[["open", "high", "low", "close", "volume"]], security_type="forex")
+    stored = {f"{name}_scaled": forward_scale(np.asarray(values)[positions], *MAPPING[name]) for name, values in {**base, **liquidity}.items()}
+    dataset = frame.assign(ticker="EURUSD", security_type="forex", **stored)
+    blind, _ = audit.check_artifact_consistency(dataset, MAPPING, DEFAULT_LONG_LOOKBACK_WINDOW_BARS)
+    assert blind["momentum_20d"]["n_unexplained"] > 0, "without the holidays the replica fills the day in"
+    aware, _ = audit.check_artifact_consistency(dataset, MAPPING, DEFAULT_LONG_LOOKBACK_WINDOW_BARS, holidays)
+    assert aware["momentum_20d"]["n_unexplained"] == 0 and aware["momentum_20d"]["n_compared"] > 0
+
+
 def _cross_world(monkeypatch, audit, tmp_path):
     import features.cross_asset_timing as timing
 
@@ -105,7 +128,7 @@ def _cross_world(monkeypatch, audit, tmp_path):
     monkeypatch.setattr(audit, "compute_cs_momentum_rank_replica", lambda pool, security_types: pool[["date", "ticker"]].assign(cs_momentum_rank_recomputed=0.5))
     monkeypatch.setattr(audit, "compute_macro_proxies_replica", lambda pool, security_types: pool[["date", "ticker"]].assign(**dict.fromkeys(("macro_yield_curve_slope_proxy", "macro_credit_spread_proxy", "macro_crypto_risk_appetite_proxy"), 0.1)))
     seen = []
-    monkeypatch.setattr(audit, "summarize_comparison", lambda stored, recomputed, mean, scale, clip, warmup_excluded: seen.append(len(stored)) or {"verdict": "PASS", "n_compared": len(stored), "max_abs_delta": 0.0, "n_mismatch_gt_1e-9": 0})
+    monkeypatch.setattr(audit, "summarize_comparison", lambda stored, recomputed, mean, scale, clip, warmup_excluded=0: seen.append(len(stored)) or {"verdict": "PASS", "n_compared": len(stored), "max_abs_delta": 0.0, "n_mismatch_gt_1e-9": 0})
     return seen
 
 
@@ -123,7 +146,43 @@ def test_the_cross_sectional_and_macro_features_are_each_compared_after_the_warm
     seen = _cross_world(monkeypatch, audit, tmp_path)
     mapping = dict.fromkeys(("cs_momentum_rank_20", "macro_yield_curve_slope_proxy", "macro_credit_spread_proxy", "macro_crypto_risk_appetite_proxy"), (0.0, 1.0, 5.0))
     results = audit.check_cross_sectional_and_macro(_cross_dataset(with_types), mapping)
-    assert set(results) == set(mapping) and seen == [15, 15, 15, 15]
+    assert set(results) == set(mapping) and seen == [15, 0] * 4, "the first 45 sessions are the warm-up; no session follows a hole"
+
+
+def test_a_session_after_a_hole_is_a_boundary_artifact_and_the_warmup_is_sessions(audit, monkeypatch, tmp_path):
+    """V6.6.10: a crypto name that skips one day (a label-guard drop) pools stale momentum the next session: a boundary artifact."""
+    import features.cross_asset_timing as timing
+
+    monkeypatch.setattr(audit, "ROOT_DIR", tmp_path)
+    (tmp_path / "config.json").write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(timing, "resolve_forex_lean_holidays", lambda config: frozenset())
+    days = pd.date_range("2020-01-01", periods=60).strftime("%Y-%m-%d")
+    coin = pd.DataFrame({"date": days, "ticker": "DOGE", "security_type": "crypto", "momentum_20d": 0.01})
+    coin = coin.drop(index=50).reset_index(drop=True)
+    other = pd.DataFrame({"date": days, "ticker": "BTC", "security_type": "crypto", "momentum_20d": 0.02})
+    dataset = pd.concat([coin, other], ignore_index=True)
+    for name in ("cs_momentum_rank_20", "macro_yield_curve_slope_proxy", "macro_credit_spread_proxy", "macro_crypto_risk_appetite_proxy"):
+        dataset[f"{name}_scaled"] = 0.0
+    monkeypatch.setattr(audit, "build_momentum_pool", lambda data, types, holidays: data[["date", "ticker", "momentum_20d"]].assign(date=pd.to_datetime(data["date"])))
+    after_hole = pd.Timestamp(days[51])
+    monkeypatch.setattr(audit, "compute_cs_momentum_rank_replica", lambda pool, types: pool[["date", "ticker"]].assign(
+        cs_momentum_rank_recomputed=np.where(pool["date"] == after_hole, 0.9, 0.0)))
+    monkeypatch.setattr(audit, "compute_macro_proxies_replica", lambda pool, types: pool[["date", "ticker"]].assign(
+        **dict.fromkeys(("macro_yield_curve_slope_proxy", "macro_credit_spread_proxy", "macro_crypto_risk_appetite_proxy"), 0.0)))
+    mapping = dict.fromkeys(("cs_momentum_rank_20", "macro_yield_curve_slope_proxy", "macro_credit_spread_proxy", "macro_crypto_risk_appetite_proxy"), (0.0, 1.0, 5.0))
+    results = audit.check_cross_sectional_and_macro(dataset, mapping)
+    rank = results["cs_momentum_rank_20"]
+    assert rank["verdict"] == "PASS_BOUNDARY_ARTIFACTS_ONLY" and rank["n_boundary_artifact"] == 2 and rank["n_mismatch_gt_1e-9"] == 0
+    assert results["macro_credit_spread_proxy"]["verdict"] == "PASS"
+
+
+def test_a_crypto_series_that_skips_one_day_has_a_hole(audit):
+    frame = audit._synthetic_frame(rows=400, seed=5)
+    frame["date"] = pd.date_range("2019-01-01", periods=400).strftime("%Y-%m-%d")
+    stored = _stored(frame, "crypto")
+    dataset = frame.assign(ticker="DOGE", security_type="crypto", **stored).drop(index=range(200, 201)).reset_index(drop=True)
+    results, _ = audit.check_artifact_consistency(dataset, MAPPING, DEFAULT_LONG_LOOKBACK_WINDOW_BARS)
+    assert results["momentum_20d"]["n_unexplained"] == 0 and results["momentum_20d"]["n_boundary_artifact"] > 0
 
 
 def _files(tmp_path, *, unmapped=False):
@@ -136,7 +195,7 @@ def _files(tmp_path, *, unmapped=False):
 
 def _checks(monkeypatch, audit, *, synthetic=None, artifact=None, cross=None):
     monkeypatch.setattr(audit, "check_synthetic_formula_parity", lambda: synthetic if synthetic is not None else {"_status": "OK", "rsi_14": {"verdict": "PASS"}})
-    monkeypatch.setattr(audit, "check_artifact_consistency", lambda dataset, mapping, bars: (artifact or {"rsi_14": {"verdict": "PASS", "n_compared": 3, "max_abs_delta": 0.0, "n_mismatch_gt_1e-9": 0, "n_saturated_at_clip": 0}}, {}))
+    monkeypatch.setattr(audit, "check_artifact_consistency", lambda dataset, mapping, bars, holidays=frozenset(): (artifact or {"rsi_14": {"verdict": "PASS", "n_compared": 3, "max_abs_delta": 0.0, "n_mismatch_gt_1e-9": 0, "n_saturated_at_clip": 0}}, {}))
     monkeypatch.setattr(audit, "check_cross_sectional_and_macro", lambda dataset, mapping: cross or {"cs": {"verdict": "PASS", "n_compared": 3, "max_abs_delta": 0.0, "n_mismatch_gt_1e-9": 0}})
 
 

@@ -35,6 +35,14 @@ elif command -v python3 >/dev/null 2>&1; then
     python3 scripts/library_gate.py
 fi
 
+# V6.6.10 - the formal inventory: every public function of the trading and research paths is modelled in Lean, excluded with a
+# reason, or counted in a backlog that only shrinks (scripts/formal_inventory.py; reads the source, imports nothing).
+if command -v python >/dev/null 2>&1; then
+    python scripts/formal_inventory.py
+elif command -v python3 >/dev/null 2>&1; then
+    python3 scripts/formal_inventory.py
+fi
+
 # V6.6.7 (#361) - every install hash-pinned, as the OpenSSF Scorecard reads it (scripts/scorecard_pins.py, about a second).
 if command -v python >/dev/null 2>&1; then
     python scripts/scorecard_pins.py

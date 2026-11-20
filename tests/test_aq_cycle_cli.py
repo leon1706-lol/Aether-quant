@@ -102,3 +102,24 @@ def test_if_due_does_nothing_when_nothing_is_due(dirs, monkeypatch):
     monkeypatch.setattr(aq_cli, "_cycle_status", lambda args, write=True: {"due": [{"action": "bring the keys"}], "chain_valid": True})
     monkeypatch.setattr(aq_cli.subprocess, "run", lambda *a, **k: pytest.fail("nothing is due"))
     assert aq_cli._cycle_retrain(argparse.Namespace(host="local", procedure="k06", smoke=False, dry_run=False, if_due=True, ledger_file=None)) == 0
+
+
+def test_retrain_forwards_the_memory_profile_the_ram_floor_the_score_end_and_the_estimate(dirs, monkeypatch):
+    """V6.6.10: `aq cycle retrain` dropped --min-ram-gb and --score-end on the way to the script; it forwards them and the profile now."""
+    commands = []
+    monkeypatch.setattr(aq_cli.subprocess, "run", lambda command, **kwargs: commands.append(command) or argparse.Namespace(returncode=0))
+    args = argparse.Namespace(host="local", procedure="stack", smoke=False, dry_run=True, if_due=False, ledger_file=None, memory_profile="low", min_ram_gb=3.0,
+                              score_end="2023-06-30", estimate=False)
+    assert aq_cli._cycle_retrain(args) == 0
+    assert commands[-1][-6:] == ["--memory-profile", "low", "--min-ram-gb", "3.0", "--score-end", "2023-06-30"]
+    assert aq_cli._cycle_retrain(argparse.Namespace(host="local", estimate=True)) == 0 and commands[-1][-1] == "--estimate"
+
+
+def test_retrain_resume_needs_no_other_flag_and_a_plain_run_needs_a_host(dirs, monkeypatch, capsys):
+    """V6.6.10: `aq cycle retrain --resume [RUN_ID]` hands the run folder's own settings back to the script."""
+    commands = []
+    monkeypatch.setattr(aq_cli.subprocess, "run", lambda command, **kwargs: commands.append(command) or argparse.Namespace(returncode=0))
+    assert aq_cli._cycle_retrain(argparse.Namespace(host=None, estimate=False, resume="latest")) == 0 and commands[-1][-1] == "--resume"
+    assert aq_cli._cycle_retrain(argparse.Namespace(host=None, estimate=False, resume="rX")) == 0 and commands[-1][-2:] == ["--resume", "rX"]
+    assert aq_cli._cycle_retrain(argparse.Namespace(host=None, estimate=False, resume=None, if_due=False)) == 2
+    assert "--resume a stopped run" in capsys.readouterr().err

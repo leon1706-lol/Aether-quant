@@ -66,6 +66,7 @@ def test_build_lr_scheduler_cosine_decreases_monotonically_to_min_factor():
 
     observed_lrs = [optimizer.param_groups[0]["lr"]]
     for _ in range(max_epochs):
+        optimizer.step()  # the order torch expects: the optimizer, then the schedule
         scheduler.step()
         observed_lrs.append(optimizer.param_groups[0]["lr"])
 

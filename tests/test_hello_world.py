@@ -118,3 +118,26 @@ def test_an_empty_decision_closes_the_book_on_every_pandas(monkeypatch):
     assert weights.loc["2023-01-02", "BTCUSD"] == 0.1
     assert (weights.loc["2023-01-09"] == 0.0).all()  # pandas 2's from_dict dropped this row and the book was held instead
     assert weights.loc["2023-01-03"].isna().all()
+
+
+def test_finite_drops_none_and_non_finite_values():
+    import evaluation.hello_world as hello_world
+
+    assert hello_world._finite(None) is None and hello_world._finite(float("inf")) is None and hello_world._finite(2) == 2.0
+
+
+def test_the_coin_download_falls_back_to_the_sample_with_a_notice_unless_every_coin_arrives(monkeypatch):
+    import evaluation.hello_world as hello_world
+    from data_pipeline import public_candles
+
+    sample = pd.DataFrame({"BTCUSD": [1.0, 2.0]}, index=pd.to_datetime(["2020-01-01", "2020-01-02"]))
+    monkeypatch.setattr("aether_quant.samples.load_sample_prices", lambda: sample)
+    monkeypatch.setattr(public_candles, "fetch_daily_bars", lambda *a, **k: (_ for _ in ()).throw(OSError("offline")))
+    closes, source, notice = hello_world.load_closes(start="2022-01-01", end="2022-02-01")
+    assert closes is sample and source == hello_world.SAMPLE_SOURCE and "network: offline" in notice
+    monkeypatch.setattr(public_candles, "fetch_daily_bars", lambda *a, **k: ({"BTCUSD": [1]}, []))
+    monkeypatch.setattr(public_candles, "bars_to_panel", lambda bars, field: sample * 2)
+    closes, source, notice = hello_world.load_closes(start="2022-01-01", end="2022-02-01", cache_dir=None)
+    assert closes["BTCUSD"].tolist() == [2.0, 4.0] and "cache off" in source and notice is None
+    _, source, _ = hello_world.load_closes(start="2022-01-01", end="2022-02-01", cache_dir=__import__("pathlib").Path("cache"))
+    assert "cache cache" in source

@@ -180,11 +180,42 @@ jobs:
           # on a tag the action would also attach the SBOM to the release, which needs contents: write (v6.6.5 failed there)
           upload-release-assets: false
 
+  # V6.6.10: the example models `aq models install` downloads: trained on the bundled public sample only (never the project's own
+  # models, which stay private), zipped with a manifest of their sha256, and signed like the other assets.
+  example-models:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies (hash-locked, CPU torch)
+        run: |
+          python -m pip install --require-hashes -r requirements/lock/ci.txt
+          python -m pip install --require-hashes -r requirements/lock/tools.txt
+
+      - name: Train the example models on the bundled sample and sign them
+        run: |
+          python scripts/build_example_models.py --out example-models
+          python -m sigstore sign example-models/*.zip example-models/example_models_manifest.json
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: example-models
+          path: example-models/
+
   # Creates the GitHub Release once per tag, with the signed assets. Notes are auto-generated (commit list since the
   # previous tag); the body points at development/Changelog.md, the canonical per-version record.
   github-release:
     if: github.event_name == 'push'
-    needs: publish-pypi
+    needs: [publish-pypi, example-models]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -198,6 +229,11 @@ jobs:
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: release-assets
+          path: release-assets
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: example-models
           path: release-assets
 
       - name: Create the release with its assets

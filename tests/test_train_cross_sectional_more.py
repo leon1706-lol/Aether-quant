@@ -51,9 +51,11 @@ def test_the_command_scores_a_dataset_end_to_end(tmp_path, monkeypatch):
     config.write_text(json.dumps({"phase1": {"universe": {"assets": []}}}), encoding="utf-8")
     schema.write_text(json.dumps({"scaled_feature_names": ["f0"]}), encoding="utf-8")
     seen = {}
-    monkeypatch.setattr(module, "walk_forward_scores", lambda frame, features, model, variant, seeds, score_end: seen.update(model=model, seeds=seeds) or pd.DataFrame({"date": ["2024-01-02"], "ticker": ["A"], "score": [0.5]}))
+    monkeypatch.setattr(module, "walk_forward_scores", lambda frame, features, model, variant, seeds, score_end, cache_dir: seen.update(model=model, seeds=seeds, cache=cache_dir) or pd.DataFrame({"date": ["2024-01-02"], "ticker": ["A"], "score": [0.5]}))
     assert module.main(["--dataset", str(dataset), "--config", str(config), "--schema", str(schema), "--model", "gbm", "--variant", "a", "--seeds", "1,2", "--out", str(out)]) == 0
-    assert seen == {"model": "gbm", "seeds": [1, 2]} and out.exists()
+    assert seen == {"model": "gbm", "seeds": [1, 2], "cache": None} and out.exists()
+    assert module.main(["--dataset", str(dataset), "--config", str(config), "--schema", str(schema), "--model", "gbm", "--variant", "a", "--out", str(out), "--year-cache", str(tmp_path / "years")]) == 0
+    assert seen["cache"] == tmp_path / "years", "V6.6.10: the per-year cache reaches the walk-forward"
 
 
 def test_a_test_window_that_starts_after_the_score_end_stops_the_walk(monkeypatch):

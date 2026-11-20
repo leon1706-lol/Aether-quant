@@ -55,3 +55,9 @@ def test_main_merges_the_windows_and_skips_one_without_a_dataset(tmp_path, monke
     assert pd.read_csv(tmp_path / "scores" / "ml_a2.csv")["score"].tolist() == [0.5]
     out = capsys.readouterr().out
     assert "window_10: no dataset" in out and "ml_a2: 1 rows" in out
+    # V6.6.10: a stack retrain names its own folder, so an earlier round's selection scores are never overwritten
+    monkeypatch.setattr(module.sys, "argv", ["x", "--run-id", "run_1", "--end", "2023-12-31", "--out", "ml/cycle/retrain_r1/scores"])
+    assert module.main() == 0 and (tmp_path / "ml" / "cycle" / "retrain_r1" / "scores" / "ml_a2.csv").exists()
+    absolute = tmp_path / "elsewhere"
+    monkeypatch.setattr(module.sys, "argv", ["x", "--run-id", "run_1", "--end", "2023-12-31", "--out", str(absolute)])
+    assert module.main() == 0 and (absolute / "ml_a2.csv").exists()

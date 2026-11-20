@@ -1,0 +1,9974 @@
+{
+ "target": "paper_loss_guard",
+ "spec_files": [
+  "AetherFormal/PaperLossGuard.lean",
+  "AetherFormal/SleeveGuard.lean"
+ ],
+ "cases": [
+  {
+   "input": {
+    "max_loss": {
+     "num": 2,
+     "den": 1
+    },
+    "lookback": 2,
+    "increments": [
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": -5,
+      "den": 8
+     },
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": -1,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": true
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 8
+    },
+    "lookback": 5,
+    "increments": [
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": 1,
+      "den": 2
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 0,
+     "den": 1
+    },
+    "lookback": 7,
+    "increments": [
+     {
+      "num": 1,
+      "den": 4
+     },
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 1
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 1
+    },
+    "lookback": -1,
+    "increments": [
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": 7,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": -1,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 2
+    },
+    "lookback": 0,
+    "increments": [
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": -1,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 2,
+     "den": 1
+    },
+    "lookback": 4,
+    "increments": [
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 4
+     },
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": 7,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": true
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 0,
+     "den": 1
+    },
+    "lookback": 1,
+    "increments": [
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": 5,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": true
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 0,
+     "den": 1
+    },
+    "lookback": 7,
+    "increments": [
+     {
+      "num": 7,
+      "den": 8
+     },
+     {
+      "num": -7,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 1
+    },
+    "lookback": 6,
+    "increments": [
+     {
+      "num": 3,
+      "den": 4
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 0,
+     "den": 1
+    },
+    "lookback": 1,
+    "increments": [
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": 3,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": true
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 8
+    },
+    "lookback": 2,
+    "increments": [
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": -5,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 4
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 2,
+     "den": 1
+    },
+    "lookback": 8,
+    "increments": []
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 2
+    },
+    "lookback": 6,
+    "increments": [
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 4
+     },
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": -3,
+      "den": 4
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 0,
+     "den": 1
+    },
+    "lookback": 3,
+    "increments": [
+     {
+      "num": 1,
+      "den": 4
+     },
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 4
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 8
+    },
+    "lookback": 8,
+    "increments": [
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 1,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": 3,
+      "den": 4
+     },
+     {
+      "num": 1,
+      "den": 1
+     }
+    ]
+   },
+   "expected": {
+    "held": true
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 1
+    },
+    "lookback": 2,
+    "increments": [
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": -5,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 4
+     }
+    ]
+   },
+   "expected": {
+    "held": true
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 2,
+     "den": 1
+    },
+    "lookback": 4,
+    "increments": [
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 2
+     }
+    ]
+   },
+   "expected": {
+    "held": true
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 2,
+     "den": 1
+    },
+    "lookback": 2,
+    "increments": [
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": 3,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 4
+     }
+    ]
+   },
+   "expected": {
+    "held": true
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 8
+    },
+    "lookback": 2,
+    "increments": [
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": 1,
+      "den": 4
+     },
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": -1,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 8
+    },
+    "lookback": 5,
+    "increments": [
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": 7,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": -5,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 2
+    },
+    "lookback": 8,
+    "increments": [
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": 7,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 8
+    },
+    "lookback": 6,
+    "increments": [
+     {
+      "num": 7,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": 1,
+      "den": 4
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 2
+    },
+    "lookback": 5,
+    "increments": [
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": 3,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 4
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 2,
+     "den": 1
+    },
+    "lookback": 8,
+    "increments": [
+     {
+      "num": 1,
+      "den": 4
+     },
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 8
+    },
+    "lookback": 1,
+    "increments": [
+     {
+      "num": 7,
+      "den": 8
+     },
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   },
+   "expected": {
+    "held": true
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 8
+    },
+    "lookback": 4,
+    "increments": [
+     {
+      "num": 3,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 1
+    },
+    "lookback": 6,
+    "increments": []
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 2,
+     "den": 1
+    },
+    "lookback": -1,
+    "increments": [
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": 7,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": 7,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 2,
+     "den": 1
+    },
+    "lookback": 7,
+    "increments": [
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": 7,
+      "den": 8
+     },
+     {
+      "num": 7,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 2
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 8
+    },
+    "lookback": 2,
+    "increments": [
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": -1,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": true
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 1
+    },
+    "lookback": -1,
+    "increments": [
+     {
+      "num": 7,
+      "den": 8
+     },
+     {
+      "num": -5,
+      "den": 8
+     },
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": 7,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 1
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 2
+    },
+    "lookback": 3,
+    "increments": [
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 1,
+      "den": 4
+     },
+     {
+      "num": 1,
+      "den": 4
+     },
+     {
+      "num": -3,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": true
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 2
+    },
+    "lookback": 8,
+    "increments": [
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": 1,
+      "den": 1
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 2
+    },
+    "lookback": 8,
+    "increments": [
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": -5,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": -7,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 2
+    },
+    "lookback": 7,
+    "increments": [
+     {
+      "num": 7,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": -5,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 0,
+     "den": 1
+    },
+    "lookback": 1,
+    "increments": []
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 2,
+     "den": 1
+    },
+    "lookback": 8,
+    "increments": [
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": 7,
+      "den": 8
+     },
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 4
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 8
+    },
+    "lookback": 0,
+    "increments": [
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 4
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 8
+    },
+    "lookback": 8,
+    "increments": [
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": -5,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 4
+     },
+     {
+      "num": 1,
+      "den": 2
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 2,
+     "den": 1
+    },
+    "lookback": -1,
+    "increments": [
+     {
+      "num": -3,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 0,
+     "den": 1
+    },
+    "lookback": 1,
+    "increments": [
+     {
+      "num": 7,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 4
+     }
+    ]
+   },
+   "expected": {
+    "held": true
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 0,
+     "den": 1
+    },
+    "lookback": -1,
+    "increments": [
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 4
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 2,
+     "den": 1
+    },
+    "lookback": 4,
+    "increments": [
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": 3,
+      "den": 4
+     },
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": 5,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": true
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 2,
+     "den": 1
+    },
+    "lookback": 0,
+    "increments": [
+     {
+      "num": -1,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 2
+    },
+    "lookback": 7,
+    "increments": []
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 0,
+     "den": 1
+    },
+    "lookback": -1,
+    "increments": [
+     {
+      "num": -5,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 4
+     },
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": -5,
+      "den": 8
+     },
+     {
+      "num": -7,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 1
+    },
+    "lookback": 3,
+    "increments": [
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": 1,
+      "den": 4
+     },
+     {
+      "num": -7,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 8
+    },
+    "lookback": 7,
+    "increments": [
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 2
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 1
+    },
+    "lookback": 0,
+    "increments": [
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 4
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 3,
+      "den": 4
+     },
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 2
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 8
+    },
+    "lookback": 5,
+    "increments": []
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 8
+    },
+    "lookback": 5,
+    "increments": []
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 8
+    },
+    "lookback": 7,
+    "increments": [
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": -5,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 4
+     },
+     {
+      "num": 3,
+      "den": 4
+     },
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": 7,
+      "den": 8
+     },
+     {
+      "num": -7,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 1
+    },
+    "lookback": 0,
+    "increments": []
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 2,
+     "den": 1
+    },
+    "lookback": 4,
+    "increments": [
+     {
+      "num": 1,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 1
+    },
+    "lookback": 4,
+    "increments": [
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": -5,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": -5,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 2
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 8
+    },
+    "lookback": 7,
+    "increments": []
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 2
+    },
+    "lookback": 4,
+    "increments": [
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": -7,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 2
+    },
+    "lookback": 4,
+    "increments": [
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": true
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 1
+    },
+    "lookback": 6,
+    "increments": [
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 4
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 8
+    },
+    "lookback": 0,
+    "increments": [
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": -5,
+      "den": 8
+     },
+     {
+      "num": 7,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 0,
+     "den": 1
+    },
+    "lookback": 0,
+    "increments": [
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 4
+     },
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 2
+    },
+    "lookback": 7,
+    "increments": [
+     {
+      "num": 7,
+      "den": 8
+     },
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 3,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": -5,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 2
+    },
+    "lookback": 3,
+    "increments": [
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 4
+     },
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": 7,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": true
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 1
+    },
+    "lookback": 3,
+    "increments": [
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": -5,
+      "den": 8
+     },
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": 3,
+      "den": 4
+     }
+    ]
+   },
+   "expected": {
+    "held": true
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 8
+    },
+    "lookback": 0,
+    "increments": []
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 0,
+     "den": 1
+    },
+    "lookback": 5,
+    "increments": [
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": -5,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 8
+    },
+    "lookback": 1,
+    "increments": [
+     {
+      "num": 7,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": true
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 8
+    },
+    "lookback": -1,
+    "increments": [
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": 3,
+      "den": 4
+     },
+     {
+      "num": -3,
+      "den": 4
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 0,
+     "den": 1
+    },
+    "lookback": 5,
+    "increments": [
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": -1,
+      "den": 2
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 0,
+     "den": 1
+    },
+    "lookback": 4,
+    "increments": [
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": 1,
+      "den": 4
+     },
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": 3,
+      "den": 4
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 2,
+     "den": 1
+    },
+    "lookback": 5,
+    "increments": [
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": 7,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": 1,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": true
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 2
+    },
+    "lookback": 8,
+    "increments": [
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": 5,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 0,
+     "den": 1
+    },
+    "lookback": -1,
+    "increments": [
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 4
+     },
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 2,
+     "den": 1
+    },
+    "lookback": -1,
+    "increments": [
+     {
+      "num": -7,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 1
+    },
+    "lookback": 6,
+    "increments": [
+     {
+      "num": 5,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 1
+    },
+    "lookback": 0,
+    "increments": [
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": 3,
+      "den": 4
+     },
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 1,
+      "den": 1
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 0,
+     "den": 1
+    },
+    "lookback": 4,
+    "increments": [
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": -5,
+      "den": 8
+     },
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 4
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 2
+    },
+    "lookback": 1,
+    "increments": [
+     {
+      "num": -1,
+      "den": 4
+     }
+    ]
+   },
+   "expected": {
+    "held": true
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 0,
+     "den": 1
+    },
+    "lookback": -1,
+    "increments": [
+     {
+      "num": 7,
+      "den": 8
+     },
+     {
+      "num": -5,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": 1,
+      "den": 1
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 1
+    },
+    "lookback": 0,
+    "increments": [
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": 1,
+      "den": 2
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 2,
+     "den": 1
+    },
+    "lookback": 3,
+    "increments": [
+     {
+      "num": 3,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 2
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 0,
+     "den": 1
+    },
+    "lookback": 8,
+    "increments": []
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 8
+    },
+    "lookback": -1,
+    "increments": [
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": 1,
+      "den": 1
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 0,
+     "den": 1
+    },
+    "lookback": 4,
+    "increments": [
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": -5,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 2
+    },
+    "lookback": 0,
+    "increments": [
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": 1,
+      "den": 2
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 8
+    },
+    "lookback": 0,
+    "increments": [
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": 7,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 4
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": 1,
+      "den": 4
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 8
+    },
+    "lookback": 6,
+    "increments": [
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": -5,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 1
+    },
+    "lookback": 2,
+    "increments": [
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": 7,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 4
+     }
+    ]
+   },
+   "expected": {
+    "held": true
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 2
+    },
+    "lookback": 0,
+    "increments": [
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": -5,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 8
+    },
+    "lookback": 4,
+    "increments": [
+     {
+      "num": -1,
+      "den": 1
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 8
+    },
+    "lookback": 6,
+    "increments": [
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": 7,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 8
+    },
+    "lookback": -1,
+    "increments": [
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": -5,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 1
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 8
+    },
+    "lookback": -1,
+    "increments": [
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": 7,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 4
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 8
+    },
+    "lookback": 2,
+    "increments": [
+     {
+      "num": 1,
+      "den": 4
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 1
+    },
+    "lookback": 1,
+    "increments": [
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 4
+     }
+    ]
+   },
+   "expected": {
+    "held": true
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 1
+    },
+    "lookback": 8,
+    "increments": [
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": -5,
+      "den": 8
+     },
+     {
+      "num": -5,
+      "den": 8
+     },
+     {
+      "num": 7,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 2
+    },
+    "lookback": 6,
+    "increments": [
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 1
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 2
+    },
+    "lookback": 8,
+    "increments": [
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": -5,
+      "den": 8
+     },
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 2
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 8
+    },
+    "lookback": 7,
+    "increments": []
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 1
+    },
+    "lookback": 8,
+    "increments": [
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": -1,
+      "den": 4
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 0,
+     "den": 1
+    },
+    "lookback": 3,
+    "increments": [
+     {
+      "num": 7,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 1
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 2,
+     "den": 1
+    },
+    "lookback": 2,
+    "increments": [
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 1
+     }
+    ]
+   },
+   "expected": {
+    "held": true
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 1
+    },
+    "lookback": 3,
+    "increments": [
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 1
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 8
+    },
+    "lookback": 8,
+    "increments": [
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": -7,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 0,
+     "den": 1
+    },
+    "lookback": 2,
+    "increments": [
+     {
+      "num": -5,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": -5,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 2,
+     "den": 1
+    },
+    "lookback": 2,
+    "increments": [
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 4
+     },
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": -1,
+      "den": 4
+     }
+    ]
+   },
+   "expected": {
+    "held": true
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 2
+    },
+    "lookback": 6,
+    "increments": [
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": 5,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 1
+    },
+    "lookback": 3,
+    "increments": [
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": -3,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 2,
+     "den": 1
+    },
+    "lookback": 8,
+    "increments": [
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": -5,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 8
+    },
+    "lookback": 4,
+    "increments": [
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": 7,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": 7,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": true
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 8
+    },
+    "lookback": 6,
+    "increments": [
+     {
+      "num": 7,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 2,
+     "den": 1
+    },
+    "lookback": -1,
+    "increments": [
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": 1,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": 3,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 1
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 0,
+     "den": 1
+    },
+    "lookback": 4,
+    "increments": []
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 2,
+     "den": 1
+    },
+    "lookback": -1,
+    "increments": [
+     {
+      "num": 3,
+      "den": 4
+     },
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": 7,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 2
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 2
+    },
+    "lookback": 5,
+    "increments": [
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 1,
+      "den": 4
+     },
+     {
+      "num": 1,
+      "den": 4
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": 5,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": true
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 8
+    },
+    "lookback": 4,
+    "increments": [
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 1
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 8
+    },
+    "lookback": 5,
+    "increments": [
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": 7,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 1
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 2
+    },
+    "lookback": 7,
+    "increments": [
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 7,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 4
+     }
+    ]
+   },
+   "expected": {
+    "held": true
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 0,
+     "den": 1
+    },
+    "lookback": 7,
+    "increments": [
+     {
+      "num": -5,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": 5,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 2
+    },
+    "lookback": 8,
+    "increments": [
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 1
+    },
+    "lookback": 7,
+    "increments": [
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": -5,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": -3,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 8
+    },
+    "lookback": 8,
+    "increments": [
+     {
+      "num": 3,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 8
+    },
+    "lookback": 5,
+    "increments": [
+     {
+      "num": -5,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 1
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 2,
+     "den": 1
+    },
+    "lookback": 6,
+    "increments": [
+     {
+      "num": 7,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": -3,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 2,
+     "den": 1
+    },
+    "lookback": 2,
+    "increments": [
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 4
+     },
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": 7,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": -3,
+      "den": 4
+     }
+    ]
+   },
+   "expected": {
+    "held": true
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 0,
+     "den": 1
+    },
+    "lookback": 6,
+    "increments": [
+     {
+      "num": 3,
+      "den": 4
+     },
+     {
+      "num": -5,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 4
+     },
+     {
+      "num": 7,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": -5,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 1
+    },
+    "lookback": 4,
+    "increments": [
+     {
+      "num": 3,
+      "den": 4
+     },
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": -5,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": true
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 0,
+     "den": 1
+    },
+    "lookback": 1,
+    "increments": [
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": true
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 8
+    },
+    "lookback": -1,
+    "increments": [
+     {
+      "num": 7,
+      "den": 8
+     },
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": 1,
+      "den": 4
+     },
+     {
+      "num": 3,
+      "den": 4
+     },
+     {
+      "num": 1,
+      "den": 1
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 1
+    },
+    "lookback": -1,
+    "increments": [
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 1
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 1
+    },
+    "lookback": 6,
+    "increments": [
+     {
+      "num": -1,
+      "den": 2
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 8
+    },
+    "lookback": 6,
+    "increments": [
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": 1,
+      "den": 4
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 1,
+      "den": 2
+     }
+    ]
+   },
+   "expected": {
+    "held": true
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 2,
+     "den": 1
+    },
+    "lookback": 2,
+    "increments": [
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 4
+     },
+     {
+      "num": 1,
+      "den": 4
+     },
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": 1,
+      "den": 1
+     }
+    ]
+   },
+   "expected": {
+    "held": true
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 1
+    },
+    "lookback": 0,
+    "increments": [
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 0,
+     "den": 1
+    },
+    "lookback": 5,
+    "increments": [
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 2
+    },
+    "lookback": 3,
+    "increments": [
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": 1,
+      "den": 4
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 2
+    },
+    "lookback": 2,
+    "increments": [
+     {
+      "num": 7,
+      "den": 8
+     },
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": -7,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 2
+    },
+    "lookback": 3,
+    "increments": [
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 8
+    },
+    "lookback": 6,
+    "increments": [
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 2
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 2,
+     "den": 1
+    },
+    "lookback": 3,
+    "increments": [
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": 3,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": true
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 2
+    },
+    "lookback": 7,
+    "increments": [
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 1,
+      "den": 4
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 0,
+     "den": 1
+    },
+    "lookback": 5,
+    "increments": []
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 0,
+     "den": 1
+    },
+    "lookback": 6,
+    "increments": [
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 2
+    },
+    "lookback": -1,
+    "increments": [
+     {
+      "num": -1,
+      "den": 4
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 0,
+     "den": 1
+    },
+    "lookback": 5,
+    "increments": [
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 0,
+     "den": 1
+    },
+    "lookback": 8,
+    "increments": [
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 4
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 2,
+     "den": 1
+    },
+    "lookback": 1,
+    "increments": [
+     {
+      "num": 3,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": true
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 2,
+     "den": 1
+    },
+    "lookback": 0,
+    "increments": [
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 2
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 2
+    },
+    "lookback": 4,
+    "increments": [
+     {
+      "num": -5,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": 3,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 1
+    },
+    "lookback": 8,
+    "increments": [
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 4
+     },
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 1
+    },
+    "lookback": 2,
+    "increments": [
+     {
+      "num": 1,
+      "den": 2
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 2
+    },
+    "lookback": 0,
+    "increments": [
+     {
+      "num": 7,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 4
+     },
+     {
+      "num": 1,
+      "den": 2
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 2,
+     "den": 1
+    },
+    "lookback": 1,
+    "increments": [
+     {
+      "num": 7,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": 7,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": -5,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": -7,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": true
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 2
+    },
+    "lookback": 0,
+    "increments": [
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 0,
+     "den": 1
+    },
+    "lookback": 1,
+    "increments": [
+     {
+      "num": 7,
+      "den": 8
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": -7,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 2
+    },
+    "lookback": 5,
+    "increments": [
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": 1,
+      "den": 4
+     },
+     {
+      "num": 7,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 1
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 1
+    },
+    "lookback": 8,
+    "increments": [
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": -5,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 4
+     },
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 4
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 2,
+     "den": 1
+    },
+    "lookback": 3,
+    "increments": [
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": -3,
+      "den": 4
+     }
+    ]
+   },
+   "expected": {
+    "held": true
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 8
+    },
+    "lookback": 1,
+    "increments": [
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": 1,
+      "den": 4
+     },
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 4
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 2,
+     "den": 1
+    },
+    "lookback": 1,
+    "increments": [
+     {
+      "num": -5,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   },
+   "expected": {
+    "held": true
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 2,
+     "den": 1
+    },
+    "lookback": 7,
+    "increments": [
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": 7,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 2,
+     "den": 1
+    },
+    "lookback": 4,
+    "increments": [
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 1,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": true
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 1
+    },
+    "lookback": 6,
+    "increments": [
+     {
+      "num": 7,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 2,
+     "den": 1
+    },
+    "lookback": 4,
+    "increments": []
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 0,
+     "den": 1
+    },
+    "lookback": 5,
+    "increments": [
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": 7,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 4
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 0,
+     "den": 1
+    },
+    "lookback": -1,
+    "increments": [
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": 1,
+      "den": 2
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 2
+    },
+    "lookback": 8,
+    "increments": [
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": 1,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": 5,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": true
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 2
+    },
+    "lookback": 7,
+    "increments": [
+     {
+      "num": -5,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 1
+    },
+    "lookback": 4,
+    "increments": [
+     {
+      "num": -5,
+      "den": 8
+     },
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": 7,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 1
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 0,
+     "den": 1
+    },
+    "lookback": 2,
+    "increments": []
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 2,
+     "den": 1
+    },
+    "lookback": 7,
+    "increments": [
+     {
+      "num": 1,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": 7,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 0,
+     "den": 1
+    },
+    "lookback": 1,
+    "increments": [
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": -5,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": 1,
+      "den": 1
+     }
+    ]
+   },
+   "expected": {
+    "held": true
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 8
+    },
+    "lookback": 0,
+    "increments": [
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": -7,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 0,
+     "den": 1
+    },
+    "lookback": 1,
+    "increments": [
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": 3,
+      "den": 4
+     },
+     {
+      "num": 7,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   },
+   "expected": {
+    "held": true
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 0,
+     "den": 1
+    },
+    "lookback": 5,
+    "increments": [
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": 1,
+      "den": 2
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 1
+    },
+    "lookback": 3,
+    "increments": [
+     {
+      "num": -3,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 8
+    },
+    "lookback": 7,
+    "increments": [
+     {
+      "num": -5,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": -5,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 2
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 8
+    },
+    "lookback": 0,
+    "increments": [
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": 3,
+      "den": 4
+     },
+     {
+      "num": 7,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 1
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 8
+    },
+    "lookback": 1,
+    "increments": [
+     {
+      "num": -5,
+      "den": 8
+     },
+     {
+      "num": -5,
+      "den": 8
+     },
+     {
+      "num": 7,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 2
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 2
+    },
+    "lookback": 4,
+    "increments": [
+     {
+      "num": -3,
+      "den": 4
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 8
+    },
+    "lookback": 6,
+    "increments": [
+     {
+      "num": -5,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 1
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 8
+    },
+    "lookback": 5,
+    "increments": [
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 4
+     },
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 4
+     }
+    ]
+   },
+   "expected": {
+    "held": true
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 1
+    },
+    "lookback": 3,
+    "increments": [
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": -5,
+      "den": 8
+     },
+     {
+      "num": -5,
+      "den": 8
+     },
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": 3,
+      "den": 4
+     }
+    ]
+   },
+   "expected": {
+    "held": true
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 1
+    },
+    "lookback": 7,
+    "increments": [
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 1,
+      "den": 4
+     }
+    ]
+   },
+   "expected": {
+    "held": true
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 2,
+     "den": 1
+    },
+    "lookback": 4,
+    "increments": [
+     {
+      "num": 7,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": 1,
+      "den": 1
+     }
+    ]
+   },
+   "expected": {
+    "held": true
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 8
+    },
+    "lookback": 3,
+    "increments": [
+     {
+      "num": -5,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": 1,
+      "den": 4
+     },
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": 5,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 8
+    },
+    "lookback": 4,
+    "increments": [
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 4
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 2
+    },
+    "lookback": -1,
+    "increments": [
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": -7,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 1
+    },
+    "lookback": -1,
+    "increments": [
+     {
+      "num": 1,
+      "den": 4
+     },
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": 1,
+      "den": 4
+     },
+     {
+      "num": 3,
+      "den": 4
+     },
+     {
+      "num": 1,
+      "den": 4
+     },
+     {
+      "num": 1,
+      "den": 2
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 2
+    },
+    "lookback": 6,
+    "increments": [
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": -3,
+      "den": 4
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 0,
+     "den": 1
+    },
+    "lookback": 7,
+    "increments": [
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": 7,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": 7,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": -3,
+      "den": 4
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 2,
+     "den": 1
+    },
+    "lookback": 6,
+    "increments": [
+     {
+      "num": 7,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 4
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 0,
+     "den": 1
+    },
+    "lookback": 8,
+    "increments": [
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": 1,
+      "den": 4
+     },
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 8
+    },
+    "lookback": 3,
+    "increments": [
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": 7,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 4
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 1
+    },
+    "lookback": 6,
+    "increments": [
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": 7,
+      "den": 8
+     },
+     {
+      "num": -7,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 8
+    },
+    "lookback": 2,
+    "increments": [
+     {
+      "num": 1,
+      "den": 4
+     },
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": 7,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 4
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 1
+    },
+    "lookback": 2,
+    "increments": [
+     {
+      "num": 7,
+      "den": 8
+     },
+     {
+      "num": -5,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": true
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 8
+    },
+    "lookback": 2,
+    "increments": [
+     {
+      "num": 7,
+      "den": 8
+     },
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": 5,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": true
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 8
+    },
+    "lookback": 6,
+    "increments": [
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": 3,
+      "den": 4
+     },
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 4
+     },
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": -1,
+      "den": 1
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 1
+    },
+    "lookback": 3,
+    "increments": [
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": -5,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": true
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 2
+    },
+    "lookback": 1,
+    "increments": [
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 4
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": -5,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 1
+    },
+    "lookback": 6,
+    "increments": []
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 0,
+     "den": 1
+    },
+    "lookback": 8,
+    "increments": [
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": 1,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 2,
+     "den": 1
+    },
+    "lookback": 5,
+    "increments": [
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 1,
+      "den": 4
+     },
+     {
+      "num": 3,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": true
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 1
+    },
+    "lookback": 3,
+    "increments": [
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": 1,
+      "den": 4
+     },
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 2
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 2
+    },
+    "lookback": 7,
+    "increments": [
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": 3,
+      "den": 4
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 0,
+     "den": 1
+    },
+    "lookback": 2,
+    "increments": [
+     {
+      "num": -5,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 2,
+     "den": 1
+    },
+    "lookback": 0,
+    "increments": []
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 2,
+     "den": 1
+    },
+    "lookback": 5,
+    "increments": []
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 2,
+     "den": 1
+    },
+    "lookback": 0,
+    "increments": [
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 4
+     },
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": 1,
+      "den": 2
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 2
+    },
+    "lookback": 0,
+    "increments": [
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 4
+     },
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": -3,
+      "den": 4
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 2,
+     "den": 1
+    },
+    "lookback": 1,
+    "increments": [
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": 3,
+      "den": 4
+     },
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": 3,
+      "den": 4
+     },
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": 1,
+      "den": 2
+     }
+    ]
+   },
+   "expected": {
+    "held": true
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 2,
+     "den": 1
+    },
+    "lookback": 2,
+    "increments": [
+     {
+      "num": 1,
+      "den": 4
+     },
+     {
+      "num": -5,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": true
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 2
+    },
+    "lookback": 3,
+    "increments": [
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": -3,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 8
+    },
+    "lookback": 5,
+    "increments": [
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": 7,
+      "den": 8
+     },
+     {
+      "num": -5,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 1
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 8
+    },
+    "lookback": 8,
+    "increments": [
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 0,
+     "den": 1
+    },
+    "lookback": 1,
+    "increments": [
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 2
+    },
+    "lookback": 8,
+    "increments": [
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": -5,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": -5,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 2,
+     "den": 1
+    },
+    "lookback": 7,
+    "increments": [
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": -5,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": 7,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 2
+    },
+    "lookback": 5,
+    "increments": [
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 1
+     }
+    ]
+   },
+   "expected": {
+    "held": true
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 2
+    },
+    "lookback": 4,
+    "increments": []
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 8
+    },
+    "lookback": -1,
+    "increments": [
+     {
+      "num": -1,
+      "den": 2
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 2,
+     "den": 1
+    },
+    "lookback": 2,
+    "increments": [
+     {
+      "num": -3,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 2,
+     "den": 1
+    },
+    "lookback": 0,
+    "increments": [
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 2
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 0,
+     "den": 1
+    },
+    "lookback": 7,
+    "increments": [
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": 3,
+      "den": 4
+     },
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": 3,
+      "den": 4
+     },
+     {
+      "num": 3,
+      "den": 4
+     },
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": 1,
+      "den": 4
+     }
+    ]
+   },
+   "expected": {
+    "held": true
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 2
+    },
+    "lookback": 0,
+    "increments": [
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": -5,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 2,
+     "den": 1
+    },
+    "lookback": -1,
+    "increments": [
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 1
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 1
+    },
+    "lookback": 3,
+    "increments": [
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": -1,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": true
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 1
+    },
+    "lookback": 5,
+    "increments": [
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": 7,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   },
+   "expected": {
+    "held": true
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 0,
+     "den": 1
+    },
+    "lookback": 6,
+    "increments": [
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 4
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 8
+    },
+    "lookback": 3,
+    "increments": [
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 4
+     },
+     {
+      "num": -3,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 2,
+     "den": 1
+    },
+    "lookback": 3,
+    "increments": []
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 2,
+     "den": 1
+    },
+    "lookback": 4,
+    "increments": [
+     {
+      "num": 1,
+      "den": 4
+     },
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": 7,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": true
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 2
+    },
+    "lookback": 4,
+    "increments": [
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 4
+     },
+     {
+      "num": -5,
+      "den": 8
+     },
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": -7,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 2,
+     "den": 1
+    },
+    "lookback": 8,
+    "increments": [
+     {
+      "num": 3,
+      "den": 4
+     },
+     {
+      "num": 3,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 1
+    },
+    "lookback": 5,
+    "increments": [
+     {
+      "num": -5,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": 5,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": true
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 1
+    },
+    "lookback": 6,
+    "increments": [
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 2
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 8
+    },
+    "lookback": 4,
+    "increments": [
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": true
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 2
+    },
+    "lookback": 7,
+    "increments": [
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": 1,
+      "den": 4
+     },
+     {
+      "num": 7,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": 7,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   },
+   "expected": {
+    "held": true
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 1
+    },
+    "lookback": 6,
+    "increments": [
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": 7,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": 1,
+      "den": 4
+     },
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": -7,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 1
+    },
+    "lookback": 8,
+    "increments": [
+     {
+      "num": 7,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": 3,
+      "den": 4
+     },
+     {
+      "num": 1,
+      "den": 2
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 2,
+     "den": 1
+    },
+    "lookback": 7,
+    "increments": []
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 1
+    },
+    "lookback": 5,
+    "increments": [
+     {
+      "num": 1,
+      "den": 4
+     },
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": 3,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 8
+    },
+    "lookback": 4,
+    "increments": [
+     {
+      "num": -5,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": 1,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   },
+   "expected": {
+    "held": true
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 8
+    },
+    "lookback": 2,
+    "increments": [
+     {
+      "num": 3,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 0,
+     "den": 1
+    },
+    "lookback": 6,
+    "increments": [
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": 1,
+      "den": 2
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 2
+    },
+    "lookback": 4,
+    "increments": [
+     {
+      "num": 3,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 2,
+     "den": 1
+    },
+    "lookback": 7,
+    "increments": [
+     {
+      "num": 3,
+      "den": 4
+     },
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 4
+     },
+     {
+      "num": -5,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 1
+    },
+    "lookback": 1,
+    "increments": [
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 4
+     },
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": 3,
+      "den": 4
+     },
+     {
+      "num": 1,
+      "den": 1
+     }
+    ]
+   },
+   "expected": {
+    "held": true
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 2
+    },
+    "lookback": 6,
+    "increments": [
+     {
+      "num": -1,
+      "den": 1
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 2,
+     "den": 1
+    },
+    "lookback": 8,
+    "increments": [
+     {
+      "num": 3,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": 5,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 0,
+     "den": 1
+    },
+    "lookback": -1,
+    "increments": [
+     {
+      "num": 1,
+      "den": 2
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 0,
+     "den": 1
+    },
+    "lookback": 1,
+    "increments": [
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": 3,
+      "den": 4
+     },
+     {
+      "num": 3,
+      "den": 4
+     },
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   },
+   "expected": {
+    "held": true
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 2
+    },
+    "lookback": 1,
+    "increments": [
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": 7,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 4
+     },
+     {
+      "num": 5,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": true
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 8
+    },
+    "lookback": 4,
+    "increments": [
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 8
+    },
+    "lookback": 4,
+    "increments": [
+     {
+      "num": 7,
+      "den": 8
+     },
+     {
+      "num": -5,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 8
+    },
+    "lookback": 5,
+    "increments": [
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": 7,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 1
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 1
+    },
+    "lookback": 0,
+    "increments": [
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": 1,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 2
+    },
+    "lookback": 4,
+    "increments": [
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": -3,
+      "den": 4
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 8
+    },
+    "lookback": 5,
+    "increments": [
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": 3,
+      "den": 4
+     },
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 2
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 0,
+     "den": 1
+    },
+    "lookback": 3,
+    "increments": [
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 2
+    },
+    "lookback": 3,
+    "increments": [
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": 1,
+      "den": 4
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": 1,
+      "den": 2
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 2,
+     "den": 1
+    },
+    "lookback": 2,
+    "increments": [
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 4
+     }
+    ]
+   },
+   "expected": {
+    "held": true
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 8
+    },
+    "lookback": 7,
+    "increments": [
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 4
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 1
+    },
+    "lookback": 8,
+    "increments": [
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 1
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 8
+    },
+    "lookback": 6,
+    "increments": [
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": 1,
+      "den": 4
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 8
+    },
+    "lookback": 2,
+    "increments": [
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": 3,
+      "den": 4
+     },
+     {
+      "num": -5,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 2,
+     "den": 1
+    },
+    "lookback": 1,
+    "increments": [
+     {
+      "num": 3,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": true
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 2,
+     "den": 1
+    },
+    "lookback": 2,
+    "increments": [
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": -5,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": 7,
+      "den": 8
+     },
+     {
+      "num": -5,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 4
+     }
+    ]
+   },
+   "expected": {
+    "held": true
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 8
+    },
+    "lookback": 1,
+    "increments": [
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": 1,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 2
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 8
+    },
+    "lookback": 1,
+    "increments": [
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 4
+     },
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": -5,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 8
+    },
+    "lookback": 5,
+    "increments": [
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 4
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 1
+    },
+    "lookback": 5,
+    "increments": [
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": -5,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 1
+    },
+    "lookback": 4,
+    "increments": [
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": -5,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 4
+     },
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": -3,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": true
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 2,
+     "den": 1
+    },
+    "lookback": 0,
+    "increments": [
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": 3,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 8
+    },
+    "lookback": 0,
+    "increments": [
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": -5,
+      "den": 8
+     },
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": 7,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 0,
+     "den": 1
+    },
+    "lookback": 8,
+    "increments": [
+     {
+      "num": 1,
+      "den": 4
+     },
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": -5,
+      "den": 8
+     },
+     {
+      "num": -5,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 1
+    },
+    "lookback": 2,
+    "increments": [
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": -5,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": 1,
+      "den": 2
+     }
+    ]
+   },
+   "expected": {
+    "held": true
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 8
+    },
+    "lookback": 1,
+    "increments": [
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": 7,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": true
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 2,
+     "den": 1
+    },
+    "lookback": 5,
+    "increments": [
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": 1,
+      "den": 4
+     },
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 4
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 0,
+     "den": 1
+    },
+    "lookback": 5,
+    "increments": [
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": 1,
+      "den": 4
+     },
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 1
+    },
+    "lookback": -1,
+    "increments": [
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": -5,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 4
+     },
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 8
+    },
+    "lookback": 1,
+    "increments": [
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 2
+    },
+    "lookback": 3,
+    "increments": [
+     {
+      "num": -5,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": 7,
+      "den": 8
+     },
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 4
+     }
+    ]
+   },
+   "expected": {
+    "held": true
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 2,
+     "den": 1
+    },
+    "lookback": 5,
+    "increments": [
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": 7,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": 5,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": -7,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": true
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 2,
+     "den": 1
+    },
+    "lookback": 1,
+    "increments": []
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 2
+    },
+    "lookback": 4,
+    "increments": [
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": -1,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": true
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 2,
+     "den": 1
+    },
+    "lookback": 4,
+    "increments": [
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": 7,
+      "den": 8
+     },
+     {
+      "num": 0,
+      "den": 1
+     },
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 2
+     }
+    ]
+   },
+   "expected": {
+    "held": true
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 1
+    },
+    "lookback": 7,
+    "increments": [
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 1
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 1
+    },
+    "lookback": 2,
+    "increments": [
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": 5,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": true
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 0,
+     "den": 1
+    },
+    "lookback": 3,
+    "increments": [
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 8
+    },
+    "lookback": -1,
+    "increments": [
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": 3,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": 7,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": -1,
+      "den": 8
+     },
+     {
+      "num": -5,
+      "den": 8
+     },
+     {
+      "num": -5,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 1
+    },
+    "lookback": 5,
+    "increments": [
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": -5,
+      "den": 8
+     },
+     {
+      "num": 7,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 4
+     }
+    ]
+   },
+   "expected": {
+    "held": true
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 0,
+     "den": 1
+    },
+    "lookback": 7,
+    "increments": [
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": 1,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": -3,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": 7,
+      "den": 8
+     },
+     {
+      "num": 1,
+      "den": 4
+     },
+     {
+      "num": 3,
+      "den": 4
+     }
+    ]
+   },
+   "expected": {
+    "held": true
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 2
+    },
+    "lookback": 1,
+    "increments": []
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 2,
+     "den": 1
+    },
+    "lookback": 2,
+    "increments": [
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 0,
+     "den": 1
+    },
+    "lookback": 6,
+    "increments": [
+     {
+      "num": 3,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 2
+     },
+     {
+      "num": 3,
+      "den": 4
+     },
+     {
+      "num": 1,
+      "den": 2
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 1,
+     "den": 8
+    },
+    "lookback": 6,
+    "increments": [
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": 1,
+      "den": 2
+     },
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": -3,
+      "den": 8
+     },
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": -1,
+      "den": 1
+     },
+     {
+      "num": 3,
+      "den": 8
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 2,
+     "den": 1
+    },
+    "lookback": 6,
+    "increments": [
+     {
+      "num": 1,
+      "den": 1
+     },
+     {
+      "num": -1,
+      "den": 4
+     },
+     {
+      "num": -5,
+      "den": 8
+     },
+     {
+      "num": -7,
+      "den": 8
+     },
+     {
+      "num": 0,
+      "den": 1
+     }
+    ]
+   },
+   "expected": {
+    "held": false
+   }
+  },
+  {
+   "input": {
+    "max_loss": {
+     "num": 2,
+     "den": 1
+    },
+    "lookback": 7,
+    "increments": []
+   },
+   "expected": {
+    "held": false
+   }
+  }
+ ],
+ "spec_sha256": "98dfd30c307a1326dec7c2877a0e5697228f0fada2dbba59761a7115f107f4cb"
+}

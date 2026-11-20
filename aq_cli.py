@@ -35,7 +35,7 @@ import sys
 import time
 import urllib.request
 import uuid
-from collections.abc import Iterator, Mapping
+from collections.abc import Callable, Iterator, Mapping
 from datetime import date
 from importlib.metadata import version as installed_version
 from pathlib import Path
@@ -261,7 +261,84 @@ def check_for_update() -> None:
         pass
 
 
+TRAIN_RUNS_DIR: Path | None = None  # the run folders' root; tests point it at a temporary folder
+MULTITASK_OBJECTIVES = ("mse", "soft_spearman", "listnet")
+TRAIN_SETTINGS = (
+    "dataset_only", "init_only", "experts_only", "candidate", "gating_only", "multitask_only", "sequence_only", "topology_only",
+    "strategy_selector_only", "rl_sizing_only", "walk_forward", "step_days", "mode", "include_multitask", "include_sequence", "metrics",
+    "resume_run_id", "seed", "ranking_objective", "memory_profile",
+)
+
+
+def _train_runs_dir() -> Path:
+    return TRAIN_RUNS_DIR or ROOT_DIR / "ml" / "cycle"
+
+
 def cmd_train(args: argparse.Namespace) -> int:
+    """`aq train`: every mode records a run folder (`ml/cycle/train_<id>/`) when it starts, so `aq train --resume` continues a
+    stopped run with its own settings: finished steps are skipped, a walk-forward continues its windows, the sequence trainer its
+    checkpoint (V6.6.10). `--init-only` takes seconds and keeps no folder."""
+    from retraining import run_resume
+
+    runs = _train_runs_dir()
+    if getattr(args, "list_runs", False):
+        print(run_resume.render_runs(run_resume.list_runs(runs, ["train_", "retrain_"], last_step="report")))
+        return 0
+    resume = getattr(args, "resume", None)
+    folder: Path | None = None
+    if resume:
+        folder = run_resume.find_resumable(runs, "train_", None if resume == "latest" else resume)
+        if folder is None:
+            print("aq train --resume: no stopped `aq train` run to continue (`aq train --list-runs` lists them)", file=sys.stderr)
+            return 1
+        record = run_resume.read_json(folder / run_resume.RECORD, {}) or {}
+        if record.get("finished"):
+            print(f"aq train --resume: run {folder.name[len('train_'):]} already finished")
+            return 0
+        args = argparse.Namespace(**{**vars(args), **record.get("settings", {})})
+        done = run_resume.done_steps(folder)
+        print(f"aq train: resuming run {folder.name[len('train_'):]}" + (f" (done: {', '.join(done)})" if done else ""))
+    elif not getattr(args, "init_only", False):
+        folder = runs / f"train_{run_resume.new_run_id()}"
+        run_resume.start_record(folder, {"settings": {name: getattr(args, name, None) for name in TRAIN_SETTINGS}, "version_ids": {}})
+        print(f"aq train: run {folder.name[len('train_'):]} (after a stop: aq train --resume)")
+    code = _train_steps(args, folder, resumed=bool(resume))
+    if code == 0 and folder is not None:
+        run_resume.update_record(folder, finished=True)
+    return code
+
+
+def _profile_flag(memory_profile: str) -> list[str]:
+    return ["--memory-profile", memory_profile] if memory_profile and memory_profile != "standard" else []
+
+
+def _train_step(folder: Path | None, step: str, action: Callable[[], int]) -> int:
+    """One step of a recorded run: skipped when the run finished it before, marked done when it exits 0."""
+    from retraining import run_resume
+
+    if folder is not None and step in run_resume.done_steps(folder):
+        print(f"aq train: {step} finished before - skipped")
+        return 0
+    code = action()
+    if code == 0 and folder is not None:
+        run_resume.mark_done(folder, step, code)
+    return code
+
+
+def _train_version_id(folder: Path | None, step: str, prefix: str) -> str:
+    """A step's version id, kept in the run's record so a resumed step writes into the same version folder (and finds its checkpoint)."""
+    from retraining import run_resume
+
+    assert folder is not None, "only --init-only runs without a folder, and it trains no versioned step"
+    record = run_resume.read_json(folder / run_resume.RECORD, {}) or {}
+    version_ids = record.get("version_ids") or {}
+    if step not in version_ids:
+        version_ids[step] = f"{prefix}-{uuid.uuid4()}"
+        run_resume.update_record(folder, version_ids=version_ids)
+    return version_ids[step]
+
+
+def _train_steps(args: argparse.Namespace, folder: Path | None, *, resumed: bool = False) -> int:
     seed = getattr(args, "seed", None)
     ranking_objective = getattr(args, "ranking_objective", None)
     if (seed is not None or ranking_objective is not None) and not (args.multitask_only or args.sequence_only):
@@ -280,30 +357,48 @@ def cmd_train(args: argparse.Namespace) -> int:
             "aq train: --include-multitask/--include-sequence/--metrics only apply to --walk-forward - ignored here.",
             file=sys.stderr,
         )
-    if args.gating_only:
-        return _train_gating_only()
-    if args.multitask_only:
-        return _train_multitask_only(seed=seed, ranking_objective=ranking_objective)
-    if args.sequence_only:
-        return _train_sequence_only(seed=seed, ranking_objective=ranking_objective)
-    if args.topology_only:
-        return _train_topology_only()
-    if args.strategy_selector_only:
-        return _train_strategy_selector_only()
-    if args.rl_sizing_only:
-        return _train_rl_sizing_only()
+    if not (args.multitask_only or args.sequence_only):
+        seed = ranking_objective = None  # warned about above: a bare run's chained trainers keep config.json's own
+    profile = getattr(args, "memory_profile", None) or "standard"
+    if getattr(args, "multitask_only", False) and ranking_objective not in (None, *MULTITASK_OBJECTIVES):
+        print(f"aq train: --ranking-objective {ranking_objective} needs the sequence trainer's row context (--sequence-only); "
+              f"the multitask trainer takes {', '.join(MULTITASK_OBJECTIVES)}", file=sys.stderr)
+        return 2
+
+    def gating() -> int:
+        return _train_gating_only(version_id=_train_version_id(folder, "gating", "gating-only"), memory_profile=profile)
+
+    def multitask() -> int:
+        return _train_multitask_only(seed=seed, ranking_objective=ranking_objective, version_id=_train_version_id(folder, "multitask", "multitask-only"),
+                                     memory_profile=profile)
+
+    def sequence() -> int:
+        return _train_sequence_only(seed=seed, ranking_objective=ranking_objective, version_id=_train_version_id(folder, "sequence", "sequence-only"),
+                                    memory_profile=profile, resume=resumed)
+
+    for flag, step, action in (
+        ("gating_only", "gating", gating), ("multitask_only", "multitask", multitask), ("sequence_only", "sequence", sequence),
+        ("topology_only", "topology", _train_topology_only), ("strategy_selector_only", "strategy_selector", _train_strategy_selector_only),
+        ("rl_sizing_only", "rl_sizing", _train_rl_sizing_only),
+    ):
+        if getattr(args, flag, False):
+            return _train_step(folder, step, action)
     cmd = [sys.executable, "train.py"]
     # A fully bare `aq train` (no scope flag at all) is the only case that
     # chains gating/multitask/sequence training on top of train.py's own
     # baseline+experts run below - --dataset-only/--init-only/--experts-only/
-    # --walk-forward all still mean exactly what they say and stop there.
-    bare_run = not (args.dataset_only or args.init_only or args.experts_only or args.walk_forward)
+    # --candidate/--walk-forward all still mean exactly what they say and stop there.
+    candidate = getattr(args, "candidate", False)
+    bare_run = not (args.dataset_only or args.init_only or args.experts_only or args.walk_forward or candidate)
     if args.dataset_only:
         cmd.append("--dataset-only")
     elif args.init_only:
         cmd.append("--init-only")
     elif args.experts_only:
         cmd.append("--experts-only")
+    elif candidate:
+        version_id = _train_version_id(folder, "candidate", "candidate")
+        cmd += ["--candidate", "--version-id", version_id]
     elif args.walk_forward:
         cmd.append("--walk-forward")
         if args.step_days is not None:
@@ -316,10 +411,21 @@ def cmd_train(args: argparse.Namespace) -> int:
             cmd.append("--include-sequence")
         if getattr(args, "metrics", None) is not None:
             cmd += ["--metrics", args.metrics]
-        if getattr(args, "resume_run_id", None) is not None:
-            cmd += ["--resume-run-id", args.resume_run_id]
+        resume_run_id = getattr(args, "resume_run_id", None)
+        if folder is not None:
+            # train.py writes the walk-forward's id here before its first window; a resumed run continues that run's windows
+            id_file = folder / "walk_forward_run_id"
+            if resume_run_id is None and id_file.exists():
+                resume_run_id = id_file.read_text(encoding="utf-8").strip() or None
+            cmd += ["--run-id-file", str(id_file)]
+        if resume_run_id is not None:
+            cmd += ["--resume-run-id", resume_run_id]
+    if profile != "standard" and not args.init_only:
+        cmd += ["--memory-profile", profile]
 
-    returncode = _run(cmd)
+    returncode = _train_step(folder, "train_py", lambda: _run(cmd))
+    if returncode == 0 and candidate:
+        print(f"aq train --candidate: trained into ml/versions/{version_id}/ (the active ml/ is untouched).")
     if returncode != 0 or not bare_run:
         return returncode
 
@@ -328,19 +434,15 @@ def cmd_train(args: argparse.Namespace) -> int:
     # `aq train` genuinely trains baseline + experts + gating + multitask +
     # sequence, not just the first two. Stops at the first failure rather
     # than silently continuing with a partially-updated active model.
-    for stage_name, stage_fn in (
-        ("gating", _train_gating_only),
-        ("multitask", _train_multitask_only),
-        ("sequence", _train_sequence_only),
-    ):
-        returncode = stage_fn()
+    for stage_name, stage_fn in (("gating", gating), ("multitask", multitask), ("sequence", sequence)):
+        returncode = _train_step(folder, stage_name, stage_fn)
         if returncode != 0:
             print(f"aq train: stopped after {stage_name} training failed (exit {returncode}).", file=sys.stderr)
             return returncode
     return 0
 
 
-def _train_gating_only() -> int:
+def _train_gating_only(version_id: str | None = None, memory_profile: str = "standard") -> int:
     """`aq train --gating-only`: trains the learned gating blend
     (train_gating.py) and installs it straight into active ml/, mirroring
     what `train.py --experts-only` already does for the expert models.
@@ -352,9 +454,9 @@ def _train_gating_only() -> int:
     manual promotion-simulation step already documented for verifying this
     trainer, skipping the full retraining/validate/backtest/commit/promote
     pipeline since this is an ad-hoc, user-triggered run, not a scheduled
-    candidate."""
-    version_id = f"gating-only-{uuid.uuid4()}"
-    returncode = _run([sys.executable, "train_gating.py", "--version-id", version_id])
+    candidate. `version_id` and `memory_profile` (V6.6.10) come from a recorded `aq train` run."""
+    version_id = version_id or f"gating-only-{uuid.uuid4()}"
+    returncode = _run([sys.executable, "train_gating.py", "--version-id", version_id, *_profile_flag(memory_profile)])
     if returncode != 0:
         return returncode
 
@@ -375,7 +477,9 @@ def _train_gating_only() -> int:
     return 0
 
 
-def _train_multitask_only(seed: int | None = None, ranking_objective: str | None = None) -> int:
+def _train_multitask_only(
+    seed: int | None = None, ranking_objective: str | None = None, version_id: str | None = None, memory_profile: str = "standard",
+) -> int:
     """`aq train --multitask-only`: trains the joint direction+magnitude+
     volatility model (train_multitask.py) and installs it straight into
     active ml/ - identical shape to _train_gating_only() above, including
@@ -387,8 +491,8 @@ def _train_multitask_only(seed: int | None = None, ranking_objective: str | None
     when provided, the `aq`-level entry point for the seed-ensembling/
     ranking-objective-A/B workflow that previously required calling the
     script directly."""
-    version_id = f"multitask-only-{uuid.uuid4()}"
-    cmd = [sys.executable, "train_multitask.py", "--version-id", version_id]
+    version_id = version_id or f"multitask-only-{uuid.uuid4()}"
+    cmd = [sys.executable, "train_multitask.py", "--version-id", version_id, *_profile_flag(memory_profile)]
     if seed is not None:
         cmd += ["--seed", str(seed)]
     if ranking_objective is not None:
@@ -414,15 +518,18 @@ def _train_multitask_only(seed: int | None = None, ranking_objective: str | None
     return 0
 
 
-def _train_sequence_only(seed: int | None = None, ranking_objective: str | None = None) -> int:
+def _train_sequence_only(
+    seed: int | None = None, ranking_objective: str | None = None, version_id: str | None = None, memory_profile: str = "standard",
+    resume: bool = False,
+) -> int:
     """`aq train --sequence-only`: trains the Phase 2 causal-TCN sequence
     encoder (train_sequence.py) and installs it straight into active ml/ -
     identical shape to _train_multitask_only()/_train_gating_only() above.
 
     seed/ranking_objective - see _train_multitask_only()'s identical
-    docstring."""
-    version_id = f"sequence-only-{uuid.uuid4()}"
-    cmd = [sys.executable, "train_sequence.py", "--version-id", version_id]
+    docstring. `resume` (V6.6.10, a resumed `aq train` run): continue from the version's per-epoch checkpoint (the low profile keeps one)."""
+    version_id = version_id or f"sequence-only-{uuid.uuid4()}"
+    cmd = [sys.executable, "train_sequence.py", "--version-id", version_id, *_profile_flag(memory_profile), *(["--resume"] if resume else [])]
     if seed is not None:
         cmd += ["--seed", str(seed)]
     if ranking_objective is not None:
@@ -636,6 +743,8 @@ def _run_captured(cmd: list[str], cwd: Path = ROOT_DIR) -> tuple[int, str]:
 # default run.
 _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
     "cli": [
+        # V6.6.10: `aq models`
+        "test_aq_models_cli.py",
         "test_aq_cli.py", "test_generate_backtest_report.py", "test_generate_evaluation_report.py", "test_readme_research.py", "test_topology_sizing_research.py", "test_ml_manifest.py",
         "test_lean_config_render.py", "test_dockerignore_secrets.py", "test_secret_scan.py",
         "test_profile_inference.py", "test_profile_subsystems.py", "test_lean_runtime_imports.py",
@@ -782,6 +891,12 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         "test_auto_rollback.py",
         # V6.6.9
         "test_artifact_pins.py",
+        # V6.6.10: training on a small machine (lazy windows, profiles, the memory probe) and its CI proof
+        "test_slicing.py", "test_lowmem_proof.py",
+        # V6.6.10: resumable runs (the run folder, `aq train --resume`, `--list-runs`, `aq pipeline run --resume`)
+        "test_run_resume.py", "test_aq_train_resume.py",
+        # V6.6.10: the example models anyone can install (the catalog and its build)
+        "test_model_catalog.py", "test_build_example_models.py",
     ],
     "notifications": ["test_telegram_alerts.py", "test_telegram_client.py", "test_telegram_worker.py", "test_postgres_telegram.py"],
     "storage": ["test_postgres_triggers.py", "test_postgres_worker.py", "test_config_cache.py", "test_runtime_config_io.py", "test_experience_queue.py"],
@@ -803,6 +918,8 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         "test_live_readiness.py", "test_live_readiness_io.py", "test_backup_postgres.py",
     ],
     "evaluation": [
+        # V6.6.10: the multi-asset push's rules and verdicts, its stage driver
+        "test_multi_asset_round.py", "test_v6610_research.py", "test_alpha_behaviour.py", "test_pipeline.py", "test_project_template.py", "test_model_cycle_row.py",
         # V6.6.9: the model book's research, its stages and the chunked dataset reader
         "test_model_book_research.py", "test_model_book_round.py", "test_dataset_io.py",
         # V6.6.7: each module's own test file
@@ -913,6 +1030,11 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         "test_formal_differential_reconciliation.py", "test_formal_differential_sleeve_guard.py",
         "test_formal_differential_json_safety.py", "test_v643_formal_findings.py", "test_formal_differential_generation_blend.py", "test_formal_differential_generation_glide.py",
         "test_formal_differential_admission.py", "test_formal_differential_session_resolve.py", "test_formal_differential_holdout_once.py", "test_check_axioms.py", "test_formal_no_sorry.py", "test_verification_matrix.py",
+        "test_formal_inventory.py",
+        # V6.6.10: the new specs' differential tests
+        "test_formal_differential_no_trade_band.py", "test_formal_differential_paper_loss_guard.py", "test_formal_differential_multi_asset_rules.py",
+        "test_formal_differential_window_index.py", "test_formal_differential_kelly.py", "test_formal_differential_inverse_vol_share.py",
+        "test_formal_differential_sharpe_clauses.py", "test_formal_differential_book_guards.py",
         # V6.6.5
         "test_formal_differential_account_overrides.py", "test_formal_differential_authorize.py",
         # V6.6.7 (#368-#376): ten more specs
@@ -1103,6 +1225,9 @@ def _git_grep_tests(needle: str, run=subprocess.run) -> list[str]:
     return [Path(line.strip()).name for line in result.stdout.splitlines() if line.strip()]
 
 
+COVERAGE_DIR = "coverage-report"  # V6.6.10: every coverage output in one folder (pyproject's [tool.coverage.*] point here too)
+
+
 def _coverage_json_covers(json_path: Path, changed: list[str]) -> bool:
     """True when a coverage.json written after every changed file shows each of them with no missing line."""
     if not json_path.exists():
@@ -1125,7 +1250,7 @@ def _run_changed_coverage(*, run=subprocess.run, grep=None, runner=None) -> int:
     if not changed:
         print("coverage --changed: no changed module")
         return 0
-    if _coverage_json_covers(ROOT_DIR / "coverage.json", changed):
+    if _coverage_json_covers(ROOT_DIR / COVERAGE_DIR / "coverage.json", changed):
         print(f"coverage --changed: coverage.json is newer than the {len(changed)} changed file(s) and shows them at 100%")
         return 0
     if len(changed) > _CHANGED_COVERAGE_LIMIT:
@@ -1136,7 +1261,8 @@ def _run_changed_coverage(*, run=subprocess.run, grep=None, runner=None) -> int:
     if not tests:
         print(f"coverage --changed: no test names {changed}: write one (AGENTS.md 'Coverage: 100% after every commit')")
         return 1
-    data = ROOT_DIR / ".coverage.changed"
+    data = ROOT_DIR / COVERAGE_DIR / ".coverage.changed"
+    data.parent.mkdir(parents=True, exist_ok=True)
     data.unlink(missing_ok=True)
     env = {**os.environ, "COVERAGE_FILE": str(data)}
     execute = runner or (lambda cmd: run(cmd, cwd=ROOT_DIR, env=env, check=False).returncode)
@@ -1153,7 +1279,8 @@ def _run_coverage(args: argparse.Namespace) -> int:
     partial, so its gate is off), then `coverage report` and `coverage json` over the combined data."""
     if getattr(args, "changed", False):
         return _run_changed_coverage()
-    data = Path(os.environ.get("COVERAGE_FILE") or ROOT_DIR / ".coverage")
+    data = Path(os.environ.get("COVERAGE_FILE") or ROOT_DIR / COVERAGE_DIR / ".coverage")
+    data.parent.mkdir(parents=True, exist_ok=True)
     data.unlink(missing_ok=True)
     chosen = [name for name in _SUBSYSTEM_TEST_FILES if getattr(args, name.replace("-", "_"), False)]
     worst = 0
@@ -1595,7 +1722,17 @@ def _cycle_schedule(args: argparse.Namespace) -> int:
 
 
 def _cycle_retrain(args: argparse.Namespace) -> int:
-    command = [sys.executable, str(ROOT_DIR / "scripts" / "cycle_retrain.py"), "--host", args.host]
+    command = [sys.executable, str(ROOT_DIR / "scripts" / "cycle_retrain.py"), *(["--host", args.host] if args.host else [])]
+    if getattr(args, "estimate", False):
+        return subprocess.run([*command, "--estimate"], cwd=ROOT_DIR, check=False).returncode
+    if getattr(args, "list_runs", False):
+        return subprocess.run([*command, "--list-runs"], cwd=ROOT_DIR, check=False).returncode
+    if getattr(args, "resume", None):
+        # V6.6.10: the run folder holds its own settings (resume.json), so nothing else is needed
+        return subprocess.run([*command, "--resume", *([] if args.resume == "latest" else [args.resume])], cwd=ROOT_DIR, check=False).returncode
+    if not args.host:
+        print("name a --host (local or codespace), or --resume a stopped run", file=sys.stderr)
+        return 2
     if args.if_due:
         view = _cycle_status(args, write=False)
         if not any(str(item.get("action", "")).startswith("aq cycle retrain") for item in view["due"]):
@@ -1610,6 +1747,13 @@ def _cycle_retrain(args: argparse.Namespace) -> int:
         command.append("--smoke")
     if args.dry_run:
         command.append("--dry-run")
+    # V6.6.10: these were dropped on the way to the script
+    if getattr(args, "memory_profile", "standard") != "standard":
+        command += ["--memory-profile", args.memory_profile]
+    if getattr(args, "min_ram_gb", None) is not None:
+        command += ["--min-ram-gb", str(args.min_ram_gb)]
+    if getattr(args, "score_end", None):
+        command += ["--score-end", args.score_end]
     return subprocess.run(command, cwd=ROOT_DIR, check=False).returncode
 
 
@@ -2666,7 +2810,8 @@ def _phase_deflation_inputs() -> dict | None:
     if not registry_path.exists() or not any(entry["role"] == "candidate" for entry in current):
         return None
     registry = json.loads(registry_path.read_text(encoding="utf-8"))
-    earlier = [*read_ledger(evaluation / "v650" / "trial_ledger.jsonl"), *read_ledger(evaluation / "v669" / "trial_ledger.jsonl")]
+    earlier = [*read_ledger(evaluation / "v650" / "trial_ledger.jsonl"), *read_ledger(evaluation / "v669" / "trial_ledger.jsonl"),
+               *read_ledger(evaluation / "v6610" / "trial_ledger.jsonl"), *read_ledger(evaluation / "v6610" / "book2" / "trial_ledger.jsonl")]
     return deflation_inputs([*earlier, *current], registry, "v660_selection")
 
 
@@ -2962,7 +3107,7 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
         ledger_rows = _forward_ledger_rows(args)
         today = _datetime.datetime.now(_datetime.timezone.utc).date()
         last_session = max((row["payload"]["session"] for row in ledger_rows), default=None)
-        weekdays = [str(day) for day in np.arange(np.datetime64(last_session) + 1, np.datetime64(today.isoformat()) + 1, dtype="datetime64[D]") if np.is_busday(day)] if last_session else []
+        weekdays = [str(day) for day in np.arange(np.datetime64(last_session, "D") + np.timedelta64(1, "D"), np.datetime64(today, "D") + np.timedelta64(1, "D"), dtype="datetime64[D]") if np.is_busday(day)] if last_session else []
         report = judge_ledger(ledger_rows, today_sessions=weekdays)
         print(json.dumps(report, indent=2, default=str))
         return 0 if report["chain_valid"] else 1
@@ -3109,13 +3254,16 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
                 print(f"error: --period expects START..END (ISO dates), got {period_text!r}", file=sys.stderr)
                 return 1
             periods.append((period_start, period_end))
-        from evaluation.backtest_audit import class_by_ticker_from_config
+        from evaluation.backtest_audit import class_by_ticker_from_config, member_book_runs
+        from evaluation.lean_attribution import run_config_path
 
         class_by_ticker = class_by_ticker_from_config(config)
+        snapshot = run_config_path(run_dir, ROOT_DIR)
+        run_config = json.loads(snapshot.read_text(encoding="utf-8")) if snapshot is not None else config
         audit = audit_backtest_run(
             run, load_book_history(book_history_path), book_run_index=getattr(args, "book_run_index", -1),
             max_open_sessions=max_open_sessions, class_by_ticker=class_by_ticker,
-            periods=periods,
+            periods=periods, member_book=member_book_runs(run_config),
         )
         audit["backtest_dir"] = str(run_dir)
         _write_evaluation_json(ML_DIR / "evaluation" / "backtest_audit.json", audit)
@@ -3144,7 +3292,11 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
             )
             print(f"  holding period histogram: {audit['holding_period_days']}")
             print(f"  P&L / fees: {audit['pnl_and_fees']}")
-            print(f"  book: {audit['book']['num_engaged']}/{audit['book']['num_rebalance_records']} rebalances engaged; vetoes {audit['book']['veto_reasons']}")
+            book = audit["book"]
+            if book.get("applicable", True):
+                print(f"  book: {book['num_engaged']}/{book['num_rebalance_records']} rebalances engaged; vetoes {book['veto_reasons']}")
+            else:
+                print(f"  book: not applicable ({book['reason']})")
             print(f"  engine teardown: {audit['teardown']}")
             for period in audit.get("periods", []):
                 net = period["net_return"]
@@ -4971,6 +5123,118 @@ def cmd_docs_sync(args: argparse.Namespace) -> int:
     return 1 if report["unknown"] or (args.check and report["changed"]) else 0
 
 
+def cmd_models(args: argparse.Namespace, *, root: Path | None = None) -> int:
+    """`aq models` (V6.6.10): the example models published with each release, installed into a local cache and scored with the numpy
+    forward pass. The project's own trading models are not published."""
+    import pandas as pd
+
+    from retraining import model_catalog as catalog
+
+    root = Path(root or catalog.DEFAULT_ROOT)
+    command = args.models_command
+    try:
+        if command == "list":
+            for entry in catalog.catalog():
+                state = "installed" if (root / entry["name"]).is_dir() else "not installed"
+                print(f"{entry['name']:<22} {entry['kind']:<10} {state:<14} {entry['summary']}")
+            return 0
+        if command == "install":
+            if args.from_zip:
+                folder = catalog.install_zip(Path(args.from_zip), name=args.name, root=root)
+            else:
+                folder = catalog.install(args.name, version=args.version, root=root)
+            print(f"installed {args.name} into {folder}")
+            return 0
+        if command == "info":
+            print(catalog.load(args.name, root=root)["card"] or "(no model card)")
+            return 0
+        model = catalog.load(args.name, root=root)
+        if args.csv:
+            closes = pd.read_csv(args.csv, index_col=0)
+            closes.index = closes.index.astype(str)
+        else:
+            from aether_quant.samples import load_sample_prices
+
+            closes = load_sample_prices()
+        scores = catalog.score(model, closes, head=args.head)
+        if args.out:
+            scores.to_csv(args.out, index=False, lineterminator="\n")
+            print(f"{len(scores)} scores to {args.out}")
+        else:
+            last = scores[scores["date"] == scores["date"].max()].sort_values("score", ascending=False)
+            print(last.to_string(index=False))
+        return 0
+    except (ValueError, FileNotFoundError, OSError) as error:
+        print(f"aq models {command}: {error}", file=sys.stderr)
+        return 1
+
+
+def cmd_init(args: argparse.Namespace) -> int:
+    """`aq init <dir>` (V6.6.10): a new signal project (signal, tests, pipeline, workflow) from the template in the wheel."""
+    from evaluation.project_template import create_project
+
+    try:
+        written = create_project(Path(args.directory), name=args.name, version=_installed_version())
+    except FileExistsError as error:
+        print(f"aq init: {error}", file=sys.stderr)
+        return 1
+    print(f"created {args.directory}: " + ", ".join(written))
+    print(f"next: cd {args.directory} && pytest && aq pipeline run")
+    return 0
+
+
+def _installed_version() -> str:
+    from importlib.metadata import PackageNotFoundError, version
+
+    try:
+        return version("aether-quant")
+    except PackageNotFoundError:
+        return "0.0.0"
+
+
+def cmd_pipeline(args: argparse.Namespace) -> int:
+    """`aq pipeline run | status` (V6.6.10): data, signal, (train), evaluate, gate, report, resumable, in `runs/<id>/`."""
+    import datetime as _datetime
+
+    from evaluation import pipeline
+    from retraining import run_resume
+
+    config = Path(args.config) if args.config else (Path("pipeline.toml") if Path("pipeline.toml").exists() else None)
+    runs = Path(args.runs_dir)
+    if args.pipeline_command == "status":
+        candidates = [runs / args.run_id] if args.run_id else sorted(runs.glob("*/state.json"), key=lambda path: path.stat().st_mtime)
+        states = [path if path.name == "state.json" else path / "state.json" for path in candidates]
+        if not states or not states[-1].exists():
+            print("no pipeline run yet: aq pipeline run")
+            return 1
+        state = json.loads(states[-1].read_text(encoding="utf-8"))
+        print(f"{states[-1].parent.name}: " + ", ".join(f"{stage} done" for stage in state["done"]) + f" ({len(state['done'])}/{len(pipeline.STAGES)} stages)")
+        return 0
+    run_id = args.run_id
+    if getattr(args, "resume", False) and not run_id:
+        # V6.6.10: the newest run that has not reached its last stage, with the pipeline file it started with
+        stopped = run_resume.find_resumable(runs, "", last_step=pipeline.STAGES[-1])
+        if stopped is None:
+            print("aq pipeline run --resume: no stopped run to continue", file=sys.stderr)
+            return 1
+        run_id = stopped.name
+        recorded = (run_resume.read_json(stopped / run_resume.RECORD, {}) or {}).get("config")
+        config = Path(recorded) if recorded and args.config is None else config
+        print(f"resuming run {run_id}: done {', '.join(run_resume.done_steps(stopped)) or 'nothing yet'}")
+    try:
+        spec = pipeline.load_pipeline(config)
+    except (OSError, ValueError) as error:
+        print(f"aq pipeline: {error}", file=sys.stderr)
+        return 1
+    run_id = run_id or _datetime.datetime.now(_datetime.timezone.utc).strftime("%Y%m%d_%H%M%S")
+    run_dir = runs / run_id
+    run_resume.start_record(run_dir, {"config": str(config.resolve()) if config is not None else None})
+    print(f"pipeline {spec['pipeline']['name']} ({'defaults: the sample and 20-session momentum' if config is None else config}), run {run_id}")
+    state = pipeline.run_stages(pipeline.STAGES, pipeline.pipeline_actions(spec, run_dir=run_dir), state_path=run_dir / "state.json")
+    print((run_dir / "report.md").read_text(encoding="utf-8"))
+    return 0 if all(verdict["passed"] for verdict in state["done"]["gate"]["result"].values()) else 3
+
+
 def cmd_hello(args: argparse.Namespace) -> int:
     """`aq hello`: real daily bars, the shipped rule, a cost-aware backtest and a clean report, in one command (V6.6.5, #343)."""
     from data_pipeline.public_candles import DEFAULT_CACHE_DIR
@@ -5015,11 +5279,47 @@ def build_parser() -> argparse.ArgumentParser:
     hello_parser.add_argument("--no-cache", action="store_true", help="Download again instead of reading ~/.cache/aether-quant")
     hello_parser.set_defaults(func=cmd_hello)
 
+    models_parser = subparsers.add_parser("models", help="Example models from each GitHub release: list, install, info, score (no torch; the project's own models are not published)")
+    models_sub = models_parser.add_subparsers(dest="models_command", required=True)
+    models_sub.add_parser("list", help="The example models and whether each is installed")
+    models_install = models_sub.add_parser("install", help="Download an example from the release, check its sha256, unpack it into ~/.cache/aether-quant/models")
+    models_install.add_argument("name")
+    models_install.add_argument("--version", default=None, help="The release tag without its v (default: the latest release)")
+    models_install.add_argument("--from", dest="from_zip", default=None, metavar="ZIP", help="Install a local zip instead (checked the same way, against its own manifest)")
+    models_info = models_sub.add_parser("info", help="An installed example's model card")
+    models_info.add_argument("name")
+    models_score = models_sub.add_parser("score", help="Score a close table (dates x tickers CSV) with an installed example or a model folder")
+    models_score.add_argument("name", help="An installed example, or a folder holding an exported model (your own ml/versions/<id>)")
+    models_score.add_argument("--csv", default=None, help="Wide closes: a date column then one column per ticker (default: the bundled sample)")
+    models_score.add_argument("--head", default="rank_20d", help="Which head to read (default rank_20d)")
+    models_score.add_argument("--out", default=None, help="Write date,ticker,score here instead of printing the last date's scores")
+    models_parser.set_defaults(func=cmd_models)
+
+    init_parser = subparsers.add_parser("init", help="Start your own signal project: signal, tests, a pipeline with a gate, a GitHub workflow")
+    init_parser.add_argument("directory", help="A new or empty folder")
+    init_parser.add_argument("--name", default=None, help="The project's name (default: the folder's)")
+    init_parser.set_defaults(func=cmd_init)
+
+    pipeline_parser = subparsers.add_parser("pipeline", help="Data, signal, evaluate, gate, report in one resumable command (pipeline.toml, or the sample with defaults)")
+    pipeline_sub = pipeline_parser.add_subparsers(dest="pipeline_command", required=True)
+    for name, help_text in (("run", "Run (or resume) a pipeline"), ("status", "The stages a run has finished")):
+        command_parser = pipeline_sub.add_parser(name, help=help_text)
+        command_parser.add_argument("--config", default=None, help="The pipeline file (default: ./pipeline.toml, else the defaults)")
+        command_parser.add_argument("--run-id", default=None, help="Resume or read this run (default: a new one / the latest)")
+        command_parser.add_argument("--runs-dir", default="runs", help="Where runs live (default: ./runs)")
+        if name == "run":
+            command_parser.add_argument("--resume", action="store_true", help="Continue the newest stopped run with its own pipeline file (its finished stages are kept)")
+    pipeline_parser.set_defaults(func=cmd_pipeline)
+
     train_parser = subparsers.add_parser("train", help="Run the training pipeline (wraps python train.py)")
     train_group = train_parser.add_mutually_exclusive_group()
     train_group.add_argument("--dataset-only", action="store_true", help="Build dataset/scaler/manifest only")
     train_group.add_argument("--init-only", action="store_true", help="Refresh the data inventory only")
     train_group.add_argument("--experts-only", action="store_true", help="Train the 4 expert models only")
+    train_group.add_argument(
+        "--candidate", action="store_true",
+        help="Train the baseline and experts into ml/versions/candidate-<uuid>/ without touching the active ml/ (wraps python train.py --candidate)",
+    )
     train_group.add_argument(
         "--gating-only", action="store_true", help="Train the learned gating blend only (wraps python train_gating.py)"
     )
@@ -5125,8 +5425,23 @@ def build_parser() -> argparse.ArgumentParser:
         "--ranking-objective",
         type=str,
         default=None,
-        choices=["mse", "soft_spearman", "listnet"],
+        choices=["mse", "soft_spearman", "listnet", "ic_pearson", "ls_sharpe", "class_balanced", "cost_aware"],
         help="Override config.json's ranking_loss.objective for this run only (only with --multitask-only/--sequence-only)",
+    )
+    train_parser.add_argument(
+        "--memory-profile", choices=["standard", "low"], default="standard",
+        help="low: train on a small machine (4 GB), slower: float32 reads, lazy sequence windows, a per-epoch checkpoint (passed to every trainer)",
+    )
+    train_parser.add_argument(
+        "--resume", nargs="?", const="latest", default=None, metavar="RUN_ID",
+        help=(
+            "Continue a stopped `aq train` run with its own settings (the newest unfinished one, or RUN_ID): finished steps are skipped, "
+            "a walk-forward continues its windows (a window reuses its dataset and baseline when they were written completely), "
+            "the sequence trainer continues from its checkpoint"
+        ),
+    )
+    train_parser.add_argument(
+        "--list-runs", action="store_true", help="List the `aq train` and `aq cycle retrain` runs with their finished steps, and stop",
     )
     train_parser.set_defaults(func=cmd_train)
 
@@ -5262,11 +5577,19 @@ def build_parser() -> argparse.ArgumentParser:
     cycle_decide_parser.add_argument("--ledger-file", required=True, help="forward/decisions.jsonl in a worktree of the branch")
     cycle_decide_parser.add_argument("--session", required=True)
     cycle_retrain_parser = cycle_subparsers.add_parser("retrain", help="Retrain on this machine or the training Codespace, resumable (RAM preflight; --smoke proves the plumbing anywhere)")
-    cycle_retrain_parser.add_argument("--host", choices=["local", "codespace"], required=True)
+    cycle_retrain_parser.add_argument("--host", choices=["local", "codespace"], default=None, help="Required, except with --resume or --estimate")
     cycle_retrain_parser.add_argument("--procedure", default=None, help="A procedure in scripts/cycle_retrain.py: k06, k07, or stack (the model stack: multitask, sequence, gating and the walk-forward)")
     cycle_retrain_parser.add_argument("--smoke", action="store_true", help="Every stage on a tiny synthetic panel")
     cycle_retrain_parser.add_argument("--dry-run", action="store_true", help="Print the stages and the preflight, and stop")
     cycle_retrain_parser.add_argument("--if-due", action="store_true", help="Do nothing unless `aq cycle status` says a retrain is due")
+    cycle_retrain_parser.add_argument("--memory-profile", choices=["standard", "low"], default="standard",
+                                      help="low: train the stack on a 4 GB machine (lazy sequence windows, chunked float32 reads, per-epoch checkpoints); slower")
+    cycle_retrain_parser.add_argument("--min-ram-gb", type=float, default=None, help="Override the profile's minimum RAM (standard 14, low 3.5)")
+    cycle_retrain_parser.add_argument("--score-end", default=None, help="A stack run: the last date of the walk-forward scores")
+    cycle_retrain_parser.add_argument("--estimate", action="store_true", help="Print each memory profile's estimated peak for the active dataset, and stop")
+    cycle_retrain_parser.add_argument("--resume", nargs="?", const="latest", default=None, metavar="RUN_ID",
+                                      help="Continue a stopped retrain with its own settings (the newest unfinished one, or RUN_ID): finished stages are skipped, the walk-forward and the sequence trainer continue where they stopped")
+    cycle_retrain_parser.add_argument("--list-runs", action="store_true", help="List the retrain and `aq train` runs with their finished stages, and stop")
     cycle_retrain_parser.add_argument("--ledger-file", default=None, help=argparse.SUPPRESS)
     cycle_promote_parser = cycle_subparsers.add_parser("promote", help="Change a generation's stage, by rule R-ADMIT1 (never touches broker settings)")
     cycle_promote_parser.add_argument("--generation", required=True)

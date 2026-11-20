@@ -46,7 +46,10 @@ def daily_rank(frame: pd.DataFrame, values: np.ndarray) -> pd.Series:
 
 
 def tables_for_window(window_dir: Path, *, end: str, sequence_window: int) -> dict[str, pd.DataFrame]:
-    frame = pd.read_csv(window_dir / "full_dataset.csv", low_memory=False)
+    from retraining.slicing import read_csv_float32
+
+    # float32 in chunks (V6.6.10): a window's dataset is up to 2.2 GB of text; the models read float32 inputs either way
+    frame = read_csv_float32(window_dir / "full_dataset.csv")
     frame["date"] = frame["date"].astype(str).str[:10]
     frame = frame.sort_values(["ticker", "date"]).reset_index(drop=True)
     mask = ((frame["split"] == "backtest") & (frame["date"] <= end)).to_numpy()
@@ -72,7 +75,10 @@ def main() -> int:
     parser.add_argument("--run-id", required=True)
     parser.add_argument("--end", required=True)
     parser.add_argument("--sequence-window", type=int, default=30)
+    parser.add_argument("--out", default=None, help="where the score tables go (default ml/evaluation/v650/scores; a stack retrain writes into its own run folder)")
     args = parser.parse_args()
+    out = Path(args.out) if args.out else OUT
+    out = out if out.is_absolute() else ROOT / out
     run_dir = ROOT / "ml" / "versions" / args.run_id
     pieces: dict[str, list[pd.DataFrame]] = {}
     windows = sorted(run_dir.glob("window_*"), key=lambda path: int(path.name.split("_")[1]))
@@ -83,10 +89,10 @@ def main() -> int:
         for name, table in tables_for_window(window_dir, end=args.end, sequence_window=args.sequence_window).items():
             pieces.setdefault(name, []).append(table)
             print(f"{window_dir.name} {name}: {len(table)} rows {table['date'].min()}..{table['date'].max()}", flush=True)
-    OUT.mkdir(parents=True, exist_ok=True)
+    out.mkdir(parents=True, exist_ok=True)
     for name, tables in pieces.items():
         merged = pd.concat(tables, ignore_index=True).drop_duplicates(["date", "ticker"], keep="last").sort_values(["date", "ticker"])
-        merged.to_csv(OUT / f"{name}.csv", index=False, lineterminator="\n", float_format="%.6f")
+        merged.to_csv(out / f"{name}.csv", index=False, lineterminator="\n", float_format="%.6f")
         print(f"{name}: {len(merged)} rows to {merged['date'].max()}", flush=True)
     return 0
 

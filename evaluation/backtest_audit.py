@@ -414,6 +414,20 @@ def summarize_book_history(book_history: list[dict], start_date: str | None, end
     }
 
 
+def member_book_runs(config: dict) -> bool:
+    """Whether a run with this config builds the member book and its rolling-IC gate. A target-weights run (from a file or
+    the model book) returns before them in `main.py`'s on_data, so book_history.jsonl holds none of its records, and its
+    latest segment belongs to an older run (#410)."""
+    target_weights = (config.get("phase_v2") or {}).get("target_weights") or {}
+    return not bool(target_weights.get("enabled", False))
+
+
+BOOK_NOT_APPLICABLE = {
+    "applicable": False,
+    "reason": "target-weights run: main.py trades the weights and never builds the member book or its rolling-IC gate",
+}
+
+
 def teardown_status(engine_log_text: str) -> dict:
     """Did Lean's embedded interpreter shut down cleanly? Read from the ENGINE
     log (`<run>/log.txt`), never the algorithm log - #104 was wrongly marked
@@ -498,11 +512,13 @@ def audit_backtest_run(
     max_open_sessions: int | None = None,
     class_by_ticker: dict[str, str] | None = None,
     periods: list[tuple[str, str]] | None = None,
+    member_book: bool = True,
 ) -> dict:
     """The full audit. `run` is load_backtest_run()'s dict; `book_history`
     is the raw (multi-run) log, of which `book_run_index` selects one run. `class_by_ticker` (upper-case ticker ->
-    config asset class) splits bonds out of "equity" and crypto/forex by config."""
-    book_history = select_run_book_history(book_history, book_run_index)
+    config asset class) splits bonds out of "equity" and crypto/forex by config. `member_book=False` (member_book_runs()
+    of the run's config) ignores the book history, which then belongs to another run."""
+    book_history = select_run_book_history(book_history, book_run_index) if member_book else []
     result = run["result"]
     orders = result.get("orders", {})
     closed_trades = result.get("totalPerformance", {}).get("closedTrades", [])
@@ -527,7 +543,7 @@ def audit_backtest_run(
         "orders": find_overlapping_orders(orders, max_open_days=max_open_days, max_open_sessions=max_open_sessions),
         "holding_period_days": holding_period_histogram(closed_trades),
         "pnl_and_fees": pnl_and_fees_by_asset_class(closed_trades, orders, run.get("order_events", []), class_by_ticker),
-        "book": summarize_book_history(book_history, start_date, end_date),
+        "book": summarize_book_history(book_history, start_date, end_date) if member_book else dict(BOOK_NOT_APPLICABLE),
         "teardown": teardown_status(run.get("engine_log", "")),
     }
     if periods:

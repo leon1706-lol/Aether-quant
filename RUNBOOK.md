@@ -25,7 +25,7 @@ Sync before training, verify after, and stop the Codespace right away. The `ml/`
 .\scripts\codespace_sync.ps1 -Mode stop
 ```
 
-- The VM can reboot: resume a walk-forward with `aq train --walk-forward --resume-run-id <id>`.
+- The VM can reboot: `aq train --resume` continues the stopped run with its own settings (`aq train --list-runs` lists them); a walk-forward continues at its next window, or name one with `aq train --walk-forward --resume-run-id <id>`.
 - Lean runs on a temporary Docker-in-Docker Codespace (`scripts/codespace_lean_run.ps1`, [`development/infrastructure.md`](development/infrastructure.md)). Delete it once its runs are pulled.
 
 ## Deploy checklist (paper first)
@@ -117,16 +117,18 @@ Research a pre-registered round, freeze one candidate, read the holdouts once, s
 
 **In both modes:** a blended row is written on a decision day, every `blend_every` sessions, or on a guard trip. A guard trip (15% drawdown) or a `dead` state takes capital off at once. Capital no generation may hold sits in T-bills.
 
-### Local retraining
+### Retraining on a small machine
 
 1. `pip install -e .[train]`, then `aq cycle retrain --host local --smoke`: every stage on a synthetic panel, on any machine, in about a minute.
-2. A real run needs 14 GB of RAM (`--dry-run` says what this machine has). If `data_wide/` is absent, set `AQ_SEC_CONTACT` to your own address; it is used for that process only and never stored.
-3. `aq cycle retrain --host local --procedure k06`. Stages resume after a reboot.
+2. `aq cycle retrain --host local --estimate` prints each memory profile's estimated peak for the dataset on this machine. The `standard` profile needs 14 GB of RAM; `--memory-profile low` (V6.6.10) needs 3.5 GB and trains the same models, slower: each batch's sequence windows are gathered from one row matrix instead of a dense array, datasets are read in float32 chunks, the gate reads only its two splits, and the sequence trainer saves a checkpoint every epoch (`--resume` continues it). `--dry-run` shows the preflight. If `data_wide/` is absent, set `AQ_SEC_CONTACT` to your own address; it is used for that process only and never stored.
+3. `aq cycle retrain --host local --procedure stack --memory-profile low --score-end <date>` (or `--procedure k06`). To stop and continue later (a reboot, a pause for the night), run `aq cycle retrain --resume` (or `--resume <run id>`): the run folder `ml/cycle/retrain_<id>/` holds its settings (`resume.json`), its finished stages (`state.json`) and the walk-forward it started (`walk_forward_run_id`), so finished stages and windows are skipped and the sequence trainer continues from its last epoch's checkpoint. The installed models' snapshot is `ml/backups/pre_retrain_<id>.zip`, named in `resume.json`. Close other programs first: on a 4 GB machine a browser takes the memory the trainer needs. The trainers append their measured peaks to `ml/cycle/retrain_<id>/memory_peaks.jsonl`. `aq cycle retrain --list-runs` lists every run with its finished stages; a single `aq train` run resumes the same way (`aq train --resume`, its folder `ml/cycle/train_<id>/`).
 4. `aq cycle schedule install` registers a weekly retrain-if-due job. `aq cycle schedule show` prints it first.
+
+CI's `lowmem-proof` job trains the multitask and sequence stages on a synthetic dataset the size of the real one under the low profile, and fails if either peak passes 2.6 GB (`scripts/lowmem_proof.py`).
 
 ### Retraining the model stack
 
-The installed multitask, sequence and gating models are one generation (g0006). `aq cycle retrain --host codespace --procedure stack` refits all three and the walk-forward as one resumable run, and never writes over the installed models.
+The installed multitask, sequence and gating models are one generation (g0006). `aq cycle retrain --host codespace --procedure stack` (or `--host local --memory-profile low`, above) refits all three and the walk-forward as one resumable run, and never writes over the installed models. The `dataset` stage writes the run's own dataset and schema to `ml/versions/<id>_base/`, and the multitask and sequence stages train on those, never on the installed ones (#385: those still held EOSUSD).
 
 1. **Prove the plumbing anywhere:** `aq cycle retrain --host local --procedure stack --smoke` runs every trainer's `--help` and fails on any flag the plan passes that a trainer does not list.
 2. **Sync first:** from PowerShell, `scripts/codespace_sync.ps1 -Mode push -IncludeDatasets`; `-CodeOnly` once results exist there.

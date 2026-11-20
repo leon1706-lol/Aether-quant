@@ -69,6 +69,20 @@ def test_formal_workflow_builds_the_proofs_with_read_only_permission_and_runs_on
     assert "secrets." not in path.read_text(encoding="utf-8")
 
 
+def test_the_weekly_model_cycle_runs_the_pipeline_and_the_examples_and_writes_only_the_ledger_branch():
+    """V6.6.10: the automated pipeline end to end on a free runner, hash-locked, recording one row on forward-ledger."""
+    workflow = _load(ROOT / ".github" / "workflows" / "model-cycle.yml")
+    on = workflow["on"] if "on" in workflow else workflow[True]
+    assert on["schedule"][0]["cron"] == "15 5 * * 1" and "workflow_dispatch" in on and workflow["permissions"] == {"contents": "read"}
+    job = workflow["jobs"]["cycle"]
+    runs = _scripts(job)
+    assert job["permissions"] == {"contents": "write"} and job["timeout-minutes"] <= 60
+    for command in ("--require-hashes -r code/requirements/lock/ci.txt", "aq pipeline run --run-id model-cycle", "scripts/build_example_models.py --out example-models",
+                    "aq models score example-crypto-mlp", "scripts/model_cycle_row.py", "git push origin forward-ledger"):
+        assert command in runs, command
+    assert "secrets." not in (ROOT / ".github" / "workflows" / "model-cycle.yml").read_text(encoding="utf-8") and "ml/" not in runs
+
+
 def test_keepalive_re_enables_the_ledger_workflows_with_one_permission_and_no_secret():
     path = ROOT / ".github" / "workflows" / "keepalive.yml"
     workflow = _load(path)
@@ -77,7 +91,7 @@ def test_keepalive_re_enables_the_ledger_workflows_with_one_permission_and_no_se
     assert workflow["permissions"] == {}, "no top-level token permission (#357)"
     assert workflow["jobs"]["enable"]["permissions"] == {"actions": "write"}, "it may enable workflows and nothing else"
     text = "\n".join(str(step.get("run", "")) for step in workflow["jobs"]["enable"]["steps"])
-    for name in ("forward-ledger.yml", "research-cycle.yml", "keepalive.yml"):
+    for name in ("forward-ledger.yml", "research-cycle.yml", "model-cycle.yml", "keepalive.yml"):
         assert name in text
     assert "secrets." not in path.read_text(encoding="utf-8") and "git push" not in text
 
@@ -149,6 +163,19 @@ def test_release_publishes_all_three_targets():
         assert job in release["jobs"]
 
 
+def test_the_release_attaches_only_the_example_models_signed():
+    """V6.6.10: `aq models install` downloads these; only the example build's output is uploaded, never anything under ml/."""
+    jobs = _load(RELEASE)["jobs"]
+    example = jobs["example-models"]
+    runs = "\n".join(step.get("run", "") for step in example["steps"])
+    assert "scripts/build_example_models.py --out example-models" in runs and "python -m sigstore sign example-models/" in runs
+    upload = next(step for step in example["steps"] if step.get("uses", "").startswith("actions/upload-artifact@"))
+    assert upload["with"]["path"] == "example-models/" and "ml/" not in runs and "dist/" not in runs
+    assert "example-models" in jobs["github-release"]["needs"] and "tag-tests" not in jobs["github-release"]["needs"]
+    downloads = [step["with"]["name"] for step in jobs["github-release"]["steps"] if step.get("uses", "").startswith("actions/download-artifact@")]
+    assert downloads == ["release-assets", "example-models"]
+
+
 def test_readme_documents_the_monte_carlo_cli_surface():
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     assert "--monte-carlo" in readme
@@ -216,6 +243,14 @@ def test_ci_has_every_v550_guard_job_and_the_originals_survive():
     jobs = set(_load(CI)["jobs"])
     assert set(V550_JOBS) <= jobs
     assert {"python-tests", "python-lint", "dependency-audit", "webui-tests", "cli-smoke", "workflows-lint"} <= jobs
+
+
+def test_the_lowmem_proof_trains_at_full_size_within_the_budget_and_blocks():
+    """V6.6.10: the stack's low memory profile is proved on every push, hash-locked, with a timeout, never advisory."""
+    job = _load(CI)["jobs"]["lowmem-proof"]
+    runs = _scripts(job)
+    assert "scripts/lowmem_proof.py --rows 280000 --budget-gb 2.6" in runs and "--require-hashes -r requirements/lock/ci.txt" in runs
+    assert job["timeout-minutes"] <= 60 and not job.get("continue-on-error")
 
 
 def test_every_new_job_has_a_timeout_so_a_hung_runner_cannot_burn_hours():
@@ -404,7 +439,9 @@ def test_codeql_scorecard_and_pages_have_least_privilege():
     assert "coverage_badge.py" in _scripts(pages["jobs"]["build"]) and "scripts/test_badge.py" in _scripts(pages["jobs"]["build"])
     assert "test-count-drift" not in _load(CI)["jobs"], "the test badge is built from CI's JUnit report (V6.6.6)"
     tests_step = next(step for step in _load(CI)["jobs"]["python-tests"]["steps"] if "--cov-fail-under" in step.get("run", ""))
-    assert "--junitxml=junit.xml" in tests_step["run"]
+    assert "--junitxml=coverage-report/junit.xml" in tests_step["run"]
+    upload = next(step for step in _load(CI)["jobs"]["python-tests"]["steps"] if step.get("uses", "").startswith("actions/upload-artifact@"))
+    assert upload["with"]["path"].strip() == "coverage-report/", "every coverage output lives in one folder (V6.6.10)"
 
 
 def test_release_publishes_both_images_with_sbom_and_provenance():
@@ -503,7 +540,7 @@ def test_every_release_carries_signed_assets_provenance_and_refreshes_the_scorec
     assert provenance["env"]["BUNDLE"] == "${{ steps.attest.outputs.bundle-path }}" and 'jq -c . "$BUNDLE"' in provenance["run"]
     assert any(step.get("with", {}).get("name") == "release-assets" for step in jobs["publish-pypi"]["steps"])
     gh = jobs["github-release"]
-    assert gh["needs"] == "publish-pypi"
+    assert gh["needs"] == ["publish-pypi", "example-models"], "the release waits for the wheel and the example models (V6.6.10)"
     assert any(step.get("with", {}).get("name") == "release-assets" for step in gh["steps"] if "download-artifact@" in step.get("uses", ""))
     script = _scripts(gh)
     assert 'gh release create "$TAG" release-assets/*' in script and 'gh release upload "$TAG" release-assets/* --clobber' in script

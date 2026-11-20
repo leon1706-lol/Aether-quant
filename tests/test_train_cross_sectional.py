@@ -160,3 +160,23 @@ def test_set_transformer_learns_a_planted_signal_and_ignores_asset_order():
         direct = ranker(x, c).squeeze(0)
         shuffled = ranker(x[:, order], c[:, order]).squeeze(0)
     assert torch.allclose(direct[order], shuffled, atol=1e-5)
+
+
+def test_a_year_cache_lets_a_stopped_run_continue_at_its_next_year(monkeypatch, tmp_path):
+    """V6.6.10: each test year's scores are saved as made; a rerun reads them back and trains only the years still missing."""
+    frame, features = _frame(dates=1000, assets=10)
+    calls = []
+
+    def counting(train, test, features, variant, seed):
+        calls.append(test["date"].min())
+        return np.full(len(test), 0.5)
+
+    monkeypatch.setitem(module.FITTERS, "gbm", counting)
+    whole = module.walk_forward_scores(frame, features, "gbm", "a", [1], score_end=None, cache_dir=tmp_path / "years")
+    years = len(calls)
+    assert years >= 2 and len(list((tmp_path / "years").glob("*.csv"))) == years and not list((tmp_path / "years").glob("*.partial"))
+    first = sorted((tmp_path / "years").glob("*.csv"))[-1]
+    first.unlink()
+    again = module.walk_forward_scores(frame, features, "gbm", "a", [1], score_end=None, cache_dir=tmp_path / "years")
+    assert len(calls) == years + 1, "only the missing year is trained again"
+    pd.testing.assert_frame_equal(whole.reset_index(drop=True), again.reset_index(drop=True), check_dtype=False)

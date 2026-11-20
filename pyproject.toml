@@ -97,7 +97,7 @@ py-modules = ["aq_cli", "docs_facts", "generate_backtest_report", "generate_eval
 packages = ["risk", "execution", "data_pipeline", "evaluation", "portfolio", "features", "audit", "inference", "analyzer", "monitoring", "topology", "liquidity", "experience", "aether_quant", "moe", "regime", "retraining", "notifications", "experts", "performance"]
 
 [tool.setuptools.package-data]
-aether_quant = ["py.typed", "README.md", "_formal_cases/*.json", "_sample/*"]
+aether_quant = ["py.typed", "README.md", "_formal_cases/*.json", "_sample/*", "_templates/project/*", "_templates/project/tests/*.tmpl"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -177,6 +177,8 @@ extend-immutable-calls = ["fastapi.Body", "fastapi.Depends", "fastapi.Header", "
 # V6.6.6 (#359): every tracked Python file outside tests/ is measured, at 100%, with no pragma. `if TYPE_CHECKING:` blocks
 # (imports for annotations only, never executed) are the one exclusion. tests/test_coverage_scope.py pins all of it.
 [tool.coverage.run]
+# V6.6.10: every coverage output (data, json, xml, html, the JUnit report) lives in coverage-report/, not the repo root
+data_file = "coverage-report/.coverage"
 # every directory holding tracked code: unlike `source`, a directory here is searched for files no test imports even
 # without an __init__.py (scripts/, examples/, notebooks/src/)
 source_dirs = [
@@ -234,3 +236,12 @@ omit = [
 [tool.coverage.report]
 fail_under = 100
 exclude_lines = ["if TYPE_CHECKING:"]
+
+[tool.coverage.json]
+output = "coverage-report/coverage.json"
+
+[tool.coverage.xml]
+output = "coverage-report/coverage.xml"
+
+[tool.coverage.html]
+directory = "coverage-report/htmlcov"

@@ -278,9 +278,11 @@ def load_panel_frame(panel: Path, *, feature_set: str, target: str, train_start:
 def walk_forward_scores(
     frame: pd.DataFrame, features: list[str], model: str, variant: str, seeds: list[int], *, score_end: str | None,
     first_test_year: int = FIRST_TEST_YEAR, purge_days: int = PURGE_DAYS, score_frame: pd.DataFrame | None = None, max_epochs: int | None = None,
+    cache_dir: Path | None = None,
 ) -> pd.DataFrame:
     """date, ticker, score for every test year, averaged over the seeds. Test rows past `score_end` are never scored. With `score_frame`,
-    training still reads `frame` alone and each year's model scores `score_frame`'s rows."""
+    training still reads `frame` alone and each year's model scores `score_frame`'s rows. With `cache_dir` (V6.6.10), each year's scores
+    are saved as they are made and a year already saved is read back instead of trained: a stopped run continues at its next year."""
     pieces = []
     scored = frame if score_frame is None else score_frame
     for window in annual_windows(sorted(scored["date"].unique()), first_test_year=first_test_year, purge_days=purge_days):
@@ -291,10 +293,21 @@ def walk_forward_scores(
         test = scored[(scored["date"] >= window["test_start"]) & (scored["date"] <= last)]
         if train.empty or test.empty:
             continue
+        cached = Path(cache_dir) / f"{window['test_start']}_{last}.csv" if cache_dir is not None else None
+        if cached is not None and cached.exists():
+            LOGGER.info("window %s: scored before, read from %s", window["test_start"], cached)
+            pieces.append(pd.read_csv(cached, dtype={"date": str, "ticker": str}))
+            continue
         LOGGER.info("window %s: %d train rows, %d test rows", window["test_start"], len(train), len(test))
         extra = {"max_epochs": max_epochs} if max_epochs else {}
         predictions = np.mean([FITTERS[model](train, test, features, variant, seed, **extra) for seed in seeds], axis=0)
-        pieces.append(pd.DataFrame({"date": test["date"].to_numpy(), "ticker": test["ticker"].to_numpy(), "score": predictions}))
+        piece = pd.DataFrame({"date": test["date"].to_numpy(), "ticker": test["ticker"].to_numpy(), "score": predictions})
+        if cached is not None:
+            cached.parent.mkdir(parents=True, exist_ok=True)
+            partial = cached.with_name(cached.name + ".partial")
+            piece.to_csv(partial, index=False, lineterminator="\n")
+            partial.replace(cached)
+        pieces.append(piece)
     return pd.concat(pieces, ignore_index=True) if pieces else pd.DataFrame(columns=["date", "ticker", "score"])
 
 
@@ -317,20 +330,22 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--first-test-year", type=int, default=FIRST_TEST_YEAR)
     parser.add_argument("--purge-days", type=int, default=PURGE_DAYS)
     parser.add_argument("--max-epochs", type=int, default=None, help="neural models only: the compute fallback rules.json fixes in advance")
+    parser.add_argument("--year-cache", default=None, help="save each test year's scores here and reuse them, so a stopped run continues at its next year")
     args = parser.parse_args(argv)
+    cache = Path(args.year_cache) if args.year_cache else None
     seeds = [int(seed) for seed in args.seeds.split(",")]
     if args.panel:
         frame, features = load_panel_frame(Path(args.panel), feature_set=args.feature_set, target=args.target, train_start=args.train_start)
         score_frame = load_panel_frame(Path(args.score_panel), feature_set=args.feature_set, target=args.target)[0] if args.score_panel else None
         scores = walk_forward_scores(
             frame, features, args.model, args.variant, seeds, score_end=args.score_end, first_test_year=args.first_test_year, purge_days=args.purge_days,
-            score_frame=score_frame, max_epochs=args.max_epochs,
+            score_frame=score_frame, max_epochs=args.max_epochs, cache_dir=cache,
         )
     else:
         config = json.loads(Path(args.config).read_text(encoding="utf-8"))
         schema = json.loads(Path(args.schema).read_text(encoding="utf-8"))
         frame, features = load_frame(Path(args.dataset), config, schema)
-        scores = walk_forward_scores(frame, features, args.model, args.variant, seeds, score_end=args.score_end)
+        scores = walk_forward_scores(frame, features, args.model, args.variant, seeds, score_end=args.score_end, cache_dir=cache)
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
     scores.to_csv(out, index=False, lineterminator="\n", float_format="%.6f")

@@ -1,6 +1,6 @@
 # Notebooks
 
-Four tutorials for the `aether_quant` library. Each one opens in Colab, installs the library in its first code cell, and runs on the sample that ships with the wheel, so the numbers are the same everywhere. No key, no Docker, no Lean.
+Five tutorials for the `aether_quant` library. Each one opens in Colab, installs the library in its first code cell, and runs on the sample that ships with the wheel, so the numbers are the same everywhere. No key, no Docker, no Lean.
 
 | Notebook | What it shows | Open |
 |---|---|---|
@@ -8,6 +8,7 @@ Four tutorials for the `aether_quant` library. Each one opens in Colab, installs
 | [`01_signal_evaluation`](01_signal_evaluation.ipynb) | Forward targets, the IC report with HAC t and bootstrap CI, quantiles, IC decay, purged folds, a leakage audit that catches a leaked signal, factor spanning | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/leon1706-lol/Aether-quant/blob/main/notebooks/01_signal_evaluation.ipynb) |
 | [`02_book_construction`](02_book_construction.ipynb) | A rank book, dollar and beta neutrality, HRP, volatility targeting, fractional Kelly, cost models, `backtest()` with and without costs | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/leon1706-lol/Aether-quant/blob/main/notebooks/02_book_construction.ipynb) |
 | [`03_overfitting_tests`](03_overfitting_tests.ipynb) | PBO by CSCV, the deflated Sharpe as N grows, minimum track record, haircut Sharpe, a placebo test, a holdout read once, generations | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/leon1706-lol/Aether-quant/blob/main/notebooks/03_overfitting_tests.ipynb) |
+| [`04_models`](04_models.ipynb) | The example-model catalog, the six features, a model folder in the export format, scores from the numpy forward pass (no torch, offline) | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/leon1706-lol/Aether-quant/blob/main/notebooks/04_models.ipynb) |
 
 ## Running them
 
@@ -17,5 +18,5 @@ Four tutorials for the `aether_quant` library. Each one opens in Colab, installs
 ## Editing them
 
 - **Source:** each notebook is generated from the percent-format `.py` file of the same name in [`src/`](src/). Edit that file, never the `.ipynb`.
-- **Rebuild:** `python scripts/build_notebooks.py --execute` rebuilds and re-runs all four (about 4 minutes on a small PC); `--check` only compares them with their sources.
+- **Rebuild:** `python scripts/build_notebooks.py --execute` rebuilds and re-runs all five (about 4 minutes on a small PC); `--check` only compares them with their sources.
 - **Checks:** `tests/test_notebooks.py` fails if a notebook drifts from its source, lacks its Colab cell or holds an error. CI's `notebooks` job runs them all again.

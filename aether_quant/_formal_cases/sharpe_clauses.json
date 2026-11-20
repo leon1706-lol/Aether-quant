@@ -1,0 +1,7749 @@
+{
+ "target": "sharpe_clauses",
+ "spec_files": [
+  "AetherFormal/SharpeClauses.lean"
+ ],
+ "cases": [
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": -17,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": -17,
+     "den": 32
+    },
+    "sharpe": {
+     "num": 61,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 51,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": -11,
+     "den": 32
+    },
+    "sharpe": {
+     "num": -7,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": null,
+    "sharpe_first_half": {
+     "num": 25,
+     "den": 32
+    },
+    "sharpe": {
+     "num": 5,
+     "den": 4
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 39,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": 15,
+     "den": 32
+    },
+    "sharpe": {
+     "num": 11,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 31,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": 21,
+     "den": 16
+    },
+    "sharpe": {
+     "num": 55,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": true
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 45,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": 27,
+     "den": 32
+    },
+    "sharpe": {
+     "num": 1,
+     "den": 2
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 3,
+     "den": 4
+    },
+    "sharpe_first_half": null,
+    "sharpe": {
+     "num": 27,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": -13,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": 31,
+     "den": 16
+    },
+    "sharpe": {
+     "num": -25,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": null,
+    "sharpe_first_half": {
+     "num": -5,
+     "den": 8
+    },
+    "sharpe": {
+     "num": 3,
+     "den": 16
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 3,
+     "den": 16
+    },
+    "sharpe_first_half": {
+     "num": 1,
+     "den": 16
+    },
+    "sharpe": {
+     "num": 5,
+     "den": 8
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 61,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": -19,
+     "den": 32
+    },
+    "sharpe": {
+     "num": -1,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": null,
+    "sharpe_first_half": {
+     "num": 35,
+     "den": 32
+    },
+    "sharpe": {
+     "num": 7,
+     "den": 16
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 27,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": 29,
+     "den": 16
+    },
+    "sharpe": null,
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 55,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": 1,
+     "den": 2
+    },
+    "sharpe": {
+     "num": -23,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 0,
+     "den": 1
+    },
+    "sharpe_first_half": {
+     "num": 53,
+     "den": 32
+    },
+    "sharpe": {
+     "num": 45,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 7,
+     "den": 8
+    },
+    "sharpe_first_half": {
+     "num": 1,
+     "den": 32
+    },
+    "sharpe": {
+     "num": -31,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 23,
+     "den": 16
+    },
+    "sharpe_first_half": {
+     "num": 5,
+     "den": 32
+    },
+    "sharpe": {
+     "num": 27,
+     "den": 16
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 3,
+     "den": 2
+    },
+    "sharpe_first_half": {
+     "num": 3,
+     "den": 16
+    },
+    "sharpe": null,
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": -23,
+     "den": 32
+    },
+    "sharpe_first_half": null,
+    "sharpe": {
+     "num": 9,
+     "den": 16
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 39,
+     "den": 32
+    },
+    "sharpe_first_half": null,
+    "sharpe": {
+     "num": -9,
+     "den": 16
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 5,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": 33,
+     "den": 32
+    },
+    "sharpe": {
+     "num": 13,
+     "den": 8
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 13,
+     "den": 8
+    },
+    "sharpe_first_half": {
+     "num": -17,
+     "den": 32
+    },
+    "sharpe": {
+     "num": -25,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 25,
+     "den": 16
+    },
+    "sharpe_first_half": {
+     "num": 43,
+     "den": 32
+    },
+    "sharpe": null,
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 7,
+     "den": 4
+    },
+    "sharpe_first_half": {
+     "num": 57,
+     "den": 32
+    },
+    "sharpe": {
+     "num": 3,
+     "den": 2
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": true
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 3,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": 17,
+     "den": 32
+    },
+    "sharpe": {
+     "num": 9,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 59,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": 1,
+     "den": 4
+    },
+    "sharpe": {
+     "num": 59,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": -7,
+     "den": 32
+    },
+    "sharpe_first_half": null,
+    "sharpe": {
+     "num": 55,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": -9,
+     "den": 16
+    },
+    "sharpe_first_half": {
+     "num": 13,
+     "den": 8
+    },
+    "sharpe": {
+     "num": -31,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 53,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": 47,
+     "den": 32
+    },
+    "sharpe": {
+     "num": -19,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 7,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": 15,
+     "den": 16
+    },
+    "sharpe": {
+     "num": 61,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": null,
+    "sharpe_first_half": {
+     "num": 13,
+     "den": 16
+    },
+    "sharpe": {
+     "num": -7,
+     "den": 8
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 57,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": 13,
+     "den": 8
+    },
+    "sharpe": {
+     "num": 9,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 31,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": 37,
+     "den": 32
+    },
+    "sharpe": {
+     "num": 1,
+     "den": 16
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 57,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": 53,
+     "den": 32
+    },
+    "sharpe": {
+     "num": -1,
+     "den": 8
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 31,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": -13,
+     "den": 16
+    },
+    "sharpe": {
+     "num": 19,
+     "den": 16
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 23,
+     "den": 32
+    },
+    "sharpe_first_half": null,
+    "sharpe": {
+     "num": 25,
+     "den": 16
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 13,
+     "den": 8
+    },
+    "sharpe_first_half": {
+     "num": 57,
+     "den": 32
+    },
+    "sharpe": {
+     "num": 1,
+     "den": 8
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": -1,
+     "den": 16
+    },
+    "sharpe_first_half": {
+     "num": 17,
+     "den": 32
+    },
+    "sharpe": {
+     "num": 61,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 11,
+     "den": 8
+    },
+    "sharpe_first_half": {
+     "num": -1,
+     "den": 32
+    },
+    "sharpe": {
+     "num": 29,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": null,
+    "sharpe_first_half": {
+     "num": 55,
+     "den": 32
+    },
+    "sharpe": {
+     "num": 17,
+     "den": 16
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 11,
+     "den": 16
+    },
+    "sharpe_first_half": {
+     "num": 5,
+     "den": 16
+    },
+    "sharpe": {
+     "num": 1,
+     "den": 8
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 27,
+     "den": 16
+    },
+    "sharpe_first_half": {
+     "num": 7,
+     "den": 32
+    },
+    "sharpe": {
+     "num": 17,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": null,
+    "sharpe_first_half": {
+     "num": 5,
+     "den": 8
+    },
+    "sharpe": {
+     "num": 7,
+     "den": 8
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 21,
+     "den": 32
+    },
+    "sharpe_first_half": null,
+    "sharpe": {
+     "num": 1,
+     "den": 4
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": -15,
+     "den": 16
+    },
+    "sharpe_first_half": {
+     "num": 51,
+     "den": 32
+    },
+    "sharpe": {
+     "num": 51,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": -11,
+     "den": 16
+    },
+    "sharpe_first_half": {
+     "num": -9,
+     "den": 16
+    },
+    "sharpe": {
+     "num": 1,
+     "den": 8
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 7,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": 1,
+     "den": 2
+    },
+    "sharpe": {
+     "num": 15,
+     "den": 8
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": -1,
+     "den": 2
+    },
+    "sharpe_first_half": {
+     "num": 23,
+     "den": 16
+    },
+    "sharpe": {
+     "num": 11,
+     "den": 8
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 55,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": 21,
+     "den": 32
+    },
+    "sharpe": null,
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": null,
+    "sharpe_first_half": {
+     "num": -3,
+     "den": 8
+    },
+    "sharpe": {
+     "num": 11,
+     "den": 8
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 25,
+     "den": 16
+    },
+    "sharpe_first_half": {
+     "num": 11,
+     "den": 32
+    },
+    "sharpe": {
+     "num": -23,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": null,
+    "sharpe_first_half": {
+     "num": 63,
+     "den": 32
+    },
+    "sharpe": {
+     "num": 31,
+     "den": 16
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": -7,
+     "den": 16
+    },
+    "sharpe_first_half": {
+     "num": 59,
+     "den": 32
+    },
+    "sharpe": {
+     "num": 5,
+     "den": 8
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 19,
+     "den": 16
+    },
+    "sharpe_first_half": {
+     "num": 9,
+     "den": 32
+    },
+    "sharpe": null,
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": -7,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": 3,
+     "den": 2
+    },
+    "sharpe": {
+     "num": 21,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": -31,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": -5,
+     "den": 16
+    },
+    "sharpe": {
+     "num": 11,
+     "den": 16
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": -15,
+     "den": 16
+    },
+    "sharpe_first_half": {
+     "num": 17,
+     "den": 32
+    },
+    "sharpe": {
+     "num": 1,
+     "den": 8
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": -29,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": 21,
+     "den": 32
+    },
+    "sharpe": {
+     "num": -7,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": null,
+    "sharpe_first_half": {
+     "num": -21,
+     "den": 32
+    },
+    "sharpe": {
+     "num": -11,
+     "den": 16
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": -21,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": 27,
+     "den": 16
+    },
+    "sharpe": {
+     "num": 17,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 23,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": 27,
+     "den": 32
+    },
+    "sharpe": null,
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": -7,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": 29,
+     "den": 16
+    },
+    "sharpe": {
+     "num": 2,
+     "den": 1
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 11,
+     "den": 16
+    },
+    "sharpe_first_half": {
+     "num": -9,
+     "den": 16
+    },
+    "sharpe": null,
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": -21,
+     "den": 32
+    },
+    "sharpe_first_half": null,
+    "sharpe": {
+     "num": 3,
+     "den": 4
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 13,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": -1,
+     "den": 8
+    },
+    "sharpe": {
+     "num": 15,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 53,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": 21,
+     "den": 16
+    },
+    "sharpe": {
+     "num": 17,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": true
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": -5,
+     "den": 8
+    },
+    "sharpe_first_half": null,
+    "sharpe": {
+     "num": -3,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 59,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": 19,
+     "den": 16
+    },
+    "sharpe": {
+     "num": 5,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": null,
+    "sharpe_first_half": {
+     "num": -7,
+     "den": 32
+    },
+    "sharpe": {
+     "num": 17,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 17,
+     "den": 16
+    },
+    "sharpe_first_half": {
+     "num": 33,
+     "den": 32
+    },
+    "sharpe": {
+     "num": 13,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": null,
+    "sharpe_first_half": {
+     "num": 47,
+     "den": 32
+    },
+    "sharpe": {
+     "num": 1,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 47,
+     "den": 32
+    },
+    "sharpe_first_half": null,
+    "sharpe": null,
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 49,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": 31,
+     "den": 32
+    },
+    "sharpe": {
+     "num": 11,
+     "den": 16
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": true
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 19,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": 11,
+     "den": 32
+    },
+    "sharpe": {
+     "num": 5,
+     "den": 4
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 3,
+     "den": 4
+    },
+    "sharpe_first_half": {
+     "num": -27,
+     "den": 32
+    },
+    "sharpe": {
+     "num": 31,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 31,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": -13,
+     "den": 16
+    },
+    "sharpe": {
+     "num": 43,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 7,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": 3,
+     "den": 16
+    },
+    "sharpe": {
+     "num": -1,
+     "den": 1
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 1,
+     "den": 4
+    },
+    "sharpe_first_half": {
+     "num": 7,
+     "den": 16
+    },
+    "sharpe": {
+     "num": 15,
+     "den": 16
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 27,
+     "den": 16
+    },
+    "sharpe_first_half": {
+     "num": 41,
+     "den": 32
+    },
+    "sharpe": {
+     "num": 7,
+     "den": 8
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": true
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 2,
+     "den": 1
+    },
+    "sharpe_first_half": {
+     "num": 3,
+     "den": 2
+    },
+    "sharpe": {
+     "num": 13,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 17,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": -15,
+     "den": 16
+    },
+    "sharpe": {
+     "num": 45,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 9,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": 1,
+     "den": 8
+    },
+    "sharpe": {
+     "num": 13,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": -19,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": 0,
+     "den": 1
+    },
+    "sharpe": {
+     "num": 29,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 3,
+     "den": 4
+    },
+    "sharpe_first_half": {
+     "num": -23,
+     "den": 32
+    },
+    "sharpe": null,
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 17,
+     "den": 32
+    },
+    "sharpe_first_half": null,
+    "sharpe": {
+     "num": -3,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 63,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": 7,
+     "den": 32
+    },
+    "sharpe": null,
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 63,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": -21,
+     "den": 32
+    },
+    "sharpe": {
+     "num": 23,
+     "den": 16
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 17,
+     "den": 16
+    },
+    "sharpe_first_half": null,
+    "sharpe": {
+     "num": 25,
+     "den": 16
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 1,
+     "den": 4
+    },
+    "sharpe_first_half": {
+     "num": 57,
+     "den": 32
+    },
+    "sharpe": {
+     "num": 3,
+     "den": 4
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 7,
+     "den": 8
+    },
+    "sharpe_first_half": {
+     "num": 23,
+     "den": 32
+    },
+    "sharpe": {
+     "num": 33,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": true
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 49,
+     "den": 32
+    },
+    "sharpe_first_half": null,
+    "sharpe": {
+     "num": 11,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": null,
+    "sharpe_first_half": {
+     "num": 63,
+     "den": 32
+    },
+    "sharpe": {
+     "num": 13,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 47,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": 1,
+     "den": 32
+    },
+    "sharpe": {
+     "num": -27,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 9,
+     "den": 16
+    },
+    "sharpe_first_half": {
+     "num": 63,
+     "den": 32
+    },
+    "sharpe": {
+     "num": 9,
+     "den": 16
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": -1,
+     "den": 16
+    },
+    "sharpe_first_half": {
+     "num": 2,
+     "den": 1
+    },
+    "sharpe": {
+     "num": -31,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 7,
+     "den": 16
+    },
+    "sharpe_first_half": {
+     "num": 51,
+     "den": 32
+    },
+    "sharpe": {
+     "num": 23,
+     "den": 16
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 5,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": -7,
+     "den": 32
+    },
+    "sharpe": {
+     "num": 49,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 25,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": 39,
+     "den": 32
+    },
+    "sharpe": {
+     "num": 29,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": true
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 51,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": 15,
+     "den": 16
+    },
+    "sharpe": {
+     "num": 3,
+     "den": 8
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": -21,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": 45,
+     "den": 32
+    },
+    "sharpe": null,
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 17,
+     "den": 16
+    },
+    "sharpe_first_half": {
+     "num": -7,
+     "den": 8
+    },
+    "sharpe": {
+     "num": 13,
+     "den": 8
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": -23,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": 1,
+     "den": 32
+    },
+    "sharpe": {
+     "num": 17,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 29,
+     "den": 16
+    },
+    "sharpe_first_half": {
+     "num": 3,
+     "den": 4
+    },
+    "sharpe": {
+     "num": 55,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": true
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": -1,
+     "den": 4
+    },
+    "sharpe_first_half": {
+     "num": -1,
+     "den": 8
+    },
+    "sharpe": {
+     "num": -1,
+     "den": 1
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": null,
+    "sharpe_first_half": {
+     "num": -21,
+     "den": 32
+    },
+    "sharpe": {
+     "num": 17,
+     "den": 16
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": null,
+    "sharpe_first_half": {
+     "num": 21,
+     "den": 16
+    },
+    "sharpe": {
+     "num": -9,
+     "den": 16
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": -5,
+     "den": 16
+    },
+    "sharpe_first_half": {
+     "num": 19,
+     "den": 32
+    },
+    "sharpe": null,
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 11,
+     "den": 16
+    },
+    "sharpe_first_half": null,
+    "sharpe": {
+     "num": 5,
+     "den": 4
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 21,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": 1,
+     "den": 4
+    },
+    "sharpe": null,
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 51,
+     "den": 32
+    },
+    "sharpe_first_half": null,
+    "sharpe": {
+     "num": -27,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 1,
+     "den": 32
+    },
+    "sharpe_first_half": null,
+    "sharpe": {
+     "num": -1,
+     "den": 2
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": -19,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": -19,
+     "den": 32
+    },
+    "sharpe": {
+     "num": 15,
+     "den": 8
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 27,
+     "den": 16
+    },
+    "sharpe_first_half": {
+     "num": -1,
+     "den": 1
+    },
+    "sharpe": {
+     "num": 59,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 31,
+     "den": 16
+    },
+    "sharpe_first_half": {
+     "num": -27,
+     "den": 32
+    },
+    "sharpe": {
+     "num": 35,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 3,
+     "den": 2
+    },
+    "sharpe_first_half": null,
+    "sharpe": {
+     "num": 13,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 39,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": -3,
+     "den": 16
+    },
+    "sharpe": null,
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": null,
+    "sharpe_first_half": {
+     "num": -1,
+     "den": 2
+    },
+    "sharpe": null,
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 33,
+     "den": 32
+    },
+    "sharpe_first_half": null,
+    "sharpe": {
+     "num": 2,
+     "den": 1
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 17,
+     "den": 16
+    },
+    "sharpe_first_half": {
+     "num": 23,
+     "den": 16
+    },
+    "sharpe": {
+     "num": 23,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": true
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 39,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": 15,
+     "den": 16
+    },
+    "sharpe": {
+     "num": -1,
+     "den": 4
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 29,
+     "den": 16
+    },
+    "sharpe_first_half": {
+     "num": -17,
+     "den": 32
+    },
+    "sharpe": null,
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": -3,
+     "den": 8
+    },
+    "sharpe_first_half": {
+     "num": 51,
+     "den": 32
+    },
+    "sharpe": {
+     "num": 5,
+     "den": 8
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 5,
+     "den": 16
+    },
+    "sharpe_first_half": {
+     "num": 15,
+     "den": 8
+    },
+    "sharpe": {
+     "num": 29,
+     "den": 16
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": null,
+    "sharpe_first_half": {
+     "num": -11,
+     "den": 32
+    },
+    "sharpe": {
+     "num": 23,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 23,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": 21,
+     "den": 16
+    },
+    "sharpe": {
+     "num": 1,
+     "den": 2
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": true
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 5,
+     "den": 16
+    },
+    "sharpe_first_half": {
+     "num": 11,
+     "den": 8
+    },
+    "sharpe": {
+     "num": -1,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": -1,
+     "den": 4
+    },
+    "sharpe_first_half": {
+     "num": 7,
+     "den": 4
+    },
+    "sharpe": {
+     "num": -25,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 5,
+     "den": 8
+    },
+    "sharpe_first_half": {
+     "num": 27,
+     "den": 32
+    },
+    "sharpe": null,
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 61,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": 27,
+     "den": 32
+    },
+    "sharpe": {
+     "num": 5,
+     "den": 4
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": true
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": -17,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": 53,
+     "den": 32
+    },
+    "sharpe": {
+     "num": -17,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": null,
+    "sharpe_first_half": {
+     "num": 3,
+     "den": 2
+    },
+    "sharpe": {
+     "num": -31,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 15,
+     "den": 8
+    },
+    "sharpe_first_half": {
+     "num": -21,
+     "den": 32
+    },
+    "sharpe": {
+     "num": 37,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 19,
+     "den": 16
+    },
+    "sharpe_first_half": {
+     "num": -1,
+     "den": 4
+    },
+    "sharpe": {
+     "num": 5,
+     "den": 4
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 5,
+     "den": 8
+    },
+    "sharpe_first_half": null,
+    "sharpe": {
+     "num": -17,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 61,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": 23,
+     "den": 32
+    },
+    "sharpe": null,
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": -1,
+     "den": 8
+    },
+    "sharpe_first_half": null,
+    "sharpe": null,
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 7,
+     "den": 16
+    },
+    "sharpe_first_half": null,
+    "sharpe": {
+     "num": 15,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 27,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": -13,
+     "den": 32
+    },
+    "sharpe": {
+     "num": 47,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": -3,
+     "den": 8
+    },
+    "sharpe_first_half": {
+     "num": 3,
+     "den": 16
+    },
+    "sharpe": {
+     "num": 13,
+     "den": 16
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 21,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": -11,
+     "den": 32
+    },
+    "sharpe": {
+     "num": 0,
+     "den": 1
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 23,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": -21,
+     "den": 32
+    },
+    "sharpe": {
+     "num": 51,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 17,
+     "den": 32
+    },
+    "sharpe_first_half": null,
+    "sharpe": {
+     "num": -13,
+     "den": 16
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 11,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": 45,
+     "den": 32
+    },
+    "sharpe": {
+     "num": 43,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": -5,
+     "den": 16
+    },
+    "sharpe_first_half": {
+     "num": -5,
+     "den": 16
+    },
+    "sharpe": {
+     "num": -17,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 51,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": 17,
+     "den": 16
+    },
+    "sharpe": null,
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 5,
+     "den": 32
+    },
+    "sharpe_first_half": null,
+    "sharpe": null,
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 3,
+     "den": 2
+    },
+    "sharpe_first_half": null,
+    "sharpe": {
+     "num": -3,
+     "den": 16
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 31,
+     "den": 16
+    },
+    "sharpe_first_half": {
+     "num": 3,
+     "den": 16
+    },
+    "sharpe": {
+     "num": 9,
+     "den": 16
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 41,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": -11,
+     "den": 32
+    },
+    "sharpe": {
+     "num": 3,
+     "den": 2
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 33,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": -3,
+     "den": 32
+    },
+    "sharpe": {
+     "num": 5,
+     "den": 16
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 2,
+     "den": 1
+    },
+    "sharpe_first_half": null,
+    "sharpe": {
+     "num": 39,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 1,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": 19,
+     "den": 16
+    },
+    "sharpe": {
+     "num": 7,
+     "den": 8
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": -15,
+     "den": 16
+    },
+    "sharpe_first_half": null,
+    "sharpe": {
+     "num": 11,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 17,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": -1,
+     "den": 16
+    },
+    "sharpe": {
+     "num": 9,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 7,
+     "den": 8
+    },
+    "sharpe_first_half": {
+     "num": 47,
+     "den": 32
+    },
+    "sharpe": {
+     "num": 57,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": true
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 1,
+     "den": 8
+    },
+    "sharpe_first_half": null,
+    "sharpe": {
+     "num": -5,
+     "den": 16
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": null,
+    "sharpe_first_half": {
+     "num": 39,
+     "den": 32
+    },
+    "sharpe": {
+     "num": -5,
+     "den": 16
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": -1,
+     "den": 4
+    },
+    "sharpe_first_half": {
+     "num": 5,
+     "den": 32
+    },
+    "sharpe": {
+     "num": 63,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": -19,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": 43,
+     "den": 32
+    },
+    "sharpe": {
+     "num": 21,
+     "den": 16
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 31,
+     "den": 16
+    },
+    "sharpe_first_half": {
+     "num": 1,
+     "den": 4
+    },
+    "sharpe": null,
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": null,
+    "sharpe_first_half": {
+     "num": 27,
+     "den": 32
+    },
+    "sharpe": {
+     "num": 7,
+     "den": 16
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 5,
+     "den": 4
+    },
+    "sharpe_first_half": null,
+    "sharpe": null,
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": null,
+    "sharpe_first_half": {
+     "num": -5,
+     "den": 16
+    },
+    "sharpe": {
+     "num": 21,
+     "den": 16
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 37,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": 45,
+     "den": 32
+    },
+    "sharpe": {
+     "num": 5,
+     "den": 4
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": true
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 13,
+     "den": 8
+    },
+    "sharpe_first_half": {
+     "num": 23,
+     "den": 32
+    },
+    "sharpe": null,
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": -5,
+     "den": 8
+    },
+    "sharpe_first_half": {
+     "num": 45,
+     "den": 32
+    },
+    "sharpe": {
+     "num": 59,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": -9,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": 7,
+     "den": 8
+    },
+    "sharpe": null,
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 27,
+     "den": 16
+    },
+    "sharpe_first_half": null,
+    "sharpe": {
+     "num": 39,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 37,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": -1,
+     "den": 4
+    },
+    "sharpe": {
+     "num": 57,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 27,
+     "den": 16
+    },
+    "sharpe_first_half": {
+     "num": 23,
+     "den": 32
+    },
+    "sharpe": {
+     "num": -5,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": null,
+    "sharpe_first_half": {
+     "num": -1,
+     "den": 16
+    },
+    "sharpe": null,
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": -3,
+     "den": 4
+    },
+    "sharpe_first_half": {
+     "num": -5,
+     "den": 32
+    },
+    "sharpe": {
+     "num": 59,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": null,
+    "sharpe_first_half": {
+     "num": 2,
+     "den": 1
+    },
+    "sharpe": {
+     "num": 59,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": -7,
+     "den": 16
+    },
+    "sharpe_first_half": {
+     "num": -21,
+     "den": 32
+    },
+    "sharpe": {
+     "num": 15,
+     "den": 16
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 9,
+     "den": 8
+    },
+    "sharpe_first_half": null,
+    "sharpe": {
+     "num": -5,
+     "den": 16
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 29,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": 1,
+     "den": 1
+    },
+    "sharpe": {
+     "num": 2,
+     "den": 1
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": true
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 13,
+     "den": 8
+    },
+    "sharpe_first_half": {
+     "num": -5,
+     "den": 32
+    },
+    "sharpe": {
+     "num": -5,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": null,
+    "sharpe_first_half": {
+     "num": 61,
+     "den": 32
+    },
+    "sharpe": null,
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 45,
+     "den": 32
+    },
+    "sharpe_first_half": null,
+    "sharpe": {
+     "num": 57,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 27,
+     "den": 16
+    },
+    "sharpe_first_half": {
+     "num": -7,
+     "den": 32
+    },
+    "sharpe": {
+     "num": 9,
+     "den": 8
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": -1,
+     "den": 16
+    },
+    "sharpe_first_half": {
+     "num": 27,
+     "den": 16
+    },
+    "sharpe": {
+     "num": 3,
+     "den": 4
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": -3,
+     "den": 4
+    },
+    "sharpe_first_half": null,
+    "sharpe": {
+     "num": 49,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 51,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": -13,
+     "den": 16
+    },
+    "sharpe": {
+     "num": -15,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 7,
+     "den": 8
+    },
+    "sharpe_first_half": {
+     "num": 1,
+     "den": 4
+    },
+    "sharpe": {
+     "num": 11,
+     "den": 8
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": -5,
+     "den": 32
+    },
+    "sharpe_first_half": null,
+    "sharpe": {
+     "num": -1,
+     "den": 8
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 17,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": 5,
+     "den": 32
+    },
+    "sharpe": {
+     "num": 7,
+     "den": 8
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 59,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": 31,
+     "den": 32
+    },
+    "sharpe": {
+     "num": 29,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": true
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 17,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": 53,
+     "den": 32
+    },
+    "sharpe": null,
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 27,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": 53,
+     "den": 32
+    },
+    "sharpe": {
+     "num": 27,
+     "den": 16
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": true
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 1,
+     "den": 4
+    },
+    "sharpe_first_half": {
+     "num": 25,
+     "den": 16
+    },
+    "sharpe": {
+     "num": -27,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": null,
+    "sharpe_first_half": {
+     "num": 27,
+     "den": 16
+    },
+    "sharpe": null,
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 2,
+     "den": 1
+    },
+    "sharpe_first_half": {
+     "num": 63,
+     "den": 32
+    },
+    "sharpe": {
+     "num": 1,
+     "den": 1
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": true
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 33,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": 13,
+     "den": 8
+    },
+    "sharpe": {
+     "num": -1,
+     "den": 2
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": -15,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": -11,
+     "den": 16
+    },
+    "sharpe": {
+     "num": 27,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": -27,
+     "den": 32
+    },
+    "sharpe_first_half": null,
+    "sharpe": {
+     "num": -11,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": null,
+    "sharpe_first_half": {
+     "num": 15,
+     "den": 8
+    },
+    "sharpe": {
+     "num": -27,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 59,
+     "den": 32
+    },
+    "sharpe_first_half": null,
+    "sharpe": {
+     "num": 11,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": null,
+    "sharpe_first_half": {
+     "num": -1,
+     "den": 16
+    },
+    "sharpe": {
+     "num": 9,
+     "den": 8
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 5,
+     "den": 4
+    },
+    "sharpe_first_half": {
+     "num": 1,
+     "den": 16
+    },
+    "sharpe": {
+     "num": -1,
+     "den": 4
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 55,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": 11,
+     "den": 32
+    },
+    "sharpe": {
+     "num": 0,
+     "den": 1
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 49,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": 5,
+     "den": 4
+    },
+    "sharpe": {
+     "num": -3,
+     "den": 4
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 29,
+     "den": 16
+    },
+    "sharpe_first_half": {
+     "num": -9,
+     "den": 16
+    },
+    "sharpe": {
+     "num": 1,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": -21,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": 33,
+     "den": 32
+    },
+    "sharpe": {
+     "num": 5,
+     "den": 8
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 1,
+     "den": 2
+    },
+    "sharpe_first_half": {
+     "num": 1,
+     "den": 1
+    },
+    "sharpe": {
+     "num": 15,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 35,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": 11,
+     "den": 16
+    },
+    "sharpe": null,
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 25,
+     "den": 16
+    },
+    "sharpe_first_half": {
+     "num": 3,
+     "den": 4
+    },
+    "sharpe": {
+     "num": 21,
+     "den": 16
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": true
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 19,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": -5,
+     "den": 16
+    },
+    "sharpe": {
+     "num": 3,
+     "den": 8
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 57,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": -27,
+     "den": 32
+    },
+    "sharpe": null,
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 21,
+     "den": 16
+    },
+    "sharpe_first_half": {
+     "num": 45,
+     "den": 32
+    },
+    "sharpe": {
+     "num": 9,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 17,
+     "den": 16
+    },
+    "sharpe_first_half": {
+     "num": -5,
+     "den": 32
+    },
+    "sharpe": {
+     "num": 53,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 29,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": 15,
+     "den": 8
+    },
+    "sharpe": {
+     "num": 9,
+     "den": 8
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": true
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 13,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": 15,
+     "den": 32
+    },
+    "sharpe": {
+     "num": 37,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": true
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": null,
+    "sharpe_first_half": {
+     "num": -9,
+     "den": 32
+    },
+    "sharpe": {
+     "num": 9,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 49,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": -21,
+     "den": 32
+    },
+    "sharpe": {
+     "num": -3,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 63,
+     "den": 32
+    },
+    "sharpe_first_half": null,
+    "sharpe": null,
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": -3,
+     "den": 16
+    },
+    "sharpe_first_half": {
+     "num": 31,
+     "den": 16
+    },
+    "sharpe": {
+     "num": -7,
+     "den": 16
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": -13,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": 41,
+     "den": 32
+    },
+    "sharpe": {
+     "num": 29,
+     "den": 16
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 3,
+     "den": 16
+    },
+    "sharpe_first_half": {
+     "num": -1,
+     "den": 4
+    },
+    "sharpe": {
+     "num": 7,
+     "den": 4
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 53,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": -1,
+     "den": 16
+    },
+    "sharpe": {
+     "num": -7,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": -21,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": -13,
+     "den": 32
+    },
+    "sharpe": {
+     "num": 13,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 3,
+     "den": 2
+    },
+    "sharpe_first_half": null,
+    "sharpe": {
+     "num": -3,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": null,
+    "sharpe_first_half": {
+     "num": 15,
+     "den": 16
+    },
+    "sharpe": {
+     "num": 7,
+     "den": 8
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": null,
+    "sharpe_first_half": null,
+    "sharpe": {
+     "num": 17,
+     "den": 16
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": -1,
+     "den": 4
+    },
+    "sharpe_first_half": {
+     "num": 59,
+     "den": 32
+    },
+    "sharpe": {
+     "num": 1,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 63,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": 25,
+     "den": 16
+    },
+    "sharpe": {
+     "num": -5,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": -1,
+     "den": 1
+    },
+    "sharpe_first_half": {
+     "num": -1,
+     "den": 1
+    },
+    "sharpe": {
+     "num": 3,
+     "den": 16
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": -31,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": 11,
+     "den": 32
+    },
+    "sharpe": {
+     "num": 19,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 33,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": -17,
+     "den": 32
+    },
+    "sharpe": {
+     "num": 9,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": -25,
+     "den": 32
+    },
+    "sharpe_first_half": null,
+    "sharpe": null,
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 0,
+     "den": 1
+    },
+    "sharpe_first_half": {
+     "num": 11,
+     "den": 32
+    },
+    "sharpe": {
+     "num": 11,
+     "den": 8
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": null,
+    "sharpe_first_half": {
+     "num": 33,
+     "den": 32
+    },
+    "sharpe": {
+     "num": 1,
+     "den": 2
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": -11,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": 13,
+     "den": 8
+    },
+    "sharpe": {
+     "num": -3,
+     "den": 16
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 3,
+     "den": 8
+    },
+    "sharpe_first_half": {
+     "num": 1,
+     "den": 2
+    },
+    "sharpe": {
+     "num": 5,
+     "den": 16
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": -5,
+     "den": 8
+    },
+    "sharpe_first_half": null,
+    "sharpe": {
+     "num": 7,
+     "den": 4
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": null,
+    "sharpe_first_half": {
+     "num": 3,
+     "den": 8
+    },
+    "sharpe": {
+     "num": 61,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": null,
+    "sharpe_first_half": {
+     "num": -11,
+     "den": 16
+    },
+    "sharpe": {
+     "num": 13,
+     "den": 16
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 15,
+     "den": 16
+    },
+    "sharpe_first_half": {
+     "num": 15,
+     "den": 32
+    },
+    "sharpe": {
+     "num": 13,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": -23,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": -11,
+     "den": 16
+    },
+    "sharpe": null,
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 31,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": 31,
+     "den": 32
+    },
+    "sharpe": {
+     "num": 53,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": true
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": -15,
+     "den": 16
+    },
+    "sharpe_first_half": {
+     "num": 5,
+     "den": 8
+    },
+    "sharpe": {
+     "num": 11,
+     "den": 16
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 13,
+     "den": 16
+    },
+    "sharpe_first_half": null,
+    "sharpe": {
+     "num": -3,
+     "den": 16
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 0,
+     "den": 1
+    },
+    "sharpe_first_half": {
+     "num": -7,
+     "den": 8
+    },
+    "sharpe": {
+     "num": -9,
+     "den": 16
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 15,
+     "den": 16
+    },
+    "sharpe_first_half": {
+     "num": 17,
+     "den": 32
+    },
+    "sharpe": {
+     "num": -23,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 0,
+     "den": 1
+    },
+    "sharpe_first_half": {
+     "num": 13,
+     "den": 32
+    },
+    "sharpe": {
+     "num": -25,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": -21,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": -17,
+     "den": 32
+    },
+    "sharpe": null,
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": -1,
+     "den": 2
+    },
+    "sharpe_first_half": {
+     "num": 29,
+     "den": 32
+    },
+    "sharpe": {
+     "num": 7,
+     "den": 8
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": null,
+    "sharpe_first_half": {
+     "num": 11,
+     "den": 32
+    },
+    "sharpe": {
+     "num": 7,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 37,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": -27,
+     "den": 32
+    },
+    "sharpe": {
+     "num": -3,
+     "den": 8
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": -1,
+     "den": 8
+    },
+    "sharpe_first_half": {
+     "num": 29,
+     "den": 32
+    },
+    "sharpe": {
+     "num": 3,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 13,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": 45,
+     "den": 32
+    },
+    "sharpe": {
+     "num": 1,
+     "den": 2
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": -23,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": -3,
+     "den": 16
+    },
+    "sharpe": {
+     "num": -3,
+     "den": 4
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": null,
+    "sharpe_first_half": {
+     "num": 3,
+     "den": 4
+    },
+    "sharpe": {
+     "num": 13,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 31,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": 55,
+     "den": 32
+    },
+    "sharpe": {
+     "num": -1,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 63,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": 23,
+     "den": 32
+    },
+    "sharpe": {
+     "num": 3,
+     "den": 8
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 0,
+     "den": 1
+    },
+    "sharpe_first_half": {
+     "num": 41,
+     "den": 32
+    },
+    "sharpe": {
+     "num": -3,
+     "den": 4
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": -19,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": 1,
+     "den": 1
+    },
+    "sharpe": {
+     "num": 21,
+     "den": 16
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": null,
+    "sharpe_first_half": {
+     "num": -15,
+     "den": 32
+    },
+    "sharpe": null,
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 21,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": -15,
+     "den": 16
+    },
+    "sharpe": {
+     "num": -15,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": -15,
+     "den": 16
+    },
+    "sharpe_first_half": {
+     "num": 1,
+     "den": 16
+    },
+    "sharpe": {
+     "num": -11,
+     "den": 16
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": null,
+    "sharpe_first_half": {
+     "num": -5,
+     "den": 8
+    },
+    "sharpe": {
+     "num": 63,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 27,
+     "den": 16
+    },
+    "sharpe_first_half": {
+     "num": -21,
+     "den": 32
+    },
+    "sharpe": {
+     "num": 55,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": -7,
+     "den": 8
+    },
+    "sharpe_first_half": {
+     "num": -31,
+     "den": 32
+    },
+    "sharpe": {
+     "num": 43,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 1,
+     "den": 1
+    },
+    "sharpe_first_half": {
+     "num": 2,
+     "den": 1
+    },
+    "sharpe": {
+     "num": 1,
+     "den": 8
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": -3,
+     "den": 16
+    },
+    "sharpe_first_half": {
+     "num": 31,
+     "den": 32
+    },
+    "sharpe": {
+     "num": 25,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": -7,
+     "den": 8
+    },
+    "sharpe_first_half": {
+     "num": 23,
+     "den": 16
+    },
+    "sharpe": {
+     "num": 39,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": null,
+    "sharpe_first_half": {
+     "num": 27,
+     "den": 32
+    },
+    "sharpe": {
+     "num": -9,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": -15,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": 13,
+     "den": 32
+    },
+    "sharpe": {
+     "num": 7,
+     "den": 4
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": -25,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": 43,
+     "den": 32
+    },
+    "sharpe": {
+     "num": -1,
+     "den": 1
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 11,
+     "den": 16
+    },
+    "sharpe_first_half": null,
+    "sharpe": {
+     "num": 1,
+     "den": 16
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": null,
+    "sharpe_first_half": {
+     "num": -19,
+     "den": 32
+    },
+    "sharpe": {
+     "num": -1,
+     "den": 4
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 43,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": 31,
+     "den": 16
+    },
+    "sharpe": {
+     "num": -21,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": -27,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": 39,
+     "den": 32
+    },
+    "sharpe": {
+     "num": -27,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 25,
+     "den": 16
+    },
+    "sharpe_first_half": {
+     "num": 53,
+     "den": 32
+    },
+    "sharpe": {
+     "num": 9,
+     "den": 16
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": true
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": -1,
+     "den": 16
+    },
+    "sharpe_first_half": {
+     "num": 1,
+     "den": 1
+    },
+    "sharpe": {
+     "num": -5,
+     "den": 8
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 35,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": -3,
+     "den": 16
+    },
+    "sharpe": {
+     "num": -5,
+     "den": 8
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": null,
+    "sharpe_first_half": {
+     "num": 47,
+     "den": 32
+    },
+    "sharpe": {
+     "num": -1,
+     "den": 2
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": -27,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": -31,
+     "den": 32
+    },
+    "sharpe": {
+     "num": -21,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 7,
+     "den": 4
+    },
+    "sharpe_first_half": {
+     "num": -1,
+     "den": 16
+    },
+    "sharpe": {
+     "num": -1,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 1,
+     "den": 2
+    },
+    "sharpe_first_half": {
+     "num": -3,
+     "den": 32
+    },
+    "sharpe": {
+     "num": -5,
+     "den": 8
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": -3,
+     "den": 4
+    },
+    "sharpe_first_half": {
+     "num": -1,
+     "den": 4
+    },
+    "sharpe": {
+     "num": 29,
+     "den": 16
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 9,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": -5,
+     "den": 8
+    },
+    "sharpe": {
+     "num": 29,
+     "den": 16
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": -13,
+     "den": 16
+    },
+    "sharpe_first_half": {
+     "num": 23,
+     "den": 16
+    },
+    "sharpe": {
+     "num": 3,
+     "den": 2
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": -1,
+     "den": 2
+    },
+    "sharpe_first_half": {
+     "num": 63,
+     "den": 32
+    },
+    "sharpe": {
+     "num": 7,
+     "den": 4
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": -11,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": 45,
+     "den": 32
+    },
+    "sharpe": {
+     "num": -19,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 49,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": -15,
+     "den": 16
+    },
+    "sharpe": {
+     "num": 41,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": -15,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": -9,
+     "den": 32
+    },
+    "sharpe": {
+     "num": 15,
+     "den": 16
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 19,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": -27,
+     "den": 32
+    },
+    "sharpe": {
+     "num": -27,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 33,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": 7,
+     "den": 32
+    },
+    "sharpe": {
+     "num": -13,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 11,
+     "den": 8
+    },
+    "sharpe_first_half": {
+     "num": 61,
+     "den": 32
+    },
+    "sharpe": {
+     "num": -3,
+     "den": 8
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": -1,
+     "den": 4
+    },
+    "sharpe_first_half": {
+     "num": -15,
+     "den": 32
+    },
+    "sharpe": {
+     "num": 1,
+     "den": 1
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": -15,
+     "den": 16
+    },
+    "sharpe_first_half": null,
+    "sharpe": {
+     "num": 5,
+     "den": 4
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": -7,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": -19,
+     "den": 32
+    },
+    "sharpe": {
+     "num": 23,
+     "den": 16
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": -3,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": 33,
+     "den": 32
+    },
+    "sharpe": {
+     "num": 3,
+     "den": 2
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 1,
+     "den": 2
+    },
+    "sharpe_first_half": {
+     "num": 9,
+     "den": 32
+    },
+    "sharpe": {
+     "num": 45,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": -7,
+     "den": 8
+    },
+    "sharpe_first_half": {
+     "num": 43,
+     "den": 32
+    },
+    "sharpe": null,
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 57,
+     "den": 32
+    },
+    "sharpe_first_half": {
+     "num": -19,
+     "den": 32
+    },
+    "sharpe": {
+     "num": -29,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 25,
+     "den": 16
+    },
+    "sharpe_first_half": {
+     "num": -3,
+     "den": 4
+    },
+    "sharpe": {
+     "num": 5,
+     "den": 16
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 61,
+     "den": 32
+    },
+    "sharpe_first_half": null,
+    "sharpe": {
+     "num": 19,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": -3,
+     "den": 4
+    },
+    "sharpe_first_half": {
+     "num": 1,
+     "den": 2
+    },
+    "sharpe": {
+     "num": -7,
+     "den": 8
+    },
+    "pooled_floor": {
+     "num": 1,
+     "den": 2
+    },
+    "half_floor": {
+     "num": 2,
+     "den": 5
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  },
+  {
+   "input": {
+    "sharpe_second_half": {
+     "num": 53,
+     "den": 32
+    },
+    "sharpe_first_half": null,
+    "sharpe": {
+     "num": -7,
+     "den": 32
+    },
+    "pooled_floor": {
+     "num": 3,
+     "den": 5
+    },
+    "half_floor": {
+     "num": 1,
+     "den": 2
+    }
+   },
+   "expected": {
+    "passes": false
+   }
+  }
+ ],
+ "spec_sha256": "a952a3376d1f4a3ca0a8e7881eafd0fbde6494bc03462d5a09a6d5556721e312"
+}

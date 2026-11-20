@@ -73,6 +73,7 @@ visualization/
 .pytest_cache/
 .ruff_cache/
 .matplotlib_cache/
+coverage-report/
 .coverage
 htmlcov/
 coverage.xml

@@ -395,6 +395,19 @@ def test_audit_backtest_run_end_to_end_on_a_synthetic_folder(tmp_path):
     json.dumps(audit)  # the whole report must be JSON-serializable
 
 
+def test_a_target_weights_run_ignores_the_book_history_of_older_runs(tmp_path):
+    from evaluation.backtest_audit import member_book_runs
+
+    # #410: the latest book-history segment of a target-weights run belongs to an older run; reading it reported vetoes
+    assert member_book_runs({}) and member_book_runs({"phase_v2": {"target_weights": {"enabled": False}}})
+    assert not member_book_runs({"phase_v2": {"target_weights": {"enabled": True, "source": "file"}}})
+    run = load_backtest_run(_write_run_folder(tmp_path))
+    stale = [{"date": "2019-01-01", "allocations": {}, "gate_veto_reason": "rolling_ic_below_floor"}]
+    audit = audit_backtest_run(run, stale, member_book=False)
+    assert audit["book"]["applicable"] is False and "target-weights" in audit["book"]["reason"]
+    assert "book_member" not in audit["entries_by_asset_class"]["equity"]
+
+
 def test_load_backtest_run_requires_a_result_json(tmp_path):
     with pytest.raises(FileNotFoundError):
         load_backtest_run(tmp_path)

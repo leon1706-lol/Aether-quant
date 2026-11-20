@@ -27,6 +27,14 @@ import AetherFormal.CashSweep
 import AetherFormal.DynamicTargets
 import AetherFormal.ForexCap
 import AetherFormal.VolTarget
+import AetherFormal.NoTradeBand
+import AetherFormal.PaperLossGuard
+import AetherFormal.MultiAssetRules
+import AetherFormal.WindowIndex
+import AetherFormal.Kelly
+import AetherFormal.InverseVolShare
+import AetherFormal.SharpeClauses
+import AetherFormal.BookGuards
 import Mathlib.Algebra.Order.Field.Rat
 import Mathlib.Data.Rat.Floor
 import Lean.Data.Json
@@ -930,6 +938,160 @@ def modelBookGuardCases : Gen Json := do
           ("expected", Json.mkObj [("permit", toJson (permit a b c))])]]
   return file "model_book_guard" ["AetherFormal/ModelBookGuard.lean"] cases
 
+/-! ### V6.6.10: dyadic grids (denominators 8 and 32), so every input is exact in a float and no comparison sits on a boundary -/
+
+def pairsJ (xs : List (String × ℚ)) : Json := Json.arr (xs.map (fun p => Json.arr #[toJson p.1, qj p.2])).toArray
+
+open NoTradeBand in
+def noTradeBandCases : Gen Json := do
+  let names : List String := ["a", "b", "c", "d", "e"]
+  let mut cases : List Json := []
+  for _ in [0:250] do
+    let mut current : List (String × ℚ) := []
+    let mut target : List (String × ℚ) := []
+    for n in names do
+      if (← randBool) then
+        current := current ++ [(n, ← randQ (-1) 1 8)]
+      if (← nextNat 4) != 0 then
+        target := target ++ [(n, ← randQ (-1) 1 8)]
+    let band ← pick [(-1 / 4 : ℚ), 0, 1 / 8, 1 / 4, 1 / 2]
+    let lookup : String → ℚ := fun n => ((current.find? (fun p => p.1 == n)).map (fun p => p.2)).getD 0
+    cases := cases ++ [Json.mkObj [
+      ("input", Json.mkObj [("current", pairsJ current), ("target", pairsJ target), ("band", qj band)]),
+      ("expected", Json.mkObj [("row", pairsJ (bandRow lookup target band))])]]
+  return file "no_trade_band" ["AetherFormal/NoTradeBand.lean"] cases
+
+open PaperLossGuard in
+def paperLossGuardCases : Gen Json := do
+  let mut cases : List Json := []
+  for _ in [0:300] do
+    let n ← nextNat 10
+    let xs ← genList n (randQ (-1) 1 8)
+    let lookback : Int := (((← nextNat 10) : Int) - 1)
+    let maxLoss ← pick [(0 : ℚ), 1 / 8, 1 / 2, 1, 2]
+    cases := cases ++ [Json.mkObj [
+      ("input", Json.mkObj [("increments", toJson (xs.map qj)), ("lookback", toJson lookback), ("max_loss", qj maxLoss)]),
+      ("expected", Json.mkObj [("held", toJson (guard xs lookback maxLoss))])]]
+  return file "paper_loss_guard" ["AetherFormal/PaperLossGuard.lean", "AetherFormal/SleeveGuard.lean"] cases
+
+def optQd (lo hi : Int) (noneOneIn : Nat) : Gen (Option ℚ) := do
+  if (← nextNat noneOneIn) == 0 then return none
+  return some (← randQ lo hi 32)
+
+open MultiAssetRules in
+def multiAssetRulesCases : Gen Json := do
+  let mut cases : List Json := []
+  for _ in [0:400] do
+    let survivor ← randBool
+    let hs ← optQd 0 1 8
+    let hd ← optQd 0 1 8
+    let hv ← optQd 0 1 8
+    let completed := (← nextNat 6) != 0
+    let clean := (← nextNat 6) != 0
+    let pin ← randQ 0 1 32
+    let ls ← optQd 0 1 8
+    let lv ← optQd 0 1 8
+    let ld ← optQd 0 1 8
+    let corr ← optQd 0 1 8
+    let gap ← optQd (-1) 1 8
+    let gap := if (← nextNat 3) == 0 then some (0 : ℚ) else gap
+    let corr := if (← nextNat 2) == 0 then some (1 : ℚ) else corr
+    let f := flip survivor hs hd hv completed clean pin ls lv ld corr gap
+    let newIc ← optQd (-1) 1 8
+    let oldIc ← optQd (-1) 1 8
+    let ics ← genList 4 (randQ (-1) 1 32)
+    let mean : ℚ := ics.sum / 4
+    let nonNeg := (ics.filter (fun x => 0 ≤ x)).length
+    let control ← randQ (-1) 1 32
+    let t ← optQd (-4) 4 6
+    cases := cases ++ [Json.mkObj [
+      ("input", Json.mkObj [
+        ("survivor", toJson survivor), ("holdout", Json.mkObj [("sharpe", oqj hs), ("max_drawdown", oqj hd), ("volatility", oqj hv)]),
+        ("lean", Json.mkObj [("completed", toJson completed), ("log_clean", toJson clean), ("sharpe", oqj ls), ("volatility", oqj lv), ("max_drawdown", oqj ld)]),
+        ("parity", Json.mkObj [("correlation", oqj corr), ("annual_return_gap", oqj gap)]), ("pin_sharpe", qj pin),
+        ("new_ic", oqj newIc), ("installed_ic", oqj oldIc), ("class_ic", toJson (ics.map qj)), ("control_mean", qj control), ("hac_t", oqj t)]),
+      ("expected", Json.mkObj [
+        ("flip", toJson f), ("model_share", qj (modelShare f)),
+        ("install3", toJson (install3 newIc oldIc completed clean ls ld)),
+        ("loss_survives", toJson (lossSurvives (some mean) control nonNeg t))])]]
+  return file "multi_asset_rules" ["AetherFormal/MultiAssetRules.lean"] cases
+
+open WindowIndex in
+def windowIndexCases : Gen Json := do
+  let mut cases : List Json := []
+  for _ in [0:200] do
+    let n := (← nextNat 15) + 1
+    let tickers ← genList n (nextNat 4)
+    let w := (← nextNat 5) + 1
+    let rows := (List.range n).map (fun i => toJson (window tickers w i))
+    cases := cases ++ [Json.mkObj [
+      ("input", Json.mkObj [("tickers", toJson tickers), ("window", toJson w)]),
+      ("expected", Json.mkObj [("index", Json.arr rows.toArray)])]]
+  return file "window_index" ["AetherFormal/WindowIndex.lean"] cases
+
+open Kelly in
+def kellyCases : Gen Json := do
+  let mut cases : List Json := []
+  for _ in [0:300] do
+    let mu ← randQ (-1) 1 8
+    let var ← randQ (-1) 2 8
+    let share ← pick [(-1 / 2 : ℚ), 0, 1 / 4, 1 / 2, 1]
+    let cap ← randQ (-2) 2 8
+    cases := cases ++ [Json.mkObj [
+      ("input", Json.mkObj [("mean", qj mu), ("variance", qj var), ("fraction", qj share), ("cap", qj cap)]),
+      ("expected", Json.mkObj [("kelly", qj (kelly mu var share cap))])]]
+  return file "kelly" ["AetherFormal/Kelly.lean"] cases
+
+open InverseVolShare in
+def inverseVolShareCases : Gen Json := do
+  let mut cases : List Json := []
+  for _ in [0:200] do
+    let model := (← randQ 0 1 32) + 1 / 64
+    let crypto := (← randQ 0 1 32) + 1 / 64
+    cases := cases ++ [Json.mkObj [
+      ("input", Json.mkObj [("model_volatility", qj model), ("crypto_volatility", qj crypto)]),
+      ("expected", Json.mkObj [("share", qj (share model crypto))])]]
+  return file "inverse_vol_share" ["AetherFormal/InverseVolShare.lean"] cases
+
+open SharpeClauses in
+def sharpeClausesCases : Gen Json := do
+  let mut cases : List Json := []
+  for _ in [0:300] do
+    let p ← optQd (-1) 2 8
+    let a ← optQd (-1) 2 8
+    let b ← optQd (-1) 2 8
+    let h ← pick [(2 / 5 : ℚ), 1 / 2]
+    let f ← pick [(1 / 2 : ℚ), 3 / 5]
+    cases := cases ++ [Json.mkObj [
+      ("input", Json.mkObj [("sharpe", oqj p), ("sharpe_first_half", oqj a), ("sharpe_second_half", oqj b), ("half_floor", qj h), ("pooled_floor", qj f)]),
+      ("expected", Json.mkObj [("passes", toJson (passes p a b h f))])]]
+  return file "sharpe_clauses" ["AetherFormal/SharpeClauses.lean"] cases
+
+open BookGuards in
+def bookGuardsCases : Gen Json := do
+  let names : List String := ["a", "b", "c", "d", "e"]
+  let classes : List String := ["equity", "bond", "forex"]
+  let mut cases : List Json := []
+  for _ in [0:250] do
+    let mut row : List (String × ℚ) := []
+    let mut classOf : List (String × String) := []
+    for n in names do
+      classOf := classOf ++ [(n, ← pick classes)]
+      if (← nextNat 5) != 0 then
+        row := row ++ [(n, ← randQ (-1) 1 8)]
+    let cls : String → String := fun n => ((classOf.find? (fun p => p.1 == n)).map (fun p => p.2)).getD "none"
+    let blocked := classes.take (← nextNat 3)
+    let level ← optQd 0 2 5
+    let threshold ← pick [(1 / 2 : ℚ), 1, 5 / 4]
+    let factor ← pick [(0 : ℚ), 1 / 2, 1]
+    let grossBy := classes.map (fun c => Json.arr #[toJson c, qj (gross (row.filter (fun p => cls p.1 == c)))])
+    cases := cases ++ [Json.mkObj [
+      ("input", Json.mkObj [("row", pairsJ row), ("classes", Json.arr (classOf.map (fun p => Json.arr #[toJson p.1, toJson p.2])).toArray),
+                            ("blocked", toJson blocked), ("level", oqj level), ("threshold", qj threshold), ("factor", qj factor)]),
+      ("expected", Json.mkObj [("dropped", pairsJ (dropClasses row cls blocked)), ("stressed", pairsJ (stressScale row level threshold factor)),
+                               ("class_gross", Json.arr grossBy.toArray)])]]
+  return file "book_guards" ["AetherFormal/BookGuards.lean"] cases
+
 def all : List (String × Gen Json) :=
   [("order_gate", orderGate), ("hash_chain", hashChain), ("book_neutrality", bookNeutrality),
    ("book_construction", bookConstruction), ("risk_controls", riskControls), ("kill_switch", killSwitch),
@@ -942,7 +1104,11 @@ def all : List (String × Gen Json) :=
    ("premia_caps", premiaCaps), ("rebalance", rebalance), ("cash_sweep", cashSweep), ("dynamic_targets", dynamicTargetsCases),
    ("forex_cap", forexCap), ("vol_target", volTargetCases),
    -- V6.6.9
-   ("model_book_guard", modelBookGuardCases)]
+   ("model_book_guard", modelBookGuardCases),
+   -- V6.6.10
+   ("no_trade_band", noTradeBandCases), ("paper_loss_guard", paperLossGuardCases), ("multi_asset_rules", multiAssetRulesCases),
+   ("window_index", windowIndexCases), ("kelly", kellyCases), ("inverse_vol_share", inverseVolShareCases), ("sharpe_clauses", sharpeClausesCases),
+   ("book_guards", bookGuardsCases)]
 
 end AetherFormal.GenCases
 

@@ -44,7 +44,7 @@ SURFACES: tuple[Surface, ...] = (
     _s("ruff", "ruff check .", "style and the obvious errors", ["PC", "CI"], "10 s", "stdout", "every change", [PY, "-m", "ruff", "check", "."]),
     _s("vermin", "vermin -t=3.10- --no-tips --violations -q <first-party>", "no source needs more than Python 3.10 (#326)", ["PC", "CI"], "5 s", "stdout; CI python-compat", "every commit"),
     # --- the suite
-    _s("suite", "aq test", "the whole offline suite, then the doc facts", ["Codespace", "CI"], "4-6 min (PC: out of memory)", "stdout, coverage.xml", "every commit"),
+    _s("suite", "aq test", "the whole offline suite, then the doc facts", ["Codespace", "CI"], "4-6 min (PC: out of memory)", "stdout, coverage-report/coverage.xml", "every commit"),
     _s("buckets", "aq test --<bucket>", "each of 15 subsystems is self-contained", ["PC", "CI"], "1-2 min each", "stdout", "every commit"),
     _s("guards", "pytest tests/test_ci_workflows.py tests/test_docs_facts.py tests/test_aether_quant_coverage.py ...", "workflows, docs facts, the library gate, packaging, help surface", ["PC", "CI"], "30 s", "stdout; CI fast-guards", "every change", [PY, "-m", "pytest", "-q", "-p", "no:cacheprovider", "tests/test_ci_workflows.py", "tests/test_docs_facts.py", "tests/test_aether_quant_coverage.py", "tests/test_module_has_test.py", "tests/test_formal_no_sorry.py", "tests/test_verification_matrix.py"]),
     _s("clean_checkout", "scripts/clean_checkout_test.ps1 or scripts/codespace_verify.ps1 -Start", "no test depends on a gitignored file; every CI job once, before the push", ["Codespace"], "40-60 min", "/tmp/aq_verify/status, <stage>.log", "a phase"),
@@ -53,6 +53,7 @@ SURFACES: tuple[Surface, ...] = (
     _s("model_book_decide", "python scripts/model_book_decide.py --session <D> --out <csv>", "the model book's daily decision: refused on a changed model file, stale closes or stale scores, equal to the verification row on a session both cover", ["PC"], "2 min", "the csv; forward/decisions.jsonl", "a decision"),
     # --- the library
     _s("library_gate", "python scripts/library_gate.py", "a public function is in aether_quant or explained; the backlog only shrinks", ["PC", "CI"], "1 s", "stdout; pre-commit hook", "every commit", [PY, "scripts/library_gate.py"]),
+    _s("formal_inventory", "python scripts/formal_inventory.py", "every public function of the trading and research paths is proved in Lean, excluded with a reason, or in a backlog that only shrinks", ["PC", "CI"], "2 s", "stdout; pre-commit hook", "every commit", [PY, "scripts/formal_inventory.py"]),
     _s("api_pin", "aq test --meta (tests/test_aether_quant_api.py)", "every export resolves to the real function; the import stays light; the public surface only changes on purpose", ["PC", "CI"], "1 min", "tests/data/aether_quant_api.json", "every commit"),
     _s("quickstart", "tests/test_aether_quant_quickstart.py", "the library works from an uninstalled checkout, examples included", ["PC", "CI"], "1 min", "stdout", "every commit"),
     _s("wheel_smoke", "python scripts/wheel_smoke.py (built wheel, outside the checkout)", "every shipped module imports, every aq subcommand has --help, one real call into each library module", ["Codespace", "CI"], "2 min", "stdout; CI wheel-smoke", "a release"),
@@ -60,7 +61,7 @@ SURFACES: tuple[Surface, ...] = (
     _s("prove", "aq prove", "the Lean 4 specs build (Mathlib)", ["Codespace", "CI"], "5 min (Mathlib cached)", "stdout; CI formal.yml", "every change to formal/ or a modelled file"),
     _s("prove_sorry", "aq prove --check-sorry", "no sorry or admit in any spec", ["PC", "CI"], "1 s", "stdout; tests/test_formal_no_sorry.py", "every commit", [PY, "aq_cli.py", "prove", "--check-sorry"]),
     _s("axioms", "python scripts/check_axioms.py", "every theorem rests on the three standard axioms, but two named native_decide findings", ["Codespace", "CI"], "2 min", "stdout; CI formal.yml", "every change to formal/"),
-    _s("differential", "aq test --formal", "the Python functions equal the Lean models on thousands of computed cases (29 targets)", ["PC", "CI"], "1 min", "aether_quant/_formal_cases/*.json", "every commit"),
+    _s("differential", "aq test --formal", "the Python functions equal the Lean models on thousands of computed cases (37 targets)", ["PC", "CI"], "1 min", "aether_quant/_formal_cases/*.json", "every commit"),
     # --- other kinds of test
     _s("properties", "pytest tests/test_v664_properties.py", "invariants of the order gate, admission, session, shares, weight caps, hash chain and JSON safety hold for every input (hypothesis, derandomized)", ["PC", "CI"], "2 min", "stdout", "every commit"),
     _s("mutation", "python scripts/mutation_check.py --out ml/evaluation/v664/mutation.json", "the tests of seven safety and ledger modules notice a changed comparison, operator or constant", ["Codespace"], "1-2 h", "ml/evaluation/v664/mutation.json", "a phase"),
@@ -100,8 +101,8 @@ SURFACES: tuple[Surface, ...] = (
     _s("dashboard_image", "docker build --target dashboard -t aether-quant-dashboard . && docker run -p 8080:8000", "the light dashboard image builds, serves the UI and answers /api/health in demo mode", ["PC", "CI"], "5 min", "ml/evaluation/v665/dashboard.json", "every change to Dockerfile, webui/ or monitoring/"),
     _s("bandit", "bandit -r <shipped packages> -lll -c pyproject.toml", "no high-severity static finding in shipped code", ["PC", "CI"], "1 min", "stdout", "every commit"),
     # --- CI jobs (one row each; the table is held to ci.yml)
-    _s("coverage", "aq test --coverage", "every tracked module at 100%, one group at a time", ["PC", "Codespace"], "1-2 h on the PC", "coverage.json", "every commit"),
-    _s("coverage_changed", "aq test --coverage --changed", "every module changed since HEAD at 100% under the tests that name it (the pre-commit hook)", ["PC", "CI"], "1-5 min", "stdout; .coverage.changed", "every commit", [PY, "aq_cli.py", "test", "--coverage", "--changed"]),
+    _s("coverage", "aq test --coverage", "every tracked module at 100%, one group at a time", ["PC", "Codespace"], "1-2 h on the PC", "coverage-report/coverage.json", "every commit"),
+    _s("coverage_changed", "aq test --coverage --changed", "every module changed since HEAD at 100% under the tests that name it (the pre-commit hook)", ["PC", "CI"], "1-5 min", "stdout; coverage-report/.coverage.changed", "every commit", [PY, "aq_cli.py", "test", "--coverage", "--changed"]),
     _s("scorecard_pins", "python scripts/scorecard_pins.py", "every install in a workflow, Dockerfile or shell script is pinned by hash, as the OpenSSF Scorecard reads it", ["PC", "CI"], "1 s", "stdout; pre-commit hook; CI fast-guards", "every commit", [PY, "scripts/scorecard_pins.py"]),
     _s("ci:python-tests", "CI: ubuntu and windows, coverage gate 100% of every tracked module", "the suite on both platforms, and the JUnit report behind the test badge", ["CI"], "6 min", "GitHub Actions", "every push"),
     _s("ci:python-lint", "CI: ruff and py_compile main.py", "lint and syntax", ["CI"], "1 min", "GitHub Actions", "every push"),
@@ -121,11 +122,13 @@ SURFACES: tuple[Surface, ...] = (
     _s("ci:bandit", "CI: bandit -lll", "no high-severity static finding", ["CI"], "1 min", "GitHub Actions", "every push"),
     _s("ci:cpp-sanitizers", "CI: cpp_inference_ext under ASan and UBSan", "the C++ kernel has no memory error or undefined behaviour; a canary overflow aborts first", ["CI"], "5 min", "GitHub Actions", "every push"),
     _s("ci:parity-smoke", "CI: parity tests and feature_parity_audit --synthetic-only", "live and offline compute the same features", ["CI"], "1 min", "GitHub Actions", "every push"),
+    _s("ci:lowmem-proof", "CI: scripts/lowmem_proof.py --rows 280000 --budget-gb 2.6", "the model stack trains in 2.6 GB under --memory-profile low", ["CI"], "15-30 min", "GitHub Actions", "every push"),
     _s("ci:secret-scan", "CI: gitleaks (blocking on the tree, advisory on history)", "no secret in a tracked file", ["CI"], "10 s", "GitHub Actions", "every push"),
     # --- the other workflows
     _s("wf:formal", ".github/workflows/formal.yml", "the proofs, the sorry scan, regenerated cases and axioms on spec changes and monthly", ["GitHub"], "10 min", "GitHub Actions", "every change to formal/"),
     _s("wf:forward-ledger", ".github/workflows/forward-ledger.yml", "one hash-chained forward row a session for the frozen rule", ["GitHub"], "30 s", "branch forward-ledger", "every session"),
     _s("wf:research-cycle", ".github/workflows/research-cycle.yml", "one row per tracked generation and the allocation a session", ["GitHub"], "30 s", "branch forward-ledger", "every session"),
+    _s("wf:model-cycle", ".github/workflows/model-cycle.yml", "the pipeline on the sample and the example models, one row a week", ["GitHub"], "10-20 min", "branch forward-ledger", "every week"),
     _s("wf:keepalive", ".github/workflows/keepalive.yml", "the schedules stay enabled", ["GitHub"], "10 s", "GitHub Actions", "monthly"),
     _s("wf:release", ".github/workflows/release.yml", "the tagged commit's suite, PyPI and both images with SBOMs and provenance (the tag is the owner's)", ["GitHub", "owner"], "20 min", "GitHub Actions", "a release"),
     _s("wf:codeql", ".github/workflows/codeql.yml", "CodeQL over Python, TypeScript and the workflows", ["GitHub"], "10 min", "GitHub code scanning", "every push to main; weekly"),
