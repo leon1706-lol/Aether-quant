@@ -96,7 +96,7 @@ ELEVATED_CONFIG = {"default": 0.20, "crypto": 5.0}
 def _synthetic_universe(days: int = 70, seed: int = 11):
     rng = np.random.default_rng(seed)
     calendar = pd.date_range("2020-01-01", periods=days, freq="D")
-    weekdays = calendar[calendar.dayofweek < 5]
+    weekdays = calendar[calendar.day_of_week < 5]
     shared = rng.normal(0, 0.01, days)
     specs = {
         "TLT": ("equity", weekdays), "SHY": ("equity", weekdays), "HYG": ("equity", weekdays),
@@ -124,7 +124,7 @@ def _live_replay(frames, types):
                 # Lean's FillForward: the forex market is open Sunday-Friday, so a gap day without a row is a flat bar
                 for offset in range(1, (stamp - previous_stamp).days):
                     gap_day = previous_stamp + pd.Timedelta(offset, unit="D")
-                    if gap_day.dayofweek != 5:
+                    if gap_day.day_of_week != 5:
                         bars.append((bar_available_at(gap_day.toordinal(), "forex"), ticker, gap_day, float(previous_close)))
             bars.append((bar_available_at(stamp.toordinal(), types[ticker]), ticker, stamp, float(close)))
             previous_stamp, previous_close = stamp, close

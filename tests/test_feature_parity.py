@@ -134,7 +134,7 @@ def test_macro_and_rank_replicas_match_train_builders_on_mixed_calendars():
 
     rng = np.random.default_rng(5)
     calendar = pd.date_range("2020-01-01", periods=60, freq="D")
-    weekdays = calendar[calendar.dayofweek < 5]
+    weekdays = calendar[calendar.day_of_week < 5]
     specs = {
         "TLT": ("equity", weekdays), "SHY": ("equity", weekdays), "HYG": ("equity", weekdays), "LQD": ("equity", weekdays),
         "AAPL": ("equity", weekdays[2:]), "BTCUSD": ("crypto", calendar), "EURUSD": ("forex", weekdays),

@@ -263,7 +263,7 @@ def test_engine_without_the_flag_still_holds_a_dead_name():
 
 def test_an_equity_is_not_counted_missing_on_a_day_with_no_equity_session():
     dates = [d.strftime("%Y-%m-%d") for d in pd.date_range("2024-01-01", periods=10)]
-    sessions = {d for d in dates if pd.Timestamp(d).dayofweek < 5}
+    sessions = {d for d in dates if pd.Timestamp(d).day_of_week < 5}
     closes = np.array([[100.0 if d in sessions else np.nan for d in dates], [50.0] * 10]).T
     panel = MarketPanel(dates, ["AAA", "BTCUSD"], closes.copy(), closes, {"AAA": "equity", "BTCUSD": "crypto"}, sessions)
     config = TargetWeightsConfig(enabled=True, min_weight_change=0.0, min_trade_usd=0.0, financing_enabled=False, equity_fee_bps=0.0,

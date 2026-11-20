@@ -20,9 +20,9 @@ def _mixed_calendar_frame(seed: int = 3, periods: int = 220) -> pd.DataFrame:
     rows = []
     all_days = pd.date_range("2019-01-01", periods=periods, freq="D")
     calendars = {
-        "equity": [d for d in all_days if d.dayofweek < 5],
+        "equity": [d for d in all_days if d.day_of_week < 5],
         "crypto": list(all_days),
-        "forex": [d for d in all_days if d.dayofweek != 5],
+        "forex": [d for d in all_days if d.day_of_week != 5],
     }
     tickers = {"equity": [f"E{i:02d}" for i in range(14)], "crypto": ["C1", "C2", "C3"], "forex": ["F1", "F2", "F3", "F4"]}
     for kind, names in tickers.items():

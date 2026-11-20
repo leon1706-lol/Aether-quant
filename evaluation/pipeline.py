@@ -27,6 +27,7 @@ from __future__ import annotations
 import datetime
 import importlib.util
 import json
+import sys
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from typing import Any
@@ -47,7 +48,9 @@ def load_pipeline(path: Path | None) -> dict[str, Any]:
     if path is None:
         spec["pipeline"]["signal"] = SMOKE_SIGNAL
         return spec
-    import tomllib  # Python 3.11+: a pipeline file needs it (the library itself runs on 3.10)
+    if sys.version_info < (3, 11):
+        raise ValueError("a pipeline file needs Python 3.11 or newer (tomllib); without a file, the defaults run on 3.10")
+    import tomllib  # novermin  (guarded above: the library itself runs on 3.10)
 
     loaded = tomllib.loads(Path(path).read_text(encoding="utf-8"))
     for section, values in loaded.items():

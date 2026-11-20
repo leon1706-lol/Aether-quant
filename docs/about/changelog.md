@@ -5,9 +5,9 @@ The full record of every phase lives in the repository: [`development/Changelog.
 The latest phases, generated from that file by `aq docs sync`:
 
 <!-- AQ:CHANGELOG_LATEST_START -->
+- [Phase V6.7.1 — CI repair, Dependabot, the `aq` CLI to 10/10, the model lab](https://github.com/leon1706-lol/Aether-quant/blob/main/development/Changelog.md#phase-v671--ci-repair-dependabot-the-aq-cli-to-1010-the-model-lab)
 - [Phase V6.6.10 — Training on a 4 GB machine, resumable retrains, example models, one-command pipelines, more proofs, and no 70/30 flip](https://github.com/leon1706-lol/Aether-quant/blob/main/development/Changelog.md#phase-v6610--training-on-a-4-gb-machine-resumable-retrains-example-models-one-command-pipelines-more-proofs-and-no-7030-flip)
 - [Phase V6.6.9 — The multi-asset model book back on the trusted path, an optimizer, a docs pass](https://github.com/leon1706-lol/Aether-quant/blob/main/development/Changelog.md#phase-v669--the-multi-asset-model-book-back-on-the-trusted-path-an-optimizer-a-docs-pass)
-- [Phase V6.6.8 — Close the best-practices gaps: strict lint, the C++ accelerator under sanitizers, the licence decision](https://github.com/leon1706-lol/Aether-quant/blob/main/development/Changelog.md#phase-v668--close-the-best-practices-gaps-strict-lint-the-c-accelerator-under-sanitizers-the-licence-decision)
 <!-- AQ:CHANGELOG_LATEST_END -->
 
 **6.6.10: training on a 4 GB machine, and an honest answer on the 70/30 flip.**

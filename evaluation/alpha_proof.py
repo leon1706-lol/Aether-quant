@@ -250,7 +250,7 @@ def measured_annualization(index: Sequence[str] | pd.Index, *, fallback: float) 
     dates = pd.to_datetime(pd.Index([str(day) for day in index]))
     if len(dates) < 20:
         return fallback
-    return fallback if bool((dates.dayofweek >= 5).any()) else 252.0
+    return fallback if bool((dates.day_of_week >= 5).any()) else 252.0
 
 
 def fresh_sessions(y: pd.Series, sessions: Iterable[str], *, start: str = FRESH_START) -> int:

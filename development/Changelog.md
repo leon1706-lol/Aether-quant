@@ -1,6 +1,6 @@
 # Changelog
 
-What each phase built and why, oldest first (the newest phase is <!--fact:changelog.latest-->V6.6.10<!--/fact-->, and `README.md` has the current status). The evidence lives in [`Problems.md`](Problems.md); entries describe what was true at the time. Full text of older phases: [`backups/`](backups/README.md).
+What each phase built and why, oldest first (the newest phase is <!--fact:changelog.latest-->V6.7.1<!--/fact-->, and `README.md` has the current status). The evidence lives in [`Problems.md`](Problems.md); entries describe what was true at the time. Full text of older phases: [`backups/`](backups/README.md).
 
 ## V1 — Finished
 
@@ -1021,3 +1021,7 @@ What each phase built and why, oldest first (the newest phase is <!--fact:change
 - **Verification.** The full `aq test --coverage` on the PC (every tracked module at 100%), the clean-checkout run (7,384 passed; it found the `aq init` starter `signal.py` shadowing Python's `signal` module, now `my_signal.py`, and two docs naming paths only a new project has), the five notebooks executed, `mkdocs build --strict`, ruff, the library, inventory and pin gates.
 - **Coverage output (#400).** Everything coverage writes lives in `coverage-report/`.
 - **Hosts.** PC only, no Codespace; heavy jobs one at a time, started detached, with WhatsApp, Google Drive and ChatGPT closed (a background shell was stopped for memory on 2026-11-17).
+
+## Phase V6.7.1 — CI repair, Dependabot, the `aq` CLI to 10/10, the model lab
+
+- **Main green again (#413, #414):** a pipeline file on Python 3.10 now fails with a clear message instead of a `tomllib` import error, and a constant score's R-squared no longer comes from float noise. The pandas `dayofweek` names that pandas 3 deprecates became `day_of_week`.

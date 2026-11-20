@@ -47,9 +47,9 @@ def test_fill_forward_adds_flat_sunday_bars_between_friday_and_monday():
 
     filled = fill_forward_forex_frame(frame)
 
-    sundays = filled[filled["date"].dt.dayofweek == 6]
+    sundays = filled[filled["date"].dt.day_of_week == 6]
     assert len(filled) == len(frame) + 2  # Sundays between the three weeks
-    assert (filled["date"].dt.dayofweek != 5).all()
+    assert (filled["date"].dt.day_of_week != 5).all()
     for _, row in sundays.iterrows():
         friday = frame[frame["date"] == row["date"] - pd.Timedelta(2, unit="D")].iloc[0]
         assert row["close"] == friday["close"] and row["open"] == row["high"] == row["low"] == friday["close"]
@@ -73,7 +73,7 @@ def test_rows_and_labels_are_those_of_the_real_bars_but_trailing_features_use_th
     assert lean["date"].tolist() == plain["date"].tolist()
     for label in ("target_return_1d", "target_direction", "target_return_5d", "target_return_20d", "target_volatility_next_day", "split"):
         pd.testing.assert_series_equal(lean[label], plain[label], check_names=False)
-    assert (lean["date"].dt.dayofweek < 5).all()  # no Sunday filler row leaks into the dataset
+    assert (lean["date"].dt.day_of_week < 5).all()  # no Sunday filler row leaks into the dataset
 
     filled = fill_forward_forex_frame(frame)
     monday = pd.Timestamp("2019-04-15")

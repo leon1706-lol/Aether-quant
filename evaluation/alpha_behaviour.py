@@ -136,7 +136,7 @@ def premia_exposure(scores: pd.DataFrame, factors: Mapping[str, pd.DataFrame], *
         coefficients, *_ = np.linalg.lstsq(design, target, rcond=None)
         fitted = design @ coefficients
         total = float(((target - target.mean()) ** 2).sum())
-        r_squared.append(1.0 - float(((target - fitted) ** 2).sum()) / total if total > 0 else 0.0)
+        r_squared.append(1.0 - float(((target - fitted) ** 2).sum()) / total if total > 1e-12 * len(target) else 0.0)  # a constant score's ranks carry float noise
         for index, name in enumerate(names):
             betas[name].append(float(coefficients[index + 1]))
         residual.loc[session, usable[usable].index] = target - fitted

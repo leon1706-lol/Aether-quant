@@ -100,7 +100,7 @@ def test_atr_after_a_weekend_matches_only_with_flat_bars():
             flat_window.append(flatten_fill_forward_bar(last_real, flat_window[-1]["close"]))
             cloned_window.append(dict(last_real))
         match = dataset[dataset["date"] == row["date"]]
-        if row["date"].dayofweek == 0 and len(match) and len(flat_window) == 25:
+        if row["date"].day_of_week == 0 and len(match) and len(flat_window) == 25:
             expected = float(match["atr_pct_14"].iloc[0])
             highs, lows, closes = ([bar[key] for bar in flat_window] for key in ("high", "low", "close"))
             assert average_true_range_pct(highs, lows, closes) == pytest.approx(expected, rel=1e-9)

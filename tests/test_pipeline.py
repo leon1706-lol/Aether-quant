@@ -27,6 +27,14 @@ def test_the_file_merges_over_the_defaults_and_no_file_is_the_smoke_run(tmp_path
     assert spec["extra"] == {"k": 1} and spec["root"] == str(tmp_path.resolve())
 
 
+def test_a_pipeline_file_on_python_3_10_says_it_needs_3_11(tmp_path, monkeypatch):
+    path = tmp_path / "pipeline.toml"
+    path.write_text('[pipeline]\nname = "x"\n', encoding="utf-8")
+    monkeypatch.setattr(pipeline.sys, "version_info", (3, 10, 0))
+    with pytest.raises(ValueError, match="needs Python 3.11"):
+        pipeline.load_pipeline(path)
+    assert pipeline.load_pipeline(None)["pipeline"]["signal"] == pipeline.SMOKE_SIGNAL
+
 def test_closes_and_signals_load_from_the_sample_a_csv_or_a_file(tmp_path):
     assert pipeline.load_closes("sample", root=tmp_path).shape[1] == 11
     _closes().to_csv(tmp_path / "c.csv", index_label="date")

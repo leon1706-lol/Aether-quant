@@ -62,7 +62,7 @@ def compute_factor_exposure(
     residuals = y - X @ betas
     ss_total = float(np.sum((y - y.mean()) ** 2))
     ss_resid = float(np.sum(residuals ** 2))
-    r_squared = 1.0 - ss_resid / ss_total if ss_total > 0 else 0.0
+    r_squared = 1.0 - ss_resid / ss_total if ss_total > 1e-12 * n else 0.0  # constant returns carry float noise
 
     # Alpha = the part of the book's return the factors do NOT explain: the
     # regression INTERCEPT plus the residuals. V5.5.0 (found when the first
@@ -81,7 +81,7 @@ def compute_factor_exposure(
         ss_factor = float(np.sum((col - col.mean()) ** 2))
         beta_i = betas[i + 1]
         contribution = beta_i ** 2 * ss_factor
-        contributions[name] = round(float(contribution / ss_total * 100), 2) if ss_total > 0 else 0.0
+        contributions[name] = round(float(contribution / ss_total * 100), 2) if ss_total > 1e-12 * n else 0.0
 
     return {
         "alpha_sharpe": round(alpha_sharpe, 4),

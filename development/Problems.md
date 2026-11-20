@@ -2,7 +2,7 @@
 
 Every bug and infrastructure issue found in this codebase, oldest first, with how it was fixed or why it stayed open. Numbers never change, because code and docs cite them; #73-76 don't exist, #88's first entry is #88a, and #112 appears twice (the second is marked).
 
-**Entries:** <!--fact:problems.total-->409<!--/fact--> up to #<!--fact:problems.last-->412<!--/fact-->: <!--fact:problems.fixed-->372<!--/fact--> 🟢 `fixed` (changed and verified), <!--fact:problems.partial-->18<!--/fact--> 🟡 `partial` (shipped, verification pending), <!--fact:problems.closed-->20<!--/fact--> 🔴 `closed` (no code fix: declined, moot or superseded). Severity runs from 1 (cosmetic) to 10 (data loss or safety). Full text of older entries: [`backups/`](backups/README.md).
+**Entries:** <!--fact:problems.total-->411<!--/fact--> up to #<!--fact:problems.last-->414<!--/fact-->: <!--fact:problems.fixed-->374<!--/fact--> 🟢 `fixed` (changed and verified), <!--fact:problems.partial-->18<!--/fact--> 🟡 `partial` (shipped, verification pending), <!--fact:problems.closed-->20<!--/fact--> 🔴 `closed` (no code fix: declined, moot or superseded). Severity runs from 1 (cosmetic) to 10 (data loss or safety). Full text of older entries: [`backups/`](backups/README.md).
 
 **Open now** (each needs a broker key, a forward record, a Codespace or the laptop):
 
@@ -2428,3 +2428,20 @@ R-INSTALL3 kept the installed models: on 2023-07-01..2026-11-02 g0007's ml_a1 ha
 
 **Verification:** `tests/test_build_example_models.py` asserts the folder is restored. Run after it, the walk-forward test reaches `train.py` 7527 and 7570-7572; `hello_world.py` and `build_example_models.py` reach 100% from their own tests.
 
+### 413. A pipeline file crashed on Python 3.10, the library's floor (V6.7.1)
+🟢 `fixed` · 4/10
+
+**Problem:** `evaluation/pipeline.load_pipeline` imported `tomllib`, which only exists from Python 3.11, while `requires-python` is 3.10; CI's `python-compat` job (vermin) failed on the V6.6.10 push.
+
+**Fix:** a pipeline file on 3.10 now raises a clear `ValueError` ("needs Python 3.11 or newer"), which `aq pipeline` prints; without a file the defaults still run on 3.10.
+
+**Verification:** CI's exact vermin command prints nothing; `tests/test_pipeline.py` covers the 3.10 branch.
+
+### 414. A constant score's R-squared came back from float noise (V6.7.1)
+🟢 `fixed` · 3/10
+
+**Problem:** `evaluation/alpha_behaviour.premia_exposure` treated any positive total sum of squares as signal, so a constant score's ranks, equal up to rounding, gave an R-squared of 0.125 on some platforms and failed `test_alpha_behaviour` on Windows and in the evaluation subsystem job. `factor_neutralization_check` had the same test.
+
+**Fix:** both treat a total sum of squares under 1e-12 per row as zero.
+
+**Verification:** `tests/test_alpha_behaviour.py` and a new constant-returns case in `tests/test_factor_neutralization_check.py` pass.
