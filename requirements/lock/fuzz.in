@@ -1,5 +1,7 @@
 # The fuzz workflow (--profile fuzz)
-atheris>=2.3.0
+# atheris 3.1 ships wheels for Python 3.12+ only; CI's fuzz job runs 3.11 (V6.7.1: a relock moved it to 3.1.0 and the job could not install it)
+atheris>=2.3.0,<3.1 ; python_full_version < '3.12'
+atheris>=2.3.0 ; python_full_version >= '3.12'
 numpy>=1.24.0
 pandas>=2.0.0
 pyyaml>=6.0

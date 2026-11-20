@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import re
+import sys
 from pathlib import Path
 
 import pytest
+from packaging.markers import Marker
 from packaging.requirements import Requirement
 from packaging.version import Version
 
@@ -60,7 +62,9 @@ def test_each_lock_satisfies_every_requirement_of_its_inputs(name):
     for requirement in _requirements(LOCK / f"{name}.in"):
         key = requirement.name.lower().replace("_", "-")
         assert key in pins, f"{name}.txt lacks {requirement.name}: rerun scripts/lock_requirements.py --profile {name}"
-        for version, _marker in pins[key]:
+        for version, marker in pins[key]:
+            if requirement.marker is not None and marker and str(requirement.marker) != str(Marker(marker)):
+                continue  # a pin for another environment (atheris: one range below Python 3.12, another from it)
             assert requirement.specifier.contains(version, prereleases=True), (
                 f"{name}.txt pins {requirement.name}=={version}, outside {requirement.specifier}: "
                 f"rerun python scripts/lock_requirements.py --profile {name}"
@@ -76,3 +80,14 @@ def test_the_profiles_match_the_generator():
     assert set(lock_requirements.PROFILES) == set(PROFILES)
     assert {name for name, spec in lock_requirements.PROFILES.items() if spec.torch_cpu} == {"ci", "runtime"}
     assert lock_requirements.PROFILES["compat"].python_version == "3.10"
+
+
+def test_a_pin_for_another_environment_is_not_judged_by_this_one(tmp_path, monkeypatch):
+    (tmp_path / "demo.in").write_text("atheris>=2.3.0,<3.1 ; python_full_version < '3.12'\natheris>=2.3.0 ; python_full_version >= '3.12'\n", encoding="utf-8")
+    (tmp_path / "demo.txt").write_text(
+        "atheris==3.0.0 ; python_full_version < '3.12' \\n    --hash=sha256:aa\natheris==3.1.0 ; python_full_version >= '3.12' \\n    --hash=sha256:bb\n", encoding="utf-8")
+    monkeypatch.setattr(sys.modules[__name__], "LOCK", tmp_path)
+    test_each_lock_satisfies_every_requirement_of_its_inputs("demo")
+    (tmp_path / "demo.txt").write_text("atheris==3.1.0 ; python_full_version < '3.12' \\n    --hash=sha256:aa\n", encoding="utf-8")
+    with pytest.raises(AssertionError, match="outside"):
+        test_each_lock_satisfies_every_requirement_of_its_inputs("demo")
