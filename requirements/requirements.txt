@@ -13,7 +13,7 @@ lean>=1.0.225
 
 # Machine Learning & Data Processing
 torch>=2.15.0
-numpy>=1.24.0
+numpy>=2.5.5
 pandas>=2.0.0
 scikit-learn>=1.5.0
 

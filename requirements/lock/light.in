@@ -1,5 +1,5 @@
 # The light jobs: formal, forward ledger, research cycle, typecheck (--profile light)
-numpy>=1.24.0
+numpy>=2.5.5
 pandas>=2.0.0
 pyyaml>=6.0
 requests>=2.33.0
