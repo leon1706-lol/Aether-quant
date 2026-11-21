@@ -6,7 +6,7 @@ The owner's live brief for what to do next; rewritten as objectives change (hist
 -----
 # Current objective: V6.7.1 — CI repair, Dependabot, the `aq` CLI to 10/10, the model lab
 
-**State (2026-11-21): in verification.** Plan: `C:\Users\Blackhead\.claude\plans\so-for-the-next-glittery-melody.md`. The agent commits and pushes, then watches CI until green (owner decision). Entries #413-#422 in `development/Problems.md`; the Changelog's "Phase V6.7.1".
+**State (2026-11-21): COMPLETE, pushed (e2ea0d8, 4c60664, 89bac54), CI green on both operating systems.** Plan: `C:\Users\Blackhead\.claude\plans\so-for-the-next-glittery-melody.md`. The agent commits and pushes, then watches CI until green (owner decision). Entries #413-#422 in `development/Problems.md`; the Changelog's "Phase V6.7.1".
 - **Done:** main green (#413, #414), every Dependabot PR applied on main and closed with grouped updates (#415, #416), the CLI audit with every command at 10/10 (`development/cli_audit.md`, enforced by `tests/test_cli_help_surface.py`), the new developer, owner and maintainer commands, the model lab with its data, signal and research commands (#422), the docs (guide, notebook, example, `docs/reference/cli.md`).
 - **Owner steps after the push:** a Docker image rebuild (the networks the live path imports moved to `lab/`, unchanged), a tag (it publishes the example models and proves `aq models install` and `aq release check` against a real release), and the next real `aq backtest --no-publish` to prove #419.
 
