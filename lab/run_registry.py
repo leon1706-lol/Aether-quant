@@ -47,8 +47,9 @@ def find_lab(start: Path) -> Path | None:
 
 
 def new_run_id(model: str, now: _datetime.datetime | None = None) -> str:
-    """A sortable run id: the time, the model name and a short random suffix."""
-    stamp = (now or _datetime.datetime.now(_datetime.timezone.utc)).strftime("%Y%m%d_%H%M%S")
+    """A run id that sorts in creation order (to the microsecond: two runs can start in one second), then the model name and a
+    short random suffix."""
+    stamp = (now or _datetime.datetime.now(_datetime.timezone.utc)).strftime("%Y%m%d_%H%M%S_%f")
     return f"{stamp}_{model}_{uuid.uuid4().hex[:6]}"
 
 

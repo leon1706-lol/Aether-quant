@@ -387,6 +387,7 @@ The guide, the live-operations pages and the API reference are published at [htt
 | Trading | [`execution/`](execution/README.md) | Order gate, cost model, reconciliation, paper readiness |
 | Trading | [`analyzer/`](analyzer/README.md) | The final per-asset action layer |
 | Models | [`features/`](features/README.md) | Feature functions shared by training and runtime |
+| Models | [`lab/`](lab/README.md) | The model lab: the production networks and losses, datasets, training runs as counted trials, evaluation and export (`aq lab`) |
 | Models | [`inference/`](inference/README.md) · [`cpp_inference_ext/`](cpp_inference_ext/README.md) | The numpy forward pass · its optional C++ accelerator |
 | Models | [`moe/`](moe/README.md) · [`experts/`](experts/README.md) | The gating network · the four expert models |
 | Models | [`regime/`](regime/README.md) · [`topology/`](topology/README.md) · [`liquidity/`](liquidity/README.md) | Regime detection · market topology · market impact |

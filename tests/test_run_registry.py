@@ -29,7 +29,7 @@ def test_runs_are_recorded_listed_found_and_rendered(tmp_path):
     (tmp_path / "runs" / "broken" / "run.json").write_text("{", encoding="utf-8")
     rows = rr.list_runs(tmp_path)
     assert [row["model"] for row in rows] == ["m2", "m1"] and rr.read_run(first)["note"] == "merged"
-    assert first.name.startswith("20261120_120000_m1_")
+    assert first.name.startswith("20261120_120000_000000_m1_")
     assert rr.find_run(tmp_path, "latest") == second
     assert rr.find_run(tmp_path, first.name[:18]) == first
     with pytest.raises(KeyError, match="more than one"):
@@ -39,3 +39,15 @@ def test_runs_are_recorded_listed_found_and_rendered(tmp_path):
     table = rr.render_runs(rows)
     assert "+0.0500 +/-0.0100" in table and "IC -" in table
     assert rr.render_runs([]).startswith("no runs yet")
+
+
+def test_two_runs_started_in_one_second_still_sort_in_order(tmp_path):
+    import datetime
+
+    stamp = datetime.datetime(2026, 1, 2, 3, 4, 5, 10, tzinfo=datetime.timezone.utc)
+    earlier, later = rr.new_run_id("lin2", now=stamp), rr.new_run_id("lin", now=stamp + datetime.timedelta(microseconds=1))
+    assert earlier < later, "the microsecond, not the model name, orders runs of one second"
+    for run in (earlier, later):
+        (tmp_path / "runs" / run).mkdir(parents=True)
+        rr.write_run(tmp_path / "runs" / run, {"model": run})
+    assert rr.find_run(tmp_path, "latest").name == later

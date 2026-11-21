@@ -111,3 +111,23 @@ def test_the_script_run_as_main_reports_its_usage(monkeypatch, capsys):
     from script_loader import run_script
 
     assert run_script("type_completeness", ["--help"], monkeypatch) == 0 and "--update-floor" in capsys.readouterr().out
+
+
+def test_a_lazy_export_without_its_optional_dependency_is_skipped(monkeypatch):
+    import types
+
+    module = load_script("type_completeness")
+    facade = types.ModuleType("aether_quant.fake")
+    facade.__all__ = ["typed", "needs_torch"]
+
+    def typed(x: int) -> int: ...
+
+    facade.typed = typed
+
+    def lazy(name):
+        raise ModuleNotFoundError("No module named 'torch'")
+
+    facade.__getattr__ = lazy
+    monkeypatch.setattr(module, "facade_modules", lambda: ["fake"])
+    monkeypatch.setattr(module.importlib, "import_module", lambda name: facade)
+    assert module.measure() == {"score": 1.0, "complete": 1, "total": 1, "incomplete": {}}

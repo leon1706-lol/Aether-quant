@@ -85,7 +85,10 @@ def measure() -> dict[str, object]:
     for module_name in facade_modules():
         module = importlib.import_module(f"aether_quant.{module_name}")
         for name in getattr(module, "__all__", []):
-            obj = getattr(module, name, None)
+            try:
+                obj = getattr(module, name, None)
+            except ImportError:  # a lazy export whose optional dependency (torch) is not installed here
+                continue
             if obj is None or not (inspect.isfunction(obj) or inspect.isclass(obj)) or id(obj) in seen:
                 continue
             qualified = f"{getattr(obj, '__module__', '?')}.{getattr(obj, '__qualname__', name)}"
