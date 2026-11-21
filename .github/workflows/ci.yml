@@ -27,7 +27,7 @@ permissions:
 jobs:
   python-tests:
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
+    timeout-minutes: 50  # windows ran 27 min at V6.6.10; the V6.7.1 lab and CLI tests pushed it past 30
     strategy:
       fail-fast: false
       matrix:
