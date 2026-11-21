@@ -15,6 +15,25 @@ import pytest
 ML = Path(__file__).resolve().parents[1] / "ml"
 
 
+def _register_hypothesis_profiles() -> None:
+    """`light` (aq test --light-hypothesis): fewer examples and no too_slow health check, for a 4 GB machine that pages (#420).
+    `fuzz` (aq test fuzz): many more examples for the fuzz targets' hypothesis drivers. HYPOTHESIS_PROFILE picks one."""
+    import os
+
+    try:
+        from hypothesis import HealthCheck, settings
+    except ImportError:  # the lite install has no hypothesis; nothing here needs it
+        return
+    settings.register_profile("light", max_examples=25, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+    settings.register_profile("fuzz", max_examples=2000, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+    profile = os.environ.get("HYPOTHESIS_PROFILE")
+    if profile in {"light", "fuzz"}:
+        settings.load_profile(profile)
+
+
+_register_hypothesis_profiles()
+
+
 @pytest.fixture(scope="session", autouse=True)
 def _the_installed_models_are_left_alone():
     from retraining.artifact_pins import compute_artifact_pins

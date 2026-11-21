@@ -11,7 +11,7 @@ from collections.abc import Sequence
 import numpy as np
 import pandas as pd
 
-__all__ = ["forward_returns", "forward_rank_targets", "quantile_returns", "ic_decay"]
+__all__ = ["forward_returns", "forward_rank_targets", "quantile_returns", "ic_decay", "validate_signal_frame"]
 
 
 def forward_returns(prices: pd.DataFrame, horizon: int) -> pd.DataFrame:
@@ -69,3 +69,36 @@ def ic_decay(scores: pd.DataFrame, prices: pd.DataFrame, horizons: Sequence[int]
             values.append(float(pair["s"].rank().corr(pair["r"].rank())))
         out[int(horizon)] = float(np.mean(values)) if values else float("nan")
     return pd.Series(out, name="mean_ic", dtype=float)
+
+
+def validate_signal_frame(frame: pd.DataFrame, *, min_names: int = 2) -> dict[str, list[str]]:
+    """What is wrong with a (date, ticker, score) signal table before anything scores it: {"errors": [...], "warnings": [...]}.
+    Errors: a missing column, an unparseable date, a duplicate (date, ticker), a non-finite score. Warnings: rows out of date
+    order, dates with fewer than `min_names` scored names, a score that never varies within a date."""
+    errors: list[str] = []
+    warnings: list[str] = []
+    missing = [column for column in ("date", "ticker", "score") if column not in frame.columns]
+    if missing:
+        return {"errors": [f"missing column(s): {', '.join(missing)} (a signal is date, ticker, score)"], "warnings": []}
+    dates = pd.to_datetime(frame["date"], errors="coerce")
+    if dates.isna().any():
+        bad = frame.loc[dates.isna(), "date"].astype(str).head(3).tolist()
+        errors.append(f"{int(dates.isna().sum())} unparseable date(s), e.g. {bad}")
+    duplicated = frame.duplicated(subset=["date", "ticker"], keep=False)
+    if duplicated.any():
+        errors.append(f"{int(duplicated.sum())} rows share a (date, ticker) with another row, e.g. {frame.loc[duplicated, ['date', 'ticker']].head(2).to_dict('records')}")
+    scores = pd.to_numeric(frame["score"], errors="coerce")
+    nonfinite = ~np.isfinite(scores.to_numpy(dtype=float))
+    if nonfinite.any():
+        errors.append(f"{int(nonfinite.sum())} score(s) are missing, NaN or infinite")
+    if dates.notna().all() and not dates.is_monotonic_increasing:
+        warnings.append("rows are not in date order (scoring sorts them; check the file was written as intended)")
+    counts = frame.assign(_finite=~nonfinite).loc[lambda data: data["_finite"]].groupby("date")["ticker"].nunique()
+    thin = counts[counts < int(min_names)]
+    if len(thin):
+        warnings.append(f"{len(thin)} date(s) score fewer than {int(min_names)} names: a cross-sectional rank needs several")
+    flat = frame.assign(_score=scores).groupby("date")["_score"].nunique()
+    if len(flat) and (flat <= 1).all():
+        warnings.append("the score never varies within a date: it ranks nothing")
+    return {"errors": errors, "warnings": warnings}
+

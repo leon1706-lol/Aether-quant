@@ -11,6 +11,7 @@ Example models (V6.6.10): small networks trained on the bundled public sample, p
         - example_features
         - install
         - install_zip
+        - lab_features_frame
         - load
         - production_collisions
         - release_url

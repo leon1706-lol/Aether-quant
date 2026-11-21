@@ -84,7 +84,7 @@ def test_users_add_list_remove(monkeypatch, capsys, tmp_path):
     assert _run(["users", "add", "ada"]) == 1
     assert _run(["users", "add", "bob", "--role", "root"]) == 2
     assert _run(["users", "list"]) == 0 and "ada" in capsys.readouterr().out
-    assert _run(["users", "remove", "ada"]) == 0 and _run(["users", "remove", "ada"]) == 1
+    assert _run(["users", "remove", "ada", "--yes"]) == 0 and _run(["users", "remove", "ada", "--yes"]) == 1
 
 
 def test_trade_lock_on_a_named_account_writes_its_own_file(registry, monkeypatch, capsys, tmp_path):
@@ -102,3 +102,28 @@ def test_paper_readiness_reports_the_live_gate(monkeypatch):
     config = json.loads((ROOT / "config.json").read_text(encoding="utf-8"))
     present, reason = live_broker_view(config)
     assert present is False and reason
+
+
+def test_accounts_print_json_and_live_status_reads_the_container(registry, capsys, monkeypatch):
+    assert _run(["accounts", "validate", "--json"]) == 0 and json.loads(capsys.readouterr().out) == {"valid": True, "accounts": ["default", "paper-a", "paper-b"]}
+    assert _run(["accounts", "list", "--json"]) == 0 and json.loads(capsys.readouterr().out)[2]["id"] == "paper-b"
+    monkeypatch.setattr(aq_cli, "_status_of_container", lambda name: (0, "running"))
+    assert _run(["live", "status", "--account", "paper-b"]) == 0 and "container aether-quant-lean-live-paper-b running" in capsys.readouterr().out
+    monkeypatch.setattr(aq_cli, "_status_of_container", lambda name: (1, "not found"))
+    assert _run(["live", "status", "--account", "paper-b", "--json"]) == 1
+    assert json.loads(capsys.readouterr().out) == {"account": "paper-b", "container": "aether-quant-lean-live-paper-b", "state": "not found"}
+
+
+def test_the_container_state_comes_from_docker_inspect(monkeypatch):
+    from types import SimpleNamespace
+
+    monkeypatch.setattr(aq_cli.subprocess, "run", lambda command, **kwargs: SimpleNamespace(returncode=0, stdout="running\n"))
+    assert aq_cli._status_of_container("c") == (0, "running")
+    monkeypatch.setattr(aq_cli.subprocess, "run", lambda command, **kwargs: SimpleNamespace(returncode=1, stdout=""))
+    assert aq_cli._status_of_container("c") == (1, "not found")
+
+    def missing(command, **kwargs):
+        raise FileNotFoundError("docker")
+
+    monkeypatch.setattr(aq_cli.subprocess, "run", missing)
+    assert aq_cli._status_of_container("c") == (1, "unknown (docker not found)")

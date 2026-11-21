@@ -34,9 +34,10 @@ from pathlib import Path
 SHIPPED_PACKAGES = (
     "risk", "execution", "data_pipeline", "evaluation", "portfolio", "features", "audit", "inference",
     "analyzer", "monitoring", "topology", "liquidity", "experience", "aether_quant", "moe", "regime", "retraining", "notifications", "experts", "performance",
+    "lab",
 )
 SHIPPED_MODULES = (
-    "aq_cli", "generate_backtest_report", "generate_evaluation_report", "json_safety", "performance_probe", "risk_controls",
+    "aq_cli", "aq_devtools", "aq_lab_cli", "aq_testtools", "generate_backtest_report", "generate_evaluation_report", "json_safety", "performance_probe", "risk_controls",
 )
 FIRST_PARTY = set(SHIPPED_PACKAGES) | set(SHIPPED_MODULES) | {"main", "train", "risk_controls"}
 
@@ -108,6 +109,7 @@ def check_library() -> list[str]:
         "regime": lambda m: callable(m.build_market_regime_vector),
         "topology": lambda m: callable(m.build_market_topology),
         "moe": lambda m: callable(m.build_gating_decision),
+        "lab": lambda m: m.resolve("core")[0] == "ret_1" and m.half_life({1: 0.1, 5: 0.04}) is not None,
         "liquidity": lambda m: m.estimate_high_low_spread.__name__ == "estimate_high_low_spread",
         "analyzer": lambda m: bool(m.__all__),
         "performance": lambda m: bool(m.__all__),

@@ -12,9 +12,9 @@ SPDX-License-Identifier = "AGPL-3.0-only"
 [[annotations]]
 path = [
     "aether_quant/**", "analyzer/**", "audit/**", "data_pipeline/**", "evaluation/**", "execution/**", "experience/**", "experts/**",
-    "features/**", "inference/**", "liquidity/**", "moe/**", "monitoring/**", "notifications/**", "performance/**", "portfolio/**",
+    "features/**", "inference/**", "lab/**", "liquidity/**", "moe/**", "monitoring/**", "notifications/**", "performance/**", "portfolio/**",
     "regime/**", "retraining/**", "risk/**", "topology/**",
-    "aq_cli.py", "docs_facts.py", "generate_backtest_report.py", "generate_evaluation_report.py", "json_safety.py", "performance_probe.py",
+    "aq_cli.py", "aq_devtools.py", "aq_lab_cli.py", "aq_testtools.py", "docs_facts.py", "generate_backtest_report.py", "generate_evaluation_report.py", "json_safety.py", "performance_probe.py",
     "risk_controls.py",
     "webui/**", "notebooks/**", "docs/**", "examples/**", "formal/**", "mkdocs.yml", "Dockerfile", "NOTICE", "LICENSES/Apache-2.0.txt",
 ]

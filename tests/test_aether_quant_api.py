@@ -14,7 +14,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 SNAPSHOT = ROOT / "tests" / "data" / "aether_quant_api.json"
 MODULES = (
-    "analyzer", "audit", "backtest", "costs", "cycle", "data", "evaluation", "execution", "experience", "experts", "features", "formal", "hello", "inference", "io", "liquidity",
+    "analyzer", "audit", "backtest", "costs", "cycle", "data", "evaluation", "execution", "experience", "experts", "features", "formal", "hello", "inference", "io", "lab", "liquidity",
     "models", "moe", "monitoring", "neutrality", "notifications", "overfitting", "performance", "portfolio", "regime", "research", "retraining", "risk", "samples", "signals", "sizing",
     "topology", "training",
 )
@@ -100,3 +100,23 @@ def test_package_version_is_a_string():
     import aether_quant
 
     assert isinstance(aether_quant.__version__, str) and aether_quant.__version__
+
+
+def test_the_lab_facade_loads_torch_names_on_first_use_and_refuses_unknown_ones():
+    """aether_quant.lab lists the torch-backed networks in __all__ but imports them only when read (#422)."""
+    import importlib
+    import subprocess
+    import sys
+
+    import pytest
+
+    code = "import aether_quant.lab, sys; print('torch' in sys.modules)"
+    assert subprocess.run([sys.executable, "-c", code], cwd=ROOT, capture_output=True, text=True, timeout=120, check=True).stdout.strip() == "False"
+    lab = importlib.import_module("aether_quant.lab")
+    assert "AetherNet" in lab.__all__
+    with pytest.raises(AttributeError, match="no attribute 'not_a_lab_name'"):
+        lab.__getattr__("not_a_lab_name")
+    pytest.importorskip("torch")
+    from lab import architectures
+
+    assert lab.AetherNet is architectures.AetherNet

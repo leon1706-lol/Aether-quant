@@ -2,7 +2,7 @@
 
 Every bug and infrastructure issue found in this codebase, oldest first, with how it was fixed or why it stayed open. Numbers never change, because code and docs cite them; #73-76 don't exist, #88's first entry is #88a, and #112 appears twice (the second is marked).
 
-**Entries:** <!--fact:problems.total-->413<!--/fact--> up to #<!--fact:problems.last-->416<!--/fact-->: <!--fact:problems.fixed-->376<!--/fact--> 🟢 `fixed` (changed and verified), <!--fact:problems.partial-->18<!--/fact--> 🟡 `partial` (shipped, verification pending), <!--fact:problems.closed-->20<!--/fact--> 🔴 `closed` (no code fix: declined, moot or superseded). Severity runs from 1 (cosmetic) to 10 (data loss or safety). Full text of older entries: [`backups/`](backups/README.md).
+**Entries:** <!--fact:problems.total-->419<!--/fact--> up to #<!--fact:problems.last-->422<!--/fact-->: <!--fact:problems.fixed-->381<!--/fact--> 🟢 `fixed` (changed and verified), <!--fact:problems.partial-->19<!--/fact--> 🟡 `partial` (shipped, verification pending), <!--fact:problems.closed-->20<!--/fact--> 🔴 `closed` (no code fix: declined, moot or superseded). Severity runs from 1 (cosmetic) to 10 (data loss or safety). Full text of older entries: [`backups/`](backups/README.md).
 
 **Open now** (each needs a broker key, a forward record, a Codespace or the laptop):
 
@@ -2463,3 +2463,57 @@ R-INSTALL3 kept the installed models: on 2023-07-01..2026-11-02 g0007's ml_a1 ha
 **Fix:** `fuzz.in` pins `atheris>=2.3.0,<3.1` below Python 3.12 and allows 3.1 from 3.12; the lock test now judges a pin only against the requirement for its own environment.
 
 **Verification:** `fuzz.txt` holds `atheris==3.0.0 ; python_full_version < '3.12'`; the lock tests pass, including a new marker case; the next Fuzz run installs.
+
+### 417. Companion flags were silently ignored (V6.7.1)
+🟢 `fixed` · 3/10
+
+**Problem:** `aq evaluate` and `aq train` took flags that only work with another (`--symbol` without `--reconcile-features`, `--step-days` without `--walk-forward`, `--seed` without `--multitask-only`) and dropped them without a word, so a run could look configured and not be.
+
+**Fix:** a table per command names each companion's parents; `companion_errors` turns a lone companion into `--x needs --y` and exit 2 before any work. `aq test` validates its own (`--group`, `--target`, `--watch`).
+
+**Verification:** every table row has a test in `tests/test_aq_cli.py`; `tests/test_cli_help_surface.py` parses a sample invocation of every command.
+
+### 418. The reconcile tools read a stale run's book history without saying so (V6.7.1)
+🟢 `fixed` · 4/10
+
+**Problem:** a target-weights run writes no book history, so after one the newest per-run file belongs to an older member-book run, and `aq evaluate --reconcile-*` read it as if it were the latest run's (the same trap as #410).
+
+**Fix:** the tools print which file they chose and, when the latest run's frozen config (or `config.json`) trades target weights, that the file is an older member-book run's, with `--book-history-path` to choose.
+
+**Verification:** `tests/test_aq_cli.py` covers both configs and the missing-config path.
+
+### 419. A research backtest rewrote the README and left no frozen config (V6.7.1)
+🟡 `partial` · 5/10
+
+**Problem:** `aq backtest` always rewrote the README, `research_results.md`, the charts and the evaluation reports and moved the README pin, and it never kept the config it ran with, so tools fell back to the current `config.json` for an old run without saying so (todo B2, B3).
+
+**Fix:** `--no-publish` leaves the README, the pin, `research_results.md`, the charts and the reports as they were, and prints the `aq evaluate --lean-report` line that writes them when wanted. Every run freezes `config.json` to `ml/evaluation/run_configs/_pending.json` before it starts and renames it to `<run>.json` once the run folder exists; `--dry-run` prints the Lean command and the paths. The `aq evaluate` run tools say when a run has no frozen config and they use the current one.
+
+**Verification:** stub-tested on synthetic Lean run folders (`tests/test_aq_cli.py`); partial until the owner's next real run shows both on disk.
+
+### 420. Hypothesis health checks failed on the 4 GB PC (V6.7.1)
+🟢 `fixed` · 2/10
+
+**Problem:** under paging, hypothesis's `too_slow` health check failed property tests (the cost-model properties among them) that pass alone (todo B6).
+
+**Fix:** `tests/conftest.py` registers a `light` profile (25 examples, no deadline, no `too_slow` check) and a `fuzz` profile, chosen by `HYPOTHESIS_PROFILE`; `aq test --light-hypothesis` sets it. CI keeps the default.
+
+**Verification:** `tests/test_aq_cli.py` checks the child environment; the profiles load in `tests/conftest.py`.
+
+### 421. `aq --help` took 5.7 seconds (V6.7.1)
+🟢 `fixed` · 3/10
+
+**Problem:** `aq_cli` imported `data_pipeline.fetch` (pandas), the IB backfill, the secrets helpers and the manual-override module at import time, so every command, `--help` included, paid for pandas.
+
+**Fix:** those names load on first use through a module `__getattr__`; the fetch parser keeps its own copy of the asset classes, tested against the source.
+
+**Verification:** `tests/test_aq_cli_commands.py` imports `aq_cli` in a fresh interpreter and finds no pandas, numpy or torch loaded.
+
+### 422. The library could not build or train the project's own networks (V6.7.1)
+🟢 `fixed` · 4/10
+
+**Problem:** the production networks, ranking losses and training utilities lived in `train.py`, which the wheel does not ship, so `aether_quant` users could load an exported model but never build, train or study one.
+
+**Fix:** they moved unchanged to `lab/architectures.py`, `lab/losses.py` and `lab/training_utils.py`; `train.py` re-exports every name, so the trainers, their tests and saved artifacts are untouched. `aether_quant.lab` exports them lazily, so the library still imports without torch, and the model lab trains on exactly these classes. They now ship in the wheel, so they moved from the trading system's AGPL-3.0 to the library's Apache-2.0 (REUSE.toml, LICENSING.md).
+
+**Verification:** the trainer suites pass through the re-exports; `tests/test_architectures.py` checks each export against the numpy forward pass; `tests/test_aether_quant_api.py` keeps torch out of the library import; the artifact pins verify.

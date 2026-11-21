@@ -40,3 +40,11 @@ def test_every_example_finds_the_package_without_an_install():
         text = path.read_text(encoding="utf-8")
         assert "sys.path.insert(0, str(Path(__file__).resolve().parents[1]))" in text, path.name
         assert text.index("sys.path.insert") < text.index("from aether_quant"), path.name
+
+
+def test_the_lab_example_trains_judges_compares_and_exports_offline():
+    """V6.7.1: the model lab's whole path on the bundled sample, with the linear template (no torch)."""
+    result = subprocess.run([sys.executable, str(ROOT / "examples" / "aether_quant_lab.py")], capture_output=True, text=True, timeout=600, check=False)
+    assert result.returncode == 0, result.stderr
+    assert "out-of-sample IC" in result.stdout and ", N 2" in result.stdout and "DSR at N=2" in result.stdout
+    assert "momentum_20" in result.stdout and "linear_model.json" in result.stdout and "manifest.json" in result.stdout

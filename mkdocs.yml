@@ -71,6 +71,7 @@ nav:
       - Book construction: tutorials/02_book_construction.ipynb
       - Overfitting tests: tutorials/03_overfitting_tests.ipynb
       - Models: tutorials/04_models.ipynb
+      - Model lab: tutorials/05_model_lab.ipynb
   - Guide:
       - Signals: guide/signals.md
       - Sizing: guide/sizing.md
@@ -80,6 +81,7 @@ nav:
       - Overfitting: guide/overfitting.md
       - Research cycle: guide/research-cycle.md
       - Models: guide/models.md
+      - Model lab: guide/model-lab.md
       - Your own pipeline: guide/your-own-pipeline.md
       - Safety: guide/safety.md
   - Live trading:
@@ -90,6 +92,7 @@ nav:
       - Field test: live/field-test.md
   - API reference:
       - Overview: reference/index.md
+      - Command line (aq): reference/cli.md
       # AQ:REFERENCE_NAV_START (scripts/build_docs.py)
       - aether_quant.analyzer: reference/analyzer.md
       - aether_quant.audit: reference/audit.md
@@ -106,6 +109,7 @@ nav:
       - aether_quant.hello: reference/hello.md
       - aether_quant.inference: reference/inference.md
       - aether_quant.io: reference/io.md
+      - aether_quant.lab: reference/lab.md
       - aether_quant.liquidity: reference/liquidity.md
       - aether_quant.models: reference/models.md
       - aether_quant.moe: reference/moe.md

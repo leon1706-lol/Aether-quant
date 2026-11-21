@@ -1,7 +1,9 @@
 """Installs the repository's pre-commit hook into this clone's `.git/hooks` (V6.6.4).
 
-The hook runs `aq secrets-check` and the library gate (`.githooks/pre-commit`). It is installed as a small wrapper in `.git/hooks/pre-commit`, not through `core.hooksPath`, because pointing
-`core.hooksPath` at `.githooks` would switch off the Git LFS hooks that already live in `.git/hooks`. An existing `pre-commit` that is not this wrapper is left alone and reported.
+The hook (`.githooks/pre-commit`) runs `aq secrets-check`, the library gate, the formal inventory, the Scorecard pin check, ruff on the
+staged files and the coverage of the changed modules; `aq hooks install` calls `install()` and `aq hooks status` reads `installed()`.
+It is installed as a small wrapper in `.git/hooks/pre-commit`, not through `core.hooksPath`,
+because pointing `core.hooksPath` at `.githooks` would switch off the Git LFS hooks that already live in `.git/hooks`. An existing `pre-commit` that is not this wrapper is left alone and reported.
 
     python scripts/install_hooks.py            # install
     python scripts/install_hooks.py --check    # exit 1 if it is not installed
@@ -16,7 +18,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 MARKER = "# aether-quant pre-commit wrapper"
 WRAPPER = f"""#!/bin/sh
-{MARKER}: runs .githooks/pre-commit (secrets check and the library gate). Reinstall with `python scripts/install_hooks.py`.
+{MARKER}: runs .githooks/pre-commit (secrets, library gate, formal inventory, pins, ruff, coverage). Reinstall with `aq hooks install`.
 repo_root=$(git rev-parse --show-toplevel)
 [ -f "$repo_root/.githooks/pre-commit" ] || exit 0  # a worktree of a data-only branch (forward-ledger) has no script to run
 exec sh "$repo_root/.githooks/pre-commit" "$@"

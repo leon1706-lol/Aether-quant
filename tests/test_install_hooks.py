@@ -41,8 +41,58 @@ def test_the_hook_the_wrapper_calls_runs_the_secret_check_and_the_library_gate()
     assert "secrets-check" in text and "scripts/library_gate.py" in text
     assert text.index("secrets-check") < text.index("library_gate"), "secrets are checked first"
     # V6.6.7 (#361, #367): the pins and the coverage of the changed modules, the slow one last and skippable by name only
-    assert text.index("library_gate") < text.index("scripts/scorecard_pins.py") < text.index("test --coverage --changed")
-    assert '"${AQ_SKIP_COVERAGE_HOOK:-0}" != "1"' in text
+    assert text.index("library_gate") < text.index("scripts/scorecard_pins.py") < text.index("ruff check $staged") < text.index("test --coverage --changed")
+    # V6.7.1: `aq commit --skip-coverage` sets the variable for one commit; `aq hooks coverage off [--once]` leaves the marker
+    assert '"${AQ_SKIP_COVERAGE_HOOK:-0}" = "1"' in text and "git rev-parse --git-path aq-skip-coverage" in text
+
+
+def _hook_repo(tmp_path):
+    """A git repo holding the real hook, stub gate scripts and a fake `aq` on PATH that logs its arguments."""
+    import shutil
+    import subprocess
+
+    repo = tmp_path / "repo"
+    (repo / ".githooks").mkdir(parents=True)
+    shutil.copy(ROOT / ".githooks" / "pre-commit", repo / ".githooks" / "pre-commit")
+    (repo / "scripts").mkdir()
+    for name in ("library_gate.py", "formal_inventory.py", "scorecard_pins.py"):
+        (repo / "scripts" / name).write_text("", encoding="utf-8")
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    log = tmp_path / "aq.log"
+    fake = bin_dir / "aq"
+    fake.write_text(f'#!/bin/sh\necho "$@" >> "{log.as_posix()}"\n', encoding="utf-8", newline="\n")
+    fake.chmod(0o755)
+    subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    return repo, bin_dir, log
+
+
+def test_the_hook_runs_skips_once_or_stays_off_as_its_switch_says(tmp_path):
+    import os
+    import shutil
+    import subprocess
+
+    sh = shutil.which("sh")
+    if sh is None:
+        import pytest
+
+        pytest.skip("no sh on this machine")
+    repo, bin_dir, log = _hook_repo(tmp_path)
+    env = {**os.environ, "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}"}
+    env.pop("AQ_SKIP_COVERAGE_HOOK", None)
+
+    def hook(extra=None):
+        result = subprocess.run([sh, ".githooks/pre-commit"], cwd=repo, env={**env, **(extra or {})}, capture_output=True, text=True, check=False)
+        assert result.returncode == 0, result.stdout + result.stderr
+        return result.stdout
+
+    marker = repo / ".git" / "aq-skip-coverage"
+    assert "coverage of the changed modules checked" in hook() and "test --coverage --changed" in log.read_text(encoding="utf-8")
+    assert "skipped (AQ_SKIP_COVERAGE_HOOK=1)" in hook({"AQ_SKIP_COVERAGE_HOOK": "1"})
+    marker.write_text("once", encoding="utf-8")
+    assert "skipped (once" in hook() and not marker.exists(), "once clears itself"
+    marker.write_text("persistent", encoding="utf-8")
+    assert "skipped (persistent" in hook() and "skipped (persistent" in hook() and marker.exists()
 
 
 def test_the_wrapper_does_nothing_where_the_script_it_calls_does_not_exist():

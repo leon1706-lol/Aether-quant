@@ -64,3 +64,31 @@ def test_the_smoke_run_needs_no_file_and_the_version_falls_back(tmp_path, monkey
 
     monkeypatch.setattr(metadata, "version", lambda name: (_ for _ in ()).throw(metadata.PackageNotFoundError(name)))
     assert aq_cli._installed_version() == "0.0.0"
+
+
+def test_init_dry_run_and_force_and_the_pipeline_validate_list_and_json(tmp_path, monkeypatch, capsys):
+    import json
+
+    project = tmp_path / "proj"
+    assert aq_cli.cmd_init(argparse.Namespace(directory=str(project), name=None, dry_run=True)) == 0
+    assert "would write into" in capsys.readouterr().out and not project.exists()
+    project.mkdir()
+    (project / "README.md").write_text("mine", encoding="utf-8")
+    (project / "notes.txt").write_text("keep", encoding="utf-8")
+    assert aq_cli.cmd_init(argparse.Namespace(directory=str(project), name="proj", dry_run=False, force=True)) == 0
+    out = capsys.readouterr().out
+    assert "--force: overwriting README.md" in out and (project / "notes.txt").read_text(encoding="utf-8") == "keep"
+    monkeypatch.chdir(project)
+    namespace = dict(config=None, run_id=None, runs_dir="runs", json=False)
+    assert aq_cli.cmd_pipeline(argparse.Namespace(pipeline_command="validate", **namespace)) == 0 and "pipeline.toml: valid" in capsys.readouterr().out
+    assert aq_cli.cmd_pipeline(argparse.Namespace(pipeline_command="validate", **{**namespace, "json": True})) == 0
+    assert "pipeline" in json.loads(capsys.readouterr().out)
+    assert aq_cli.cmd_pipeline(argparse.Namespace(pipeline_command="validate", **{**namespace, "config": "missing.toml"})) == 1 and "aq pipeline validate" in capsys.readouterr().err
+    assert aq_cli.cmd_pipeline(argparse.Namespace(pipeline_command="list", **namespace)) == 0 and "no pipeline runs yet" in capsys.readouterr().out
+    for run in ("r1", "r2"):
+        (project / "runs" / run).mkdir(parents=True)
+        (project / "runs" / run / "state.json").write_text(json.dumps({"done": ["load"]}), encoding="utf-8")
+    assert aq_cli.cmd_pipeline(argparse.Namespace(pipeline_command="list", **namespace)) == 0 and "r1: 1/6 stages" in capsys.readouterr().out
+    assert aq_cli.cmd_pipeline(argparse.Namespace(pipeline_command="list", **{**namespace, "json": True})) == 0 and len(json.loads(capsys.readouterr().out)) == 2
+    assert aq_cli.cmd_pipeline(argparse.Namespace(pipeline_command="status", all=True, **{**namespace, "json": True})) == 0
+    assert [row["run"] for row in json.loads(capsys.readouterr().out)] == ["r1", "r2"]

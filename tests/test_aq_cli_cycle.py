@@ -226,4 +226,4 @@ def test_the_dashboard_command_mounts_data_only_when_asked_and_the_webui_runs_do
     assert aq_cli.cmd_webui(_ns(docker=True, image="img", build=False, port=8080, data=None)) == 0
     assert aq_cli.cmd_webui(_ns(docker=True, image="img", build=True, port=8080, data=str(tmp_path))) == 0 and ran[1][1] == "build" and "aether-quant-dashboard:latest" in ran[-1]
     assert aq_cli.cmd_webui(_ns(docker=True, image="img", build=True, port=8080, data=None)) == 4
-    assert aq_cli.cmd_webui(_ns()) == 0 and ran[-1][1:] == ["run", "dev"]
+    assert aq_cli.cmd_webui(_ns()) == 0 and ran[-1][1:] == ["run", "dev", "--", "--port", "8080"]

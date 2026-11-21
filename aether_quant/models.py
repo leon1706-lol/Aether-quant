@@ -17,6 +17,7 @@ from retraining.model_catalog import (
     example_features,
     install,
     install_zip,
+    lab_features_frame,
     load,
     production_collisions,
     release_url,
@@ -26,6 +27,7 @@ from retraining.model_catalog import (
 )
 
 __all__ = [
+    "lab_features_frame",
     "EXAMPLES",
     "catalog",
     "example_dataset",

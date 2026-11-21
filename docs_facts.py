@@ -216,9 +216,17 @@ def _anchor(heading: str) -> str:
     return re.sub(r"[^\w\- ]", "", heading.lower()).replace(" ", "-")
 
 
+def cli_reference_block() -> str:
+    """Every `aq` command, subcommand and flag (docs/reference/cli.md), rendered from the parser itself."""
+    from aq_cli import build_parser
+    from aq_devtools import render_cli_markdown
+
+    return render_cli_markdown(build_parser()).rstrip()
+
+
 def compute_blocks(root: Path = ROOT) -> dict[str, str]:
     """Every generated block a living doc may hold, by name."""
-    return {"DOCS_SITE": docs_site_block(root), "CHANGELOG_LATEST": changelog_latest_block(root)}
+    return {"DOCS_SITE": docs_site_block(root), "CHANGELOG_LATEST": changelog_latest_block(root), "CLI_REFERENCE": cli_reference_block()}
 
 
 def apply_blocks(text: str, blocks: dict[str, str]) -> tuple[str, list[str]]:

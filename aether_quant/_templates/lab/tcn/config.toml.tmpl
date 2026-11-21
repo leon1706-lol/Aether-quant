@@ -1,0 +1,19 @@
+# {name} (tcn template). Values here override lab.toml; aq lab train {name} --set train.lr=3e-4 overrides both for one run.
+[model]
+template = "tcn"
+channels = [32, 32]
+kernel_size = 3
+window = 20
+dropout = 0.1
+
+[data]
+features = "all"             # or a list: ["ret_20", "vol_20"]
+target = "target_rank_20d"
+
+[train]
+loss = "soft_spearman"   # mse, soft_spearman, listnet, ic_pearson, ls_sharpe, class_balanced, cost_aware
+epochs = 30
+batch_dates = 16
+lr = 0.001
+patience = 5
+seeds = [7]

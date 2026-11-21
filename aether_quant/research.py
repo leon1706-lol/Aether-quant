@@ -73,7 +73,7 @@ from evaluation.premia_research import (
 from evaluation.research_harness import block_bootstrap_mean_ci, evaluate_signal, ic_summary
 from evaluation.research_probes import fit_hgb_rank, fit_ridge_rank, load_research_frame, predict_scores
 from evaluation.sim_lean_calibration import daily_gap_breakdown, gap_report, rung_attribution
-from evaluation.trial_ledger import append_trial, candidate_ids, deflation_inputs, legacy_trials, read_ledger
+from evaluation.trial_ledger import append_trial, candidate_ids, deflation_inputs, legacy_trials, project_deflation_inputs, read_ledger
 from evaluation.trial_registry import build_registry, collect_trials, dedupe
 from evaluation.wide_context import (
     WideCell,
@@ -96,6 +96,7 @@ from evaluation.wide_context import (
 )
 
 __all__ = [
+    "project_deflation_inputs",
     "FACTOR_COLUMNS",
     "ResearchContext",
     "WideCell",

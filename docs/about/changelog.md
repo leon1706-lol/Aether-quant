@@ -10,6 +10,14 @@ The latest phases, generated from that file by `aq docs sync`:
 - [Phase V6.6.9 — The multi-asset model book back on the trusted path, an optimizer, a docs pass](https://github.com/leon1706-lol/Aether-quant/blob/main/development/Changelog.md#phase-v669--the-multi-asset-model-book-back-on-the-trusted-path-an-optimizer-a-docs-pass)
 <!-- AQ:CHANGELOG_LATEST_END -->
 
+**6.7.1: a model lab, and an `aq` worth its rubric.**
+
+- **A model lab.** `aq lab` builds, trains, judges and exports your own models on any close table, with the project's own networks and losses (`linear` needs no torch). Every run counts as a trial, every report shows N and the deflated Sharpe at it, and a holdout split stays sealed ([Model lab](../guide/model-lab.md), the `05_model_lab` tutorial, `aether_quant.lab`).
+- **Data, signal and feature tools.** `aq data`, `aq dataset`, `aq signal check|eval|compare|neutralize|backtest`, `aq features` and the `aq overfit` calculators judge a `date, ticker, score` file without writing code.
+- **A faster, friendlier `aq`.** `aq --help` no longer loads pandas (5.7 s before); a typo gets "did you mean"; an error is one line with exit codes 0/1/2/3/130; `aq doctor`, `aq status`, `aq version`, `aq help` and `aq completion` are new, and every command's help ends with examples.
+- **Safer commands.** A flag that only works with another says so instead of being ignored; deleting a user, a secret or a Codespace and loosening a lock ask first (`--yes` in scripts); `aq backtest --no-publish` leaves the README alone, and each run's config is kept under its name.
+- **Developer tools.** `aq test --impacted --watch`, `aq test new|where|slowest`, `aq check`, `aq commit --skip-coverage`, `aq ci status --watch`, `aq deps apply`, `aq scaffold`, `aq bench`, `aq phase check`; the [command line](../reference/cli.md) page lists every command, generated from the parser.
+
 **6.6.10: training on a 4 GB machine, and an honest answer on the 70/30 flip.**
 
 - **Retrain on a small machine.** `--memory-profile low` trains the whole model stack in about 1.4 GB (`aq cycle retrain --host local --memory-profile low`); the models were retrained this way on a 3.9 GB PC. `--estimate` prints each profile's peak first.

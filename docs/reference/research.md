@@ -81,6 +81,7 @@ Research and audit tools (V6.4.3): one report for any signal, the probability of
         - predict_scores
         - premia_exposure
         - probability_of_backtest_overfitting
+        - project_deflation_inputs
         - project_tickers
         - r_alpha1
         - rank_ic_diagnostics

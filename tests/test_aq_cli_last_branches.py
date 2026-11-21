@@ -79,12 +79,13 @@ def test_train_warns_about_flags_that_do_not_apply_and_builds_each_command(monke
     ran = []
     monkeypatch.setattr(aq_cli, "_run", lambda cmd: ran.append(cmd) or 0)
     monkeypatch.setattr(aq_cli, "_train_strategy_selector_only", lambda: 11)
-    assert aq_cli.cmd_train(_train_args(seed=3, strategy_selector_only=True)) == 11
-    assert "only apply to --multitask-only" in capsys.readouterr().err
+    assert aq_cli.cmd_train(_train_args(seed=3, strategy_selector_only=True)) == 2
+    assert "--seed needs --multitask-only or --sequence-only" in capsys.readouterr().err
+    assert aq_cli.cmd_train(_train_args(strategy_selector_only=True)) == 11
     assert aq_cli.cmd_train(_train_args(init_only=True)) == 0 and ran[-1][-1] == "--init-only"
     assert aq_cli.cmd_train(_train_args(experts_only=True)) == 0 and ran[-1][-1] == "--experts-only"
-    assert aq_cli.cmd_train(_train_args(include_sequence=True)) == 0 or True
-    assert "only apply to --walk-forward" in capsys.readouterr().err
+    assert aq_cli.cmd_train(_train_args(include_sequence=True)) == 2
+    assert "--include-sequence needs --walk-forward" in capsys.readouterr().err
     walk = _train_args(walk_forward=True, step_days=5, mode="fast", include_multitask=True, include_sequence=True, metrics="m.json", resume_run_id="r1")
     assert aq_cli.cmd_train(walk) == 0
     assert ran[-1][2:11] == ["--walk-forward", "--step-days", "5", "--mode", "fast", "--include-multitask", "--include-sequence", "--metrics", "m.json"]
@@ -356,6 +357,10 @@ def test_hello_prints_the_data_notice_and_writes_the_json_and_html(tmp_path, mon
     text = capsys.readouterr().out
     assert "offline fallback 1 coins" in text and "REPORT" in text and json.loads((tmp_path / "r.json").read_text(encoding="utf-8")) == {"ok": True}
     assert (tmp_path / "r.html").read_text(encoding="utf-8") == "<html></html>"
+    report.to_dict = lambda: {"sharpe": float("nan")}
+    assert aq_cli.cmd_hello(_ns(offline=True, start="2025-01-01", end=None, no_cache=True, json="-", html=None)) == 0
+    printed = capsys.readouterr().out
+    assert json.loads(printed[printed.index("{"):]) == {"sharpe": None} and "REPORT" not in printed, "--json - prints the report as finite JSON instead of the text"
 
 
 def test_the_module_runs_main_and_exits_with_its_code(monkeypatch):

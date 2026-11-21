@@ -1,0 +1,9 @@
+"""{name}: the production multitask network (lab.architectures.AetherNetMultiTaskHorizons): a shared trunk and one head per
+horizon (rank_5d, rank_20d, direction_20d, ...). The lab trains the head your target names (target_rank_20d -> rank_20d).
+"""
+
+from lab.architectures import AetherNetMultiTaskHorizons
+
+
+def build(n_features, heads, *, hidden=(64, 32), dropout=0.1, **_):
+    return AetherNetMultiTaskHorizons(input_dim=n_features, hidden_layers=list(hidden), dropout=float(dropout))

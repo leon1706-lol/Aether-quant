@@ -56,7 +56,9 @@ def test_users_are_added_listed_and_removed_with_a_token_shown_once(tmp_path, mo
     assert aq_cli.cmd_users(_ns(users_command="add", name="ana", role="admin", accounts=None)) == 1 and "exists" in capsys.readouterr().err
     assert aq_cli.cmd_users(_ns(users_command="add", name="bob", role="wizard", accounts=None)) == 2
     assert aq_cli.cmd_users(_ns(users_command="list")) == 0 and "ana" in capsys.readouterr().out
-    assert aq_cli.cmd_users(_ns(users_command="remove", name="nobody")) == 1 and aq_cli.cmd_users(_ns(users_command="remove", name="ana")) == 0
+    assert aq_cli.cmd_users(_ns(users_command="remove", name="nobody", yes=True)) == 1
+    assert aq_cli.cmd_users(_ns(users_command="remove", name="ana", yes=False)) == 2 and "pass --yes" in capsys.readouterr().err, "no terminal, no --yes"
+    assert aq_cli.cmd_users(_ns(users_command="remove", name="ana", yes=True)) == 0
     (tmp_path / "users.json").write_text("{torn", encoding="utf-8")
     assert aq_cli.cmd_users(_ns(users_command="list")) == 1 and "is invalid" in capsys.readouterr().err
 
@@ -112,9 +114,10 @@ def test_a_live_deployment_names_its_container_renders_commands_and_refuses_with
     ran = []
     codes = iter([0, 5])
     monkeypatch.setattr(aq_cli.subprocess, "run", lambda command, cwd, env, check: ran.append(command) or SimpleNamespace(returncode=next(codes)))
-    assert aq_cli.cmd_live(_ns(account="desk", live_command="up", dry_run=False)) == 5 and len(ran) == 2
+    assert aq_cli.cmd_live(_ns(account="desk", live_command="up", dry_run=False)) == 2 and not ran and "--yes" in capsys.readouterr().err, "real money asks first"
+    assert aq_cli.cmd_live(_ns(account="desk", live_command="up", dry_run=False, yes=True)) == 5 and len(ran) == 2
     codes = iter([0, 0])
-    assert aq_cli.cmd_live(_ns(account="desk", live_command="up", dry_run=False)) == 0 and len(ran) == 4
+    assert aq_cli.cmd_live(_ns(account="desk", live_command="up", dry_run=False, yes=True)) == 0 and len(ran) == 4
     assert aq_cli.cmd_live(_ns(account="desk", live_command="down", dry_run=True)) == 0 and "docker rm -f" in capsys.readouterr().out
     monkeypatch.setattr(aq_cli, "_run", lambda command: 0)
     assert aq_cli.cmd_live(_ns(account="desk", live_command="down", dry_run=False)) == 0
@@ -145,8 +148,9 @@ def test_secrets_status_set_delete_and_unknown_names(tmp_path, monkeypatch, caps
     monkeypatch.setattr(secrets_io, "keyring_set", lambda name, value, account: (_ for _ in ()).throw(RuntimeError("no keyring")))
     assert aq_cli.cmd_secrets(_ns(secrets_command="set", account=None, name=SECRET_NAMES[0])) == 1 and "no keyring" in capsys.readouterr().err
     monkeypatch.setattr(secrets_io, "keyring_delete", lambda name, account: name == SECRET_NAMES[0])
-    assert aq_cli.cmd_secrets(_ns(secrets_command="delete", account=None, name=SECRET_NAMES[0])) == 0 and "removed" in capsys.readouterr().out
-    assert aq_cli.cmd_secrets(_ns(secrets_command="delete", account=None, name=SECRET_NAMES[1])) == 0 and "nothing stored" in capsys.readouterr().out
+    assert aq_cli.cmd_secrets(_ns(secrets_command="delete", account=None, name=SECRET_NAMES[0], yes=False)) == 2 and "pass --yes" in capsys.readouterr().err
+    assert aq_cli.cmd_secrets(_ns(secrets_command="delete", account=None, name=SECRET_NAMES[0], yes=True)) == 0 and "removed" in capsys.readouterr().out
+    assert aq_cli.cmd_secrets(_ns(secrets_command="delete", account=None, name=SECRET_NAMES[1], yes=True)) == 0 and "nothing stored" in capsys.readouterr().out
 
 
 def test_the_secret_scan_fails_on_a_populated_field_or_a_tracked_env_file(tmp_path, monkeypatch, capsys):
@@ -181,7 +185,9 @@ def test_ml_cleanup_lists_deletes_and_prints_json(tmp_path, monkeypatch, capsys)
     base = dict(keep_versions=2, keep_backups=1, strip_walk_forward_datasets=False, json=False, apply=False)
     assert aq_cli.cmd_clean(_ns(**base)) == 0 and "dry run" in capsys.readouterr().out and file.exists()
     assert aq_cli.cmd_clean(_ns(**{**base, "json": True})) == 0 and '"total_bytes"' in capsys.readouterr().out
-    assert aq_cli.cmd_clean(_ns(**{**base, "apply": True})) == 0 and not file.exists() and not folder.exists() and "deleted 3 items" in capsys.readouterr().out
+    assert aq_cli.cmd_clean(_ns(**{**base, "apply": True})) == 2 and file.exists(), "deleting asks first; without a terminal it needs --yes"
+    capsys.readouterr()
+    assert aq_cli.cmd_clean(_ns(**{**base, "apply": True, "yes": True})) == 0 and not file.exists() and not folder.exists() and "deleted 3 items" in capsys.readouterr().out
     assert shutil is not None and Path is not None and ROOT is not None
 
 
@@ -201,3 +207,119 @@ def test_a_windows_backtest_runs_lean_through_the_project_wrapper_and_another_sy
             args.func(args)
         command = run_mock.call_args.args[0]
         assert (command[1].endswith("run_lean_cli_windows.py")) is (platform == "win32") and command[0 if platform == "linux" else 2] in ("lean", "backtest")
+
+
+# ---------------------------------------------------------------------------
+# V6.7.1: a fast start (#421), suggestions, and the top-level error handling
+# ---------------------------------------------------------------------------
+
+
+def test_importing_aq_cli_loads_no_pandas_numpy_or_torch():
+    import subprocess
+    import sys
+
+    code = "import aq_cli, sys; print(sorted(m for m in ('pandas', 'numpy', 'torch') if m in sys.modules))"
+    out = subprocess.run([sys.executable, "-c", code], cwd=ROOT, capture_output=True, text=True, timeout=120, check=True).stdout.strip()
+    assert out == "[]"
+
+
+def test_the_fetch_parser_offers_the_fetch_modules_asset_classes():
+    from data_pipeline.fetch import ASSET_CLASSES
+
+    assert tuple(aq_cli._FETCH_ASSET_CLASSES) == tuple(ASSET_CLASSES)
+
+
+def test_lazy_names_load_on_first_use_and_unknown_names_raise(monkeypatch):
+    from risk import manual_override
+
+    monkeypatch.delitem(aq_cli.__dict__, "read_manual_trade_lock_override", raising=False)
+    assert aq_cli._lazy("read_manual_trade_lock_override") is manual_override.read_manual_trade_lock_override
+    assert aq_cli.read_manual_trade_lock_override is manual_override.read_manual_trade_lock_override, "cached in the module after the first use"
+    import pytest
+
+    with pytest.raises(AttributeError, match="no attribute 'nothing_here'"):
+        aq_cli.__getattr__("nothing_here")
+
+
+def test_a_mistyped_command_or_choice_gets_a_suggestion(capsys):
+    import pytest
+
+    with pytest.raises(SystemExit) as stop:
+        aq_cli.build_parser().parse_args(["doctr"])
+    assert stop.value.code == 2 and "did you mean: doctor" in capsys.readouterr().err
+    with pytest.raises(SystemExit):
+        aq_cli.build_parser().parse_args(["hooks", "coverage", "of"])
+    assert "did you mean: off" in capsys.readouterr().err
+    with pytest.raises(SystemExit):
+        aq_cli.build_parser().parse_args(["zzzzzz"])
+    assert "did you mean" not in capsys.readouterr().err
+
+
+def test_run_command_turns_ctrl_c_and_crashes_into_exit_codes(monkeypatch, capsys):
+    import pytest
+
+    parser = aq_cli.build_parser()
+
+    def interrupted(args):
+        raise KeyboardInterrupt
+
+    def broken(args):
+        raise ValueError("bad input")
+
+    assert aq_cli.run_command(_ns(command="x", func=interrupted), parser) == 130 and "aq: interrupted" in capsys.readouterr().err
+    monkeypatch.delenv("AQ_DEBUG", raising=False)
+    assert aq_cli.run_command(_ns(command="x", func=broken, debug=False), parser) == 1
+    assert capsys.readouterr().err.strip() == "aq x: ValueError: bad input (rerun with --debug for the traceback)"
+    with pytest.raises(ValueError):
+        aq_cli.run_command(_ns(command="x", func=broken, debug=True), parser)
+    monkeypatch.setenv("AQ_DEBUG", "1")
+    with pytest.raises(ValueError):
+        aq_cli.run_command(_ns(command="x", func=broken, debug=False), parser)
+    assert aq_cli.run_command(_ns(command="x", func=lambda args: None), parser) == 0
+
+
+def test_bare_aq_prints_help_and_version_prints_one_line(capsys):
+    parser = aq_cli.build_parser()
+    assert aq_cli.run_command(parser.parse_args([]), parser) == 2 and "Exit codes:" in capsys.readouterr().out
+    assert aq_cli.run_command(parser.parse_args(["--version"]), parser) == 0
+    assert capsys.readouterr().out.startswith("aq ")
+
+
+def test_main_checks_for_updates_only_on_a_terminal_without_json(monkeypatch):
+    import pytest
+
+    checked = []
+    monkeypatch.setattr(aq_cli, "check_for_update", lambda: checked.append(1))
+    monkeypatch.setattr(aq_cli, "run_command", lambda args, parser: 0)
+    for tty, argv, expected in ((False, ["doctor"], 0), (True, ["doctor", "--json"], 0), (True, ["doctor"], 1)):
+        checked.clear()
+        monkeypatch.setattr(aq_cli.sys.stderr, "isatty", lambda tty=tty: tty, raising=False)
+        with pytest.raises(SystemExit):
+            aq_cli.main(argv)
+        assert len(checked) == expected
+
+
+def test_safe_streams_tolerates_streams_without_reconfigure(monkeypatch):
+    calls = []
+    monkeypatch.setattr(aq_cli.sys, "stdout", SimpleNamespace(reconfigure=lambda errors: calls.append(errors)))
+    monkeypatch.setattr(aq_cli.sys, "stderr", SimpleNamespace())
+    aq_cli._safe_streams()
+    assert calls == ["replace"]
+
+
+def test_rotating_a_token_revokes_the_old_one_after_confirmation(tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("AQ_USERS_FILE", str(tmp_path / "users.json"))
+    assert aq_cli.cmd_users(_ns(users_command="add", name="ana", role="viewer", accounts=None)) == 0
+    first = capsys.readouterr().out.split("token (shown once, store it now): ")[1].split()[0]
+    assert aq_cli.cmd_users(_ns(users_command="rotate", name="nobody", yes=True)) == 1 and "no user nobody" in capsys.readouterr().err
+    assert aq_cli.cmd_users(_ns(users_command="rotate", name="ana", yes=False)) == 2
+    capsys.readouterr()
+    assert aq_cli.cmd_users(_ns(users_command="rotate", name="ana", yes=True)) == 0
+    out = capsys.readouterr().out
+    second = out.split("token (shown once, store it now): ")[1].split()[0]
+    assert "the old one no longer works" in out and second != first
+
+    from monitoring.auth_io import load_users
+
+    stored = load_users()[0]
+    assert first not in (tmp_path / "users.json").read_text(encoding="utf-8") and stored.name == "ana"

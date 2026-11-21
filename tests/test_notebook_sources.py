@@ -29,8 +29,8 @@ def _headless(monkeypatch):
     plt.close("all")
 
 
-def test_there_are_four_sources():
-    assert [path.stem for path in SOURCES] == ["00_hello_world", "01_signal_evaluation", "02_book_construction", "03_overfitting_tests", "04_models"]
+def test_there_are_six_sources():
+    assert [path.stem for path in SOURCES] == ["00_hello_world", "01_signal_evaluation", "02_book_construction", "03_overfitting_tests", "04_models", "05_model_lab"]
 
 
 @pytest.mark.parametrize("source", SOURCES, ids=lambda path: path.stem)

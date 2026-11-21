@@ -17,7 +17,7 @@ import json
 import shutil
 import urllib.request
 import zipfile
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -133,10 +133,11 @@ def zip_problems(path: Path) -> list[str]:
     return problems
 
 
-def install_zip(path: Path, *, name: str, expected_sha256: str | None = None, root: Path | None = None) -> Path:
-    """Checks a downloaded (or local) example zip and unpacks it into `root/<name>/`. Refuses an unknown name, a hash that differs
-    from `expected_sha256`, or any problem inside; a refusal leaves the cache as it was."""
-    if name not in EXAMPLES:
+def install_zip(path: Path, *, name: str, expected_sha256: str | None = None, root: Path | None = None, allow_unlisted: bool = False) -> Path:
+    """Checks a downloaded (or local) example zip and unpacks it into `root/<name>/`. Refuses an unknown name (unless
+    `allow_unlisted`: a zip `aq lab export` wrote), a hash that differs from `expected_sha256`, or any problem inside; a
+    refusal leaves the cache as it was."""
+    if not allow_unlisted and name not in EXAMPLES:
         raise ValueError(f"unknown example model {name!r}; expected one of {sorted(EXAMPLES)}")
     if expected_sha256 is not None and sha256_file(path) != expected_sha256:
         raise ValueError(f"{Path(path).name}: sha256 differs from the release manifest; refusing it")
@@ -178,14 +179,19 @@ def load(name_or_path: str | Path, *, root: Path | None = None) -> dict[str, Any
     """An installed example (by name) or any folder holding one exported model and its schema (your own `ml/versions/<id>/`, say):
     {"name", "kind", "export", "schema", "card"}."""
     folder = Path(name_or_path)
-    if str(name_or_path) in EXAMPLES:
-        folder = Path(root or DEFAULT_ROOT) / str(name_or_path)
-    for kind, model_file, schema_file in (("sequence", "sequence_model.json", "sequence_feature_schema.json"), ("multitask", "multitask_model.json", "multitask_feature_schema.json")):
+    cached = Path(root or DEFAULT_ROOT) / str(name_or_path)
+    if str(name_or_path) in EXAMPLES or (not folder.is_dir() and cached.is_dir()):
+        folder = cached
+    lab_features = folder / "lab_features.json"
+    kinds = (("sequence", "sequence_model.json", "sequence_feature_schema.json"), ("multitask", "multitask_model.json", "multitask_feature_schema.json"),
+             ("baseline", "baseline_model.json", "baseline_feature_schema.json"), ("linear", "linear_model.json", "linear_feature_schema.json"))
+    for kind, model_file, schema_file in kinds:
         if (folder / model_file).exists():
             card = folder / "card.md"
             return {
                 "name": folder.name, "kind": kind, "export": json.loads((folder / model_file).read_text(encoding="utf-8")),
                 "schema": json.loads((folder / schema_file).read_text(encoding="utf-8")), "card": card.read_text(encoding="utf-8") if card.exists() else "",
+                "lab_features": json.loads(lab_features.read_text(encoding="utf-8")) if lab_features.exists() else None,
             }
     raise FileNotFoundError(f"no exported model in {folder} (install it first: aq models install <name>)")
 
@@ -193,12 +199,22 @@ def load(name_or_path: str | Path, *, root: Path | None = None) -> dict[str, Any
 def score(model: Mapping[str, Any], closes: pd.DataFrame, *, head: str = "rank_20d") -> pd.DataFrame:
     """One model's `head` for every (date, ticker) the close table has every feature for, as long rows (date, ticker, score). The inputs
     are `example_features(closes)` in the schema's order; a sequence model reads each ticker's last `window_size` rows, zero-padded."""
-    from inference import run_exported_multitask_model, run_exported_sequence_multitask_model_batched
+    from inference import run_exported_model, run_exported_multitask_model, run_exported_sequence_multitask_model_batched
     from retraining.slicing import gather_windows, sequence_window_index
 
     names = list(model["schema"]["model_input_names"])
-    frame = example_features(closes).dropna(subset=names).sort_values(["ticker", "date"]).reset_index(drop=True)
+    if model.get("lab_features"):
+        frame = lab_features_frame(closes, names)
+    else:
+        frame = example_features(closes).dropna(subset=names).sort_values(["ticker", "date"]).reset_index(drop=True)
     matrix = frame[names].to_numpy(dtype=np.float64)
+    if model["kind"] == "linear":
+        coefficients = np.asarray(model["export"]["coefficients"], dtype=float)
+        frame["score"] = coefficients[0] + matrix @ coefficients[1:]
+        return frame[["date", "ticker", "score"]].sort_values(["date", "ticker"]).reset_index(drop=True)
+    if model["kind"] == "baseline":
+        frame["score"] = [run_exported_model(model["export"], list(row)) for row in matrix]
+        return frame[["date", "ticker", "score"]].sort_values(["date", "ticker"]).reset_index(drop=True)
     if model["kind"] == "sequence":
         window = int(model["schema"].get("window_size") or model["export"]["model"]["window_size"])
         sequences = gather_windows(matrix, sequence_window_index(frame["ticker"].to_numpy(), window)).tolist()
@@ -207,3 +223,15 @@ def score(model: Mapping[str, Any], closes: pd.DataFrame, *, head: str = "rank_2
         outputs = [run_exported_multitask_model(model["export"], list(row)) for row in matrix]
     frame["score"] = [None if output is None else output.get(head) for output in outputs]
     return frame[["date", "ticker", "score"]].sort_values(["date", "ticker"]).reset_index(drop=True)
+
+
+def lab_features_frame(closes: pd.DataFrame, names: Sequence[str]) -> pd.DataFrame:
+    """A lab model's inputs: the registry features it was trained on, each as its within-date percentile rank minus one half
+    (missing = 0), sorted by ticker and date as the sequence windows need."""
+    from features.feature_registry import build_long
+
+    frame = build_long(closes, list(names))
+    ranked = frame.groupby("date", sort=False)[list(names)].rank(pct=True) - 0.5
+    frame[list(names)] = ranked.fillna(0.0)
+    return frame.sort_values(["ticker", "date"]).reset_index(drop=True)
+

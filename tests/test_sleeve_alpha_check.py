@@ -66,6 +66,20 @@ def test_main_writes_the_verdict_for_the_newest_run(tmp_path, monkeypatch, capsy
     written = json.loads((tmp_path / "ml" / "evaluation" / "sleeve_alpha_check.json").read_text(encoding="utf-8"))
     assert written["run"] == "2024-01-01_run" and written["keep_sleeve"] is True
     monkeypatch.setattr(module.sys, "argv", ["x", "--backtest-dir", str(tmp_path / "backtests" / "2024-01-01_run")])
+    monkeypatch.setattr(module, "book_history_warning", lambda run_dir, root: "warning: an older run's segment")
     assert module.main() == 0
     assert json.loads((tmp_path / "ml" / "evaluation" / "sleeve_alpha_check.json").read_text(encoding="utf-8"))["keep_sleeve"] is False
-    assert "halve the gross cap" in capsys.readouterr().out
+    captured = capsys.readouterr()
+    assert "halve the gross cap" in captured.out and "warning: an older run's segment" in captured.err
+
+
+def test_a_target_weights_run_is_warned_that_its_book_segment_is_older(tmp_path):
+    module = load_script("sleeve_alpha_check")
+    run = tmp_path / "backtests" / "2026-01-01_00-00-00"
+    (run / "code").mkdir(parents=True)
+    (tmp_path / "config.json").write_text(json.dumps({"phase_v2": {}}), encoding="utf-8")
+    assert module.book_history_warning(run, tmp_path) is None, "config.json, a member-book run"
+    (run / "code" / "config.json").write_text(json.dumps({"phase_v2": {"target_weights": {"enabled": True}}}), encoding="utf-8")
+    assert "2026-01-01_00-00-00 traded target weights (config.json)" in module.book_history_warning(run, tmp_path)
+    (run / "code" / "config.json").write_text("{", encoding="utf-8")
+    assert module.book_history_warning(run, tmp_path) is None

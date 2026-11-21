@@ -29,11 +29,16 @@ To use only the library, `pip install -e .` pulls only numpy and pandas; `.[rese
 ## Tests
 
 ```powershell
-aq test          # the suite, and it refreshes the README badge
+aq doctor                      # is this machine set up (Python, editable install, hook, git, gh, RAM)?
+aq scaffold module risk/x.py   # a new module with its registered test file
+aq test --impacted --watch     # the tests of what you changed, rerun on every save
+aq check                       # the pre-commit hook's gates, without committing
+aq commit -m "..."             # commit through the hook
+aq test                        # the suite, and it refreshes the README badge
 ```
 
 - **Never commit a red suite**, and keep `ruff check .` clean. `aq verify --quick` runs what fits a small machine; [`development/verification.md`](development/verification.md) lists every other check and when it is required.
-- **Keep the library current:** a new public function or class goes in `aether_quant` or is listed with a reason in `tests/data/aether_quant_unexported.json`. `python scripts/install_hooks.py` installs the pre-commit hook that checks this, and CI's fast-guards repeat it.
+- **Keep the library current:** a new public function or class goes in `aether_quant` or is listed with a reason in `tests/data/aether_quant_unexported.json`. `aq hooks install` installs the pre-commit hook that checks this, and CI's fast-guards repeat it.
 - **Before handing over a commit:** `scripts/clean_checkout_test.ps1` (CI has no gitignored files), or `scripts/codespace_verify.ps1 -Start` on a low-memory PC.
 - **Register every new test file** in `aq_cli.py`'s `_SUBSYSTEM_TEST_FILES`, or filtered runs skip it.
 - **Run `aq test`, or `pytest` from the root** so `testpaths` applies; never `pytest .` (#8, `tests/README.md`).

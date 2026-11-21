@@ -21,7 +21,7 @@ def test_reference_pages_and_nav_match_the_facades():
     result = subprocess.run([sys.executable, str(ROOT / "scripts" / "build_docs.py"), "--check"], capture_output=True, text=True, timeout=300, check=False)
     assert result.returncode == 0, result.stderr
     facades = sorted(path.stem for path in (ROOT / "aether_quant").glob("*.py") if not path.stem.startswith("_"))
-    assert sorted(path.stem for path in (DOCS / "reference").glob("*.md") if path.stem != "index") == facades
+    assert sorted(path.stem for path in (DOCS / "reference").glob("*.md") if path.stem not in ("index", "cli")) == facades  # cli.md: aq docs cli
 
 
 def test_every_nav_page_exists():

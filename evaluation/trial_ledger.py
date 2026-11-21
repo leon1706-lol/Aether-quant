@@ -103,3 +103,24 @@ def _variance(values: list[float]) -> float | None:
         return None
     mean = sum(values) / len(values)
     return sum((value - mean) ** 2 for value in values) / (len(values) - 1)
+
+
+PROJECT_LEDGERS = ("v650", "v669", "v6610", "v6610/book2", "v660", "v671")
+
+
+def project_deflation_inputs(evaluation_dir: Path | str, *, window: str | None = None) -> dict[str, Any]:
+    """`deflation_inputs` over the project's whole record: the legacy registry (`trial_registry.json`) and every phase's
+    ledger under `evaluation_dir`, judged on `window` (default V6.6.0's selection window). Adds the parts N is made of:
+    {"legacy", "ledger_candidates", "by_ledger"}."""
+    folder = Path(evaluation_dir)
+    registry_path = folder / "trial_registry.json"
+    registry = json.loads(registry_path.read_text(encoding="utf-8")) if registry_path.exists() else {}
+    by_ledger: dict[str, int] = {}
+    entries: list[dict] = []
+    for name in PROJECT_LEDGERS:
+        rows = read_ledger(folder / name / "trial_ledger.jsonl")
+        entries += rows
+        by_ledger[name] = len(candidate_ids(rows))
+    result = deflation_inputs(entries, registry, window or "v660_selection")
+    return result | {"legacy": len(legacy_trials(registry)) if registry else 0, "ledger_candidates": len(candidate_ids(entries)), "by_ledger": by_ledger}
+

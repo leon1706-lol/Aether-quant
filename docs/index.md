@@ -28,6 +28,7 @@ That downloads a few years of daily bars for 11 coins from Coinbase's public can
 |---|---|
 | **Install** | [Getting started](getting-started/install.md): the light install, the extras, and the full system |
 | **Learn** | [Tutorials](tutorials/00_hello_world.ipynb) (they open in Colab) and the [guide](guide/signals.md) |
-| **Look up** | The [API reference](reference/index.md), generated from the code |
+| **Experiment** | The [model lab](guide/model-lab.md): build, train, judge and export your own networks and signals with the project's statistics (`aq lab`, `aq dataset`, `aq signal`) |
+| **Look up** | The [API reference](reference/index.md), generated from the code, and the [command line](reference/cli.md) |
 | **Go live** | [Paper to live](live/paper-to-live.md): the measured checklist, secrets, accounts, users and the field test |
 | **License** | The library is [Apache-2.0](about/license.md); the trading system is AGPL-3.0 |

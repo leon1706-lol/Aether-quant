@@ -16,8 +16,12 @@ Every way this project is verified, and when each one is required. The table is 
 |---|---|---|---|---|---|---|
 | `ruff` | `ruff check .` | style and the obvious errors | PC, CI | 10 s | stdout | every change |
 | `vermin` | `vermin -t=3.10- --no-tips --violations -q <first-party>` | no source needs more than Python 3.10 (#326) | PC, CI | 5 s | stdout; CI python-compat | every commit |
+| `doctor` | `aq doctor` | this machine can run the project: Python, the editable install, the hook, git, gh, Docker, RAM, config.json | PC | 5 s | stdout (--json) | a phase |
+| `hook` | `aq check` | the pre-commit hook's gates (secrets, library gate, inventory, pins, ruff on staged files, coverage of changed modules) without a commit | PC | 1-20 min | stdout | every commit |
+| `docs_links` | `aq docs links` | every relative link and heading anchor in the README, docs/, development/ and the sub-readmes resolves | PC, CI | 5 s | stdout | every change |
+| `ci_status` | `aq ci status --watch` | every workflow of the pushed commit finished green (exit 3 while running) | GitHub | 20-40 min | GitHub Actions; aq ci logs <run> | every push |
 | `suite` | `aq test` | the whole offline suite, then the doc facts | Codespace, CI | 4-6 min (PC: out of memory) | stdout, coverage-report/coverage.xml | every commit |
-| `buckets` | `aq test --<bucket>` | each of 15 subsystems is self-contained | PC, CI | 1-2 min each | stdout | every commit |
+| `buckets` | `aq test --<bucket>` | each of 17 subsystems is self-contained | PC, CI | 1-2 min each | stdout | every commit |
 | `guards` | `pytest tests/test_ci_workflows.py tests/test_docs_facts.py tests/test_aether_quant_coverage.py ...` | workflows, docs facts, the library gate, packaging, help surface | PC, CI | 30 s | stdout; CI fast-guards | every change |
 | `clean_checkout` | `scripts/clean_checkout_test.ps1 or scripts/codespace_verify.ps1 -Start` | no test depends on a gitignored file; every CI job once, before the push | Codespace | 40-60 min | /tmp/aq_verify/status, <stage>.log | a phase |
 | `artifact_pins` | `python scripts/check_artifact_pins.py` | the installed model files are the pinned set: a rewritten scaler can't pass for the one the models were fitted with | PC, CI | 1 s | stdout; every suite run (tests/conftest.py) | every change |

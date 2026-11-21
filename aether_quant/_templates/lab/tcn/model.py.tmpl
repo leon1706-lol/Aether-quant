@@ -1,0 +1,9 @@
+"""{name}: the production causal-TCN sequence network (lab.architectures.AetherNetSequenceMultiTaskHorizons). It reads each
+ticker's last `window` rows of features, so it sees how they moved, not only where they are.
+"""
+
+from lab.architectures import AetherNetSequenceMultiTaskHorizons
+
+
+def build(n_features, heads, *, channels=(32, 32), kernel_size=3, dropout=0.1, **_):
+    return AetherNetSequenceMultiTaskHorizons(input_dim=n_features, channels=list(channels), kernel_size=int(kernel_size), dropout=float(dropout))

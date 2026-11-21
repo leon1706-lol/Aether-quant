@@ -110,7 +110,7 @@ aq retrain rollback --to-version-id <uuid>
 
 ## Codespaces
 
-They bill the owner's budget (AGENTS.md rule 13): on only while a job runs. `gh codespace list` at the start and end of every session.
+They bill the owner's budget (AGENTS.md rule 13): on only while a job runs. `aq codespace list` (or `gh codespace list`) at the start and end of every session: it marks a running one as billing, and `aq codespace stop --all` stops them. `aq codespace delete NAME --yes` removes a DinD Codespace once its runs are pulled.
 
 **The training Codespace** (`aq-Training-Ground-Fixed`, 4 cores / 16 GB, kept stopped)
 

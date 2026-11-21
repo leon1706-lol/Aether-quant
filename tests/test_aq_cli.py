@@ -355,11 +355,9 @@ def test_train_seed_and_ranking_objective_default_to_no_passthrough():
     assert "--ranking-objective" not in argv
 
 
-def test_train_seed_without_multitask_or_sequence_only_warns_and_is_ignored(capsys):
-    # --seed/--ranking-objective only make sense paired with
-    # --multitask-only/--sequence-only - the default full-pipeline train.py
-    # invocation accepts neither flag, so passing them here must be a
-    # harmless, warned-about no-op, not silently swallowed or a crash.
+def test_train_seed_without_multitask_or_sequence_only_is_refused(capsys):
+    # #417: --seed/--ranking-objective only work with --multitask-only/--sequence-only; they used to be ignored with a warning,
+    # now the run stops before doing anything.
     run_mock = MagicMock(return_value=0)
     parser = aq_cli.build_parser()
     args = parser.parse_args(["train", "--seed", "43"])
@@ -367,10 +365,9 @@ def test_train_seed_without_multitask_or_sequence_only_warns_and_is_ignored(caps
     with patch("aq_cli._run", run_mock):
         exit_code = args.func(args)
 
-    assert exit_code == 0
-    argv = run_mock.call_args.args[0]
-    assert "--seed" not in argv
-    assert "ignored" in capsys.readouterr().err
+    assert exit_code == 2
+    run_mock.assert_not_called()
+    assert "--seed needs --multitask-only or --sequence-only" in capsys.readouterr().err
 
 
 def test_train_sequence_only_passes_through_seed_and_ranking_objective():
@@ -572,7 +569,8 @@ def test_test_wraps_pytest_tests_dir_excluding_lean_backtest_by_default():
         args.func(args)
 
     assert captured_mock.call_args.args[0] == [
-        sys.executable, "-m", "pytest", "--color=yes", "--durations=15", "tests/", "-m", "not lean_backtest",
+        sys.executable, "-m", "pytest", "--color=yes", "--durations=15", f"--junitxml={aq_cli.ROOT_DIR / 'coverage-report' / 'junit-last.xml'}", "tests/",
+        "-m", "not lean_backtest",
     ]
 
 
@@ -1101,7 +1099,7 @@ def test_api_wraps_uvicorn_on_port_8001():
     _parse_and_dispatch(["api"], run_mock)
 
     argv = run_mock.call_args.args[0]
-    assert argv == [sys.executable, "-m", "uvicorn", "monitoring.api_server:app", "--port", "8001", "--reload"]
+    assert argv == [sys.executable, "-m", "uvicorn", "monitoring.api_server:app", "--host", "127.0.0.1", "--port", "8001", "--reload"]
 
 
 def test_webui_runs_npm_run_dev_in_webui_dir():
@@ -1109,7 +1107,7 @@ def test_webui_runs_npm_run_dev_in_webui_dir():
     _parse_and_dispatch(["webui"], run_mock)
 
     args, _kwargs = run_mock.call_args
-    assert args[0][-2:] == ["run", "dev"]
+    assert args[0][-5:] == ["run", "dev", "--", "--port", "8080"]
 
 
 def test_docker_up_default_starts_redis_and_postgres():
@@ -1174,11 +1172,13 @@ def test_retrain_rejects_unknown_stage():
         pass
 
 
-def test_status_wraps_git_status():
-    run_mock = MagicMock(return_value=0)
-    _parse_and_dispatch(["status"], run_mock)
+def test_status_git_wraps_git_status(monkeypatch):
+    import aq_devtools
 
-    assert run_mock.call_args.args[0] == ["git", "status"]
+    calls = []
+    monkeypatch.setattr(aq_devtools, "RUN", lambda command, **kwargs: calls.append(command) or MagicMock(returncode=0))
+    args = aq_cli.build_parser().parse_args(["status", "--git"])
+    assert args.func(args) == 0 and calls == [["git", "status"]]
 
 
 def test_trade_lock_on_writes_true(tmp_path):
@@ -1200,7 +1200,7 @@ def test_trade_lock_off_writes_false(tmp_path):
     config_path.write_text('{"phase_v2": {"risk": {"manual_trade_lock_override": true}}}', encoding="utf-8")
 
     parser = aq_cli.build_parser()
-    args = parser.parse_args(["trade-lock", "--off"])
+    args = parser.parse_args(["trade-lock", "--off", "--yes"])
     with patch("aq_cli.CONFIG_PATH", config_path):
         args.func(args)
 
@@ -1214,7 +1214,7 @@ def test_trade_lock_auto_clears_override(tmp_path):
     config_path.write_text('{"phase_v2": {"risk": {"manual_trade_lock_override": true}}}', encoding="utf-8")
 
     parser = aq_cli.build_parser()
-    args = parser.parse_args(["trade-lock", "--auto"])
+    args = parser.parse_args(["trade-lock", "--auto", "--yes"])
     with patch("aq_cli.CONFIG_PATH", config_path):
         args.func(args)
 
@@ -1266,7 +1266,7 @@ def test_kill_switch_disarm_writes_false(tmp_path):
     config_path.write_text('{"phase_v2": {"risk": {"kill_switch_manual_override": true}}}', encoding="utf-8")
 
     parser = aq_cli.build_parser()
-    args = parser.parse_args(["kill-switch", "--disarm"])
+    args = parser.parse_args(["kill-switch", "--disarm", "--yes"])
     with patch("aq_cli.CONFIG_PATH", config_path):
         args.func(args)
 
@@ -1280,7 +1280,7 @@ def test_kill_switch_auto_clears_override(tmp_path):
     config_path.write_text('{"phase_v2": {"risk": {"kill_switch_manual_override": true}}}', encoding="utf-8")
 
     parser = aq_cli.build_parser()
-    args = parser.parse_args(["kill-switch", "--auto"])
+    args = parser.parse_args(["kill-switch", "--auto", "--yes"])
     with patch("aq_cli.CONFIG_PATH", config_path):
         args.func(args)
 
@@ -1892,7 +1892,7 @@ def test_config_set_list_with_json_array(tmp_path, capsys):
 def test_config_set_non_json_bare_word_falls_back_to_string(tmp_path, capsys):
     config_path = _config_fixture(tmp_path)
 
-    exit_code, _ = _run_config(config_path, ["set", "phase_v2.gating_network.baseline_weight", "learned"], capsys)
+    exit_code, _ = _run_config(config_path, ["set", "phase_v2.gating_network.baseline_weight", "learned", "--force"], capsys)
 
     assert exit_code == 0
     updated = json.loads(config_path.read_text(encoding="utf-8"))
@@ -1921,11 +1921,15 @@ def test_config_set_writes_backup_matching_pre_set_content(tmp_path, capsys):
     assert backup_path.read_text(encoding="utf-8") == original
 
 
-def test_config_set_type_change_prints_warning_but_still_writes(tmp_path, capsys):
+def test_config_set_type_change_is_refused_without_force_and_warned_with_it(tmp_path, capsys):
     config_path = _config_fixture(tmp_path)
+    original = config_path.read_text(encoding="utf-8")
 
     exit_code, captured = _run_config(config_path, ["set", "phase_v2.gating_network.baseline_weight", "hello"], capsys)
+    assert exit_code == 1 and "would change type from float to str" in captured.err and "--force" in captured.err
+    assert config_path.read_text(encoding="utf-8") == original
 
+    exit_code, captured = _run_config(config_path, ["set", "phase_v2.gating_network.baseline_weight", "hello", "--force"], capsys)
     assert exit_code == 0
     assert "WARNING: type changed from float to str" in captured.err
 
@@ -3979,3 +3983,446 @@ def test_evaluate_alpha_proof_writes_the_report_for_the_resolved_run(tmp_path):
     by_name = {Path(path).name: payload for path, payload in written.items()}
     assert set(by_name) == {"alpha_proof.json", f"alpha_proof_{tmp_path.name}.json"}
     assert by_name["alpha_proof.json"]["r_alpha1"]["verdict"] == "not demonstrated" and by_name["alpha_proof.json"]["computed_at"]
+
+
+# ---------------------------------------------------------------------------
+# V6.7.1: backtest freeze and publish (#419), book history (#418), the light hypothesis profile (#420), config fallbacks
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(autouse=True)
+def _frozen_configs_in_tmp(request, tmp_path_factory):
+    """`aq backtest` freezes config.json under ML_DIR/evaluation/run_configs; keep every backtest test out of the real ml/."""
+    if "backtest" not in request.node.name:
+        yield
+        return
+    with patch("aq_cli.ML_DIR", tmp_path_factory.mktemp("ml")):
+        yield
+
+
+def _lean_ready():
+    return patch("aq_cli._find_quantconnect_lean_binary", return_value="lean"), patch("aq_cli._ensure_local_lean_engine_image", return_value=True)
+
+
+def test_backtest_dry_run_prints_the_command_and_freezes_nothing(capsys):
+    lean, image = _lean_ready()
+    run_mock = MagicMock(return_value=0)
+    with lean, image:
+        assert _parse_and_dispatch(["backtest", "--dry-run", "--no-publish"], run_mock) == 0
+    out = capsys.readouterr().out
+    assert "backtest . --image" in out and "publishing off" in out
+    run_mock.assert_not_called()
+    assert not (aq_cli.ML_DIR / "evaluation" / "run_configs").exists()
+
+
+def test_backtest_freezes_its_config_under_the_new_run_and_no_publish_leaves_the_readme(tmp_path, capsys):
+    lean, image = _lean_ready()
+    readme = MagicMock(return_value=True)
+    with lean, image, patch("aq_cli._lean_run_names", side_effect=[{"2026-01-01_00-00-00"}, {"2026-01-01_00-00-00", "2026-02-02_10-00-00"}]), patch(
+        "generate_backtest_report.update_readme_from_latest_backtest", readme
+    ):
+        assert _parse_and_dispatch(["backtest", "--no-publish"], MagicMock(return_value=0)) == 0
+    frozen = aq_cli.ML_DIR / "evaluation" / "run_configs"
+    assert (frozen / "2026-02-02_10-00-00.json").read_bytes() == aq_cli.CONFIG_PATH.read_bytes() and not (frozen / "_pending.json").exists()
+    out = capsys.readouterr().out
+    assert "froze this run's config" in out and "--backtest-dir 2026-02-02_10-00-00" in out
+    readme.assert_not_called()
+
+
+def test_backtest_without_a_new_run_folder_keeps_the_pending_config(capsys):
+    lean, image = _lean_ready()
+    with lean, image, patch("aq_cli._lean_run_names", return_value=set()), patch("generate_backtest_report.update_readme_from_latest_backtest", return_value=False):
+        assert _parse_and_dispatch(["backtest", "--no-publish"], MagicMock(return_value=1)) == 1
+    assert (aq_cli.ML_DIR / "evaluation" / "run_configs" / "_pending.json").exists()
+    assert "<run>" in capsys.readouterr().out
+
+
+def test_lean_run_names_lists_run_folders_only(tmp_path):
+    (tmp_path / "backtests" / "2026-01-01_00-00-00").mkdir(parents=True)
+    (tmp_path / "backtests" / "notes.txt").write_text("x", encoding="utf-8")
+    with patch("aq_cli.ROOT_DIR", tmp_path):
+        assert aq_cli._lean_run_names() == {"2026-01-01_00-00-00"}
+    with patch("aq_cli.ROOT_DIR", tmp_path / "none"):
+        assert aq_cli._lean_run_names() == set()
+
+
+def _note(tmp_path, config, frozen=True, run="2026-03-03_00-00-00"):
+    ml = tmp_path / "ml"
+    (ml / "evaluation" / "run_configs").mkdir(parents=True, exist_ok=True)
+    root_config = tmp_path / "config.json"
+    root_config.write_text(json.dumps({"phase_v2": {}}), encoding="utf-8")
+    if frozen:
+        (ml / "evaluation" / "run_configs" / f"{run}.json").write_text(json.dumps(config), encoding="utf-8")
+    with patch("aq_cli.ML_DIR", ml), patch("aq_cli.CONFIG_PATH", root_config), patch("aq_cli._resolve_lean_run_dir", return_value=tmp_path / run):
+        return aq_cli._book_history_note(tmp_path / "older.jsonl")
+
+
+def test_the_book_history_note_says_when_the_file_is_an_older_runs(tmp_path):
+    assert _note(tmp_path, {"phase_v2": {"target_weights": {"enabled": False}}}) == "book history: older.jsonl"
+    note = _note(tmp_path, {"phase_v2": {"target_weights": {"enabled": True}}})
+    assert "older member-book run's" in note and "2026-03-03_00-00-00 traded target weights (2026-03-03_00-00-00.json)" in note and "--book-history-path" in note
+    assert _note(tmp_path / "b", {}, frozen=False) == "book history: older.jsonl", "no frozen config: config.json, a member-book config"
+
+
+def test_the_book_history_note_is_silent_on_an_unreadable_config_and_without_runs(tmp_path):
+    broken = tmp_path / "config.json"
+    broken.write_text("{", encoding="utf-8")
+    with patch("aq_cli.ML_DIR", tmp_path / "ml"), patch("aq_cli.CONFIG_PATH", broken), patch("aq_cli._resolve_lean_run_dir", return_value=None):
+        assert aq_cli._book_history_note(tmp_path / "x.jsonl") is None
+    good = tmp_path / "good.json"
+    good.write_text(json.dumps({"phase_v2": {"target_weights": {"enabled": True}}}), encoding="utf-8")
+    with patch("aq_cli.ML_DIR", tmp_path / "ml"), patch("aq_cli.CONFIG_PATH", good), patch("aq_cli._resolve_lean_run_dir", return_value=None):
+        assert "the latest run traded target weights" in aq_cli._book_history_note(tmp_path / "x.jsonl")
+
+
+def test_the_default_book_history_path_prints_its_note(tmp_path, capsys):
+    per_run = tmp_path / "visualization" / "book_history"
+    per_run.mkdir(parents=True)
+    (per_run / "a.jsonl").write_text("", encoding="utf-8")
+    (per_run / "b.jsonl").write_text("", encoding="utf-8")
+    with patch("aq_cli.ROOT_DIR", tmp_path), patch("aq_cli._book_history_note", return_value="book history: b.jsonl"):
+        assert aq_cli._default_book_history_path({}).name == "b.jsonl"
+    assert "book history: b.jsonl" in capsys.readouterr().err
+    with patch("aq_cli.ROOT_DIR", tmp_path / "empty"), patch("aq_cli._book_history_note", return_value=None):
+        assert aq_cli._default_book_history_path({}).name == "book_history.jsonl"
+    assert capsys.readouterr().err == ""
+
+
+def test_light_hypothesis_sets_the_profile_for_the_child(monkeypatch):
+    monkeypatch.delenv("HYPOTHESIS_PROFILE", raising=False)
+    with patch("aq_cli._run_captured", return_value=(0, "1 passed")) as run:
+        _parse_and_dispatch(["test", "--light-hypothesis", "tests/test_json_safety.py"], MagicMock(return_value=0))
+    assert aq_cli.os.environ["HYPOTHESIS_PROFILE"] == "light" and run.called
+    monkeypatch.delenv("HYPOTHESIS_PROFILE")
+
+
+def test_a_run_without_a_frozen_config_says_it_uses_the_current_one(tmp_path, capsys):
+    current = {"k": 1}
+    assert aq_cli._run_config_for(tmp_path / "2026-01-01_00-00-00", current) is current
+    assert "no frozen config for 2026-01-01_00-00-00" in capsys.readouterr().err
+    frozen = tmp_path / "ml" / "evaluation" / "run_configs"
+    frozen.mkdir(parents=True)
+    (frozen / "2026-01-01_00-00-00.json").write_text(json.dumps({"k": 2}), encoding="utf-8")
+    with patch("aq_cli.ROOT_DIR", tmp_path):
+        assert aq_cli._run_config_for(tmp_path / "2026-01-01_00-00-00", current) == {"k": 2}
+    assert capsys.readouterr().err == ""
+
+
+@pytest.fixture(autouse=True)
+def _docker_daemon_up(request):
+    """The docker wrappers ask `docker info` first; the wiring tests assume a running daemon."""
+    if "docker" not in request.node.name or "daemon" in request.node.name:
+        yield
+        return
+    with patch("aq_cli._docker_running", return_value=True):
+        yield
+
+
+def test_docker_says_when_the_daemon_is_not_running(capsys):
+    run_mock = MagicMock(return_value=0)
+    with patch("aq_cli.shutil.which", return_value="/bin/docker"), patch("aq_cli._docker_running", return_value=False):
+        assert _parse_and_dispatch(["docker", "ps"], run_mock) == 1
+    assert "Docker is not running" in capsys.readouterr().err
+    run_mock.assert_not_called()
+
+
+def test_the_docker_daemon_probe(monkeypatch):
+    monkeypatch.setattr(aq_cli.subprocess, "run", lambda command, **kwargs: SimpleNamespace(returncode=0))
+    assert aq_cli._docker_running() is True
+    monkeypatch.setattr(aq_cli.subprocess, "run", lambda command, **kwargs: SimpleNamespace(returncode=1))
+    assert aq_cli._docker_running() is False
+
+    def missing(command, **kwargs):
+        raise FileNotFoundError(command[0])
+
+    monkeypatch.setattr(aq_cli.subprocess, "run", missing)
+    assert aq_cli._docker_running() is False
+
+
+def test_retrain_offers_exactly_the_orchestrators_stages():
+    import re
+
+    source = (aq_cli.ROOT_DIR / "retraining" / "orchestrator.py").read_text(encoding="utf-8")
+    assert set(aq_cli.RETRAIN_STAGES) == set(re.findall(r'subparsers\.add_parser\("([^"]+)"\)', source))
+
+
+def test_backfill_offers_the_targets_it_can_dispatch_and_each_module_defaults_to_a_dry_run():
+    import importlib.util
+
+    parser = aq_cli.build_parser()
+    for target, module in aq_cli._BACKFILL_MODULE_BY_TARGET.items():
+        assert parser.parse_args(["backfill", target]).target == target
+        assert importlib.util.find_spec(module) is not None
+        source = (aq_cli.ROOT_DIR / (module.replace(".", "/") + ".py")).read_text(encoding="utf-8")
+        assert '"--apply"' in source and "default: dry run" in source
+
+
+# ---------------------------------------------------------------------------
+# V6.7.1: every new flag and branch of the existing commands (the 10/10 rubric)
+# ---------------------------------------------------------------------------
+
+
+def _args(argv):
+    return aq_cli.build_parser().parse_args(argv)
+
+
+def test_train_dry_run_names_the_mode_and_its_settings(capsys):
+    assert aq_cli.cmd_train(_args(["train", "--multitask-only", "--seed", "3", "--dry-run"])) == 0
+    assert "aq train would run: multitask_only with {'multitask_only': True, 'seed': 3, 'memory_profile': 'standard'}" in capsys.readouterr().out
+    assert aq_cli.cmd_train(_args(["train", "--dry-run"])) == 0
+    assert "full pipeline with {'memory_profile': 'standard'}" in capsys.readouterr().out
+
+
+def test_test_dispatches_its_verbs_lists_groups_and_refuses_lone_companions(monkeypatch, capsys):
+    import aq_testtools
+
+    monkeypatch.setattr(aq_testtools, "run_verb", lambda args: 5)
+    assert aq_cli.cmd_test(_args(["test", "where", "risk/kelly.py"])) == 5
+    assert aq_cli.cmd_test(_args(["test", "--watch"])) == 2 and "--watch needs --impacted or --paths" in capsys.readouterr().err
+    assert aq_cli.cmd_test(_args(["test", "--list-groups"])) == 0 and "--lab " in capsys.readouterr().out
+    assert aq_cli.cmd_test(_args(["test", "--list-groups", "--json"])) == 0 and json.loads(capsys.readouterr().out)["lab"] > 10
+    monkeypatch.setattr(aq_testtools, "run_repeat", lambda args, extra: 3)
+    assert aq_cli.cmd_test(_args(["test", "tests/test_json_safety.py", "--repeat", "2"])) == 3
+
+
+def test_test_impacted_dry_run_and_watch(monkeypatch, capsys):
+    import aq_testtools
+
+    monkeypatch.setattr(aq_testtools, "impacted_tests", list)
+    assert aq_cli.cmd_test(_args(["test", "--impacted"])) == 0 and "no test names a changed module" in capsys.readouterr().out
+    monkeypatch.setattr(aq_testtools, "impacted_tests", lambda: ["test_json_safety.py"])
+    assert aq_cli.cmd_test(_args(["test", "--impacted", "-k", "nan", "--lf", "--dry-run"])) == 0
+    out = capsys.readouterr().out
+    assert "tests/test_json_safety.py" in out and "-k nan --lf" in out
+    impacted = iter([[], ["test_json_safety.py"]])
+    monkeypatch.setattr(aq_testtools, "impacted_tests", lambda: next(impacted, []))
+    ran = []
+    monkeypatch.setattr(aq_testtools, "watch", lambda once: once() + once())
+    with patch("aq_cli._run", side_effect=lambda command, **kwargs: ran.append(command) or 4):
+        assert aq_cli.cmd_test(_args(["test", "--impacted", "--watch"])) == 4
+    assert "nothing impacted yet" in capsys.readouterr().out and ran[-1][-1] == "tests/test_json_safety.py"
+    monkeypatch.setattr(aq_testtools, "watch", lambda once: once())
+    with patch("aq_cli._run", return_value=0) as run:
+        assert aq_cli.cmd_test(_args(["test", "tests/test_json_safety.py", "--watch"])) == 0
+    assert "tests/test_json_safety.py" in run.call_args.args[0]
+
+
+def test_report_lists_runs_and_finds_the_one_result(tmp_path, capsys):
+    with patch("aq_cli.ROOT_DIR", tmp_path):
+        assert aq_cli.cmd_report(_args(["report"])) == 1 and "no Lean runs" in capsys.readouterr().out
+        run = tmp_path / "backtests" / "2026-01-01_00-00-00"
+        run.mkdir(parents=True)
+        (run / "123.json").write_text("{}", encoding="utf-8")
+        (run / "123-summary.json").write_text("{}", encoding="utf-8")
+        assert aq_cli.cmd_report(_args(["report"])) == 0 and "2026-01-01_00-00-00  result ids: 123" in capsys.readouterr().out
+        with patch("aq_cli._find_quantconnect_lean_binary", return_value="lean"), patch("aq_cli._run", return_value=0) as run_mock:
+            assert aq_cli.cmd_report(_args(["report", "2026-01-01_00-00-00"])) == 0
+        assert run_mock.call_args.args[0][3].endswith("123.json")
+        (run / "456.json").write_text("{}", encoding="utf-8")
+        assert aq_cli.cmd_report(_args(["report", "2026-01-01_00-00-00"])) == 2 and "holds 2 results (123, 456)" in capsys.readouterr().err
+
+
+def test_research_checks_the_signal_first_and_prints_json(tmp_path, capsys):
+    bad = tmp_path / "bad.csv"
+    bad.write_text("date,ticker,score\n2024-01-01,A,1\n2024-01-01,A,2\n", encoding="utf-8")
+    assert aq_cli.cmd_research(_args(["research", "--signal", str(bad)])) == 1 and "has errors" in capsys.readouterr().err
+    good = tmp_path / "good.csv"
+    good.write_text("date,ticker,score\n2024-01-01,A,1\n2024-01-01,B,2\n", encoding="utf-8")
+    report = {"splits": {}}
+    with patch("evaluation.research_runners.run_signal_report", return_value=report), patch("aq_cli._write_evaluation_json"):
+        assert aq_cli.cmd_research(_args(["research", "--signal", str(good), "--json"])) == 0
+    assert json.loads(capsys.readouterr().out) == report
+
+
+def test_prove_lists_its_specs_and_reports_unfinished_proofs_as_json(tmp_path, capsys):
+    (tmp_path / "AetherFormal").mkdir()
+    (tmp_path / "AetherFormal" / "Kelly.lean").write_text("theorem x : True := by sorry\n", encoding="utf-8")
+    with patch("aq_cli.FORMAL_DIR", tmp_path), patch("aq_cli.ROOT_DIR", tmp_path.parent):
+        assert aq_cli.cmd_prove(_args(["prove", "--list"])) == 0 and capsys.readouterr().out.strip() == "Kelly"
+        assert aq_cli.cmd_prove(_args(["prove", "--list", "--json"])) == 0 and json.loads(capsys.readouterr().out) == ["Kelly"]
+        assert aq_cli.cmd_prove(_args(["prove", "--check-sorry", "--json"])) == 1
+    assert json.loads(capsys.readouterr().out)["unfinished"][0].endswith("Kelly.lean:1")
+
+
+def test_api_check_asks_a_running_server(capsys):
+    class Response:
+        status = 200
+
+        def read(self, size):
+            return b'{"status": "ok"}'
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+    with patch("urllib.request.urlopen", return_value=Response()):
+        assert aq_cli.cmd_api(_args(["api", "--check", "--port", "9"])) == 0
+    assert "api at 127.0.0.1:9: 200" in capsys.readouterr().out
+    Response.status = 503
+    with patch("urllib.request.urlopen", return_value=Response()):
+        assert aq_cli.cmd_api(_args(["api", "--check"])) == 1
+    import urllib.error
+
+    with patch("urllib.request.urlopen", side_effect=urllib.error.URLError("refused")):
+        assert aq_cli.cmd_api(_args(["api", "--check"])) == 1
+    assert "is not answering" in capsys.readouterr().err
+
+
+def test_webui_open_opens_the_browser_for_the_dev_server_and_the_image():
+    with patch("webbrowser.open") as opened, patch("aq_cli._run", return_value=0):
+        assert aq_cli.cmd_webui(_args(["webui", "--open", "--port", "3100"])) == 0
+        assert aq_cli.cmd_webui(_args(["webui", "--docker", "--open", "--port", "3101"])) == 0
+    assert [call.args[0] for call in opened.call_args_list] == ["http://localhost:3100", "http://localhost:3101"]
+
+
+def test_docker_dry_run_down_logs_and_a_missing_docker(capsys):
+    with patch("aq_cli._run", return_value=0) as run:
+        assert aq_cli.cmd_docker_down(_args(["docker", "down", "--dry-run"])) == 0
+        assert capsys.readouterr().out.strip() == "docker compose down"
+        with patch("aq_cli.shutil.which", return_value="/bin/docker"), patch("aq_cli._docker_running", return_value=True):
+            assert aq_cli.cmd_docker_logs(_args(["docker", "logs", "engine", "--tail", "5", "--follow"])) == 0
+        assert run.call_args.args[0] == ["docker", "compose", "logs", "--tail", "5", "-f", "engine"]
+    with patch("aq_cli.shutil.which", return_value=None):
+        assert aq_cli.cmd_docker_ps(_args(["docker", "ps"])) == 1
+    assert "not installed or not on PATH" in capsys.readouterr().err
+
+
+def test_users_list_json(tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("AQ_USERS_FILE", str(tmp_path / "users.json"))
+    assert aq_cli.cmd_users(_args(["users", "add", "ana", "--role", "operator", "--accounts", "a1"])) == 0
+    capsys.readouterr()
+    assert aq_cli.cmd_users(_args(["users", "list", "--json"])) == 0
+    assert json.loads(capsys.readouterr().out) == [{"name": "ana", "role": "operator", "accounts": ["a1"]}]
+
+
+def test_secrets_check_json_reports_its_findings(capsys):
+    with patch("aq_cli.subprocess.run", return_value=SimpleNamespace(returncode=0, stdout=".env\n")):
+        code = aq_cli.cmd_secrets_check(_args(["secrets-check", "--json"]))
+    report = json.loads(capsys.readouterr().out)
+    assert code == 1 and report["passed"] is False and any(".env" in problem for problem in report["problems"])
+
+
+def test_audit_log_exports_and_prints_json(monkeypatch, tmp_path, capsys):
+    monkeypatch.setenv("AETHER_POSTGRES_DSN", "postgresql://x")
+    rows = [{"event_id": "1", "created_at": "2026-07-17T12:00:00Z", "event_type": "order_placement", "actor": "system", "payload": {}},
+            {"event_id": "2", "created_at": "2026-09-01T12:00:00Z", "event_type": "order_placement", "actor": "system", "payload": {}}]
+    out = tmp_path / "audit.jsonl"
+    with patch("psycopg.connect", return_value=MagicMock()), patch("audit.fetch_recent_events", return_value=rows):
+        assert aq_cli.cmd_audit_log(_args(["audit-log", "--until", "2026-08-01", "--export", str(out)])) == 0
+        assert "wrote 1 entries" in capsys.readouterr().out and len(out.read_text(encoding="utf-8").splitlines()) == 1
+        assert aq_cli.cmd_audit_log(_args(["audit-log", "--json"])) == 0
+    assert [row["event_id"] for row in json.loads(capsys.readouterr().out)] == ["1", "2"]
+
+
+def test_retrain_dry_run_prints_the_orchestrator_command(capsys):
+    assert aq_cli.cmd_retrain(_args(["retrain", "--dry-run", "plan"])) == 0, "after the stage, flags belong to the orchestrator"
+    assert capsys.readouterr().out.strip().endswith("-m retraining.orchestrator plan")
+
+
+def test_paper_readiness_json_needs_postgres_and_reports_the_view(monkeypatch, capsys):
+    monkeypatch.setattr(aq_cli, "secret_env", lambda name, default: "", raising=False)
+    assert aq_cli.cmd_paper_readiness(_args(["paper-readiness", "--json"])) == 1 and "AETHER_POSTGRES_DSN" in capsys.readouterr().err
+    monkeypatch.setattr(aq_cli, "secret_env", lambda name, default: "postgresql://x", raising=False)
+    conn = MagicMock()
+    for ready, code in ((True, 0), (False, 1)):
+        with patch("psycopg.connect", return_value=conn), patch("execution.paper_readiness_report.build_paper_readiness_view", return_value={"ready": ready}):
+            assert aq_cli.cmd_paper_readiness(_args(["paper-readiness", "--json"])) == code
+        assert json.loads(capsys.readouterr().out) == {"ready": ready}
+    assert conn.close.call_count == 2
+
+
+def test_clean_sends_its_other_targets_to_the_devtools(tmp_path):
+    import aq_devtools
+
+    with patch.object(aq_devtools, "clean_paths", return_value=0) as clean, patch("aq_cli.ROOT_DIR", tmp_path):
+        assert aq_cli.cmd_clean(_args(["clean", "caches", "--apply", "--yes", "--json"])) == 0
+    assert clean.call_args.kwargs == {"apply": True, "assume_yes": True, "as_json": True, "root": tmp_path}
+
+
+def test_overrides_print_json_status_preview_and_ask_before_loosening(monkeypatch, capsys, tmp_path):
+    written = []
+    monkeypatch.setattr(aq_cli, "read_manual_trade_lock_override", lambda target: True, raising=False)
+    monkeypatch.setattr(aq_cli, "write_manual_trade_lock_override", lambda value, target: written.append(value), raising=False)
+    monkeypatch.setattr(aq_cli, "read_kill_switch_manual_override", lambda target: None, raising=False)
+    monkeypatch.setattr(aq_cli, "write_kill_switch_manual_override", lambda value, target: written.append(("ks", value)), raising=False)
+    monkeypatch.setattr(aq_cli, "CONFIG_PATH", tmp_path / "config.json")
+    assert aq_cli.cmd_trade_lock(_args(["trade-lock", "--status", "--json"])) == 0 and json.loads(capsys.readouterr().out)["trade_lock_override"] is True
+    assert aq_cli.cmd_trade_lock(_args(["trade-lock", "--off", "--dry-run"])) == 0 and "True -> False in config.json (dry run)" in capsys.readouterr().out
+    assert aq_cli.cmd_trade_lock(_args(["trade-lock", "--off"])) == 2 and "pass --yes" in capsys.readouterr().err, "loosening needs --yes without a terminal"
+    assert written == []
+    assert aq_cli.cmd_kill_switch(_args(["kill-switch", "--status", "--json"])) == 0 and json.loads(capsys.readouterr().out)["kill_switch_override"] is None
+    assert aq_cli.cmd_kill_switch(_args(["kill-switch", "--disarm", "--dry-run"])) == 0 and "None -> False" in capsys.readouterr().out
+    assert aq_cli.cmd_kill_switch(_args(["kill-switch", "--arm"])) == 0 and written == [("ks", True)], "tightening needs no confirmation"
+
+
+def test_the_override_audit_never_blocks_the_override(monkeypatch, tmp_path):
+    import audit
+
+    monkeypatch.setattr(audit, "AuditQueue", lambda **kwargs: (_ for _ in ()).throw(RuntimeError("no redis")))
+    aq_cli._audit_override("trade_lock", True, tmp_path / "config.json")
+
+
+def test_config_and_lean_validate_get_json_diff_and_preview(tmp_path, capsys):
+    config = tmp_path / "config.json"
+    config.write_text(json.dumps({"phase1": {}, "phase_v2": {"a": {"b": 1}}}), encoding="utf-8")
+    lean = tmp_path / "lean.json"
+    lean.write_text(json.dumps({"ib-password": "", "x": 1}), encoding="utf-8")
+    with patch("aq_cli.CONFIG_PATH", config), patch("aq_cli.LEAN_JSON_PATH", lean):
+        assert aq_cli.cmd_config(_args(["config", "get", "phase_v2.a", "--json"])) == 0 and json.loads(capsys.readouterr().out) == {"b": 1}
+        assert aq_cli.cmd_config(_args(["config", "set", "phase_v2.a.b", "2", "--dry-run"])) == 0 and "1 -> 2 (dry run)" in capsys.readouterr().out
+        assert json.loads(config.read_text(encoding="utf-8"))["phase_v2"]["a"]["b"] == 1
+        with patch("aq_devtools.cmd_json_diff", return_value=0) as diff:
+            assert aq_cli.cmd_config(_args(["config", "diff"])) == 0
+        assert diff.call_args.args[0] == config
+        with patch("inference.exported_model.resolve_model_ensemble_config"), patch("portfolio.legacy_sleeve.resolve_legacy_signal_params"):
+            assert aq_cli.cmd_config(_args(["config", "validate"])) == 0 and "config.json: valid" in capsys.readouterr().out
+        with patch("inference.exported_model.resolve_model_ensemble_config", side_effect=KeyError("model")), patch("portfolio.legacy_sleeve.resolve_legacy_signal_params"):
+            assert aq_cli.cmd_config(_args(["config", "validate", "--json"])) == 1
+        assert "model ensemble: KeyError" in json.loads(capsys.readouterr().out)["problems"][0]
+        config.write_text(json.dumps({"phase1": {}}), encoding="utf-8")
+        assert aq_cli.cmd_config(_args(["config", "validate"])) == 1 and "phase_v2 is missing" in capsys.readouterr().out
+        config.write_text('{"a": 1, "a": 2, "phase1": {}, "phase_v2": {}}', encoding="utf-8")
+        assert aq_cli.cmd_config(_args(["config", "validate"])) == 1 and "duplicate key(s) ['a']" in capsys.readouterr().out
+        config.write_text('{"a": NaN}', encoding="utf-8")
+        assert aq_cli.cmd_config(_args(["config", "validate"])) == 1 and "NaN is not valid JSON" in capsys.readouterr().out
+        assert aq_cli.cmd_lean(_args(["lean", "validate"])) == 0 and "lean.json: valid" in capsys.readouterr().out
+        assert aq_cli.cmd_lean(_args(["lean", "set", "ib-password", "hunter2"])) == 1 and "is a secret" in capsys.readouterr().err
+        assert json.loads(lean.read_text(encoding="utf-8"))["ib-password"] == ""
+
+
+def test_fetch_ib_and_assets_status_print_json(capsys):
+    report = _sample_fetch_report()
+    with patch("aq_cli.fetch_adhoc_asset", return_value=report):
+        assert aq_cli.cmd_fetch(_args(["fetch", "crypto", "--ticker", "DOGEUSD", "--start", "2023-01-01", "--end", "2023-01-03", "--json"])) == 0
+    assert json.loads(capsys.readouterr().out)["action"] == report["action"]
+    with patch("aq_cli.fetch_adhoc_asset", return_value=_sample_fetch_report(action="no_data_returned", rows_fetched=0)):
+        assert aq_cli.cmd_fetch(_args(["fetch", "crypto", "--ticker", "X", "--start", "2023-01-01", "--end", "2023-01-03", "--json"])) == 1
+    capsys.readouterr()
+    with patch("aq_cli.ib_readiness_status", return_value="disabled"):
+        assert aq_cli.cmd_ib(_args(["ib", "status", "--json"])) == 0 and json.loads(capsys.readouterr().out) == {"status": "disabled"}
+    with patch("aq_cli.ib_readiness_status", return_value="ready"), patch("aq_cli.attempt_connection", return_value=(False, "timeout")):
+        assert aq_cli.cmd_ib(_args(["ib", "status", "--json"])) == 1
+    assert json.loads(capsys.readouterr().out) == {"status": "ready", "reachable": False, "detail": "timeout"}
+    with patch("monitoring.assets_status.build_assets_status", return_value={"ib_status": "disabled"}):
+        assert aq_cli.cmd_assets(_args(["assets", "status", "--json"])) == 0
+    assert json.loads(capsys.readouterr().out) == {"ib_status": "disabled"}
+
+
+def test_evaluate_lists_its_groups_and_refuses_a_lone_companion(capsys):
+    assert aq_cli.cmd_evaluate(_args(["evaluate", "--list"])) == 0 and "Monte Carlo:" in capsys.readouterr().out
+    assert aq_cli.cmd_evaluate(_args(["evaluate", "--symbol", "SPY"])) == 2
+    assert "--symbol needs --reconcile-features" in capsys.readouterr().err
+
+
+def test_verify_and_docs_sync_print_json(capsys):
+    import docs_facts
+    from evaluation import verification_matrix
+
+    with patch.object(verification_matrix, "run_quick", return_value=[{"id": "ruff", "exit": 0}]):
+        assert aq_cli.cmd_verify(_args(["verify", "--quick", "--json"])) == 0
+    assert json.loads(capsys.readouterr().out) == [{"id": "ruff", "exit": 0}]
+    with patch.object(docs_facts, "sync_docs", return_value={"changed": ["README.md: x"], "unknown": []}), patch.object(docs_facts, "tracked_docs", return_value=[]):
+        assert aq_cli.cmd_docs_sync(_args(["docs", "sync", "--check", "--json"])) == 1
+    assert json.loads(capsys.readouterr().out)["changed"] == ["README.md: x"]

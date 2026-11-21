@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 
 from evaluation.research_harness import evaluate_signal
-from evaluation.signal_tools import forward_rank_targets, forward_returns, ic_decay, quantile_returns
+from evaluation.signal_tools import forward_rank_targets, forward_returns, ic_decay, quantile_returns, validate_signal_frame
 
 
 def _prices(rows: int = 200, names: int = 12, seed: int = 0) -> pd.DataFrame:
@@ -46,3 +46,15 @@ def test_ic_decay_is_one_at_its_own_horizon_and_nan_without_names():
     decay = ic_decay(forward_returns(prices, 5), prices, horizons=(1, 5))
     assert math.isclose(decay[5], 1.0)
     assert math.isnan(ic_decay(prices.iloc[:, :2], prices.iloc[:, :2], horizons=(1,), min_names=3)[1])
+
+
+def test_a_signal_file_is_checked_for_errors_and_warnings_before_scoring():
+    assert validate_signal_frame(pd.DataFrame({"date": ["2024-01-01"], "name": ["A"]}))["errors"] == ["missing column(s): ticker, score (a signal is date, ticker, score)"]
+    good = pd.DataFrame({"date": ["2024-01-01", "2024-01-01", "2024-01-02", "2024-01-02"], "ticker": ["A", "B", "A", "B"], "score": [1.0, 2.0, 2.0, 1.0]})
+    assert validate_signal_frame(good) == {"errors": [], "warnings": []}
+    broken = pd.DataFrame({"date": ["2024-01-01", "not a date", "2024-01-02", "2024-01-02"], "ticker": ["A", "B", "A", "A"], "score": [1.0, np.inf, 2.0, 3.0]})
+    errors = validate_signal_frame(broken)["errors"]
+    assert errors[0].startswith("1 unparseable date(s), e.g. ['not a date']") and "share a (date, ticker)" in errors[1] and errors[2] == "1 score(s) are missing, NaN or infinite"
+    unordered = pd.DataFrame({"date": ["2024-01-02", "2024-01-01", "2024-01-01"], "ticker": ["A", "A", "B"], "score": [1.0, 3.0, 3.0]})
+    warnings = validate_signal_frame(unordered)["warnings"]
+    assert warnings[0].startswith("rows are not in date order") and warnings[1].startswith("1 date(s) score fewer than 2 names") and warnings[2] == "the score never varies within a date: it ranks nothing"

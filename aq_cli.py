@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import argparse
 import copy
+import difflib
 import itertools
 import json
 import os
@@ -35,29 +36,37 @@ import sys
 import time
 import urllib.request
 import uuid
-from collections.abc import Callable, Iterator, Mapping
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from datetime import date
 from importlib.metadata import version as installed_version
 from pathlib import Path
 
-from data_pipeline.fetch import ASSET_CLASSES, fetch_adhoc_asset
-from data_pipeline.ib_backfill import (
-    IBNotConfiguredError,
-    attempt_connection,
-    connect_ib,
-    disconnect_ib,
-    fetch_future_historical_bars,
-    fetch_option_historical_bars,
-    ib_readiness_status,
-    load_futures_contract_specs,
-)
-from execution.secrets_io import secret_env
-from risk.manual_override import (
-    read_kill_switch_manual_override,
-    read_manual_trade_lock_override,
-    write_kill_switch_manual_override,
-    write_manual_trade_lock_override,
-)
+# Heavy modules load on first use (`aq --help` used to import pandas through data_pipeline.fetch, 5.7 s on the 4 GB PC).
+# A name reads through `_lazy(name)`, which honours a value a test has set on this module first.
+_LAZY_NAMES = {
+    "fetch_adhoc_asset": "data_pipeline.fetch", "IBNotConfiguredError": "data_pipeline.ib_backfill", "attempt_connection": "data_pipeline.ib_backfill",
+    "connect_ib": "data_pipeline.ib_backfill", "disconnect_ib": "data_pipeline.ib_backfill", "fetch_future_historical_bars": "data_pipeline.ib_backfill",
+    "fetch_option_historical_bars": "data_pipeline.ib_backfill", "ib_readiness_status": "data_pipeline.ib_backfill",
+    "load_futures_contract_specs": "data_pipeline.ib_backfill", "secret_env": "execution.secrets_io",
+    "read_kill_switch_manual_override": "risk.manual_override", "read_manual_trade_lock_override": "risk.manual_override",
+    "write_kill_switch_manual_override": "risk.manual_override", "write_manual_trade_lock_override": "risk.manual_override",
+}
+_FETCH_ASSET_CLASSES = ("crypto", "stock", "futures", "options", "forex")  # data_pipeline.fetch.ASSET_CLASSES (a test keeps them equal)
+
+
+def __getattr__(name: str):
+    if name in _LAZY_NAMES:
+        import importlib
+
+        value = getattr(importlib.import_module(_LAZY_NAMES[name]), name)
+        globals()[name] = value
+        return value
+    raise AttributeError(f"module 'aq_cli' has no attribute {name!r}")
+
+
+def _lazy(name: str):
+    return globals()[name] if name in globals() else __getattr__(name)
+
 
 IB_ASSET_CLASSES = ("futures", "options")
 
@@ -270,6 +279,24 @@ TRAIN_SETTINGS = (
 )
 
 
+TRAIN_COMPANIONS = {
+    "step_days": ("walk_forward",), "mode": ("walk_forward",), "include_multitask": ("walk_forward",), "include_sequence": ("walk_forward",),
+    "resume_run_id": ("walk_forward",), "metrics": ("walk_forward",), "seed": ("multitask_only", "sequence_only"),
+    "ranking_objective": ("multitask_only", "sequence_only"),
+}
+
+
+def companion_errors(args: argparse.Namespace, table: Mapping[str, Sequence[str]]) -> list[str]:
+    """`--x needs --y` for each flag given without one of the flags it only works with (#417: they used to be ignored)."""
+    problems = []
+    for flag, parents in table.items():
+        value = getattr(args, flag, None)
+        if value in (None, False, [], "") or any(getattr(args, parent, None) not in (None, False, [], "") for parent in parents):
+            continue
+        problems.append(f"--{flag.replace('_', '-')} needs {' or '.join('--' + parent.replace('_', '-') for parent in parents)}")
+    return problems
+
+
 def _train_runs_dir() -> Path:
     return TRAIN_RUNS_DIR or ROOT_DIR / "ml" / "cycle"
 
@@ -282,7 +309,17 @@ def cmd_train(args: argparse.Namespace) -> int:
 
     runs = _train_runs_dir()
     if getattr(args, "list_runs", False):
-        print(run_resume.render_runs(run_resume.list_runs(runs, ["train_", "retrain_"], last_step="report")))
+        rows = run_resume.list_runs(runs, ["train_", "retrain_"], last_step="report")
+        print(json.dumps(rows, indent=2, default=str) if getattr(args, "json", False) else run_resume.render_runs(rows))
+        return 0
+    problems = companion_errors(args, TRAIN_COMPANIONS)
+    if problems:
+        print("aq train: " + "; ".join(problems), file=sys.stderr)
+        return 2
+    if getattr(args, "dry_run", False):
+        mode = next((name for name in TRAIN_SETTINGS[:11] if getattr(args, name, False)), "full pipeline")
+        settings = {name: getattr(args, name, None) for name in TRAIN_SETTINGS if getattr(args, name, None) not in (None, False)}
+        print(f"aq train would run: {mode} with {settings or 'the config.json defaults'}")
         return 0
     resume = getattr(args, "resume", None)
     folder: Path | None = None
@@ -341,24 +378,6 @@ def _train_version_id(folder: Path | None, step: str, prefix: str) -> str:
 def _train_steps(args: argparse.Namespace, folder: Path | None, *, resumed: bool = False) -> int:
     seed = getattr(args, "seed", None)
     ranking_objective = getattr(args, "ranking_objective", None)
-    if (seed is not None or ranking_objective is not None) and not (args.multitask_only or args.sequence_only):
-        print(
-            "aq train: --seed/--ranking-objective only apply to --multitask-only/--sequence-only - ignored here.",
-            file=sys.stderr,
-        )
-    # V5.1 Phase 4 (item 4) - same not-silently-ignored precedent as
-    # --seed/--ranking-objective above.
-    if (
-        getattr(args, "include_multitask", False)
-        or getattr(args, "include_sequence", False)
-        or getattr(args, "metrics", None) is not None
-    ) and not args.walk_forward:
-        print(
-            "aq train: --include-multitask/--include-sequence/--metrics only apply to --walk-forward - ignored here.",
-            file=sys.stderr,
-        )
-    if not (args.multitask_only or args.sequence_only):
-        seed = ranking_objective = None  # warned about above: a bare run's chained trainers keep config.json's own
     profile = getattr(args, "memory_profile", None) or "standard"
     if getattr(args, "multitask_only", False) and ranking_objective not in (None, *MULTITASK_OBJECTIVES):
         print(f"aq train: --ranking-objective {ranking_objective} needs the sequence trainer's row context (--sequence-only); "
@@ -743,6 +762,8 @@ def _run_captured(cmd: list[str], cwd: Path = ROOT_DIR) -> tuple[int, str]:
 # default run.
 _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
     "cli": [
+        # V6.7.1: the developer and testing commands
+        "test_aq_devtools.py", "test_aq_testtools.py",
         # V6.6.10: `aq models`
         "test_aq_models_cli.py",
         "test_aq_cli.py", "test_generate_backtest_report.py", "test_generate_evaluation_report.py", "test_readme_research.py", "test_topology_sizing_research.py", "test_ml_manifest.py",
@@ -757,6 +778,12 @@ _SUBSYSTEM_TEST_FILES: dict[str, list[str]] = {
         "test_notebooks.py",
         # V6.6.5
         "test_aq_accounts_cli.py",
+    ],
+    "lab": [
+        # V6.7.1: the model lab, its datasets and features, and its commands
+        "test_feature_registry.py", "test_lab_dataset.py", "test_spec.py", "test_run_registry.py", "test_report_html.py", "test_model_templates.py",
+        "test_objectives.py", "test_trainer.py", "test_run_evaluation.py", "test_sweep.py", "test_explain.py", "test_model_export.py", "test_data_explore.py",
+        "test_architectures.py", "test_losses.py", "test_training_utils.py", "test_aq_lab_cli.py",
     ],
     "audit": [
         # V6.6.7: each module's own test file
@@ -1295,6 +1322,9 @@ def _run_coverage(args: argparse.Namespace) -> int:
     return worst or report
 
 
+TEST_COMPANIONS = {"group": ("paths",), "target": ("paths",), "watch": ("impacted", "paths")}
+
+
 def cmd_test(args: argparse.Namespace) -> int:
     """Runs pytest with live-streamed output (same UX as a plain
     subprocess.run), while also capturing it so a full run that passed can
@@ -1321,10 +1351,34 @@ def cmd_test(args: argparse.Namespace) -> int:
             print(f"ruff check failed (exit {ruff_exit}) - fix lint findings before running the suite.")
             return ruff_exit
 
+    import aq_testtools
+
+    paths = list(getattr(args, "paths", None) or [])
+    if paths and paths[0] in aq_testtools.TEST_VERBS:
+        return aq_testtools.run_verb(args)
+    problems = companion_errors(args, TEST_COMPANIONS)
+    if problems:
+        print("aq test: " + "; ".join(problems), file=sys.stderr)
+        return 2
+    if getattr(args, "list_groups", False):
+        rows = {name: len(files) for name, files in _SUBSYSTEM_TEST_FILES.items()}
+        print(json.dumps(rows, indent=2) if getattr(args, "json", False) else "\n".join(f"--{name:<14} {count} test files" for name, count in rows.items()))
+        return 0
+    if getattr(args, "light_hypothesis", False):
+        os.environ["HYPOTHESIS_PROFILE"] = "light"
     if getattr(args, "coverage", False):
         return _run_coverage(args)
+    extra = [*(["-k", args.k] if getattr(args, "k", None) else []), *(["--lf"] if getattr(args, "lf", False) else [])]
+    if getattr(args, "repeat", None):
+        return aq_testtools.run_repeat(args, extra)
+    if getattr(args, "impacted", False):
+        impacted = aq_testtools.impacted_tests()
+        if not impacted and not getattr(args, "watch", False):
+            print("aq test --impacted: no test names a changed module")
+            return 0
+        paths = [f"tests/{name}" for name in impacted]
 
-    cmd = [sys.executable, "-m", "pytest", "--color=yes", "--durations=15"]
+    cmd = [sys.executable, "-m", "pytest", "--color=yes", "--durations=15", f"--junitxml={ROOT_DIR / aq_testtools.JUNIT_LAST}", *extra]
 
     subsystem_files: list[str] = []
     for name in _SUBSYSTEM_TEST_FILES:
@@ -1332,7 +1386,10 @@ def cmd_test(args: argparse.Namespace) -> int:
             subsystem_files.extend(_SUBSYSTEM_TEST_FILES[name])
     is_filtered_run = bool(subsystem_files)
 
-    if is_filtered_run:
+    if paths:
+        cmd.extend(paths)
+        is_filtered_run = True
+    elif is_filtered_run:
         cmd.extend(f"tests/{name}" for name in dict.fromkeys(subsystem_files))
     else:
         cmd.append("tests/")
@@ -1345,6 +1402,22 @@ def cmd_test(args: argparse.Namespace) -> int:
 
     if getattr(args, "parallel", False):
         cmd.extend(["-n", "auto"])
+    if getattr(args, "dry_run", False):
+        print(" ".join(cmd))
+        return 0
+    (ROOT_DIR / aq_testtools.JUNIT_LAST).parent.mkdir(parents=True, exist_ok=True)
+    if getattr(args, "watch", False):
+        def once() -> int:
+            current = cmd
+            if getattr(args, "impacted", False):
+                tests = [f"tests/{name}" for name in aq_testtools.impacted_tests()]
+                if not tests:
+                    print("nothing impacted yet; waiting for a change")
+                    return 0
+                current = [part for part in cmd if not part.startswith("tests/")] + tests
+            return _run(current)
+
+        return aq_testtools.watch(once)
 
     exit_code, output = _run_captured(cmd)
 
@@ -1373,6 +1446,15 @@ def cmd_backtest(args: argparse.Namespace) -> int:
             return 1
         engine_image = LOCAL_LEAN_ENGINE_IMAGE
     lean_command = [lean_binary, "backtest", ".", "--image", engine_image]
+    frozen_dir = ML_DIR / "evaluation" / "run_configs"
+    pending = frozen_dir / "_pending.json"
+    if getattr(args, "dry_run", False):
+        print(" ".join(lean_command))
+        print(f"config frozen to {pending} and renamed to <run>.json; publishing {'off' if getattr(args, 'no_publish', False) else 'on (README, reports)'}")
+        return 0
+    frozen_dir.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(CONFIG_PATH, pending)
+    before = _lean_run_names()
     # Lean CLI creates config/startup files with tempfile.mkdtemp(). On some
     # Windows Docker Desktop installations those Python-created directories
     # are not readable by Docker, while ordinary host files are. Run through
@@ -1382,6 +1464,15 @@ def cmd_backtest(args: argparse.Namespace) -> int:
     if sys.platform == "win32" and windows_wrapper.is_file():
         lean_command = [sys.executable, str(windows_wrapper), *lean_command[1:]]
     exit_code = _run(lean_command)
+    created = sorted(_lean_run_names() - before)  # not _resolve_lean_run_dir: it prefers the README pin to the new run
+    after = ROOT_DIR / "backtests" / created[-1] if created else None
+    if after is not None:
+        pending.replace(frozen_dir / f"{after.name}.json")
+        print(f"froze this run's config: {frozen_dir / (after.name + '.json')}")
+    if getattr(args, "no_publish", False):
+        print("--no-publish: the README, the charts and the evaluation reports were left as they were; "
+              f"aq evaluate --lean-report --backtest-dir {after.name if after else '<run>'} writes them when wanted")
+        return exit_code
     # Attempt the README update regardless of exit_code, NOT only on == 0.
     # On a resource-constrained machine Lean's Python-interpreter teardown
     # can exceed its own hardcoded 10-second shutdown-isolator budget and
@@ -1423,6 +1514,23 @@ def cmd_backtest(args: argparse.Namespace) -> int:
             file=sys.stderr,
         )
     return exit_code
+
+
+def _lean_run_names() -> set[str]:
+    """The run folders under backtests/ (Lean names each run by its start time)."""
+    root = ROOT_DIR / "backtests"
+    return {path.name for path in root.iterdir() if path.is_dir()} if root.is_dir() else set()
+
+
+def _run_config_for(run_dir: Path, config: dict) -> dict:
+    """The config a Lean run ran with (its frozen copy), else `config`, saying so: an old run's own caps and classes may differ."""
+    from evaluation.lean_attribution import run_config_path
+
+    snapshot = run_config_path(run_dir, ROOT_DIR)
+    if snapshot is None:
+        print(f"note: no frozen config for {run_dir.name}; using the current config.json", file=sys.stderr)
+        return config
+    return json.loads(snapshot.read_text(encoding="utf-8"))
 
 
 # One flag per scripts/profile_subsystems.py subsystem - same
@@ -1499,7 +1607,32 @@ def cmd_profile(args: argparse.Namespace) -> int:
     return _run(cmd)
 
 
+def _result_ids(folder: Path) -> list[str]:
+    """The result JSONs of a Lean run folder (those with statistics), by id."""
+    ids = []
+    for candidate in sorted(folder.glob("*.json")):
+        if candidate.stem.isdigit():
+            ids.append(candidate.stem)
+    return ids
+
+
 def cmd_report(args: argparse.Namespace) -> int:
+    backtests = ROOT_DIR / "backtests"
+    if not args.backtest_dir:
+        folders = sorted((path for path in backtests.iterdir() if path.is_dir()), key=lambda folder: folder.stat().st_mtime, reverse=True)[:10] if backtests.is_dir() else []
+        if not folders:
+            print("no Lean runs in backtests/")
+            return 1
+        for folder in folders:
+            print(f"{folder.name}  result ids: {', '.join(_result_ids(folder)) or '-'}")
+        print("aq report RUN [RESULT_ID]")
+        return 0
+    if not args.result_id:
+        ids = _result_ids(backtests / args.backtest_dir)
+        if len(ids) != 1:
+            print(f"aq report: {args.backtest_dir} holds {len(ids)} results ({', '.join(ids) or 'none'}): give RESULT_ID", file=sys.stderr)
+            return 2
+        args.result_id = ids[0]
     lean_binary = _find_quantconnect_lean_binary()
     if lean_binary is None:
         print("error: QuantConnect Lean CLI not found (checked .venv and PATH).", file=sys.stderr)
@@ -1524,9 +1657,20 @@ def cmd_research(args: argparse.Namespace) -> int:
     from evaluation.research_runners import run_signal_report
 
     horizons = tuple(int(value) for value in str(args.horizons).split(",") if value.strip())
+    import pandas as pd
+
+    from evaluation.signal_tools import validate_signal_frame
+
+    problems = validate_signal_frame(pd.read_csv(args.signal, dtype={"date": str, "ticker": str})) if Path(args.signal).exists() else {"errors": []}
+    if problems["errors"]:
+        print("aq research: the signal file has errors:\n" + "\n".join(f"  {line}" for line in problems["errors"]), file=sys.stderr)
+        return 1
     report = run_signal_report(Path(args.signal), args.dataset, horizons=horizons)
     out = Path(args.out) if args.out else ML_DIR / "evaluation" / "signal_report.json"
     _write_evaluation_json(out, report)
+    if getattr(args, "json", False):
+        print(json.dumps(report, indent=2, default=str))
+        return 0
     for split, entry in report["splits"].items():
         for horizon in horizons:
             row = entry.get(f"h{horizon}")
@@ -1764,7 +1908,7 @@ def cmd_cycle(args: argparse.Namespace) -> int:
         return _cycle_research(args)
     if command == "status":
         view = _cycle_status(args)
-        print(json.dumps(view, indent=1, default=str))
+        print(json.dumps(view, indent=1, default=str))  # the view is JSON either way; --json is accepted for the rubric's read convention
         return 0 if view["chain_valid"] is not False else 1
     if command == "daily":
         extra = ["--dry-run"] if args.dry_run else []
@@ -1797,8 +1941,15 @@ def cmd_prove(args: argparse.Namespace) -> int:
     with --regen-cases, rewrites aether_quant/_formal_cases/, the inputs and Lean-computed outputs that
     tests/test_formal_differential_*.py run the Python functions against. --check-sorry only scans the specs for an
     unfinished proof and needs no Lean install."""
+    if getattr(args, "list", False):
+        specs = sorted(path.stem for path in (FORMAL_DIR / "AetherFormal").glob("*.lean"))
+        print(json.dumps(specs) if getattr(args, "json", False) else "\n".join(specs))
+        return 0
     if args.check_sorry:
         hits = _formal_sorry_hits()
+        if getattr(args, "json", False):
+            print(json.dumps({"unfinished": hits}))
+            return 1 if hits else 0
         for hit in hits:
             print(f"unfinished proof: {hit}")
         print(f"{len(hits)} sorry/admit in formal/AetherFormal/")
@@ -1826,8 +1977,19 @@ def cmd_prove(args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_api(_args: argparse.Namespace) -> int:
-    return _run([sys.executable, "-m", "uvicorn", "monitoring.api_server:app", "--port", "8001", "--reload"])
+def cmd_api(args: argparse.Namespace) -> int:
+    host, port = getattr(args, "host", "127.0.0.1"), getattr(args, "port", 8001)
+    if getattr(args, "check", False):
+        import urllib.error
+
+        try:
+            with urllib.request.urlopen(f"http://{host}:{port}/health", timeout=5) as response:
+                print(f"api at {host}:{port}: {response.status} {response.read(200).decode('utf-8', 'replace')}")
+                return 0 if response.status < 400 else 1
+        except (urllib.error.URLError, OSError) as error:
+            print(f"api at {host}:{port} is not answering: {error}", file=sys.stderr)
+            return 1
+    return _run([sys.executable, "-m", "uvicorn", "monitoring.api_server:app", "--host", host, "--port", str(port), *(["--reload"] if getattr(args, "reload", True) else [])])
 
 
 DASHBOARD_IMAGE = "ghcr.io/leon1706-lol/aether-quant-dashboard:latest"
@@ -1850,9 +2012,37 @@ def cmd_webui(args: argparse.Namespace) -> int:
             if code:
                 return code
         print(f"dashboard on http://localhost:{args.port} ({'demo data' if not args.data else args.data}); Ctrl+C stops it")
+        if getattr(args, "open", False):
+            import webbrowser
+
+            webbrowser.open(f"http://localhost:{args.port}")
         return _run(dashboard_docker_command(image=image, port=args.port, data=args.data))
     npm = "npm.cmd" if sys.platform == "win32" else "npm"
-    return _run([npm, "run", "dev"], cwd=WEBUI_DIR)
+    if getattr(args, "open", False):
+        import webbrowser
+
+        webbrowser.open(f"http://localhost:{args.port}")
+    return _run([npm, "run", "dev", "--", "--port", str(getattr(args, "port", 8080))], cwd=WEBUI_DIR)
+
+
+def _docker(command: list[str], args: argparse.Namespace) -> int:
+    if getattr(args, "dry_run", False):
+        print(" ".join(command))
+        return 0
+    if shutil.which("docker") is None:
+        print("aq docker: docker is not installed or not on PATH", file=sys.stderr)
+        return 1
+    if not _docker_running():
+        print("aq docker: Docker is not running: start Docker Desktop (or the docker daemon), then retry", file=sys.stderr)
+        return 1
+    return _run(command)
+
+
+def _docker_running() -> bool:
+    try:
+        return subprocess.run(["docker", "info"], capture_output=True, timeout=30, check=False).returncode == 0
+    except (OSError, subprocess.TimeoutExpired):
+        return False
 
 
 def cmd_docker_up(args: argparse.Namespace) -> int:
@@ -1870,14 +2060,26 @@ def cmd_docker_up(args: argparse.Namespace) -> int:
             "retraining-worker",
             "telegram-worker",
         ]
-        return _run(["docker", "compose", "up", "-d", *services])
+        return _docker(["docker", "compose", "up", "-d", *services], args)
     if args.lean:
-        return _run(["docker", "compose", "--profile", "lean", "up", "-d"])
-    return _run(["docker", "compose", "up", "-d", "redis", "postgres"])
+        return _docker(["docker", "compose", "--profile", "lean", "up", "-d"], args)
+    return _docker(["docker", "compose", "up", "-d", "redis", "postgres"], args)
 
 
-def cmd_docker_build(_args: argparse.Namespace) -> int:
-    return _run(["docker", "compose", "build", "engine"])
+def cmd_docker_build(args: argparse.Namespace) -> int:
+    return _docker(["docker", "compose", "build", *(["--no-cache"] if getattr(args, "no_cache", False) else []), "engine"], args)
+
+
+def cmd_docker_down(args: argparse.Namespace) -> int:
+    return _docker(["docker", "compose", "down"], args)
+
+
+def cmd_docker_ps(args: argparse.Namespace) -> int:
+    return _docker(["docker", "compose", "ps"], args)
+
+
+def cmd_docker_logs(args: argparse.Namespace) -> int:
+    return _docker(["docker", "compose", "logs", "--tail", str(args.tail), *(["-f"] if args.follow else []), *([args.service] if args.service else [])], args)
 
 
 def cmd_render_lean_config(args: argparse.Namespace) -> int:
@@ -1954,6 +2156,24 @@ def cmd_users(args: argparse.Namespace) -> int:
     except ValueError as exc:
         print(f"error: {users_file()} is invalid: {exc}", file=sys.stderr)
         return 1
+    if args.users_command == "list" and getattr(args, "json", False):
+        print(json.dumps([{"name": user.name, "role": user.role.name.lower(), "accounts": list(user.accounts)} for user in users], indent=2))
+        return 0
+    if args.users_command == "rotate":
+        match = next((user for user in users if user.name == args.name), None)
+        if match is None:
+            print(f"no user {args.name}", file=sys.stderr)
+            return 1
+        import aq_devtools
+
+        if not aq_devtools.confirm(f"issue {args.name} a new token and revoke the old one?", assume_yes=getattr(args, "yes", False)):
+            return 2
+        token = new_token()
+        users = [make_user(user.name, user.role, token, accounts=list(user.accounts)) if user.name == args.name else user for user in users]
+        save_users(tuple(users))
+        print(f"rotated {args.name}'s token; the old one no longer works")
+        print(f"token (shown once, store it now): {token}")
+        return 0
     if args.users_command == "list":
         if not users:
             print(f"no users ({users_file()}): the API reads are open and nothing can write")
@@ -1965,6 +2185,10 @@ def cmd_users(args: argparse.Namespace) -> int:
         if len(kept) == len(users):
             print(f"no user {args.name}", file=sys.stderr)
             return 1
+        import aq_devtools
+
+        if not aq_devtools.confirm(f"remove {args.name} and revoke their token?", assume_yes=getattr(args, "yes", False)):
+            return 2
         save_users(tuple(kept))
         print(f"removed {args.name}; their token no longer works")
         return 0
@@ -2030,9 +2254,16 @@ def cmd_accounts(args: argparse.Namespace) -> int:
         print(f"accounts.json is invalid: {exc}", file=sys.stderr)
         return 1
     if args.accounts_command == "validate":
+        if getattr(args, "print_json", False):
+            print(json.dumps({"valid": True, "accounts": [account.id for account in accounts]}))
+            return 0
         print(f"accounts.json valid: {len(accounts)} account(s) ({', '.join(account.id for account in accounts)}); every override tightens the config")
         return 0
     if args.accounts_command == "list":
+        if getattr(args, "print_json", False):
+            print(json.dumps([{"id": account.id, "broker": account.broker, "environment": account.lean_environment, "mode": account.mode,
+                               "description": account.description} for account in accounts], indent=2))
+            return 0
         for account in accounts:
             print(f"{account.id:<16} {account.broker:<20} {account.lean_environment:<24} mode {account.mode or '(config)':<12} {account.description}")
         return 0
@@ -2064,6 +2295,15 @@ def live_compose_commands(account, *, lean_config: str) -> tuple[list[list[str]]
     return commands, env
 
 
+def _status_of_container(name: str) -> tuple[int, str]:
+    """(exit code, state) of one container: running, exited, or not found."""
+    try:
+        result = subprocess.run(["docker", "inspect", "-f", "{{.State.Status}}", name], capture_output=True, text=True, check=False)
+    except FileNotFoundError:
+        return 1, "unknown (docker not found)"
+    return (0, result.stdout.strip()) if result.returncode == 0 else (1, "not found")
+
+
 def cmd_live(args: argparse.Namespace) -> int:
     """`aq live up|down --account <id>` (V6.6.5, #349): one Lean live deployment per account, never with a looser config."""
     from execution.accounts import resolve_account
@@ -2074,6 +2314,10 @@ def cmd_live(args: argparse.Namespace) -> int:
         print(f"error: {exc}", file=sys.stderr)
         return 1
     name = live_container_name(account)
+    if args.live_command == "status":
+        code, out = _status_of_container(name)
+        print(json.dumps({"account": account.id, "container": name, "state": out}) if getattr(args, "json", False) else f"account {account.id}: container {name} {out}")
+        return code
     if args.live_command == "down":
         if args.dry_run:
             print(f"  docker rm -f {name}")
@@ -2091,6 +2335,11 @@ def cmd_live(args: argparse.Namespace) -> int:
         for command in commands:
             print("  " + " ".join(command))
         return 0
+    if account.lean_environment != "live-paper":
+        import aq_devtools
+
+        if not aq_devtools.confirm(f"start LIVE trading for account {account.id} ({account.broker}, real money)?", assume_yes=getattr(args, "yes", False)):
+            return 2
     child_env = {**os.environ, **env}
     for command in commands:
         code = subprocess.run(command, cwd=ROOT_DIR, env=child_env, check=False).returncode
@@ -2136,12 +2385,16 @@ def cmd_secrets(args: argparse.Namespace) -> int:
             return 1
         print(f"stored {name} in the OS keyring (service aether-quant)")
         return 0
+    import aq_devtools
+
+    if not aq_devtools.confirm(f"delete {name} for account {account or 'default'} from the OS keyring?", assume_yes=getattr(args, "yes", False)):
+        return 2
     removed = keyring_delete(name, account)
     print(f"{'removed' if removed else 'nothing stored for'} {name}")
     return 0
 
 
-def cmd_secrets_check(_args: argparse.Namespace) -> int:
+def cmd_secrets_check(args: argparse.Namespace) -> int:
     """Fail (non-zero) if secrets are about to be committed: a populated
     secret field in the tracked lean.json, or a tracked real `.env` file.
     Backs .githooks/pre-commit. Pure detection lives in
@@ -2176,6 +2429,9 @@ def cmd_secrets_check(_args: argparse.Namespace) -> int:
     except (OSError, FileNotFoundError):
         pass
 
+    if getattr(args, "json", False):
+        print(json.dumps({"passed": not problems, "problems": problems}, indent=2))
+        return 1 if problems else 0
     if problems:
         print("aq secrets-check FAILED:", file=sys.stderr)
         for problem in problems:
@@ -2197,7 +2453,7 @@ def cmd_audit_log(args: argparse.Namespace) -> int:
 
     from audit import fetch_all_events_ordered, fetch_recent_events, verify_chain
 
-    dsn = secret_env("POSTGRES_DSN", "")
+    dsn = _lazy("secret_env")("POSTGRES_DSN", "")
     if not dsn:
         print("error: AETHER_POSTGRES_DSN is not set.", file=sys.stderr)
         return 1
@@ -2234,6 +2490,17 @@ def cmd_audit_log(args: argparse.Namespace) -> int:
 
             since = _datetime.fromisoformat(args.since).replace(tzinfo=_timezone.utc)
         rows = fetch_recent_events(conn, event_type=args.event_type, since=since, limit=args.limit)
+        if getattr(args, "until", None):
+            rows = [row for row in rows if str(row["created_at"])[:10] <= args.until]
+        if getattr(args, "export", None):
+            with Path(args.export).open("w", encoding="utf-8", newline="\n") as handle:
+                for row in rows:
+                    handle.write(json.dumps(row, default=str) + "\n")
+            print(f"wrote {len(rows)} entries to {args.export}")
+            return 0
+        if getattr(args, "json", False):
+            print(json.dumps(rows, indent=2, default=str))
+            return 0
         if not rows:
             print("aq audit-log: no matching entries.")
             return 0
@@ -2244,8 +2511,16 @@ def cmd_audit_log(args: argparse.Namespace) -> int:
         conn.close()
 
 
+RETRAIN_STAGES = ("plan", "train", "train_topology", "train_gating", "train_multitask", "train_sequence", "train_strategy_selector", "validate", "backtest",
+                  "commit", "promote", "rollback", "status", "auto-rollback")
+
+
 def cmd_retrain(args: argparse.Namespace) -> int:
-    return _run([sys.executable, "-m", "retraining.orchestrator", args.stage, *args.retrain_args])
+    command = [sys.executable, "-m", "retraining.orchestrator", args.stage, *args.retrain_args]
+    if getattr(args, "dry_run", False):
+        print(" ".join(command))
+        return 0
+    return _run(command)
 
 
 # Phase 4.8 - whole-universe bulk-backfill scripts, each its own standalone
@@ -2266,14 +2541,36 @@ def cmd_backfill(args: argparse.Namespace) -> int:
     return _run([sys.executable, "-m", _BACKFILL_MODULE_BY_TARGET[args.target], *args.backfill_args])
 
 
-def cmd_paper_readiness(_args: argparse.Namespace) -> int:
+def cmd_paper_readiness(args: argparse.Namespace) -> int:
+    if getattr(args, "json", False):
+        from execution.paper_readiness_report import build_paper_readiness_view
+
+        dsn = _lazy("secret_env")("POSTGRES_DSN", "")
+        if not dsn:
+            print("aq paper-readiness: AETHER_POSTGRES_DSN is not set (the checks read the trading history in Postgres)", file=sys.stderr)
+            return 1
+        import psycopg
+
+        conn = psycopg.connect(dsn, autocommit=False)
+        try:
+            view = build_paper_readiness_view(conn, json.loads(CONFIG_PATH.read_text(encoding="utf-8")))
+        finally:
+            conn.close()
+        print(json.dumps(view, indent=2, default=str))
+        return 0 if view.get("ready", False) else 1
     return _run([sys.executable, "-m", "execution.paper_readiness_report"])
 
 
 def cmd_clean(args: argparse.Namespace) -> int:
-    """`aq clean ml`: list (and with --apply, delete) what `evaluation/ml_cleanup.py` plans to remove from ml/."""
+    """`aq clean ml|coverage|caches|build`: list (and with --apply, delete) regenerable files. Never backtests/, data/ or the
+    active models."""
     import shutil
 
+    import aq_devtools
+
+    if getattr(args, "target", "ml") != "ml":
+        finder = {"coverage": aq_devtools.coverage_paths, "caches": aq_devtools.cache_paths, "build": aq_devtools.build_paths}[args.target]
+        return aq_devtools.clean_paths(finder(ROOT_DIR), apply=args.apply, assume_yes=getattr(args, "yes", False), as_json=args.json, root=ROOT_DIR)
     from evaluation.ml_cleanup import plan_ml_cleanup
 
     plan = plan_ml_cleanup(
@@ -2292,6 +2589,8 @@ def cmd_clean(args: argparse.Namespace) -> int:
         if not args.json:
             print("dry run: nothing deleted (pass --apply to delete the items above)")
         return 0
+    if not aq_devtools.confirm(f"delete {len(plan['items'])} ml/ items ({gigabytes:.2f} GB)?", assume_yes=getattr(args, "yes", False)):
+        return 2
     for item in plan["items"]:
         path = Path(item["path"])
         if path.is_dir():
@@ -2316,21 +2615,53 @@ def _override_target(args: argparse.Namespace) -> Path:
     return target
 
 
+def _audit_override(switch: str, value: object, target: Path) -> None:
+    """A manual safety override is a live-mode transition: recorded in the audit log when Redis is there, never blocking."""
+    try:
+        from audit import LIVE_MODE_TRANSITION, AuditQueue, build_audit_event
+
+        config = json.loads(CONFIG_PATH.read_text(encoding="utf-8")) if CONFIG_PATH.exists() else {}
+        audit_config = config.get("phase_v2", {}).get("audit_log", {})
+        AuditQueue(enabled=bool(audit_config.get("enabled", True)), stream_name=str(audit_config.get("redis_stream", "aether:audit"))).push(
+            build_audit_event(LIVE_MODE_TRANSITION, {"event": "manual_override", "switch": switch, "value": value, "target": target.name}, actor="cli"))
+    except Exception:  # the audit log is best effort here; the override itself is what the operator asked for
+        pass
+
+
+_LOOSENING = {("trade_lock", False), ("trade_lock", None), ("kill_switch", False), ("kill_switch", None)}
+
+
+def _override_change(args: argparse.Namespace, switch: str, value: object, current: object, target: Path, write) -> int:
+    """Shared by trade-lock and kill-switch: --dry-run prints old -> new; loosening a safety switch asks first."""
+    if getattr(args, "dry_run", False):
+        print(f"{switch} override: {current} -> {value} in {target.name} (dry run)")
+        return 0
+    if (switch, value) in _LOOSENING:
+        import aq_devtools
+
+        if not aq_devtools.confirm(f"loosen the {switch.replace('_', ' ')} ({current} -> {value})?", assume_yes=getattr(args, "yes", False)):
+            return 2
+    write(value, target)
+    _audit_override(switch, value, target)
+    return 0
+
+
 def cmd_trade_lock(args: argparse.Namespace) -> int:
     target = _override_target(args)
-    if args.on:
-        write_manual_trade_lock_override(True, target)
-        print("Trade lock override: ON (trading forced paused).")
-    elif args.off:
-        write_manual_trade_lock_override(False, target)
-        print("Trade lock override: OFF (trading forced resumed, even past a sticky total-drawdown lock).")
-    elif args.auto:
-        write_manual_trade_lock_override(None, target)
-        print("Trade lock override: AUTO (back to today's default automatic behavior).")
-    else:  # status
-        override = read_manual_trade_lock_override(target)
-        label = {True: "ON (forced paused)", False: "OFF (forced resumed)", None: "AUTO (automatic behavior)"}[override]
-        print(f"Trade lock override: {label}")
+    current = _lazy("read_manual_trade_lock_override")(target)
+    if getattr(args, "status", False) and getattr(args, "json", False):
+        print(json.dumps({"trade_lock_override": current, "target": str(target)}))
+        return 0
+    if not getattr(args, "status", False):
+        value = True if args.on else False if args.off else None
+        code = _override_change(args, "trade_lock", value, current, target, _lazy("write_manual_trade_lock_override"))
+        if code or getattr(args, "dry_run", False):
+            return code
+        print({True: "Trade lock override: ON (trading forced paused).", False: "Trade lock override: OFF (trading forced resumed, even past a sticky total-drawdown lock).",
+               None: "Trade lock override: AUTO (back to today's default automatic behavior)."}[value])
+        return 0
+    label = {True: "ON (forced paused)", False: "OFF (forced resumed)", None: "AUTO (automatic behavior)"}[current]
+    print(f"Trade lock override: {label}")
     return 0
 
 
@@ -2345,7 +2676,7 @@ def _cmd_kill_switch_history(args: argparse.Namespace) -> int:
 
     from audit import LIVE_MODE_TRANSITION, fetch_recent_events
 
-    dsn = secret_env("POSTGRES_DSN", "")
+    dsn = _lazy("secret_env")("POSTGRES_DSN", "")
     if not dsn:
         print("error: AETHER_POSTGRES_DSN is not set.", file=sys.stderr)
         return 1
@@ -2371,21 +2702,23 @@ def _cmd_kill_switch_history(args: argparse.Namespace) -> int:
 
 def cmd_kill_switch(args: argparse.Namespace) -> int:
     target = _override_target(args)
-    if args.arm:
-        write_kill_switch_manual_override(True, target)
-        print("Kill switch override: ARMED (forced evaluation active, even if phase_v2.risk.kill_switch.enabled is false).")
-    elif args.disarm:
-        write_kill_switch_manual_override(False, target)
-        print("Kill switch override: DISARMED (forced off, even if phase_v2.risk.kill_switch.enabled is true).")
-    elif args.auto:
-        write_kill_switch_manual_override(None, target)
-        print("Kill switch override: AUTO (defers to phase_v2.risk.kill_switch.enabled).")
-    elif args.history:
+    if args.history:
         return _cmd_kill_switch_history(args)
-    else:  # status
-        override = read_kill_switch_manual_override(target)
-        label = {True: "ARMED (forced on)", False: "DISARMED (forced off)", None: "AUTO (defers to config)"}[override]
-        print(f"Kill switch override: {label}")
+    current = _lazy("read_kill_switch_manual_override")(target)
+    if getattr(args, "status", False) and getattr(args, "json", False):
+        print(json.dumps({"kill_switch_override": current, "target": str(target)}))
+        return 0
+    if not getattr(args, "status", False):
+        value = True if args.arm else False if args.disarm else None
+        code = _override_change(args, "kill_switch", value, current, target, _lazy("write_kill_switch_manual_override"))
+        if code or getattr(args, "dry_run", False):
+            return code
+        print({True: "Kill switch override: ARMED (forced evaluation active, even if phase_v2.risk.kill_switch.enabled is false).",
+               False: "Kill switch override: DISARMED (forced off, even if phase_v2.risk.kill_switch.enabled is true).",
+               None: "Kill switch override: AUTO (defers to phase_v2.risk.kill_switch.enabled)."}[value])
+        return 0
+    label = {True: "ARMED (forced on)", False: "DISARMED (forced off)", None: "AUTO (defers to config)"}[current]
+    print(f"Kill switch override: {label}")
     return 0
 
 
@@ -2446,6 +2779,43 @@ def _iter_leaf_paths(node: object, prefix: str = "") -> Iterator[str]:
         yield prefix
 
 
+def _reject_duplicates(pairs: list[tuple[str, object]]) -> dict:
+    keys = [key for key, _ in pairs]
+    duplicated = sorted({key for key in keys if keys.count(key) > 1})
+    if duplicated:
+        raise ValueError(f"duplicate key(s) {duplicated}")
+    return dict(pairs)
+
+
+def _validate_json_config(json_path: Path, args: argparse.Namespace) -> int:
+    """Parse with duplicate keys refused and NaN/inf refused, and for config.json load it through main.py's own readers."""
+    problems: list[str] = []
+    text = json_path.read_text(encoding="utf-8")
+    try:
+        json.loads(text, object_pairs_hook=_reject_duplicates, parse_constant=lambda name: (_ for _ in ()).throw(ValueError(f"{name} is not valid JSON")))
+    except ValueError as error:
+        problems.append(str(error))
+    if not problems and json_path == CONFIG_PATH:
+        config = json.loads(text)
+        for section in ("phase1", "phase_v2"):
+            if not isinstance(config.get(section), dict):
+                problems.append(f"{section} is missing or not an object")
+        if not problems:
+            from inference.exported_model import resolve_model_ensemble_config
+            from portfolio.legacy_sleeve import resolve_legacy_signal_params
+
+            for label, reader in (("model ensemble", lambda: resolve_model_ensemble_config(config)), ("legacy signal", lambda: resolve_legacy_signal_params(config, 0.5))):
+                try:
+                    reader()
+                except (KeyError, TypeError, ValueError) as error:
+                    problems.append(f"{label}: {type(error).__name__}: {error}")
+    if getattr(args, "json", False):
+        print(json.dumps({"file": json_path.name, "valid": not problems, "problems": problems}, indent=2))
+    else:
+        print(f"{json_path.name}: valid" if not problems else f"{json_path.name}: " + "; ".join(problems))
+    return 1 if problems else 0
+
+
 def _dispatch_json_config_command(args: argparse.Namespace, json_path: Path, command_attr: str) -> int:
     """Shared dispatch for `aq config`/`aq lean` - both are the same
     dump/get/set/keys tool over a single flat JSON file, just pointed at a
@@ -2460,18 +2830,44 @@ def _dispatch_json_config_command(args: argparse.Namespace, json_path: Path, com
 
         if command == "get":
             value = _get_config_value(data, args.dotted_path)
-            print(value if isinstance(value, str) else json.dumps(value, indent=2))
+            if getattr(args, "json", False):
+                print(json.dumps(value, indent=2))
+            else:
+                print(value if isinstance(value, str) else json.dumps(value, indent=2))
             return 0
 
         if command == "keys":
             root = _get_config_value(data, args.dotted_prefix) if args.dotted_prefix else data
-            for path in _iter_leaf_paths(root, args.dotted_prefix or ""):
-                print(path)
+            paths = list(_iter_leaf_paths(root, args.dotted_prefix or ""))
+            print(json.dumps(paths, indent=2) if getattr(args, "json", False) else "\n".join(paths))
             return 0
 
+        if command == "diff":
+            import aq_devtools
+
+            return aq_devtools.cmd_json_diff(json_path, args)
+
+        if command == "validate":
+            return _validate_json_config(json_path, args)
+
         if command == "set":
+            if json_path == LEAN_JSON_PATH:
+                from execution.secret_scan import is_secret_field
+
+                if is_secret_field(args.dotted_path.split(".")[-1]) and str(args.value).strip():
+                    print(f"error: {args.dotted_path} is a secret: lean.json stays empty (store it with `aq secrets set`, then `aq render-lean-config`)", file=sys.stderr)
+                    return 1
+            preview = copy.deepcopy(data)
+            old_value, new_value, type_changed = _set_config_value(preview, args.dotted_path, args.value)
+            if type_changed and old_value is not None and not getattr(args, "force", False):
+                print(f"error: {args.dotted_path} would change type from {type(old_value).__name__} to {type(new_value).__name__} "
+                      f"({old_value!r} -> {new_value!r}); pass --force if that is meant", file=sys.stderr)
+                return 1
+            if getattr(args, "dry_run", False):
+                print(f"{args.dotted_path}: {old_value!r} -> {new_value!r} (dry run)")
+                return 0
             shutil.copy2(json_path, json_path.with_suffix(".json.bak"))
-            old_value, new_value, type_changed = _set_config_value(data, args.dotted_path, args.value)
+            data = preview
             json_path.write_text(json.dumps(data, indent=4) + "\n", encoding="utf-8")
             print(f"{args.dotted_path}: {old_value!r} -> {new_value!r}")
             if type_changed:
@@ -2585,22 +2981,22 @@ def cmd_fetch(args: argparse.Namespace) -> int:
         config = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
         lean_config = json.loads(LEAN_JSON_PATH.read_text(encoding="utf-8"))
         try:
-            ib = connect_ib(config, lean_config)
-        except IBNotConfiguredError as error:
+            ib = _lazy("connect_ib")(config, lean_config)
+        except _lazy("IBNotConfiguredError") as error:
             print(f"error: {error}", file=sys.stderr)
             return 1
 
         family_ticker = args.family_ticker or args.ticker.upper()
         if args.asset_class == "futures":
-            contract_spec = load_futures_contract_specs().get(args.ticker.upper(), {})
-            fetch_fn = lambda symbol, start, end: fetch_future_historical_bars(  # noqa: E731
+            contract_spec = _lazy("load_futures_contract_specs")().get(args.ticker.upper(), {})
+            fetch_fn = lambda symbol, start, end: _lazy("fetch_future_historical_bars")(  # noqa: E731
                 ib, symbol, contract_spec, start, end, contract_month=args.contract_month
             )
             extra_metadata = {"family_ticker": family_ticker}
             if args.contract_month:
                 extra_metadata["contract_month"] = args.contract_month
         else:
-            fetch_fn = lambda symbol, start, end: fetch_option_historical_bars(  # noqa: E731
+            fetch_fn = lambda symbol, start, end: _lazy("fetch_option_historical_bars")(  # noqa: E731
                 ib, symbol, args.expiry, args.strike, args.right, start, end
             )
             extra_metadata = {
@@ -2612,14 +3008,17 @@ def cmd_fetch(args: argparse.Namespace) -> int:
 
     try:
         fetch_kwargs = {"fetch_fn": fetch_fn} if fetch_fn is not None else {}
-        report = fetch_adhoc_asset(
+        report = _lazy("fetch_adhoc_asset")(
             args.asset_class, args.ticker, args.start, args.end, apply=args.apply,
             extra_metadata=extra_metadata, **fetch_kwargs,
         )
     finally:
         if ib is not None:
-            disconnect_ib(ib)
+            _lazy("disconnect_ib")(ib)
 
+    if getattr(args, "json", False):
+        print(json.dumps(report, indent=2, default=str))
+        return 1 if report["action"] == "no_data_returned" else 0
     label = "APPLY" if args.apply else "DRY RUN"
     print(f"{label} — {report['ticker']} ({report['yahoo_symbol']}): {report['action']}, rows_fetched={report['rows_fetched']}")
     if report["suggested_available_from"]:
@@ -2663,7 +3062,14 @@ def cmd_ib(_args: argparse.Namespace) -> int:
             lean_config = {**lean_config, **json.loads(rendered.read_text(encoding="utf-8"))}
         except (OSError, ValueError):
             pass
-    status = ib_readiness_status(config, lean_config)
+    status = _lazy("ib_readiness_status")(config, lean_config)
+    if getattr(_args, "json", False):
+        result = {"status": status}
+        if status not in ("disabled", "enabled_but_lean_credentials_missing"):
+            reachable, detail = _lazy("attempt_connection")(config, lean_config)
+            result.update(reachable=reachable, detail=detail)
+        print(json.dumps(result, indent=2))
+        return 0 if status == "disabled" or result.get("reachable") else 1
 
     if status == "disabled":
         print("IB: disabled (phase_v2.ib.enabled is false)")
@@ -2676,7 +3082,7 @@ def cmd_ib(_args: argparse.Namespace) -> int:
         print("    The tracked lean.json stays empty: aq secrets-check fails a commit that fills it.")
         return 1
 
-    reachable, detail = attempt_connection(config, lean_config)
+    reachable, detail = _lazy("attempt_connection")(config, lean_config)
     if reachable:
         print(f"IB: {detail} (connected to {config['phase_v2']['ib'].get('host')}:{config['phase_v2']['ib'].get('port')})")
         return 0
@@ -2706,6 +3112,9 @@ def cmd_assets(_args: argparse.Namespace) -> int:
     config = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
     lean_config = json.loads(LEAN_JSON_PATH.read_text(encoding="utf-8"))
     report = build_assets_status(config, lean_config)
+    if getattr(_args, "json", False):
+        print(json.dumps(report, indent=2, default=str))
+        return 0
 
     print(f"IB: {report['ib_status']}")
     print(f"futures_risk.enabled: {report['futures_risk_enabled']}")
@@ -2950,7 +3359,30 @@ def _default_book_history_path(diagnostics_config: dict) -> Path:
     cumulative = ROOT_DIR / diagnostics_config.get("output_path", "visualization/book_history.jsonl")
     per_run_dir = cumulative.with_suffix("")
     newest = sorted(per_run_dir.glob("*.jsonl")) if per_run_dir.is_dir() else []
-    return newest[-1] if newest else cumulative
+    chosen = newest[-1] if newest else cumulative
+    note = _book_history_note(chosen)
+    if note:
+        print(note, file=sys.stderr)
+    return chosen
+
+
+def _book_history_note(chosen: Path) -> str | None:
+    """#418: a target-weights run writes no book history, so after one the newest file belongs to an older member-book run.
+    Says so when the latest Lean run's frozen config (or, without one, config.json) is a target-weights run."""
+    from evaluation.backtest_audit import member_book_runs
+
+    run_dir = _resolve_lean_run_dir(argparse.Namespace(backtest_dir=None))
+    frozen = ML_DIR / "evaluation" / "run_configs" / f"{run_dir.name}.json" if run_dir is not None else None
+    source = frozen if frozen is not None and frozen.exists() else CONFIG_PATH
+    try:
+        config = json.loads(source.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if member_book_runs(config):
+        return f"book history: {chosen.name}"
+    latest = run_dir.name if run_dir is not None else "the latest run"
+    return (f"book history: {chosen.name} is an older member-book run's; {latest} traded target weights ({source.name}) and wrote no book history"
+            " (pass --book-history-path to choose)")
 
 
 def _core_quality_tickers() -> frozenset[str]:
@@ -3045,6 +3477,27 @@ def _print_v580_audit_summary(flag: str, audit: dict) -> None:
         print(f"  IC sign unstable across splits: {len(flags['ic_sign_unstable'])}")
 
 
+EVALUATE_COMPANIONS = {
+    "symbol": ("reconcile_features",), "book_history_path": ("reconcile_book_history", "reconcile_features", "audit_backtest", "lean_report"), "replay_hysteresis": ("reconcile_book_history",),
+    "reconcile_run_index": ("reconcile_book_history", "reconcile_features"), "reconcile_all_runs": ("reconcile_book_history", "reconcile_features"), "hysteresis_survives_veto": ("replay_hysteresis",),
+    "variants": ("ablation",), "run_id": ("walk_forward_summary",), "limit_fill_offset_sweep": ("simulate_limit_fills",),
+    "period": ("audit_backtest", "lean_report", "attribute_lean"), "max_open_sessions": ("audit_backtest", "lean_report"),
+    "interest_rate_file": ("lean_stats", "lean_report"), "trading_days": ("lean_stats", "lean_report"), "reference_dir": ("paper_check",),
+    "trial_returns": ("pbo",), "signal": ("factor_spanning",), "calibration_file": ("calibrate_sim_lean",), "permutation": ("audit_features",),
+    "data_root": ("audit_data",), "ledger_branch": ("forward_ledger",), "ledger_file": ("forward_ledger",),
+}
+EVALUATE_GROUPS = (
+    ("Rank book", ("--rank-book", "--capacity", "--stress", "--all", "--as-live", "--preset", "--account", "--model", "--head", "--split", "--dataset")),
+    ("Calibration", ("--calibrate-edge", "--calibrate-book-spread", "--calibrate-confidence-threshold", "--calibrate-rolling-ic-floor", "--calibrate-volatility-threshold")),
+    ("Monte Carlo", ("--monte-carlo", "--mc-runs", "--mc-block-size", "--mc-seed", "--mc-method")),
+    ("Lean run tools", ("--lean-report", "--lean-stats", "--lean-monte-carlo", "--attribute-lean", "--audit-backtest", "--audit-fills", "--alpha-proof", "--backtest-stats",
+                        "--paper-check", "--classification-parity", "--backtest-dir")),
+    ("Audits", ("--audit-gates", "--audit-data", "--audit-heads", "--audit-leakage", "--audit-features", "--ic-by-class", "--overfit-report", "--classification", "--factor-exposure")),
+    ("Research", ("--pbo", "--factor-spanning", "--calibrate-sim-lean", "--benchmarks", "--ablation", "--walk-forward-summary", "--forward-ledger")),
+    ("Reconcile and replay", ("--reconcile-features", "--reconcile-book-history", "--replay-kill-switch", "--replay-rolling-ic-gate", "--simulate-limit-fills")),
+)
+
+
 def cmd_evaluate(args: argparse.Namespace) -> int:
     """`aq evaluate`: offline, cost-aware evaluation of the cross-sectional
     rank book (V5.1 Phase 0, development/Problems.md) - turns "how good is
@@ -3066,6 +3519,14 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
     so every other `aq` subcommand's startup stays exactly as fast as
     before this command existed.
     """
+    if getattr(args, "list", False):
+        for title, flags in EVALUATE_GROUPS:
+            print(f"{title}: {' '.join(flags)}")
+        return 0
+    problems = companion_errors(args, EVALUATE_COMPANIONS)
+    if problems:
+        print("aq evaluate: " + "; ".join(problems), file=sys.stderr)
+        return 2
     import pandas as pd
 
     from evaluation import capacity_curve, predict_head, predict_heads, simulate_rank_book, stress_test_costs
@@ -3255,11 +3716,8 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
                 return 1
             periods.append((period_start, period_end))
         from evaluation.backtest_audit import class_by_ticker_from_config, member_book_runs
-        from evaluation.lean_attribution import run_config_path
-
         class_by_ticker = class_by_ticker_from_config(config)
-        snapshot = run_config_path(run_dir, ROOT_DIR)
-        run_config = json.loads(snapshot.read_text(encoding="utf-8")) if snapshot is not None else config
+        run_config = _run_config_for(run_dir, config)
         audit = audit_backtest_run(
             run, load_book_history(book_history_path), book_run_index=getattr(args, "book_run_index", -1),
             max_open_sessions=max_open_sessions, class_by_ticker=class_by_ticker,
@@ -3312,7 +3770,7 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
     # V6.0.0 - `aq evaluate --attribute-lean`: one Lean run's daily P&L rebuilt per ticker and component (main book,
     # legacy signal, sleeves, crypto core / graduates), reconciled with Lean's equity curve; no dataset, no model.
     # V6.2.0 - `aq evaluate --lean-stats`: Lean's printed Sharpe / Sortino / PSR next to the exact replica
-    # (evaluation/lean_statistics.py) on the shipped and the pre-V6.2 risk-free file, at 252 and 365 days a year.
+    # (evaluation/lean_statistics.py) on the shipped and the older risk-free file, at 252 and 365 days a year.
     if getattr(args, "lean_stats", False):
         from evaluation.lean_statistics import statistics_table
 
@@ -3404,9 +3862,8 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
         # The run's own config decides its classes and core crypto names (an older run had other caps).
         from evaluation.lean_attribution import run_config_path
 
-        snapshot = run_config_path(run_dir, ROOT_DIR)
-        run_config = json.loads(snapshot.read_text(encoding="utf-8")) if snapshot else config
-        snapshot = snapshot or ROOT_DIR / "config.json"
+        snapshot = run_config_path(run_dir, ROOT_DIR) or ROOT_DIR / "config.json"
+        run_config = _run_config_for(run_dir, config)
         reports = {}
         for period in periods:
             label = "whole_run" if period is None else f"{period[0]}..{period[1]}"
@@ -5104,6 +5561,8 @@ def cmd_verify(args: argparse.Namespace) -> int:
         print(matrix.markdown())
         return 0
     results = matrix.run_quick(ROOT_DIR)
+    if getattr(args, "json", False):
+        print(json.dumps(results, indent=2, default=str))
     if args.record:
         matrix.record(Path(args.record), results)
         print(f"recorded {args.record}")
@@ -5115,6 +5574,9 @@ def cmd_docs_sync(args: argparse.Namespace) -> int:
 
     report = docs_facts.sync_docs(docs_facts.tracked_docs(ROOT_DIR), docs_facts.compute_facts(ROOT_DIR), check=args.check,
                                   blocks=docs_facts.compute_blocks(ROOT_DIR))
+    if getattr(args, "json", False):
+        print(json.dumps(report, indent=2))
+        return 1 if report["unknown"] or (args.check and report["changed"]) else 0
     for line in report["unknown"]:
         print(f"unknown fact - {line}", file=sys.stderr)
     for line in report["changed"]:
@@ -5134,19 +5596,40 @@ def cmd_models(args: argparse.Namespace, *, root: Path | None = None) -> int:
     command = args.models_command
     try:
         if command == "list":
-            for entry in catalog.catalog():
-                state = "installed" if (root / entry["name"]).is_dir() else "not installed"
+            rows = [{**entry, "installed": (root / entry["name"]).is_dir()} for entry in catalog.catalog()]
+            rows += [{"name": folder.name, "kind": "lab", "summary": "installed from a zip", "installed": True}
+                     for folder in sorted(root.iterdir()) if folder.is_dir() and not folder.name.startswith(".") and folder.name not in catalog.EXAMPLES] if root.is_dir() else []
+            if getattr(args, "json", False):
+                print(json.dumps(rows, indent=2, default=str))
+                return 0
+            for entry in rows:
+                state = "installed" if entry["installed"] else "not installed"
                 print(f"{entry['name']:<22} {entry['kind']:<10} {state:<14} {entry['summary']}")
+            return 0
+        if command == "remove":
+            folder = root / args.name
+            if not folder.is_dir():
+                print(f"aq models remove: {args.name} is not installed", file=sys.stderr)
+                return 1
+            if getattr(args, "dry_run", False):
+                print(f"would remove {folder}")
+                return 0
+            shutil.rmtree(folder)
+            print(f"removed {folder}")
             return 0
         if command == "install":
             if args.from_zip:
-                folder = catalog.install_zip(Path(args.from_zip), name=args.name, root=root)
+                folder = catalog.install_zip(Path(args.from_zip), name=args.name, root=root, allow_unlisted=True)
             else:
                 folder = catalog.install(args.name, version=args.version, root=root)
             print(f"installed {args.name} into {folder}")
             return 0
         if command == "info":
-            print(catalog.load(args.name, root=root)["card"] or "(no model card)")
+            loaded = catalog.load(args.name, root=root)
+            if getattr(args, "json", False):
+                print(json.dumps({"name": loaded["name"], "kind": loaded["kind"], "inputs": loaded["schema"].get("model_input_names"), "card": loaded["card"]}, indent=2))
+                return 0
+            print(loaded["card"] or "(no model card)")
             return 0
         model = catalog.load(args.name, root=root)
         if args.csv:
@@ -5171,10 +5654,28 @@ def cmd_models(args: argparse.Namespace, *, root: Path | None = None) -> int:
 
 def cmd_init(args: argparse.Namespace) -> int:
     """`aq init <dir>` (V6.6.10): a new signal project (signal, tests, pipeline, workflow) from the template in the wheel."""
-    from evaluation.project_template import create_project
+    from evaluation.project_template import TEMPLATE, create_project, template_files
 
+    target = Path(args.directory)
+    if getattr(args, "dry_run", False):
+        print(f"would write into {target}: " + ", ".join(sorted(template_files(TEMPLATE))))
+        return 0
+    if getattr(args, "force", False) and target.exists() and any(target.iterdir()):
+        clashes = [relative for relative in template_files(TEMPLATE) if (target / relative).exists()]
+        print(f"--force: overwriting {', '.join(clashes) or 'nothing'} in {target}")
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as staging:
+            written = create_project(Path(staging) / "project", name=args.name or target.resolve().name, version=_installed_version())
+            for relative in written:
+                destination = target / relative
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(Path(staging) / "project" / relative, destination)
+        print(f"created {args.directory}: " + ", ".join(written))
+        print(f"next: cd {args.directory} && pytest && aq pipeline run")
+        return 0
     try:
-        written = create_project(Path(args.directory), name=args.name, version=_installed_version())
+        written = create_project(target, name=args.name, version=_installed_version())
     except FileExistsError as error:
         print(f"aq init: {error}", file=sys.stderr)
         return 1
@@ -5201,14 +5702,32 @@ def cmd_pipeline(args: argparse.Namespace) -> int:
 
     config = Path(args.config) if args.config else (Path("pipeline.toml") if Path("pipeline.toml").exists() else None)
     runs = Path(args.runs_dir)
+    if args.pipeline_command == "validate":
+        try:
+            spec = pipeline.load_pipeline(config)
+        except (OSError, ValueError) as error:
+            print(f"aq pipeline validate: {error}", file=sys.stderr)
+            return 1
+        print(json.dumps(spec, indent=2, default=str) if getattr(args, "json", False) else f"{config or 'the defaults'}: valid ({spec['pipeline']['name']}, signal {spec['pipeline']['signal']})")
+        return 0
+    if args.pipeline_command == "list":
+        rows = [{"run": path.parent.name, "done": list(json.loads(path.read_text(encoding="utf-8"))["done"]), "stages": len(pipeline.STAGES)}
+                for path in sorted(runs.glob("*/state.json"), key=lambda item: item.stat().st_mtime)]
+        print(json.dumps(rows, indent=2) if args.json else "\n".join(f"{row['run']}: {len(row['done'])}/{row['stages']} stages" for row in rows) or "no pipeline runs yet: aq pipeline run")
+        return 0
     if args.pipeline_command == "status":
         candidates = [runs / args.run_id] if args.run_id else sorted(runs.glob("*/state.json"), key=lambda path: path.stat().st_mtime)
         states = [path if path.name == "state.json" else path / "state.json" for path in candidates]
         if not states or not states[-1].exists():
             print("no pipeline run yet: aq pipeline run")
             return 1
-        state = json.loads(states[-1].read_text(encoding="utf-8"))
-        print(f"{states[-1].parent.name}: " + ", ".join(f"{stage} done" for stage in state["done"]) + f" ({len(state['done'])}/{len(pipeline.STAGES)} stages)")
+        chosen = states if getattr(args, "all", False) else states[-1:]
+        rows = [{"run": path.parent.name, "done": list(json.loads(path.read_text(encoding="utf-8"))["done"])} for path in chosen if path.exists()]
+        if getattr(args, "json", False):
+            print(json.dumps(rows, indent=2))
+            return 0
+        for row in rows:
+            print(f"{row['run']}: " + ", ".join(f"{stage} done" for stage in row["done"]) + f" ({len(row['done'])}/{len(pipeline.STAGES)} stages)")
         return 0
     run_id = args.run_id
     if getattr(args, "resume", False) and not run_id:
@@ -5252,6 +5771,11 @@ def cmd_hello(args: argparse.Namespace) -> int:
     report = run_hello(closes, start=start, end=args.end or None, data_source=source)
     print("[4/4] Report")
     print()
+    if args.json == "-":
+        from json_safety import sanitize_json_finite
+
+        print(json.dumps(sanitize_json_finite(report.to_dict()), indent=2, default=str))
+        return 0
     print(render_text(report))
     if args.json:
         atomic_write_json(Path(args.json), report.to_dict(), indent=2)
@@ -5262,32 +5786,170 @@ def cmd_hello(args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_status(_args: argparse.Namespace) -> int:
-    return _run(["git", "status"])
+def _json_config_parsers(subparsers, file_name: str) -> None:
+    get_parser = subparsers.add_parser("get", help=f"Print a {file_name} value")
+    get_parser.add_argument("dotted_path")
+    get_parser.add_argument("--json", action="store_true", help="Print the value as JSON")
+    keys_parser = subparsers.add_parser("keys", help="List leaf key paths (optionally scoped to a prefix)")
+    keys_parser.add_argument("dotted_prefix", nargs="?", default=None)
+    keys_parser.add_argument("--json", action="store_true", help="Print the paths as a JSON list")
+    set_parser = subparsers.add_parser("set", help=f"Set a {file_name} value (JSON-parsed, string fallback); a type change needs --force")
+    set_parser.add_argument("dotted_path")
+    set_parser.add_argument("value")
+    set_parser.add_argument("--dry-run", action="store_true", help="Print old -> new, write nothing")
+    set_parser.add_argument("--force", action="store_true", help="Allow the value to change type (bool to string, say)")
+    diff_parser = subparsers.add_parser("diff", help=f"Leaf keys added, removed and changed against {file_name} at a git ref (rule 9 review)")
+    diff_parser.add_argument("ref", nargs="?", default="HEAD", help="A commit or tag (default HEAD)")
+    diff_parser.add_argument("--json", action="store_true", help="Print JSON instead of text")
+    validate_parser = subparsers.add_parser("validate", help="Duplicate keys, NaN or inf, and (config.json) the sections main.py reads")
+    validate_parser.add_argument("--json", action="store_true", help="Print JSON instead of text")
+
+
+CLI_EXAMPLES: dict[str, tuple[str, ...]] = {
+    "hello": ("aq hello --offline", "aq hello --html report.html", "aq hello --json - > report.json"),
+    "models": ("aq models list", "aq models install example-crypto-mlp", "aq models score example-crypto-mlp --out scores.csv"),
+    "models list": ("aq models list --json",), "models install": ("aq models install example-crypto-mlp", "aq models install my-model --from mylab/my-model.zip"),
+    "models info": ("aq models info example-crypto-mlp",), "models score": ("aq models score example-crypto-mlp --csv closes.csv --out scores.csv",),
+    "models remove": ("aq models remove my-model --dry-run",),
+    "init": ("aq init my-signal", "aq init my-signal --name momentum --dry-run"),
+    "pipeline": ("aq pipeline run", "aq pipeline status --all"), "pipeline run": ("aq pipeline run --config pipeline.toml", "aq pipeline run --resume"),
+    "pipeline status": ("aq pipeline status --json",), "pipeline validate": ("aq pipeline validate --config pipeline.toml",), "pipeline list": ("aq pipeline list",),
+    "train": ("aq train --dataset-only", "aq train --multitask-only --seed 7 --memory-profile low", "aq train --walk-forward --step-days 90", "aq train --resume"),
+    "test": ("aq test --impacted", "aq test tests/test_kelly.py -k cap", "aq test --risk --coverage", "aq test new risk/my_rule.py", "aq test --repeat 5 tests/test_x.py"),
+    "backtest": ("aq backtest", "aq backtest --no-publish", "aq backtest --dry-run"),
+    "profile": ("aq profile", "aq profile --batched --iterations 2000", "aq profile --topology"),
+    "report": ("aq report", "aq report 2026-11-20_12-07-55"),
+    "research": ("aq research --signal my_signal.csv", "aq research --signal my_signal.csv --horizons 5,20,60 --json"),
+    "prove": ("aq prove --check-sorry", "aq prove --module BookNeutrality", "aq prove --list"),
+    "cycle": ("aq cycle status", "aq cycle retrain --host local --memory-profile low"),
+    "cycle research": ("aq cycle research rules --round rules.json --draft draft.json", "aq cycle research score --round rules.json"),
+    "cycle status": ("aq cycle status --json",), "cycle daily": ("aq cycle daily --dry-run",),
+    "cycle decide": ("aq cycle decide --generation g0007 --weights w.csv --ledger-file forward/decisions.jsonl --session 2026-11-20",),
+    "cycle retrain": ("aq cycle retrain --host local --memory-profile low", "aq cycle retrain --estimate", "aq cycle retrain --resume"),
+    "cycle promote": ("aq cycle promote --generation g0007 --to shadow",), "cycle schedule": ("aq cycle schedule show", "aq cycle schedule install --dry-run"),
+    "api": ("aq api", "aq api --port 8010 --no-reload", "aq api --check"), "webui": ("aq webui --open", "aq webui --docker --port 8080"),
+    "docker": ("aq docker up", "aq docker ps", "aq docker logs redis --tail 50"), "docker up": ("aq docker up --all",), "docker build": ("aq docker build --no-cache",),
+    "docker down": ("aq docker down",), "docker ps": ("aq docker ps",), "docker logs": ("aq docker logs audit-worker --follow",),
+    "config": ("aq config get phase_v2.runtime.mode", "aq config diff HEAD~1", "aq config validate"),
+    "config get": ("aq config get phase_v2.runtime.mode",), "config keys": ("aq config keys phase_v2.risk",),
+    "config set": ("aq config set phase_v2.ib.enabled true --dry-run",), "config preset": ("aq config preset --list", "aq config preset --apply moderate --dry-run"),
+    "config diff": ("aq config diff", "aq config diff v6.6.0 --json"), "config validate": ("aq config validate --json",),
+    "lean": ("aq lean get environments", "aq lean diff"), "lean get": ("aq lean get data-folder",), "lean keys": ("aq lean keys",),
+    "lean set": ("aq lean set data-folder data --dry-run",), "lean diff": ("aq lean diff HEAD~1",), "lean validate": ("aq lean validate",),
+    "retrain": ("aq retrain status", "aq retrain --dry-run plan"), "backfill": ("aq backfill fred --series DGS10", "aq backfill yfinance --tickers AAPL MSFT --apply"),
+    "paper-readiness": ("aq paper-readiness", "aq paper-readiness --json"),
+    "clean": ("aq clean ml", "aq clean ml --apply --yes", "aq clean caches --apply"),
+    "trade-lock": ("aq trade-lock --status", "aq trade-lock --on", "aq trade-lock --auto --yes"),
+    "kill-switch": ("aq kill-switch --status --json", "aq kill-switch --arm", "aq kill-switch --history --limit 10"),
+    "fetch": ("aq fetch stock --ticker AAPL --start 2020-01-01 --end 2024-12-31", "aq fetch crypto --ticker SOLUSD --start 2022-01-01 --end 2024-12-31 --apply"),
+    "ib": ("aq ib status",), "ib status": ("aq ib status --json",), "assets": ("aq assets status",), "assets status": ("aq assets status --json",),
+    "evaluate": ("aq evaluate --list", "aq evaluate --rank-book --json", "aq evaluate --lean-report --backtest-dir backtests/2026-11-20_12-07-55",
+                 "aq evaluate --audit-leakage"),
+    "render-lean-config": ("aq render-lean-config --dry-run", "aq render-lean-config --account ibkr1", "aq render-lean-config --check"),
+    "users": ("aq users list", "aq users add ops --role operator"), "users add": ("aq users add viewer1 --role viewer --accounts default",),
+    "users list": ("aq users list --json",), "users remove": ("aq users remove viewer1",), "users rotate": ("aq users rotate ops",),
+    "live-readiness": ("aq live-readiness", "aq live-readiness --paper-check ml/evaluation/paper_check.json --markdown"),
+    "accounts": ("aq accounts list", "aq accounts validate"), "accounts list": ("aq accounts list --json",), "accounts validate": ("aq accounts validate --json",),
+    "accounts status": ("aq accounts status --json status.json",),
+    "live": ("aq live status", "aq live up --account paper --dry-run"), "live up": ("aq live up --account paper", "aq live up --account ibkr1 --yes"),
+    "live down": ("aq live down --account paper",), "live status": ("aq live status --account paper --json",),
+    "secrets": ("aq secrets status", "aq secrets set IB_PASSWORD"), "secrets status": ("aq secrets status --json secrets.json",),
+    "secrets set": ("aq secrets set COINBASE_API_SECRET",), "secrets delete": ("aq secrets delete COINBASE_API_SECRET",),
+    "secrets-check": ("aq secrets-check", "aq secrets-check --json"),
+    "audit-log": ("aq audit-log --verify", "aq audit-log --event-type order_placement --since 2026-11-01 --until 2026-11-20", "aq audit-log --export audit.jsonl"),
+    "docs": ("aq docs sync", "aq docs build --strict", "aq docs links"), "docs sync": ("aq docs sync --check",), "docs build": ("aq docs build --strict",),
+    "docs serve": ("aq docs serve --port 8000",), "docs cli": ("aq docs cli --check",), "docs links": ("aq docs links --external",),
+    "verify": ("aq verify", "aq verify --quick", "aq verify --quick --record verify.json"),
+}
+
+
+def _finish_parsers(parser: argparse.ArgumentParser, prefix: tuple[str, ...] = ()) -> None:
+    """Examples and a description for every command (from CLI_EXAMPLES where the parser has none), and aq evaluate's flags in
+    groups."""
+    for action in parser._actions:
+        if not isinstance(action, argparse._SubParsersAction):
+            continue
+        for name, child in action.choices.items():
+            key = " ".join((*prefix, name))
+            if child.description is None:
+                child.description = next((choice.help for choice in action._choices_actions if choice.dest == name), None)
+            if not child.epilog and key in CLI_EXAMPLES:
+                child.epilog = "Examples:\n" + "\n".join(f"  {example}" for example in CLI_EXAMPLES[key])
+                child.formatter_class = argparse.RawDescriptionHelpFormatter
+            if key == "evaluate":
+                _group_evaluate_help(child)
+            _finish_parsers(child, (*prefix, name))
+
+
+def _group_evaluate_help(parser: argparse.ArgumentParser) -> None:
+    """Move aq evaluate's flags into titled groups for its --help (parsing is unchanged)."""
+    by_option = {option: action for action in parser._actions for option in action.option_strings}
+    placed: set[int] = set()
+    inputs = ("--backtest-dir", "--period", "--reference-dir", "--start", "--end", "--interest-rate-file", "--trading-days", "--book-history-file",
+              "--book-run-index", "--max-open-sessions", "--data-dir", "--data-root", "--trial-returns", "--signal", "--calibration-file", "--symbol",
+              "--book-history-path", "--variants", "--run-id", "--ledger-branch", "--ledger-file", "--limit-fill-offset-sweep",
+              "--book-spread-percentile", "--confidence-threshold-percentile", "--rolling-ic-floor-percentile", "--volatility-threshold-percentile",
+              "--permutation", "--replay-hysteresis", "--hysteresis-survives-veto", "--reconcile-run-index", "--reconcile-all-runs")
+    for title, flags in (*EVALUATE_GROUPS, ("Inputs and options of the tools above", inputs), ("Output", ("--json", "--list"))):
+        group = parser.add_argument_group(title)
+        for flag in flags:
+            action = by_option.get(flag)
+            if action is None or id(action) in placed:
+                continue
+            placed.add(id(action))
+            for container in parser._action_groups:
+                if action in container._group_actions and container is not group:
+                    container._group_actions.remove(action)
+            group._group_actions.append(action)
+
+
+class _AqParser(argparse.ArgumentParser):
+    """argparse with a suggestion when a command or choice is mistyped."""
+
+    def error(self, message: str):
+        match = re.search(r"invalid choice: '([^']*)' \(choose from (.*)\)", message)
+        if match:
+            choices = re.findall(r"'([^']*)'", match.group(2)) or [choice.strip() for choice in match.group(2).split(",")]
+            close = difflib.get_close_matches(match.group(1), choices, n=3)
+            if close:
+                message += f"\ndid you mean: {', '.join(close)}?"
+        super().error(message)
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="aq", description="Aether Quant convenience CLI")
-    subparsers = parser.add_subparsers(dest="command", required=True)
+    parser = _AqParser(
+        prog="aq",
+        description="Aether Quant: run the trading system, research signals and models, and maintain the project. Every command has --help with examples.",
+        epilog="Examples:\n  aq hello --offline\n  aq doctor\n  aq help lab\n\nExit codes: 0 ok, 1 failure, 2 usage, 3 a gate failed or still running, 130 interrupted.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument("--version", action="store_true", help="Print the version and exit (aq version --json for details)")
+    parser.add_argument("--debug", action="store_true", help="Show the full traceback of an unexpected error (or set AQ_DEBUG=1)")
+    subparsers = parser.add_subparsers(dest="command", required=False, parser_class=_AqParser)
 
     hello_parser = subparsers.add_parser("hello", help="Start here: download data, run the shipped rule, print a clean report (no key, no Docker)")
     hello_parser.add_argument("--offline", action="store_true", help="Use the bundled sample instead of downloading")
     hello_parser.add_argument("--start", default="2022-01-01", help="First decision date (YYYY-MM-DD)")
     hello_parser.add_argument("--end", default=None, help="Last date (default: the last closed bar)")
-    hello_parser.add_argument("--json", default=None, metavar="FILE", help="Also write the report as JSON")
+    hello_parser.add_argument("--json", default=None, metavar="FILE", help="Also write the report as JSON (- prints only the JSON)")
     hello_parser.add_argument("--html", default=None, metavar="FILE", help="Also write a self-contained HTML page with the equity curve")
     hello_parser.add_argument("--no-cache", action="store_true", help="Download again instead of reading ~/.cache/aether-quant")
     hello_parser.set_defaults(func=cmd_hello)
 
     models_parser = subparsers.add_parser("models", help="Example models from each GitHub release: list, install, info, score (no torch; the project's own models are not published)")
     models_sub = models_parser.add_subparsers(dest="models_command", required=True)
-    models_sub.add_parser("list", help="The example models and whether each is installed")
+    models_list = models_sub.add_parser("list", help="The example models and whether each is installed")
+    models_list.add_argument("--json", action="store_true", help="Print JSON instead of text")
+    models_remove = models_sub.add_parser("remove", help="Delete an installed model from the cache")
+    models_remove.add_argument("name")
+    models_remove.add_argument("--dry-run", action="store_true", help="Print what would be removed")
     models_install = models_sub.add_parser("install", help="Download an example from the release, check its sha256, unpack it into ~/.cache/aether-quant/models")
     models_install.add_argument("name")
     models_install.add_argument("--version", default=None, help="The release tag without its v (default: the latest release)")
     models_install.add_argument("--from", dest="from_zip", default=None, metavar="ZIP", help="Install a local zip instead (checked the same way, against its own manifest)")
     models_info = models_sub.add_parser("info", help="An installed example's model card")
     models_info.add_argument("name")
+    models_info.add_argument("--json", action="store_true", help="Print JSON instead of text")
     models_score = models_sub.add_parser("score", help="Score a close table (dates x tickers CSV) with an installed example or a model folder")
     models_score.add_argument("name", help="An installed example, or a folder holding an exported model (your own ml/versions/<id>)")
     models_score.add_argument("--csv", default=None, help="Wide closes: a date column then one column per ticker (default: the bundled sample)")
@@ -5298,17 +5960,24 @@ def build_parser() -> argparse.ArgumentParser:
     init_parser = subparsers.add_parser("init", help="Start your own signal project: signal, tests, a pipeline with a gate, a GitHub workflow")
     init_parser.add_argument("directory", help="A new or empty folder")
     init_parser.add_argument("--name", default=None, help="The project's name (default: the folder's)")
+    init_parser.add_argument("--force", action="store_true", help="Write into a folder that is not empty, overwriting the template's files")
+    init_parser.add_argument("--dry-run", action="store_true", help="Print the files it would write")
     init_parser.set_defaults(func=cmd_init)
 
     pipeline_parser = subparsers.add_parser("pipeline", help="Data, signal, evaluate, gate, report in one resumable command (pipeline.toml, or the sample with defaults)")
     pipeline_sub = pipeline_parser.add_subparsers(dest="pipeline_command", required=True)
-    for name, help_text in (("run", "Run (or resume) a pipeline"), ("status", "The stages a run has finished")):
+    for name, help_text in (("run", "Run (or resume) a pipeline"), ("status", "The stages a run has finished"), ("validate", "Read and check the pipeline file, run nothing"),
+                            ("list", "Every run and how far it got")):
         command_parser = pipeline_sub.add_parser(name, help=help_text)
         command_parser.add_argument("--config", default=None, help="The pipeline file (default: ./pipeline.toml, else the defaults)")
         command_parser.add_argument("--run-id", default=None, help="Resume or read this run (default: a new one / the latest)")
         command_parser.add_argument("--runs-dir", default="runs", help="Where runs live (default: ./runs)")
         if name == "run":
             command_parser.add_argument("--resume", action="store_true", help="Continue the newest stopped run with its own pipeline file (its finished stages are kept)")
+        else:
+            command_parser.add_argument("--json", action="store_true", help="Print JSON instead of text")
+        if name == "status":
+            command_parser.add_argument("--all", action="store_true", help="Every run, not only the latest")
     pipeline_parser.set_defaults(func=cmd_pipeline)
 
     train_parser = subparsers.add_parser("train", help="Run the training pipeline (wraps python train.py)")
@@ -5346,7 +6015,7 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help=(
             "Train the learned multi-leg strategy-selector model only (wraps python "
-            "train_strategy_selector.py, V4.7, development/Problems.md #29's own framing). Needs real "
+            "train_strategy_selector.py). Needs real "
             "option_strategy_outcome events (real option positions traded and closed) - expect this to "
             "skip indefinitely in this environment, see the command's own output."
         ),
@@ -5355,8 +6024,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--rl-sizing-only",
         action="store_true",
         help=(
-            "Train the offline contextual-bandit sizing overlay only (wraps python train_rl_sizing.py, "
-            "development/Problems.md #71). Reads ml/datasets/*.csv, NOT Postgres - needs a completed "
+            "Train the offline contextual-bandit sizing overlay only (wraps python train_rl_sizing.py). Reads ml/datasets/*.csv, NOT Postgres - needs a completed "
             "`aq train` and Component D's alt-data features in phase1.features.input_set."
         ),
     )
@@ -5364,7 +6032,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--walk-forward",
         action="store_true",
         help=(
-            "Phase 4 of the 5/10 -> 9/10 roadmap: run the dataset-build + training pipeline once per "
+            "Run the dataset-build + training pipeline once per "
             "walk-forward window (wraps python train.py --walk-forward). Never touches active ml/ - "
             "diagnostic only, writes to ml/versions/<run-id>/window_<i>/."
         ),
@@ -5379,10 +6047,6 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Walk-forward mode: rolling or expanding (only with --walk-forward).",
     )
-    # V5.1 Phase 4 (item 4) - one-run overrides of config.json's
-    # phase_v2.retraining.walk_forward.{train_multitask,train_sequence,
-    # tracked_metrics}, only meaningful with --walk-forward - passthrough
-    # to train.py --walk-forward's own identical flags.
     train_parser.add_argument(
         "--include-multitask",
         action="store_true",
@@ -5411,13 +6075,6 @@ def build_parser() -> argparse.ArgumentParser:
             "(only with --walk-forward)."
         ),
     )
-    # V5.1 Phase 3 (item 1) - passthrough to --multitask-only/--sequence-only's
-    # own train_multitask.py/train_sequence.py --seed/--ranking-objective
-    # flags (development/Problems.md - previously the seed-ensembling
-    # workflow required calling those scripts directly, bypassing `aq`
-    # entirely). Ignored (with a warning) by every other --*-only mode and
-    # by the default full-pipeline train.py invocation, neither of which
-    # accepts these flags.
     train_parser.add_argument(
         "--seed", type=int, default=None, help="Override config.json's seed (only with --multitask-only/--sequence-only)"
     )
@@ -5443,12 +6100,28 @@ def build_parser() -> argparse.ArgumentParser:
     train_parser.add_argument(
         "--list-runs", action="store_true", help="List the `aq train` and `aq cycle retrain` runs with their finished steps, and stop",
     )
+    train_parser.add_argument("--dry-run", action="store_true", help="Print the mode and settings it would run with, and stop")
+    train_parser.add_argument("--json", action="store_true", help="With --list-runs: print JSON")
     train_parser.set_defaults(func=cmd_train)
 
-    test_parser = subparsers.add_parser("test", help="Run the test suite (wraps pytest tests/)")
+    test_parser = subparsers.add_parser("test", help="Run the test suite (wraps pytest tests/), or a testing tool: new, where, slowest, clean-checkout, mutation, fuzz")
+    test_parser.add_argument("paths", nargs="*", help="Test files or node ids to run, or a tool: new MODULE, where MODULE, slowest, clean-checkout, mutation, fuzz")
+    test_parser.add_argument("-k", "--keyword", dest="k", default=None, metavar="EXPR", help="Only tests whose name matches EXPR (pytest -k)")
+    test_parser.add_argument("--lf", action="store_true", help="Only the tests that failed last time (pytest --lf)")
+    test_parser.add_argument("--impacted", action="store_true", help="Only the tests that name a module changed since HEAD, without coverage")
+    test_parser.add_argument("--watch", action="store_true", help="With --impacted or paths: rerun on every save (Ctrl-C stops)")
+    test_parser.add_argument("--repeat", type=int, default=None, metavar="N", help="Run the given tests N times and report the flaky ones (exit 3)")
+    test_parser.add_argument("--light-hypothesis", action="store_true", help="Fewer hypothesis examples, no too_slow health check (a 4 GB machine)")
+    test_parser.add_argument("--list-groups", action="store_true", help="Print the test groups and their sizes")
+    test_parser.add_argument("--group", default=None, help="With new: the test group (default: from the module's folder)")
+    test_parser.add_argument("--top", type=int, default=15, help="With slowest: how many (default 15)")
+    test_parser.add_argument("--target", default=None, help="With fuzz: one fuzz target")
+    test_parser.add_argument("--seconds", type=int, default=60, help="With fuzz: how long atheris runs (default 60)")
+    test_parser.add_argument("--json", action="store_true", help="With where, slowest, --repeat or --list-groups: print JSON")
+    test_parser.add_argument("--dry-run", action="store_true", help="Print the pytest command (or, with new, the files) and stop")
     test_parser.add_argument(
         "--lean", "--full", dest="lean", action="store_true",
-        help="Include the real `lean backtest .` integration test (tests/test_lean_backtest_ml_coverage.py, over an hour wall-clock) - excluded by default",
+        help="Include the real `lean backtest .` integration test (tests/test_lean_backtest_ml_coverage.py, over an hour wall-clock) - excluded by default; --full is the same flag",
     )
     test_parser.add_argument(
         "--parallel", action="store_true",
@@ -5456,18 +6129,18 @@ def build_parser() -> argparse.ArgumentParser:
     )
     test_parser.add_argument(
         "--coverage", action="store_true",
-        help="V6.6.6: every registered group (or the --<subsystem> groups given) in turn under coverage, appending, then the combined "
+        help="Every registered group (or the --<subsystem> groups given) in turn under coverage, appending, then the combined "
         "report of every tracked module; fails under pyproject's fail_under (100). One process at a time, for a small PC.",
     )
     test_parser.add_argument(
         "--changed", action="store_true",
-        help="V6.6.7: with --coverage, the fast gate before a commit: the tests that name each changed module (vs HEAD, new "
+        help="With --coverage, the fast gate before a commit: the tests that name each changed module (vs HEAD, new "
         "files included) run under coverage and every changed file must reach 100%%; a fresh full coverage.json that already "
         "shows them covered passes at once. AGENTS.md 'Coverage: 100%% after every commit'.",
     )
     test_parser.add_argument(
         "--ruff", action="store_true",
-        help="V5.3.10: run `ruff check .` BEFORE pytest - a lint failure fails fast without paying the full suite's wall-clock first (mirrors ci.yml's python-lint job).",
+        help="Run `ruff check .` BEFORE pytest - a lint failure fails fast without paying the full suite's wall-clock first (mirrors ci.yml's python-lint job).",
     )
     for _subsystem_name in _SUBSYSTEM_TEST_FILES:
         test_parser.add_argument(
@@ -5484,6 +6157,8 @@ def build_parser() -> argparse.ArgumentParser:
         help=f"Override the Lean engine Docker image (default: pinned {PINNED_LEAN_ENGINE_IMAGE}, "
         "never the mutable :latest tag - see PINNED_LEAN_ENGINE_IMAGE's comment in aq_cli.py)",
     )
+    backtest_parser.add_argument("--no-publish", action="store_true", help="Leave the README, charts and evaluation reports alone (a research run)")
+    backtest_parser.add_argument("--dry-run", action="store_true", help="Print the Lean command and where the config is frozen, and stop")
     backtest_parser.set_defaults(func=cmd_backtest)
 
     profile_parser = subparsers.add_parser(
@@ -5517,7 +6192,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     profile_parser.add_argument(
         "--parallel", action="store_true",
-        help="V4.9 Priority 6: run the ProcessPoolExecutor IPC-overhead benchmark against run_symbol_inference() (inference only)",
+        help="Run the ProcessPoolExecutor IPC-overhead benchmark against run_symbol_inference() (inference only)",
     )
     profile_parser.add_argument(
         "--pool-workers", type=int, default=None,
@@ -5536,8 +6211,8 @@ def build_parser() -> argparse.ArgumentParser:
     profile_parser.set_defaults(func=cmd_profile)
 
     report_parser = subparsers.add_parser("report", help="Generate a Lean HTML report for a finished backtest")
-    report_parser.add_argument("backtest_dir", help="Folder name under backtests/, e.g. 2026-07-04_13-06-51")
-    report_parser.add_argument("result_id", help="Result JSON id, e.g. 1366365999")
+    report_parser.add_argument("backtest_dir", nargs="?", default=None, help="Folder name under backtests/, e.g. 2026-07-04_13-06-51 (omit to list the newest runs)")
+    report_parser.add_argument("result_id", nargs="?", default=None, help="Result JSON id, e.g. 1366365999 (default: the folder's only result)")
     report_parser.set_defaults(func=cmd_report)
 
     research_parser = subparsers.add_parser("research", help="Score any signal CSV (date,ticker,score) against the rank targets")
@@ -5545,6 +6220,7 @@ def build_parser() -> argparse.ArgumentParser:
     research_parser.add_argument("--dataset", default=None, help="Dataset CSV (default: ml/datasets/full_dataset.csv)")
     research_parser.add_argument("--horizons", default="5,20", help="Comma list of rank-target horizons (default: 5,20)")
     research_parser.add_argument("--out", default=None, help="Report path (default: ml/evaluation/signal_report.json)")
+    research_parser.add_argument("--json", action="store_true", help="Print the report as JSON")
     research_parser.set_defaults(func=cmd_research)
 
     prove_parser = subparsers.add_parser("prove", help="Build the Lean 4 proofs in formal/ (needs elan + Mathlib cache)")
@@ -5553,6 +6229,8 @@ def build_parser() -> argparse.ArgumentParser:
                               help="Also regenerate aether_quant/_formal_cases/ (the differential test inputs/outputs)")
     prove_parser.add_argument("--check-sorry", action="store_true",
                               help="Only scan formal/AetherFormal/*.lean for sorry/admit (no Lean needed)")
+    prove_parser.add_argument("--list", action="store_true", help="List the specs and stop")
+    prove_parser.add_argument("--json", action="store_true", help="With --list or --check-sorry: print JSON")
     prove_parser.set_defaults(func=cmd_prove)
 
     cycle_parser = subparsers.add_parser("cycle", help="The research cycle: rounds, generations, retraining, handover")
@@ -5568,6 +6246,7 @@ def build_parser() -> argparse.ArgumentParser:
     cycle_research_parser.add_argument("--digest", default=None, help="hold: the freeze's digest")
     cycle_status_parser = cycle_subparsers.add_parser("status", help="Generations, shares, decay, and what is due (writes ml/generations/status.json)")
     cycle_status_parser.add_argument("--ledger-file", default=None, help="Read this generations.jsonl instead of the forward-ledger branch")
+    cycle_status_parser.add_argument("--json", action="store_true", help="Print the status as JSON (the default output is JSON too)")
     cycle_daily_parser = cycle_subparsers.add_parser("daily", help="Today's row for each generation, and the allocation (the scheduled Action's job)")
     cycle_daily_parser.add_argument("--ledger-file", default=None, help="The generations.jsonl to append to (default: ml/cycle/generations.jsonl)")
     cycle_daily_parser.add_argument("--dry-run", action="store_true", help="Compute on a temporary copy of the ledger")
@@ -5602,14 +6281,19 @@ def build_parser() -> argparse.ArgumentParser:
     cycle_schedule_parser.add_argument("--dry-run", action="store_true", help="install: print the job and register nothing")
     cycle_parser.set_defaults(func=cmd_cycle)
 
-    api_parser = subparsers.add_parser("api", help="Start the FastAPI monitoring server on :8001")
+    api_parser = subparsers.add_parser("api", help="Start the FastAPI monitoring server (default 127.0.0.1:8001), or check one is answering")
+    api_parser.add_argument("--host", default="127.0.0.1", help="Bind address (default 127.0.0.1)")
+    api_parser.add_argument("--port", type=int, default=8001, help="Port (default 8001)")
+    api_parser.add_argument("--no-reload", dest="reload", action="store_false", help="Do not restart on code changes")
+    api_parser.add_argument("--check", action="store_true", help="GET /health on a running server (exit 1 if it does not answer)")
     api_parser.set_defaults(func=cmd_api)
 
     webui_parser = subparsers.add_parser("webui", help="Start the webui dev server (npm run dev), or the dashboard image with --docker")
     webui_parser.add_argument("--docker", action="store_true", help="Run the dashboard image (demo data unless --data) instead of the dev server")
     webui_parser.add_argument("--build", action="store_true", help="With --docker: build the image from this checkout first")
     webui_parser.add_argument("--image", default=DASHBOARD_IMAGE, help="With --docker: the image to run")
-    webui_parser.add_argument("--port", type=int, default=8080, help="With --docker: the host port (default 8080)")
+    webui_parser.add_argument("--port", type=int, default=8080, help="The port (default 8080), for the dev server and --docker")
+    webui_parser.add_argument("--open", action="store_true", help="Open the browser on it")
     webui_parser.add_argument("--data", default=None, metavar="DIR", help="With --docker: serve this tree (visualization/, ml/) instead of the demo")
     webui_parser.set_defaults(func=cmd_webui)
 
@@ -5620,30 +6304,34 @@ def build_parser() -> argparse.ArgumentParser:
     docker_up_group = docker_up_parser.add_mutually_exclusive_group()
     docker_up_group.add_argument("--lean", action="store_true", help="Start via the lean Compose profile")
     docker_up_group.add_argument("--all", action="store_true", help="Start the full stack, including all workers")
+    docker_up_parser.add_argument("--dry-run", action="store_true", help="Print the docker command")
     docker_up_parser.set_defaults(func=cmd_docker_up)
 
     docker_build_parser = docker_subparsers.add_parser(
         "build", help="Rebuild the consolidated aether-quant-engine image (app + every worker)"
     )
+    docker_build_parser.add_argument("--no-cache", action="store_true", help="Build every layer again")
+    docker_build_parser.add_argument("--dry-run", action="store_true", help="Print the docker command")
     docker_build_parser.set_defaults(func=cmd_docker_build)
+    docker_down_parser = docker_subparsers.add_parser("down", help="Stop and remove the Compose services")
+    docker_down_parser.add_argument("--dry-run", action="store_true", help="Print the docker command")
+    docker_down_parser.set_defaults(func=cmd_docker_down)
+    docker_ps_parser = docker_subparsers.add_parser("ps", help="The Compose services and their state")
+    docker_ps_parser.add_argument("--dry-run", action="store_true", help="Print the docker command")
+    docker_ps_parser.set_defaults(func=cmd_docker_ps)
+    docker_logs_parser = docker_subparsers.add_parser("logs", help="A service's recent logs (all services without one)")
+    docker_logs_parser.add_argument("service", nargs="?", default=None)
+    docker_logs_parser.add_argument("--tail", type=int, default=100, help="Lines per service (default 100)")
+    docker_logs_parser.add_argument("--follow", action="store_true", help="Keep printing new lines")
+    docker_logs_parser.add_argument("--dry-run", action="store_true", help="Print the docker command")
+    docker_logs_parser.set_defaults(func=cmd_docker_logs)
 
     config_parser = subparsers.add_parser("config", help="Show or edit config.json")
     config_parser.set_defaults(func=cmd_config)
     config_subparsers = config_parser.add_subparsers(dest="config_command")
 
-    config_get_parser = config_subparsers.add_parser("get", help="Print a config.json value")
-    config_get_parser.add_argument("dotted_path")
+    _json_config_parsers(config_subparsers, "config.json")
 
-    config_keys_parser = config_subparsers.add_parser("keys", help="List leaf key paths (optionally scoped to a prefix)")
-    config_keys_parser.add_argument("dotted_prefix", nargs="?", default=None)
-
-    config_set_parser = config_subparsers.add_parser("set", help="Set a config.json value (JSON-parsed, string fallback)")
-    config_set_parser.add_argument("dotted_path")
-    config_set_parser.add_argument("value")
-
-    # V5.1 Phase 1 - phase_v2.presets, named dotted-key-override blocks
-    # (e.g. "aggressive"/"moderate" turnover profiles). config-only, no
-    # `aq lean preset` equivalent.
     config_preset_parser = config_subparsers.add_parser(
         "preset", help="List/show/apply a named config preset (phase_v2.presets)"
     )
@@ -5661,19 +6349,12 @@ def build_parser() -> argparse.ArgumentParser:
     lean_parser.set_defaults(func=cmd_lean)
     lean_subparsers = lean_parser.add_subparsers(dest="lean_command")
 
-    lean_get_parser = lean_subparsers.add_parser("get", help="Print a lean.json value")
-    lean_get_parser.add_argument("dotted_path")
-
-    lean_keys_parser = lean_subparsers.add_parser("keys", help="List leaf key paths (optionally scoped to a prefix)")
-    lean_keys_parser.add_argument("dotted_prefix", nargs="?", default=None)
-
-    lean_set_parser = lean_subparsers.add_parser("set", help="Set a lean.json value (JSON-parsed, string fallback)")
-    lean_set_parser.add_argument("dotted_path")
-    lean_set_parser.add_argument("value")
+    _json_config_parsers(lean_subparsers, "lean.json")
 
     retrain_parser = subparsers.add_parser(
-        "retrain", help="Thin dispatcher to python -m retraining.orchestrator <stage> ..."
+        "retrain", help="Low-level orchestrator stage (python -m retraining.orchestrator STAGE); for a whole retrain use `aq cycle retrain`"
     )
+    retrain_parser.add_argument("--dry-run", action="store_true", help="Print the orchestrator command")
     retrain_parser.add_argument(
         "stage",
         choices=[
@@ -5690,9 +6371,6 @@ def build_parser() -> argparse.ArgumentParser:
             "promote",
             "rollback",
             "status",
-            # V5.1 Phase 6 (production safety) - read-only diagnostic,
-            # never itself calls rollback() - see retraining/orchestrator.py::
-            # auto_rollback_status()'s own docstring.
             "auto-rollback",
         ],
     )
@@ -5702,11 +6380,11 @@ def build_parser() -> argparse.ArgumentParser:
     backfill_parser = subparsers.add_parser(
         "backfill",
         help=(
-            "Thin dispatcher to python -m data_pipeline.<target>_backfill ... (whole-universe bulk "
-            "backfills). Different from `aq fetch`, which is for one ad-hoc ticker."
+            "Whole-universe bulk backfills (python -m data_pipeline.<target>_backfill); each is a dry run unless given --apply. "
+            "For one ad-hoc ticker, use aq fetch."
         ),
     )
-    backfill_parser.add_argument("target", choices=["dividends", "fred", "yfinance"])
+    backfill_parser.add_argument("target", choices=sorted(_BACKFILL_MODULE_BY_TARGET))
     backfill_parser.add_argument(
         "backfill_args",
         nargs=argparse.REMAINDER,
@@ -5715,15 +6393,17 @@ def build_parser() -> argparse.ArgumentParser:
     backfill_parser.set_defaults(func=cmd_backfill)
 
     paper_readiness_parser = subparsers.add_parser(
-        "paper-readiness", help="Check whether the system is ready for phase_v2.runtime.mode='paper'"
+        "paper-readiness", help="Is the system ready to run on paper (Postgres trading history, broker config)? live-readiness is the later paper-to-live scorecard"
     )
+    paper_readiness_parser.add_argument("--json", action="store_true", help="Print the checks as JSON")
     paper_readiness_parser.set_defaults(func=cmd_paper_readiness)
 
     clean_parser = subparsers.add_parser(
-        "clean", help="V5.8.0: list (dry run by default) and delete regenerable ml/ artifacts: old candidate versions, "
+        "clean", help="List (dry run by default) and delete regenerable ml/ artifacts: old candidate versions, "
         "older backups, walk-forward window datasets",
     )
-    clean_parser.add_argument("target", choices=["ml"])
+    clean_parser.add_argument("target", choices=["ml", "coverage", "caches", "build"], help="ml: old versions and backups; coverage: coverage-report/; caches: __pycache__ and tool caches; build: build/ and dist/")
+    clean_parser.add_argument("--yes", action="store_true", help="With --apply: confirm without a prompt")
     clean_parser.add_argument("--keep-versions", type=int, default=5, help="newest N ml/versions directories to keep (default 5)")
     clean_parser.add_argument("--keep-backups", type=int, default=1, help="newest N ml/_backup_* directories to keep (default 1)")
     clean_parser.add_argument(
@@ -5731,7 +6411,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="also list the regenerable window_*/full_dataset.csv etc. inside kept walk-forward runs",
     )
     clean_parser.add_argument("--apply", action="store_true", help="delete the listed items (default: dry run)")
-    clean_parser.add_argument("--json", action="store_true")
+    clean_parser.add_argument("--json", action="store_true", help="Print JSON instead of text")
     clean_parser.set_defaults(func=cmd_clean)
 
     trade_lock_parser = subparsers.add_parser(
@@ -5743,14 +6423,11 @@ def build_parser() -> argparse.ArgumentParser:
     trade_lock_group.add_argument("--auto", action="store_true", help="Return to fully automatic behavior")
     trade_lock_group.add_argument("--status", dest="status", action="store_true", help="Print the current override state")
     trade_lock_parser.add_argument("--account", default=None, help="A named account's override (state/accounts/<id>/overrides.json) instead of config.json")
+    trade_lock_parser.add_argument("--yes", action="store_true", help="Confirm loosening the lock without a prompt")
+    trade_lock_parser.add_argument("--dry-run", action="store_true", help="Print old -> new and change nothing")
+    trade_lock_parser.add_argument("--json", action="store_true", help="With --status: print JSON")
     trade_lock_parser.set_defaults(func=cmd_trade_lock)
 
-    # V5.1 Phase 6 (production safety) - deliberately the same
-    # override-file/mutually-exclusive-group shape as `trade-lock` above (see
-    # risk/manual_override.py's kill_switch_manual_override, the exact same
-    # read/write/cache convention as manual_trade_lock_override) so the two
-    # switches can never disagree about their CLI surface. --history is the
-    # one addition, querying the tamper-evident audit log instead.
     kill_switch_parser = subparsers.add_parser(
         "kill-switch", help="Manually override / inspect the automated production kill switch"
     )
@@ -5762,6 +6439,9 @@ def build_parser() -> argparse.ArgumentParser:
     kill_switch_group.add_argument("--history", action="store_true", help="List recorded kill-switch trips from the audit log")
     kill_switch_parser.add_argument("--limit", type=int, default=50, help="Max --history rows (default 50)")
     kill_switch_parser.add_argument("--account", default=None, help="A named account's override (state/accounts/<id>/overrides.json) instead of config.json")
+    kill_switch_parser.add_argument("--yes", action="store_true", help="Confirm disarming without a prompt")
+    kill_switch_parser.add_argument("--dry-run", action="store_true", help="Print old -> new and change nothing")
+    kill_switch_parser.add_argument("--json", action="store_true", help="With --status: print JSON")
     kill_switch_parser.set_defaults(func=cmd_kill_switch)
 
     fetch_parser = subparsers.add_parser(
@@ -5772,7 +6452,7 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     fetch_parser.add_argument(
-        "asset_class", choices=list(ASSET_CLASSES), help="Asset class (picks the Lean data_path/market convention)"
+        "asset_class", choices=list(_FETCH_ASSET_CLASSES), help="Asset class (picks the Lean data_path/market convention)"
     )
     fetch_parser.add_argument("--ticker", required=True, help="Internal ticker, e.g. AAPL or BTCUSD")
     fetch_parser.add_argument("--start", required=True, type=_iso_date, help="Start date, ISO 8601 YYYY-MM-DD")
@@ -5797,21 +6477,24 @@ def build_parser() -> argparse.ArgumentParser:
         "(train.py::build_derivatives_macro_features_by_date()) - e.g. two futures/options fetches sharing "
         "--family-ticker ES. Defaults to --ticker itself (a single, ungrouped contract).",
     )
+    fetch_parser.add_argument("--json", action="store_true", help="Print the fetch report as JSON")
     fetch_parser.set_defaults(func=cmd_fetch)
 
     ib_parser = subparsers.add_parser("ib", help="Check Interactive Brokers configuration/connectivity")
     ib_subparsers = ib_parser.add_subparsers(dest="ib_command", required=True)
-    ib_subparsers.add_parser("status", help="Report disabled / credentials-missing / reachable")
+    ib_status_parser = ib_subparsers.add_parser("status", help="Report disabled / credentials-missing / reachable")
+    ib_status_parser.add_argument("--json", action="store_true", help="Print JSON instead of text")
     ib_parser.set_defaults(func=cmd_ib)
 
     assets_parser = subparsers.add_parser("assets", help="Report multi-asset-class (futures/options/FRED) readiness")
     assets_subparsers = assets_parser.add_subparsers(dest="assets_command", required=True)
-    assets_subparsers.add_parser("status", help="Report IB/futures/options/FRED readiness at a glance")
+    assets_status_parser = assets_subparsers.add_parser("status", help="Report IB/futures/options/FRED readiness at a glance")
+    assets_status_parser.add_argument("--json", action="store_true", help="Print JSON instead of text")
     assets_parser.set_defaults(func=cmd_assets)
 
     evaluate_parser = subparsers.add_parser(
         "evaluate",
-        help="Offline, cost-aware evaluation of the cross-sectional rank book (V5.1) - net Sharpe/turnover/"
+        help="Offline, cost-aware evaluation of the cross-sectional rank book - net Sharpe/turnover/"
         "capacity/cost-stress from the active model + dataset, without a Lean backtest",
     )
     evaluate_parser.add_argument("--rank-book", action="store_true", help="Simulate the rank book net of costs")
@@ -5825,7 +6508,7 @@ def build_parser() -> argparse.ArgumentParser:
     evaluate_parser.add_argument("--all", action="store_true", help="Run --rank-book, --capacity, --stress, --calibrate-edge, --benchmarks, --monte-carlo and --classification together")
     evaluate_parser.add_argument(
         "--walk-forward-summary", action="store_true",
-        help="Print an already-written ml/versions/walk-forward-*/walk_forward_summary.json (V5.1 Phase 4) - "
+        help="Print an already-written ml/versions/walk-forward-*/walk_forward_summary.json - "
         "never runs training itself; run `aq train --walk-forward` first.",
     )
     evaluate_parser.add_argument(
@@ -5834,7 +6517,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     evaluate_parser.add_argument(
         "--ablation", action="store_true",
-        help="V5.1 Phase 5: run the adaptive-machinery ablation harness - runtime-only mechanisms "
+        help="Run the adaptive-machinery ablation harness - runtime-only mechanisms "
         "(gating, topology sizing, the net-edge gate, ...) honestly report not_offline_measurable "
         "rather than a fabricated number. Not included in --all.",
     )
@@ -5867,7 +6550,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     evaluate_parser.add_argument(
         "--calibrate-rolling-ic-floor", action="store_true",
-        help="V5.3.5 (development/Problems.md #102): print a phase_v2.rolling_ic_gate.min_rolling_mean_ic "
+        help="Print a phase_v2.rolling_ic_gate.min_rolling_mean_ic "
         "calibrated from this split's real walk-forward rolling trailing-IC distribution (portfolio/"
         "rolling_ic_gate.py's own aggregation, no-lookahead - see evaluation/rolling_ic_gate_calibration.py's "
         "docstring), mirroring --calibrate-book-spread's discipline. Not included in --all - loads both "
@@ -5880,7 +6563,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     evaluate_parser.add_argument(
         "--reconcile-features", action="store_true",
-        help="V5.3.5.3 Workstream B (development/Problems.md #91/#100): diff ONE symbol's logged live "
+        help="Diff ONE symbol's logged live "
         "feature values (book_history.jsonl's optional 'feature_snapshot' key, written when "
         "phase_v2.diagnostics.book_history.include_feature_snapshot is on and the symbol is in "
         "feature_snapshot_symbols) against full_dataset.csv's same (ticker, date) row - per-feature "
@@ -5893,7 +6576,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     evaluate_parser.add_argument(
         "--reconcile-book-history", action="store_true",
-        help="V5.2.2: compare a real Lean backtest's logged book selections "
+        help="Compare a real Lean backtest's logged book selections "
         "(phase_v2.diagnostics.book_history) against a fresh offline re-derivation of the same raw "
         "scores on those same dates - true ground truth for diagnosing offline-vs-live divergence. "
         "Not included in --all - loads both models' predictions like --calibrate-book-spread.",
@@ -5905,7 +6588,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     evaluate_parser.add_argument(
         "--replay-hysteresis", action="store_true",
-        help="V5.2.3: with --reconcile-book-history, replay offline's own hysteresis-aware selection "
+        help="With --reconcile-book-history, replay offline's own hysteresis-aware selection "
         "walk-forward across the log's dates (carrying held allocations forward, same as main.py's live "
         "book) instead of reconciling each date independently - tells a real divergence apart from the "
         "live book correctly holding an incumbent a from-scratch reselection wouldn't naturally pick.",
@@ -5913,29 +6596,28 @@ def build_parser() -> argparse.ArgumentParser:
     reconcile_run_group = evaluate_parser.add_mutually_exclusive_group()
     reconcile_run_group.add_argument(
         "--reconcile-run-index", type=int, default=None,
-        help="V5.3.2: with --reconcile-book-history, reconcile only the run at this 0-indexed position "
+        help="With --reconcile-book-history, reconcile only the run at this 0-indexed position "
         "within the log's own run-segmented history (negative indices count from the end, -1 == most "
         "recent - the default). book_history.jsonl is a cumulative, never-rotated log - every historical "
         "real backtest's records are appended forever - so reconciling without this flag defaults to the "
-        "LATEST run only, never a silent cross-run merge (development/Problems.md #91/#97/#99).",
+        "LATEST run only, never a silent cross-run merge.",
     )
     reconcile_run_group.add_argument(
         "--reconcile-all-runs", action="store_true",
-        help="V5.3.2: with --reconcile-book-history, reconcile EVERY run segment independently (each its "
+        help="With --reconcile-book-history, reconcile EVERY run segment independently (each its "
         "own held-allocations/summary, never merged across a run boundary) instead of just the most "
         "recent - for investigating an older run's own numbers, not for combining them into one figure.",
     )
     evaluate_parser.add_argument(
         "--replay-kill-switch", action="store_true",
-        help="V5.2.8: day-by-day OFFLINE replay of the kill-switch + sticky trade-lock state machine "
+        help="Day-by-day OFFLINE replay of the kill-switch + sticky trade-lock state machine "
         "(evaluation/kill_switch_replay.py) against the rank book's own simulated return series - an "
         "explicitly approximate estimate of how much of the run would have been locked out, without "
-        "needing a real Lean backtest. Not included in --all - investigation-only, see development/"
-        "Problems.md #94 for the caveats.",
+        "needing a real Lean backtest. Not included in --all - investigation-only (an approximation: no intraday fills).",
     )
     evaluate_parser.add_argument(
         "--replay-rolling-ic-gate", action="store_true",
-        help="V5.3.5 (development/Problems.md #102): day-by-day, no-lookahead OFFLINE replay of "
+        help="Day-by-day, no-lookahead OFFLINE replay of "
         "portfolio/rolling_ic_gate.py's engagement decision (evaluation/rolling_ic_gate_replay.py) at "
         "phase_v2.net_performance's rebalance cadence, with a per-era breakdown against the three known "
         "bad eras this round's research found - the critical pre-main.py checkpoint before flipping "
@@ -5943,10 +6625,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
     evaluate_parser.add_argument(
         "--simulate-limit-fills", action="store_true",
-        help="V5.3.1: offline counterfactual (evaluation/limit_fill_simulator.py) estimating how often a "
+        help="Offline counterfactual (evaluation/limit_fill_simulator.py) estimating how often a "
         "real limit order would fill vs. time out, using the existing dataset's own high/low bars and "
         "phase_v2.limit_orders' pricing/timeout config - without needing a real Lean backtest. Not "
-        "included in --all - investigation-only, see development/Problems.md #34/#96 for the caveats.",
+        "included in --all - investigation-only (an estimate from daily high/low bars).",
     )
     evaluate_parser.add_argument(
         "--limit-fill-offset-sweep", default=None,
@@ -5955,7 +6637,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     evaluate_parser.add_argument(
         "--monte-carlo", action="store_true",
-        help="V5.3.8: Monte Carlo simulation testing layer (evaluation/monte_carlo.py) - stationary-block "
+        help="Monte Carlo simulation testing layer (evaluation/monte_carlo.py) - stationary-block "
         "bootstraps the base rank-book run's daily net returns into --mc-runs alternative equity histories, "
         "writing ml/evaluation/monte_carlo.json + monte_carlo_curves.npz and refreshing the README's Monte "
         "Carlo section (curves chart + red average line + foldable deep stats). Requires/implies the base "
@@ -5971,7 +6653,7 @@ def build_parser() -> argparse.ArgumentParser:
                                  help="Resampling method (default: block = stationary block bootstrap).")
     evaluate_parser.add_argument(
         "--benchmarks", action="store_true",
-        help="V5.4.4: benchmark comparison (evaluation/benchmark_comparison.py + "
+        help="Benchmark comparison (evaluation/benchmark_comparison.py + "
         "evaluation/public_benchmarks.py) - runs the momentum/mean-reversion/random-entry strategy "
         "baselines AND the SP500 buy-and-hold + daily-rebalanced 60/40 SPY-TLT public baselines over "
         "the SAME dataset window/split as the rank book, writing ml/evaluation/benchmark_comparison.json "
@@ -5979,13 +6661,13 @@ def build_parser() -> argparse.ArgumentParser:
     )
     evaluate_parser.add_argument(
         "--hysteresis-survives-veto", action="store_true",
-        help="V5.5.0: with --reconcile-book-history --replay-hysteresis, keep offline's hysteresis anchor across a "
-        "date live VETOED. Default resets it, which replays logs recorded BEFORE V5.5.0 (a veto wiped live's "
-        "memory); pass this flag for a run recorded under V5.5.0+ (the last formed book survives a veto).",
+        help="With --reconcile-book-history --replay-hysteresis, keep offline's hysteresis anchor across a "
+        "date live VETOED. Default resets it, which replays logs from the older live code (where a veto wiped live's "
+        "memory); pass this flag for a newer run's log (the last formed book survives a veto).",
     )
     evaluate_parser.add_argument(
         "--as-live", action="store_true",
-        help="V5.5.0: also run the rank book AS-LIVE (evaluation/live_parity.py) - the blended rank head, "
+        help="Also run the rank book AS-LIVE (evaluation/live_parity.py) - the blended rank head, "
         "percentile hysteresis, the live confidence-spread and rolling-IC gates, hold-on-veto, confidence-weighted "
         "sizing, one-day-stale forex/crypto features, a one-bar entry lag and the max-holding age exit - and report "
         "it next to the idealized run (ml/evaluation/rank_book_simulation_as_live.json), with and without the "
@@ -5993,106 +6675,106 @@ def build_parser() -> argparse.ArgumentParser:
     )
     evaluate_parser.add_argument(
         "--audit-backtest", action="store_true",
-        help="V5.5.0: order-level audit of one finished Lean backtest folder (exposure per asset class, book-member "
+        help="Order-level audit of one finished Lean backtest folder (exposure per asset class, book-member "
         "vs non-member entries, overlapping limit orders, holding periods, fees, Sharpe with and without a "
         "risk-free rate, gate vetoes, engine-log teardown) -> ml/evaluation/backtest_audit.json. Needs no dataset "
         "or model. Not included in --all.",
     )
     evaluate_parser.add_argument(
         "--backtest-dir", default=None,
-        help="V5.5.0: with --audit-backtest or --audit-fills, the backtests/<timestamp> folder to audit (default: the newest).",
+        help="With --audit-backtest or --audit-fills, the backtests/<timestamp> folder to audit (default: the newest).",
     )
     evaluate_parser.add_argument(
         "--period", action="append", default=None, metavar="START..END",
-        help="V5.8.0: with --audit-backtest, also summarise this sub-period (ISO dates, repeatable): return, drawdown, Sharpe, "
+        help="With --audit-backtest, also summarise this sub-period (ISO dates, repeatable): return, drawdown, Sharpe, "
         "closed trades and realized P&L per class - BT2 spans the backtest split and the holdout and is judged on each.",
     )
     evaluate_parser.add_argument(
         "--attribute-lean", action="store_true",
-        help="V6.0.0: one finished Lean run's daily P&L rebuilt per ticker from its order events and the data zips' closes, "
+        help="One finished Lean run's daily P&L rebuilt per ticker from its order events and the data zips' closes, "
         "split into main book / legacy signal / bond and forex sleeves / crypto core and graduates, fees per route, and "
         "reconciled with Lean's equity curve (--backtest-dir, --period, --book-history-file) -> "
         "ml/evaluation/lean_attribution.json. Needs no dataset or model.",
     )
     evaluate_parser.add_argument(
         "--lean-monte-carlo", action="store_true",
-        help="V6.1.0: block-bootstrap a finished Lean run's own daily equity returns (--backtest-dir, --mc-runs, "
+        help="Block-bootstrap a finished Lean run's own daily equity returns (--backtest-dir, --mc-runs, "
         "--mc-block-size, --mc-seed) -> ml/evaluation/monte_carlo_lean.json; the README Monte Carlo block shows it next to "
         "the offline book. Needs no dataset or model.",
     )
     evaluate_parser.add_argument(
         "--lean-stats", action="store_true",
-        help="V6.2.0: a finished Lean run's printed Sharpe / Sortino / PSR next to an exact replica of Lean's formulas on the "
-        "shipped and the pre-V6.2 risk-free file, at 252 and 365 days a year (--backtest-dir, --interest-rate-file, "
+        help="A finished Lean run's printed Sharpe / Sortino / PSR next to an exact replica of Lean's formulas on the "
+        "shipped and the older risk-free file, at 252 and 365 days a year (--backtest-dir, --interest-rate-file, "
         "--trading-days) -> ml/evaluation/lean_stats_<run>.json. Needs no dataset or model.",
     )
     evaluate_parser.add_argument(
         "--forward-ledger", action="store_true",
-        help="V6.6.0: verify the forward ledger's hash chain and judge each frozen candidate (sessions, Sharpe, alpha t, what this many "
+        help="Verify the forward ledger's hash chain and judge each frozen candidate (sessions, Sharpe, alpha t, what this many "
         "sessions can show), read from the branch the scheduled Action writes (--ledger-branch) or a file (--ledger-file). Exit 1 on a broken chain.",
     )
     evaluate_parser.add_argument("--ledger-branch", default=None, help="the forward ledger's branch (default forward-ledger)")
     evaluate_parser.add_argument("--ledger-file", default=None, help="read the forward ledger from this file instead of its branch")
     evaluate_parser.add_argument(
         "--data-dir", default=None,
-        help="V6.6.0: the Lean run's data root for --alpha-proof (data_wide, data_crypto_wide; default data): closes read from any other root come back empty.",
+        help="The Lean run's data root for --alpha-proof (data_wide, data_crypto_wide; default data): closes read from any other root come back empty.",
     )
     evaluate_parser.add_argument(
         "--alpha-proof", action="store_true",
-        help="V6.4.4: proof of alpha for one finished Lean run (--backtest-dir, default the README pin or the newest run): "
+        help="Proof of alpha for one finished Lean run (--backtest-dir, default the README pin or the newest run): "
         "the strategy without its T-bill sweep, per period (full / backtest / holdout / the fresh weeks after 2026-10-16) - "
         "Sharpe with a bootstrap 95%% interval, alpha against SPY / AGG / BTC with a Newey-West t, PSR and the deflated "
         "Sharpe over the trial registry - and the descriptive R-ALPHA1 verdict -> ml/evaluation/alpha_proof.json.",
     )
     evaluate_parser.add_argument(
         "--backtest-stats", action="store_true",
-        help="V6.3.0: the README's Backtest Statistics for one finished Lean run (--backtest-dir, default the README pin or "
+        help="The README's Backtest Statistics for one finished Lean run (--backtest-dir, default the README pin or "
         "the newest run): general characteristics, performance, runs and drawdowns, implementation shortfall, efficiency "
         "(PSR, deflated Sharpe), classification scores and per-class attribution, for the portfolio and the strategy without "
         "its T-bill sweep -> ml/evaluation/backtest_statistics.json. Needs no dataset or model.",
     )
     evaluate_parser.add_argument(
         "--lean-report", action="store_true",
-        help="V6.3.0: every run-folder tool for one finished Lean run in order (--lean-stats, --lean-monte-carlo, "
+        help="Every run-folder tool for one finished Lean run in order (--lean-stats, --lean-monte-carlo, "
         "--audit-backtest with the config's backtest and holdout periods, --attribute-lean, --audit-fills, --backtest-stats), "
         "then the README. With --backtest-dir it also pins the README to that run. `aq backtest` runs it automatically.",
     )
     evaluate_parser.add_argument(
         "--classification", action="store_true",
-        help="V6.3.0: accuracy / precision / recall / F1 / negative log-loss of the --model's direction_20d head on --split "
+        help="Accuracy / precision / recall / F1 / negative log-loss of the --model's direction_20d head on --split "
         "-> ml/evaluation/classification_scores_<model>.json (the Backtest Statistics' offline rows). Included in --all.",
     )
     evaluate_parser.add_argument(
         "--classification-parity", action="store_true",
-        help="V6.4.0 (R-L11): a Lean run's logged book-call probabilities (diagnostics.book_history.include_probabilities) "
+        help="A Lean run's logged book-call probabilities (diagnostics.book_history.include_probabilities) "
         "against the same direction_20d head scored offline on the same rows, to a pre-registered tolerance "
         "(--backtest-dir, --dataset) -> ml/evaluation/classification_parity.json. Needs the dataset and the model.",
     )
     evaluate_parser.add_argument(
         "--paper-check", action="store_true",
-        help="V6.4.0 (L12): the paper-period checklist (veto rate, exposure, fills, slippage, fees, strategy vs sweep P&L, "
+        help="The paper-period checklist (veto rate, exposure, fills, slippage, fees, strategy vs sweep P&L, "
         "turnover) of --backtest-dir (a paper or Lean run folder, optionally --start/--end) against the bands of the "
         "contiguous 6-rebalance windows of --reference-dir (default: the README pin) -> ml/evaluation/paper_check.json.",
     )
-    evaluate_parser.add_argument("--reference-dir", default=None, help="V6.4.0: with --paper-check, the reference Lean run (default: the README pin).")
-    evaluate_parser.add_argument("--start", default=None, help="V6.4.0: with --paper-check, first date (YYYY-MM-DD) of the window to check.")
-    evaluate_parser.add_argument("--end", default=None, help="V6.4.0: with --paper-check, last date (YYYY-MM-DD) of the window to check.")
+    evaluate_parser.add_argument("--reference-dir", default=None, help="With --paper-check, the reference Lean run (default: the README pin).")
+    evaluate_parser.add_argument("--start", default=None, help="With --paper-check, first date (YYYY-MM-DD) of the window to check.")
+    evaluate_parser.add_argument("--end", default=None, help="With --paper-check, last date (YYYY-MM-DD) of the window to check.")
     evaluate_parser.add_argument(
         "--interest-rate-file", default=None,
-        help="V6.2.0: with --lean-stats, price the run on this risk-free file only (Lean's interest-rate.csv format).",
+        help="With --lean-stats, price the run on this risk-free file only (Lean's interest-rate.csv format).",
     )
     evaluate_parser.add_argument(
         "--trading-days", type=int, default=None,
-        help="V6.2.0: with --lean-stats, annualise with this many days a year only (default: both 252 and 365).",
+        help="With --lean-stats, annualise with this many days a year only (default: both 252 and 365).",
     )
     evaluate_parser.add_argument(
         "--book-history-file", default=None,
-        help="V6.0.0: with --attribute-lean, the run's per-run book history (default: the visualization/book_history/*.jsonl "
+        help="With --attribute-lean, the run's per-run book history (default: the visualization/book_history/*.jsonl "
         "that started closest to the run folder's timestamp).",
     )
     evaluate_parser.add_argument(
         "--audit-fills", action="store_true",
-        help="V5.7.0: every fill of one finished Lean backtest against the dataset's open and the Lean zip's own open, per "
+        help="Every fill of one finished Lean backtest against the dataset's open and the Lean zip's own open, per "
         "asset class and order type, plus the dataset-vs-zip gap on the traded dates -> ml/evaluation/fill_price_audit.json. "
         "Needs no model. Not included in --all.",
     )
@@ -6103,95 +6785,95 @@ def build_parser() -> argparse.ArgumentParser:
     )
     evaluate_parser.add_argument(
         "--max-open-sessions", type=int, default=None,
-        help="V5.7.0: with --audit-backtest, flag limit orders open longer than this many weekday sessions "
+        help="With --audit-backtest, flag limit orders open longer than this many weekday sessions "
         "(default: phase_v2.limit_orders.unfilled_timeout_bars + 1; the timeout is counted in equity bars, so calendar "
         "days over a weekend made correct cancellations look stale).",
     )
     evaluate_parser.add_argument(
         "--factor-exposure", action="store_true",
-        help="V5.5.0: regress the rank book's daily net returns on SPY and a momentum factor (R2, loadings, "
+        help="Regress the rank book's daily net returns on SPY and a momentum factor (R2, loadings, "
         "alpha Sharpe) -> ml/evaluation/factor_exposure.json. Opt-in, not included in --all.",
     )
     evaluate_parser.add_argument(
         "--calibrate-volatility-threshold", action="store_true",
-        help="V5.5.0: per-asset-class percentile of realized annualized volatility, with a suggested "
+        help="Per-asset-class percentile of realized annualized volatility, with a suggested "
         "phase_v2.topology.elevated_volatility_threshold (crypto sits structurally above the global 0.45 cutoff). "
         "Opt-in, not included in --all.",
     )
     evaluate_parser.add_argument(
         "--volatility-threshold-percentile", type=float, default=0.80,
-        help="V5.5.0: with --calibrate-volatility-threshold, the percentile used as the cutoff (default: 0.80).",
+        help="With --calibrate-volatility-threshold, the percentile used as the cutoff (default: 0.80).",
     )
     evaluate_parser.add_argument(
         "--ic-by-class", action="store_true",
-        help="V5.8.0: within- vs between-asset-class rank IC of the live blended score on --split "
+        help="Within- vs between-asset-class rank IC of the live blended score on --split "
         "(-> ml/evaluation/class_ic_audit.json). Needs the model and dataset. Not included in --all.",
     )
     evaluate_parser.add_argument(
         "--audit-gates", action="store_true",
-        help="V5.8.0: the rolling-IC gate's own reading vs the fully resolved IC on every date of --split, false-veto "
+        help="The rolling-IC gate's own reading vs the fully resolved IC on every date of --split, false-veto "
         "share and lag (-> ml/evaluation/gate_audit.json). Not included in --all.",
     )
     evaluate_parser.add_argument(
         "--audit-data", action="store_true",
-        help="V5.8.0: audit every universe zip (coverage, gaps, suspicious moves, OHLC sanity, quote coverage, factor "
+        help="Audit every universe zip (coverage, gaps, suspicious moves, OHLC sanity, quote coverage, factor "
         "files) and write a size+SHA-256 manifest of the data root (-> ml/evaluation/data_audit.json). No model.",
     )
     evaluate_parser.add_argument(
-        "--data-root", default=None, help="V5.8.0: with --audit-data, the Lean data root to audit (default: data).",
+        "--data-root", default=None, help="With --audit-data, the Lean data root to audit (default: data).",
     )
     evaluate_parser.add_argument(
         "--audit-heads", action="store_true",
-        help="V5.8.0: every model head and submodel against its own promotion gate, marking what the live path reads "
+        help="Every model head and submodel against its own promotion gate, marking what the live path reads "
         "(-> ml/evaluation/head_audit.json). Reads only ml/*_training_metrics.json.",
     )
     evaluate_parser.add_argument(
         "--audit-leakage", action="store_true",
-        help="V6.4.3: label/feature leakage audit - tail NaN, label shuffle, single-feature IC, asset-identity prior "
+        help="Label/feature leakage audit - tail NaN, label shuffle, single-feature IC, asset-identity prior "
         "(-> ml/evaluation/leakage_audit.json).",
     )
     evaluate_parser.add_argument(
         "--overfit-report", action="store_true",
-        help="V6.4.3: train / validation / backtest rank IC per head and the gap (-> ml/evaluation/overfit_report.json).",
+        help="Train / validation / backtest rank IC per head and the gap (-> ml/evaluation/overfit_report.json).",
     )
     evaluate_parser.add_argument(
         "--pbo", action="store_true",
-        help="V6.4.3: probability of backtest overfitting (CSCV) over a trials' daily-returns table (-> ml/evaluation/pbo.json).",
+        help="Probability of backtest overfitting (CSCV) over a trials' daily-returns table (-> ml/evaluation/pbo.json).",
     )
     evaluate_parser.add_argument(
         "--trial-returns", default=None,
-        help="V6.4.3: with --pbo, a parquet/csv of daily returns, one column per trial (default: ml/evaluation/v643/trial_returns.parquet).",
+        help="With --pbo, a parquet/csv of daily returns, one column per trial (default: ml/evaluation/v643/trial_returns.parquet).",
     )
     evaluate_parser.add_argument(
         "--factor-spanning", action="store_true",
-        help="V6.4.3: regress a signal's long/short return on five factor baselines; needs --signal "
+        help="Regress a signal's long/short return on five factor baselines; needs --signal "
         "(-> ml/evaluation/factor_spanning.json).",
     )
     evaluate_parser.add_argument(
-        "--signal", default=None, help="V6.4.3: with --factor-spanning, a CSV of date,ticker,score.",
+        "--signal", default=None, help="With --factor-spanning, a CSV of date,ticker,score.",
     )
     evaluate_parser.add_argument(
         "--calibrate-sim-lean", action="store_true",
-        help="V6.4.3: decompose the offline-vs-Lean gap of a scripts/lean_calibration.py report rung by rung; needs "
+        help="Decompose the offline-vs-Lean gap of a scripts/lean_calibration.py report rung by rung; needs "
         "--calibration-file (-> ml/evaluation/sim_lean_gap.json).",
     )
     evaluate_parser.add_argument(
-        "--calibration-file", default=None, help="V6.4.3: with --calibrate-sim-lean, the lean_calibration.py JSON report.",
+        "--calibration-file", default=None, help="With --calibrate-sim-lean, the lean_calibration.py JSON report.",
     )
     evaluate_parser.add_argument(
         "--audit-features", action="store_true",
-        help="V5.8.0: model-input feature quality - ticker-ID suspects, class-constant features, per-split IC sign "
+        help="Model-input feature quality - ticker-ID suspects, class-constant features, per-split IC sign "
         "(-> ml/evaluation/feature_quality_audit.json).",
     )
     evaluate_parser.add_argument(
         "--permutation", action="store_true",
-        help="V5.8.0: with --audit-features, also the multitask model's validation IC drop per shuffled feature (slow).",
+        help="With --audit-features, also the multitask model's validation IC drop per shuffled feature (slow).",
     )
     evaluate_parser.add_argument(
         "--dataset", default=None,
-        help="V5.8.0: with --ic-by-class / --audit-gates / --audit-features / --reconcile-features / --reconcile-book-history "
-        "(V6.0.0: also --audit-fills and the rank-book runs), a dataset CSV other than ml/datasets/full_dataset.csv, which "
-        "since V6.0.0 holds the V5.8.0 window with all four splits (train / validation / backtest / holdout).",
+        help="With --ic-by-class / --audit-gates / --audit-features / --reconcile-features / --reconcile-book-history "
+        " (also --audit-fills and the rank-book runs), a dataset CSV other than ml/datasets/full_dataset.csv, which "
+        "holds all four splits (train / validation / backtest / holdout).",
     )
     evaluate_parser.add_argument("--model", choices=["sequence", "multitask"], default=None, help="Default: sequence")
     evaluate_parser.add_argument("--head", default=None, help="Model head to evaluate, e.g. rank_20d/rank_5d (default: rank_20d)")
@@ -6201,6 +6883,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Overlay phase_v2.presets.<name> in memory only (never writes config.json) - see `aq config preset --list`",
     )
     evaluate_parser.add_argument("--json", action="store_true", help="Print the full report as JSON instead of a summary")
+    evaluate_parser.add_argument("--list", action="store_true", help="List the tool groups and their flags, and stop")
     evaluate_parser.set_defaults(func=cmd_evaluate)
 
     render_lean_parser = subparsers.add_parser(
@@ -6211,6 +6894,8 @@ def build_parser() -> argparse.ArgumentParser:
     render_lean_parser.add_argument("--out", default=None, help="Rendered secret-bearing output (default: lean.live.json)")
     render_lean_parser.add_argument("--env-file", dest="env_file", default=None, help="Secrets file (default: .env.live)")
     render_lean_parser.add_argument("--account", default=None, help="Render one account's secrets (AETHER_<ACCOUNT>_*) into lean.live.<account>.json")
+    render_lean_parser.add_argument("--dry-run", action="store_true", help="Print the field names that would be filled (never values), write nothing")
+    render_lean_parser.add_argument("--check", action="store_true", help="Exit 1 when the rendered file is missing or differs from what the secrets give")
     render_lean_parser.set_defaults(func=cmd_render_lean_config)
 
     users_parser = subparsers.add_parser("users", help="Dashboard and API users: viewer, operator (may lock an account), admin (may unlock)")
@@ -6219,9 +6904,14 @@ def build_parser() -> argparse.ArgumentParser:
     users_add_parser.add_argument("name")
     users_add_parser.add_argument("--role", default="viewer", help="viewer, operator or admin")
     users_add_parser.add_argument("--accounts", default="*", help="Comma-separated account ids this user may act on (default: all)")
-    users_subparsers.add_parser("list", help="Every user, role and account scope (no tokens)")
+    users_list_parser = users_subparsers.add_parser("list", help="Every user, role and account scope (no tokens)")
+    users_list_parser.add_argument("--json", action="store_true", help="Print JSON instead of text")
+    users_rotate_parser = users_subparsers.add_parser("rotate", help="Issue a user a new token (printed once); the old one stops working")
+    users_rotate_parser.add_argument("name")
+    users_rotate_parser.add_argument("--yes", action="store_true", help="Confirm without a prompt (needed without a terminal)")
     users_remove_parser = users_subparsers.add_parser("remove", help="Remove a user (revokes their token)")
     users_remove_parser.add_argument("name")
+    users_remove_parser.add_argument("--yes", action="store_true", help="Confirm without a prompt (needed without a terminal)")
     users_parser.set_defaults(func=cmd_users)
 
     live_readiness_parser = subparsers.add_parser("live-readiness", help="The paper-to-live scorecard: every condition for live capital, measured (exit 1 unless ready)")
@@ -6235,18 +6925,25 @@ def build_parser() -> argparse.ArgumentParser:
 
     accounts_parser = subparsers.add_parser("accounts", help="The account registry (accounts.json): list, validate, status of each deployment")
     accounts_subparsers = accounts_parser.add_subparsers(dest="accounts_command", required=True)
-    accounts_subparsers.add_parser("list", help="Every account and its broker, environment and mode")
-    accounts_subparsers.add_parser("validate", help="Parse accounts.json against config.json: ids, brokers, overrides that only tighten")
+    accounts_list_parser = accounts_subparsers.add_parser("list", help="Every account and its broker, environment and mode")
+    accounts_list_parser.add_argument("--json", dest="print_json", action="store_true", help="Print JSON instead of text")
+    accounts_validate_parser = accounts_subparsers.add_parser("validate", help="Parse accounts.json against config.json: ids, brokers, overrides that only tighten")
+    accounts_validate_parser.add_argument("--json", dest="print_json", action="store_true", help="Print JSON instead of text")
     accounts_status_parser = accounts_subparsers.add_parser("status", help="Each account's secrets (resolved or not) and last state")
     accounts_status_parser.add_argument("--json", default=None, metavar="FILE", help="Also write the rows")
     accounts_parser.set_defaults(func=cmd_accounts)
 
     live_parser = subparsers.add_parser("live", help="Start or stop one account's Lean live deployment (docker compose lean-live)")
     live_subparsers = live_parser.add_subparsers(dest="live_command", required=True)
-    for _live_name, _live_help in (("up", "Start the account's live/paper deployment"), ("down", "Stop and remove it")):
+    for _live_name, _live_help in (("up", "Start the account's live/paper deployment"), ("down", "Stop and remove it"), ("status", "Whether the account's container runs")):
         _live_sub = live_subparsers.add_parser(_live_name, help=_live_help)
         _live_sub.add_argument("--account", default="", help="The account id (default: the default account)")
+        if _live_name == "status":
+            _live_sub.add_argument("--json", action="store_true", help="Print JSON instead of text")
+            continue
         _live_sub.add_argument("--dry-run", action="store_true", help="Print the commands instead of running them")
+        if _live_name == "up":
+            _live_sub.add_argument("--yes", action="store_true", help="Confirm a live (real-money) start without a prompt")
     live_parser.set_defaults(func=cmd_live)
 
     secrets_parser = subparsers.add_parser("secrets", help="Where each credential comes from (file, Docker secret, env, keyring), and keyring storage; never prints a value")
@@ -6258,12 +6955,14 @@ def build_parser() -> argparse.ArgumentParser:
     secrets_set_parser.add_argument("name", help="e.g. IB_PASSWORD, COINBASE_API_SECRET")
     secrets_delete_parser = secrets_subparsers.add_parser("delete", help="Remove a secret from the OS keyring")
     secrets_delete_parser.add_argument("name")
+    secrets_delete_parser.add_argument("--yes", action="store_true", help="Confirm without a prompt (needed without a terminal)")
     secrets_parser.set_defaults(func=cmd_secrets)
 
     secrets_check_parser = subparsers.add_parser(
         "secrets-check",
         help="Fail if a populated secret field in lean.json or a tracked .env is about to be committed (backs the pre-commit hook)",
     )
+    secrets_check_parser.add_argument("--json", action="store_true", help="Print the findings as JSON (field names only, never values)")
     secrets_check_parser.set_defaults(func=cmd_secrets_check)
 
     audit_log_parser = subparsers.add_parser(
@@ -6276,32 +6975,90 @@ def build_parser() -> argparse.ArgumentParser:
     audit_log_parser.add_argument("--since", default=None, type=_iso_date, help="Only entries after this date, ISO 8601 YYYY-MM-DD")
     audit_log_parser.add_argument("--limit", type=int, default=100, help="Max entries to show (default: 100)")
     audit_log_parser.add_argument("--verify", action="store_true", help="Walk the whole hash chain and report the first break, if any")
+    audit_log_parser.add_argument("--until", default=None, type=_iso_date, help="Only entries on or before this date, ISO 8601 YYYY-MM-DD")
+    audit_log_parser.add_argument("--export", default=None, metavar="FILE", help="Write the matching entries as JSON lines")
+    audit_log_parser.add_argument("--json", action="store_true", help="Print the entries as JSON")
     audit_log_parser.set_defaults(func=cmd_audit_log)
 
     docs_parser = subparsers.add_parser("docs", help="Keep the numbers quoted in the docs true")
     docs_subparsers = docs_parser.add_subparsers(dest="docs_command", required=True)
     docs_sync_parser = docs_subparsers.add_parser("sync", help="Rewrite every <!--fact:key--> value and generated AQ block from its source")
     docs_sync_parser.add_argument("--check", action="store_true", help="Change nothing; exit 1 if a value is stale")
+    docs_sync_parser.add_argument("--json", action="store_true", help="Print the stale and unknown keys as JSON")
     docs_sync_parser.set_defaults(func=cmd_docs_sync)
+    import aq_devtools as _devtools
+
+    docs_build_parser = docs_subparsers.add_parser("build", help="Build the documentation site (scripts/build_docs.py, then mkdocs build)")
+    docs_build_parser.add_argument("--strict", action="store_true", help="Fail on any warning, as CI's docs job does")
+    docs_build_parser.set_defaults(func=_devtools.cmd_docs_extra)
+    docs_serve_parser = docs_subparsers.add_parser("serve", help="Serve the site locally with live reload")
+    docs_serve_parser.add_argument("--port", type=int, default=8000, help="Port (default 8000)")
+    docs_serve_parser.set_defaults(func=_devtools.cmd_docs_extra)
+    docs_cli_parser = docs_subparsers.add_parser("cli", help="Regenerate docs/reference/cli.md from the parser")
+    docs_cli_parser.add_argument("--check", action="store_true", help="Change nothing; exit 1 if the page is stale")
+    docs_cli_parser.set_defaults(func=_devtools.cmd_docs_extra)
+    docs_links_parser = docs_subparsers.add_parser("links", help="Every relative link and anchor in the docs resolves (exit 1 on a broken one)")
+    docs_links_parser.add_argument("--external", action="store_true", help="Also check http(s) links (network)")
+    docs_links_parser.add_argument("--json", action="store_true", help="Print the broken links as JSON")
+    docs_links_parser.set_defaults(func=_devtools.cmd_docs_extra)
 
     verify_parser = subparsers.add_parser("verify", help="Every way to verify the project: the table, and the checks a small machine can run")
     verify_parser.add_argument("--list", action="store_true", help="Print the table of verification surfaces (default)")
     verify_parser.add_argument("--quick", action="store_true", help="Run the checks that fit a 4 GB machine: ruff, doc facts, the library gate, the sorry scan, secrets, the guard tests")
     verify_parser.add_argument("--record", default=None, metavar="FILE", help="Run --quick and write the results as JSON")
     verify_parser.add_argument("--write-doc", action="store_true", help="Regenerate the table in development/verification.md")
+    verify_parser.add_argument("--json", action="store_true", help="With --quick: print the results as JSON")
     verify_parser.set_defaults(func=cmd_verify)
 
-    status_parser = subparsers.add_parser("status", help="Show git status")
-    status_parser.set_defaults(func=cmd_status)
+    import aq_devtools
+    import aq_lab_cli
+    import aq_testtools
 
+    aq_devtools.register(subparsers)
+    aq_testtools.register(subparsers)
+    aq_lab_cli.register(subparsers)
+    _finish_parsers(parser)
     return parser
 
 
+def run_command(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
+    """The command's exit code; Ctrl-C is 130, and an unexpected error is one line (the traceback with --debug or AQ_DEBUG=1)."""
+    if getattr(args, "version", False) and not getattr(args, "command", None):
+        import aq_devtools
+
+        print(aq_devtools._render_version(aq_devtools.version_info()).splitlines()[0])
+        return 0
+    if not getattr(args, "command", None):
+        parser.print_help()
+        return 2
+    try:
+        return int(args.func(args) or 0)
+    except KeyboardInterrupt:
+        print("aq: interrupted", file=sys.stderr)
+        return 130
+    except Exception as error:  # the top of the CLI: every command's unexpected failure ends here as one line
+        if getattr(args, "debug", False) or os.environ.get("AQ_DEBUG"):
+            raise
+        print(f"aq {args.command}: {type(error).__name__}: {error} (rerun with --debug for the traceback)", file=sys.stderr)
+        return 1
+
+
+def _safe_streams() -> None:
+    """A Windows console in cp1252 cannot print the status marks (✓, 🟢); replace what it cannot encode instead of crashing."""
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(errors="replace")
+        except (AttributeError, ValueError):  # a replaced stream (pytest's capture) has no reconfigure
+            pass
+
+
 def main(argv: list[str] | None = None) -> None:
+    _safe_streams()
     parser = build_parser()
     args = parser.parse_args(argv)
-    exit_code = args.func(args)
-    check_for_update()
+    exit_code = run_command(args, parser)
+    if sys.stderr.isatty() and not getattr(args, "json", False):
+        check_for_update()
     sys.exit(exit_code)
 
 

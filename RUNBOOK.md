@@ -5,11 +5,14 @@ What to run day to day, and what to do when something goes wrong. Setup is in th
 ## Everyday commands
 
 ```powershell
+aq status                                                # at session start: branch, CI of HEAD, the hook, Dependabot PRs, running Codespaces
+aq doctor                                                # is this machine set up (each failure with its fix)
 aq test                                                  # the suite (never bare pytest from the root, #8)
 aq evaluate --lean-report --backtest-dir backtests/<run> # every report for a finished run, and the README
-aq report <backtest-folder> <result-id>                  # Lean's own HTML report
+aq report [<backtest-folder> [<result-id>]]              # Lean's own HTML report (no arguments: the newest runs)
 aq cycle status                                          # what is due today
 aq verify --quick                                        # what a 4 GB machine can check; `aq verify --list` lists every other way (development/verification.md)
+aq ci status --watch                                     # after a push: every workflow of HEAD until it finishes (aq ci logs <run> on red)
 aq api                                                   # API on :8001
 aq webui                                                 # dashboard on :3002 (from webui/)
 ```

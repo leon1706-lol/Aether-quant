@@ -1,0 +1,16 @@
+# {name} (linear template). Values here override lab.toml; aq lab train {name} --set train.lr=3e-4 overrides both for one run.
+[model]
+template = "linear"
+ridge = 1.0
+
+[data]
+features = "all"             # or a list: ["ret_20", "vol_20"]
+target = "target_rank_20d"
+
+[train]
+loss = "mse"   # the linear template always fits least squares
+epochs = 30
+batch_dates = 16
+lr = 0.001
+patience = 5
+seeds = [7]

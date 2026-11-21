@@ -1,0 +1,11 @@
+"""{name}: a plain feed-forward network (the production baseline, lab.architectures.AetherNet) scoring one head.
+
+Change the network here; the lab trains, evaluates and exports whatever `build` returns, as long as calling it on a
+(rows, features) tensor gives one score per row, or a dict with the head's name.
+"""
+
+from lab.architectures import AetherNet
+
+
+def build(n_features, heads, *, hidden=(64, 32), dropout=0.1, **_):
+    return AetherNet(input_dim=n_features, hidden_layers=list(hidden), dropout=float(dropout))

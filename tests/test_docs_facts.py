@@ -242,3 +242,10 @@ def test_the_changelog_block_lists_the_latest_phases_newest_first(tmp_path):
 def test_the_site_nav_skips_comment_lines(tmp_path):
     (tmp_path / "mkdocs.yml").write_text("site_name: x\nnav:\n  # a comment\n  - Home: index.md\n  - Guide:\n      - Signals: guide/signals.md\ntheme: x\n", encoding="utf-8")
     assert docs_facts.docs_site_nav(tmp_path) == [("Home", [("", "index.md")]), ("Guide", [("Signals", "guide/signals.md")])]
+
+
+def test_the_cli_reference_block_is_the_parser_rendered():
+    block = docs_facts.cli_reference_block()
+    assert "`aq hooks coverage`" in block and "| `--once` |" in block and "`aq lab train`" in block
+    assert "<run" not in block.replace("```text", ""), "help text with <...> is escaped so the docs site shows it"
+    assert "CLI_REFERENCE" in docs_facts.compute_blocks(ROOT)

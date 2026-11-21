@@ -1,12 +1,9 @@
 #!/bin/sh
-# Aether Quant pre-commit secret guard (Phase V2-22 security).
+# Aether Quant pre-commit gate. In order: no committed secret (`aq secrets-check`), the library gate, the formal
+# inventory, every install hash-pinned, ruff on the staged .py files, and 100% coverage of the changed modules.
 #
-# Blocks a commit that would publish a secret: a populated secret field in the
-# tracked lean.json, or a tracked real `.env` file. All detection lives in
-# `aq secrets-check` (execution/secret_scan.py) - this hook just invokes it.
-#
-# Enable once per clone (opt-in, so it never surprises a fresh checkout):
-#     git config core.hooksPath .githooks
+# Install once per clone: `aq hooks install` (a wrapper in .git/hooks, so the Git LFS hooks keep working).
+# `aq check` runs this without committing; `aq hooks status` shows its state.
 #
 # Runs under git's POSIX sh (git-bash on Windows), so keep it portable.
 
@@ -50,10 +47,30 @@ elif command -v python3 >/dev/null 2>&1; then
     python3 scripts/scorecard_pins.py
 fi
 
-# V6.6.7 (#367) - coverage stays at 100% after every commit (AGENTS.md "Coverage: 100% after every commit"): the tests
-# that name each changed module run under coverage. A full `aq test --coverage` newer than the changes passes at once.
-# Skip only when that full run is what you just did: AQ_SKIP_COVERAGE_HOOK=1 git commit ...
-if [ "${AQ_SKIP_COVERAGE_HOOK:-0}" != "1" ]; then
+# ruff on the staged Python files (AGENTS.md: ruff clean before a commit), well under a second
+staged=$(git diff --cached --name-only --diff-filter=ACMR -- '*.py')
+if [ -n "$staged" ]; then
+    if command -v ruff >/dev/null 2>&1; then
+        ruff check $staged
+    elif command -v python >/dev/null 2>&1; then
+        python -m ruff check $staged
+    fi
+fi
+
+# coverage stays at 100% after every commit (AGENTS.md "Coverage: 100% after every commit"): the tests that name each changed
+# module run under coverage. A full `aq test --coverage` newer than the changes passes at once. Skip it only right after
+# that full run: `aq commit --skip-coverage` (this commit) or `aq hooks coverage off [--once]` (a marker in .git/), both
+# of which come down to the switch below; CI's python-tests still enforces 100%.
+marker=$(git rev-parse --git-path aq-skip-coverage)
+if [ "${AQ_SKIP_COVERAGE_HOOK:-0}" = "1" ]; then
+    echo "pre-commit: coverage gate skipped (AQ_SKIP_COVERAGE_HOOK=1)"
+elif [ -f "$marker" ]; then
+    state=$(cat "$marker")
+    echo "pre-commit: coverage gate skipped ($state; turn it on with: aq hooks coverage on)"
+    if [ "$state" = "once" ]; then
+        rm -f "$marker"
+    fi
+else
     start=$(date +%s)
     if command -v aq >/dev/null 2>&1; then
         aq test --coverage --changed

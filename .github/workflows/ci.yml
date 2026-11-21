@@ -235,7 +235,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        subsystem: [cli, audit, risk, portfolio, features, data-pipeline, webui, ml, retraining, notifications, storage, live, evaluation, formal, meta, scripts]
+        subsystem: [cli, lab, audit, risk, portfolio, features, data-pipeline, webui, ml, retraining, notifications, storage, live, evaluation, formal, meta, scripts]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 

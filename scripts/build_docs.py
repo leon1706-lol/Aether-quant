@@ -62,7 +62,7 @@ def main(argv: list[str] | None = None) -> int:
             if not args.check:
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_text(text, encoding="utf-8", newline="\n")
-    stray = sorted(set(REFERENCE.glob("*.md")) - set(expected_files()) - {REFERENCE / "index.md"})
+    stray = sorted(set(REFERENCE.glob("*.md")) - set(expected_files()) - {REFERENCE / "index.md", REFERENCE / "cli.md"})  # cli.md: aq docs cli
     problems += [f"{path.relative_to(ROOT).as_posix()} documents no facade" for path in stray]
     if not args.check:
         TUTORIALS.mkdir(parents=True, exist_ok=True)

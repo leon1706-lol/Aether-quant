@@ -15,3 +15,4 @@ Signal evaluation, grouped by the job (V6.6.5): forward targets from prices, the
         - purged_embargoed_folds
         - quantile_returns
         - rank_ic_from_arrays
+        - validate_signal_frame

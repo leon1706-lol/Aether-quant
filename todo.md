@@ -4,25 +4,14 @@ The owner's live brief for what to do next; rewritten as objectives change (hist
 `development/Changelog.md` and `development/Problems.md`).
 
 -----
-# Current objective: V6.6.10 — sliced training for small machines, retrain and re-run, a multi-asset research push, proofs for every numeric path, library models, an automated pipeline
+# Current objective: V6.7.1 — CI repair, Dependabot, the `aq` CLI to 10/10, the model lab
 
-**State (2026-11-20): COMPLETE, uncommitted** (the owner commits). Plan: `C:\Users\Blackhead\.claude\plans\groovy-wobbling-treehouse.md`. Evidence: `ml/evaluation/v6610/`. Rules R-LOSS1, R-ALPHA1, R-BOOK2, R-INSTALL3 and R-FLIP1 are written (`evaluation/multi_asset_round.py`, sha256 99d3cdd2…) and recorded in the vault before any score. No Codespace this phase; the retrain runs on this PC with `--memory-profile low`, and Lean on the PC's Docker. Coverage output now lives in `coverage-report/`.
+**State (2026-11-21): in verification.** Plan: `C:\Users\Blackhead\.claude\plans\so-for-the-next-glittery-melody.md`. The agent commits and pushes, then watches CI until green (owner decision). Entries #413-#422 in `development/Problems.md`; the Changelog's "Phase V6.7.1".
+- **Done:** main green (#413, #414), every Dependabot PR applied on main and closed with grouped updates (#415, #416), the CLI audit with every command at 10/10 (`development/cli_audit.md`, enforced by `tests/test_cli_help_surface.py`), the new developer, owner and maintainer commands, the model lab with its data, signal and research commands (#422), the docs (guide, notebook, example, `docs/reference/cli.md`).
+- **Owner steps after the push:** a Docker image rebuild (the networks the live path imports moved to `lab/`, unchanged), a tag (it publishes the example models and proves `aq models install` and `aq release check` against a real release), and the next real `aq backtest --no-publish` to prove #419.
 
-**Clean break (2026-11-18, nothing running, nothing committed).** Done and tested: W1 code (sliced training, `--memory-profile low`, `--estimate`, lowmem-proof CI), the R-LOSS1 losses, `evaluation/alpha_behaviour.py`, W5 (`aq models`, example models, release job), W6 (`aq init`, `aq pipeline`, `model-cycle.yml`), docs pages, `coverage-report/`, Problems #398-#403. W4: inventory gate (ceiling 881) and eight new specs; `aq prove --regen-cases` wrote 37 case files, the 19 formal tests pass, `check_axioms.py` clean (322 theorems).
-
-**State (2026-11-20): research done, final verification running.** Results (Problems #406-#410, Changelog "Phase V6.6.10"):
-- **g0007 retrain (#406):** done on the PC; R-INSTALL3 keeps the installed models (IC 0.065 against 0.050 passes, but Lean BT-R1 `2026-11-20_12-07-55` Sharpe 0.568 < 0.57; the pin is 0.571).
-- **R-LOSS1 (#407):** 0 of 5 new losses beat the control; R-BOOK2 uses g0007's own model.
-- **#408 (fixed):** low-profile walk-forward trainers timed out at 2400 s; timeouts now scale 4x and a failed trainer marks its window for a retry; g0007's windows 8, 9, 11 were repaired and rescored.
-- **R-ALPHA1, R-BOOK2, R-FLIP1 (#409):** ml_a2 is the strongest score (IC 0.078, t 2.70); 0 of 9 R-BOOK2 trials pass R-SLEEVE2 (every second half < 0.40, PBO 0.79); no flip, shares stay 30/70. N is now 258.
-- **#410 (fixed):** the "133 of 171 vetoed by the rolling-IC floor" was an older run's book history; a target-weights run never reaches the member book or its gate, so the floor stays as it is. The audit now says "not applicable" for such a run.
-- **#411 (fixed):** `ml/backups/pre_v630_cleanup.zip` (it held `ml/model.pt`, `ml/scaler.pkl` and the production weights) is untracked, `ml/backups/*.zip` ignored.
-- **#412 (fixed):** the commit hook's coverage failed at 99%. The example-model build left `train_multitask.ML_DIR` pointed at its deleted work folder, so later walk-forward tests lost their multitask lines. Four warnings from this project's own code are fixed too.
-- **Also:** example `examples/aether_quant_models.py`, notebook `04_models`, docs highlights, AGENTS.md "Where things live", the architecture parity row; vault commits for every gate (5e420e00, f7394437, 2fa970ef, a1959397, 152d0dc0, 90264039).
-
-**Verified on this PC:** the full `aq test --coverage` (every tracked module at 100%), the clean checkout (7,384 passed; the two real failures it found are fixed and rechecked clean), five notebooks executed, `mkdocs build --strict`, ruff, the library, inventory and pin gates, the vault code graph; final vault record 407d20bc. **Owner decisions (2026-11-20):** commit and push now, no tag yet (the tag publishes the example models); the models untracked (#411). Still open: a Docker rebuild (no live-path behaviour changed), whether to scrub the old zip from history, and whether the 30% book should trade more (cadence, per-name caps, the forex minimum trade; #410), as a pre-registered round with a Lean run.
-
-**Workstreams:** W1 sliced training (`retraining/slicing.py`, `--memory-profile low`), W2 retrain g0007 and re-run (R-INSTALL3), W3 R-LOSS1 → R-ALPHA1 → R-BOOK2 → R-FLIP1 (70/30 only if earned), W4 Lean specs for every safety path and pure numeric module (`formal/inventory.json`), W5 example models through `aq models` (production models stay private), W6 `aq init`, `aq pipeline run`, `model-cycle.yml`, W7 docs, W8 verification.
+-----
+# Previous objective: V6.6.10 (complete, committed in 997c126)
 
 -----
 # Next: leads and suspected bugs from V6.6.10 (untested; each lead needs a pre-registered round)
@@ -58,20 +47,20 @@ Evidence lives in `ml/evaluation/v6610/` (gitignored): `alpha_behaviour.json`, `
 - **S1. No performance gate acts on the shipped book.** On the target-weights path only the trade locks act (15% drawdown, 5% daily) and the kill switch with its remaining triggers. The rolling-IC gate and the member-decision kill-switch reasons belong to the member book. Decide whether the model book needs its own rolling-IC or Sharpe gate on its own scores; this is the same question as the kill-switch item under "Owner steps".
 
 **Suspected bugs and tooling gaps**
-- **B1. The same stale-run risk as #410 elsewhere.**
+- **B1. The same stale-run risk as #410 elsewhere.** *Done in V6.7.1 (#418).*
   - `aq_cli._default_book_history_path`, which the reconcile tools use, takes the newest per-run file whatever the run's mode.
   - `scripts/sleeve_alpha_check.py` takes the latest segment of the cumulative file.
 
   Both should check `backtest_audit.member_book_runs` on the run's config.
-- **B2. Side effects of Lean runs.**
+- **B2. Side effects of Lean runs.** *Done in V6.7.1 (#419, `aq backtest --no-publish`).*
   - `aq backtest` unpins `ml/evaluation/readme_lean_run.json`, and rewrites the README, `development/research_results.md`, the charts and the `ml/evaluation/*.json` reports.
   - `aq evaluate --audit-backtest` re-renders the README sections too.
 
   A research run needs a no-publish mode. For now: snapshot the hashes, restore, rewrite the pin, and rerun `aq evaluate --lean-report`.
-- **B3. Run configs are not frozen under the run's name.** Lean's `code/` has no `config.json`. BT-R1's config existed only as `v6610_bt_r1.json` until it was copied to `ml/evaluation/run_configs/2026-11-20_12-07-55.json` by hand, and tools fall back to the current config without saying so. `aq backtest` should freeze it.
+- **B3. Run configs are not frozen under the run's name.** *Done in V6.7.1 (#419, frozen under the run's name).* Lean's `code/` has no `config.json`. BT-R1's config existed only as `v6610_bt_r1.json` until it was copied to `ml/evaluation/run_configs/2026-11-20_12-07-55.json` by hand, and tools fall back to the current config without saying so. `aq backtest` should freeze it.
 - **B4. Check the exposure split.** In BT-R1 the mean "Equity - Long Ratio" is 0.89, while the book holds at most 30% outside crypto. This is probably the cash-sweep ETF counted as equity; the audit should list the sweep separately.
-- **B5. Coverage hook skipped.** The V6.6.10 commit skipped the coverage hook; `evaluation/backtest_audit.py`, `aq_cli.py` and `evaluation/pipeline.py` changed after the last full run. Watch CI `python-tests` (100% gate) after the push.
-- **B6. Hypothesis "too_slow" health checks** fail on the 4 GB PC under paging (the cost-model properties among them) and pass alone. Consider a lighter local profile.
+- **B5. Coverage hook skipped.** *Done in V6.7.1 (the full coverage run of V6.7.1).* The V6.6.10 commit skipped the coverage hook; `evaluation/backtest_audit.py`, `aq_cli.py` and `evaluation/pipeline.py` changed after the last full run. Watch CI `python-tests` (100% gate) after the push.
+- **B6. Hypothesis "too_slow" health checks.** *Done in V6.7.1 (#420, `aq test --light-hypothesis`).* They fail on the 4 GB PC under paging (the cost-model properties among them) and pass alone. Consider a lighter local profile.
 - **B7. The old zip is still in git history (#411).** It holds the production weights; removing it needs a history rewrite and a force-push (owner).
 - **B8. Unproven until their first real run:**
   - the `lowmem-proof` CI job (#398);

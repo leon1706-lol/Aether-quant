@@ -30,8 +30,23 @@ from evaluation.backtest_audit import (  # noqa: E402
     _parse_time,
     load_backtest_run,
     load_book_history,
+    member_book_runs,
     select_run_book_history,
 )
+from evaluation.lean_attribution import run_config_path  # noqa: E402
+
+
+def book_history_warning(run_dir: Path, root: Path = ROOT_DIR) -> str | None:
+    """A target-weights run writes no book history, so the segment read belongs to an older member-book run (#418)."""
+    source = run_config_path(run_dir, root) or root / "config.json"
+    try:
+        config = json.loads(source.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if member_book_runs(config):
+        return None
+    return (f"warning: {run_dir.name} traded target weights ({source.name}) and wrote no book history; the book segment read is an "
+            "older member-book run's (pass --book-run-index to choose)")
 
 
 def trade_returns(run: dict, book_history: list[dict], bucket: str = "non_member", asset_class: str = "equity") -> list[dict]:
@@ -90,6 +105,9 @@ def main() -> int:
     args = parser.parse_args()
     run_dir = Path(args.backtest_dir) if args.backtest_dir else sorted(p for p in (ROOT_DIR / "backtests").glob("*") if p.is_dir())[-1]
     run = load_backtest_run(run_dir)
+    warning = book_history_warning(run_dir, ROOT_DIR)
+    if warning:
+        print(warning, file=sys.stderr)
     book_history = select_run_book_history(load_book_history(ROOT_DIR / "visualization" / "book_history.jsonl"), args.book_run_index)
     frame = pd.read_csv(ROOT_DIR / "ml" / "datasets" / "full_dataset.csv", usecols=["date", "ticker", "close"])
     market = frame[frame["ticker"] == args.market].drop_duplicates("date").set_index("date")["close"].sort_index()

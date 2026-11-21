@@ -43,9 +43,13 @@ SURFACES: tuple[Surface, ...] = (
     # --- code style and compatibility
     _s("ruff", "ruff check .", "style and the obvious errors", ["PC", "CI"], "10 s", "stdout", "every change", [PY, "-m", "ruff", "check", "."]),
     _s("vermin", "vermin -t=3.10- --no-tips --violations -q <first-party>", "no source needs more than Python 3.10 (#326)", ["PC", "CI"], "5 s", "stdout; CI python-compat", "every commit"),
+    _s("doctor", "aq doctor", "this machine can run the project: Python, the editable install, the hook, git, gh, Docker, RAM, config.json", ["PC"], "5 s", "stdout (--json)", "a phase"),
+    _s("hook", "aq check", "the pre-commit hook's gates (secrets, library gate, inventory, pins, ruff on staged files, coverage of changed modules) without a commit", ["PC"], "1-20 min", "stdout", "every commit"),
+    _s("docs_links", "aq docs links", "every relative link and heading anchor in the README, docs/, development/ and the sub-readmes resolves", ["PC", "CI"], "5 s", "stdout", "every change", [PY, "-m", "aq_cli", "docs", "links"]),
+    _s("ci_status", "aq ci status --watch", "every workflow of the pushed commit finished green (exit 3 while running)", ["GitHub"], "20-40 min", "GitHub Actions; aq ci logs <run>", "every push"),
     # --- the suite
     _s("suite", "aq test", "the whole offline suite, then the doc facts", ["Codespace", "CI"], "4-6 min (PC: out of memory)", "stdout, coverage-report/coverage.xml", "every commit"),
-    _s("buckets", "aq test --<bucket>", "each of 15 subsystems is self-contained", ["PC", "CI"], "1-2 min each", "stdout", "every commit"),
+    _s("buckets", "aq test --<bucket>", "each of 17 subsystems is self-contained", ["PC", "CI"], "1-2 min each", "stdout", "every commit"),
     _s("guards", "pytest tests/test_ci_workflows.py tests/test_docs_facts.py tests/test_aether_quant_coverage.py ...", "workflows, docs facts, the library gate, packaging, help surface", ["PC", "CI"], "30 s", "stdout; CI fast-guards", "every change", [PY, "-m", "pytest", "-q", "-p", "no:cacheprovider", "tests/test_ci_workflows.py", "tests/test_docs_facts.py", "tests/test_aether_quant_coverage.py", "tests/test_module_has_test.py", "tests/test_formal_no_sorry.py", "tests/test_verification_matrix.py"]),
     _s("clean_checkout", "scripts/clean_checkout_test.ps1 or scripts/codespace_verify.ps1 -Start", "no test depends on a gitignored file; every CI job once, before the push", ["Codespace"], "40-60 min", "/tmp/aq_verify/status, <stage>.log", "a phase"),
     # --- the installed models (V6.6.9, #382)

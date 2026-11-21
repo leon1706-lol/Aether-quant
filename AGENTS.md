@@ -24,6 +24,22 @@ aq cycle status           # generations, shares, decay, what is due (RUNBOOK "Re
 aq docs sync              # refresh numbers quoted in the docs
 aq backtest               # real Lean backtest (Docker, ~1hr+): the owner runs this, never agents
 ruff check .              # must be clean before commit: 14 rule sets, each exclusion's reason in pyproject.toml (the pinned ruff, tools.in)
+aq doctor                 # is this machine set up: Python, the editable install, the hook, git, gh, Docker, RAM, config.json
+aq status                 # branch, CI of HEAD, hook and coverage gate, coverage age, Dependabot PRs, running Codespaces, todo.md
+aq test --impacted        # only the tests that name changed modules, no coverage (--watch reruns on every save)
+aq check                  # the pre-commit hook's gates without committing (--no-coverage skips the slow one)
+aq commit -m "msg" --skip-coverage   # commit through the hook with its coverage gate off for this commit only
+aq hooks coverage off --once         # the same for the next plain git commit (aq hooks coverage on|status)
+aq ci status --watch      # every workflow of HEAD until done; aq ci logs 123 prints a run's failing lines; aq ci local fast-guards
+aq deps prs               # open Dependabot PRs; aq deps apply 58 applies one on main with its locks rebuilt (never commits)
+aq coverage misses --include "risk/*" --by-function   # the last run's uncovered lines
+aq lint                   # ruff (--fix, --types for the typecheck job)
+aq docs cli               # regenerate docs/reference/cli.md from the parser (aq docs sync does it too)
+aq phase check --version V6.7.1  # what the phase still owes: the automatic checks of "After every phase", the rest as reminders
+aq trials count           # the project's N (every trial ledger plus the legacy registry)
+aq codespace list         # billing Codespaces in red (stop, delete --yes)
+aq vault graph --summary "s" --files a.py   # the wrap-up's two vault commands in one
+aq lab train m1           # the model lab (aq lab --help, docs/guide/model-lab.md)
 ```
 
 ## Non-negotiables
@@ -41,7 +57,7 @@ ruff check .              # must be clean before commit: 14 rule sets, each excl
 11. **Latency-aware.** Hot-path code (`main.py` per-bar, `inference/`) allocates nothing new per bar without need, does no per-bar disk I/O, and keeps diagnostics behind default-off flags. Heavy imports stay out of Lean startup (#16).
 12. **Data parity is checked against live, not against code.** A dataset row sees the bars live would have at that tick (`features/cross_asset_timing.py`), and local `data/` and the Codespace's must be file-for-file identical (a push overlays, never deletes). After any feature or dataset change, compare a backtest's `feature_snapshot` with `aq evaluate --reconcile-features`. Don't run a heavy process during `aq backtest` on the PC: `import main` runs under `algorithm-creation-timeout`. CI runs Python 3.11, the dev PC 3.14, the Codespaces pandas 3: test with the stub guards, not by intuition.
 13. **Codespaces bill the owner's budget: on only while a job runs.**
-    - Run `gh codespace list` at the start and end of every session, and stop anything idle.
+    - Run `aq codespace list` (or `gh codespace list`) at the start and end of every session, and stop anything idle (`aq codespace stop --all`).
     - Anything that fits on the dev PC runs locally. Create every Codespace with `--idle-timeout 30m`.
     - The training Codespace is started for one job and stopped once results are pulled.
     - A Lean DinD Codespace bundles every Lean run of a phase into one lifetime, then `gh codespace delete` in the same session (its ~20 GB image is billed storage).
@@ -55,7 +71,8 @@ ruff check .              # must be clean before commit: 14 rule sets, each excl
 |---|---|
 | `main.py` | Lean algorithm entry point |
 | `risk/` · `portfolio/` · `execution/` | Sizing, kill switch · target weights, book construction, HRP, the book optimizers and the model book (`book_optimizer.py`, `model_book.py`), options · order gate, cost model, reconciliation |
-| `features/` · `inference/` · `moe/` | Pure features · model loading and batch inference · gating |
+| `features/` · `inference/` · `moe/` | Pure features (`feature_registry.py`: the named features `aq features` and the lab build) · model loading and batch inference · gating |
+| `lab/` | The model lab (`aq lab`, `aq dataset`): the production networks, losses and training utilities (moved from `train.py`, which re-exports them), datasets, the trainer, runs, evaluation, sweeps, explanations and export; `lab/README.md`, `docs/guide/model-lab.md` |
 | `train.py` · `train_*.py` | Training loop · specialized trainers |
 | `evaluation/` · `retraining/` | Offline eval, research rounds, generations' registry and ledger, `pipeline.py` (`aq pipeline`) · candidate gates, versioning, `slicing.py` (the low memory profile), `run_resume.py` (resumable runs), `model_catalog.py` (the example models) |
 | `ml/artifact_pins.json` · `retraining/artifact_pins.py` | The sha256 of every installed model file, checked before anything scores with them and by `tests/conftest.py` after every suite run |
@@ -68,12 +85,16 @@ ruff check .              # must be clean before commit: 14 rule sets, each excl
 | `experience/` · `audit/` · `monitoring/` · `notifications/` | Redis and Postgres pipeline · hash-chained audit log · FastAPI · Telegram |
 | `data_pipeline/` · `regime/` · `topology/` | Backfills · regime detection · topology overlay |
 | `docs_facts.py` · `json_safety.py` · `performance_probe.py` · `aq_cli.py` | Doc facts · finite-safe JSON · opt-in probes · the CLI |
+| `aq_devtools.py` · `aq_testtools.py` · `aq_lab_cli.py` | The developer and owner commands (hooks, commit, check, doctor, status, ci, deps, coverage, codespace, vault, problems, docs build/cli/links, scaffold, phase) · the `aq test` verbs and `aq bench` · the lab, data, signal, features, overfit, dataset, stack, trials, runs, api-diff, release and health commands |
+| `development/cli_audit.md` · `docs/reference/cli.md` | Every command rated against the 10/10 rubric, with evidence · the generated command reference (`aq docs cli`) |
+| `development/health_history.jsonl` | One dated row per `aq health --history`: lines, tests, backlogs, Problems |
 | `tests/` · `development/` · `webui/` | The suite · docs and logs · React dashboard |
 
 ## Conventions
 
 - **One test file per source module.** Cross-module regressions go in round files (`test_v660_fixes.py`), committed with their fix.
-- **Register every new test file** in `aq_cli.py`'s `_SUBSYSTEM_TEST_FILES`, or subsystem runs silently skip it.
+- **Register every new test file** in `aq_cli.py`'s `_SUBSYSTEM_TEST_FILES`, or subsystem runs silently skip it (`aq test new MODULE` and `aq scaffold module PATH` do it).
+- **A new command meets the 10/10 rubric** in `development/cli_audit.md`: tested at the argv level and on every error path, `--json` where it reads, `--dry-run` where it writes, `--yes` where it deletes or loosens a safety switch, an epilog with examples, a README section naming every flag, one-line errors with the exit-code convention, and a fast `--help`. `tests/test_cli_help_surface.py` enforces it.
 - **Docs move with code:** README and sub-readmes, `development/`, `aq --help` for new flags.
 - **A doc or doc section added is named here,** in "Where things live" or "After every phase", so an agent finds it.
 - **Synthetic worlds first.** `tests/README.md` "Synthetic worlds" names the fake Lean (`main.py`), the trainer and `train.py` worlds and the script loader. A new runtime test uses one rather than a fresh stub.
@@ -92,12 +113,12 @@ ruff check .              # must be clean before commit: 14 rule sets, each excl
 
 Every tracked `.py` outside `tests/` is measured, and the gate is literally 100%. Nothing is excluded but `if TYPE_CHECKING:` (`tests/test_coverage_scope.py`). CI's `python-tests` fails under 100, and the pre-commit hook runs the fast gate.
 
-- **Before every commit: `aq test --coverage --changed`.** The hook runs it. It runs every registered test that names a module changed since HEAD (new files included) and fails on any uncovered line in those files.
+- **Before every commit: `aq test --coverage --changed`.** The hook runs it (`aq check` runs the hook without committing). It runs every registered test that names a module changed since HEAD (new files included) and fails on any uncovered line in those files.
   - A fresh full `coverage-report/coverage.json` that already shows them covered passes at once. Every coverage output (data, json, xml, html, JUnit) lives in `coverage-report/`.
   - More than 40 changed modules means a phase: run `aq test --coverage`.
-  - `AQ_SKIP_COVERAGE_HOOK=1` is only for the commit right after a full run on that tree.
+  - Skipping it is only for the commit right after a full run on that tree: `aq commit -m "..." --skip-coverage`, or `aq hooks coverage off --once` before a plain `git commit` (both set the hook's `AQ_SKIP_COVERAGE_HOOK=1` mechanism; the other gates still run, and CI still enforces 100%).
 - **A new line ships with the test that runs it,** in the module's own `tests/test_<module>.py`, registered in `_SUBSYSTEM_TEST_FILES` (the gate refuses an unregistered test that names the module). Never `# pragma: no cover`, never a new `omit`, never a test that only imports.
-- **Finding misses.** After a run: `python scripts/coverage_misses.py --include "risk/*" --by-function --context 2`. The last full run's `coverage-report/coverage.json` is the worklist.
+- **Finding misses.** After a run: `aq coverage misses --include "risk/*" --by-function --context 2` (`scripts/coverage_misses.py`), and `aq test where risk/kelly.py` for which files test a module. The last full run's `coverage-report/coverage.json` is the worklist.
 - **Use the synthetic worlds, not a fresh stub:**
   - `tests/lean_world.py` with `tests/lean_fakes.py` (main.py against a fake Lean);
   - `tests/train_world.py` with `tests/trainer_fakes.py` (train*.py);
@@ -125,7 +146,7 @@ Lean backtests run on a temporary DinD Codespace (`scripts/codespace_lean_run.ps
 
 ## After every phase: what doesn't update itself
 
-Automatic: the PyPI, CI, CodeQL, Scorecard, coverage and test badges; every `<!--fact:-->` and `AQ:*` block (`aq docs sync`, checked in CI); the site's reference pages; release assets and the Scorecard run that follows a tag. Refresh the rest by hand when its trigger happens:
+Automatic: the PyPI, CI, CodeQL, Scorecard, coverage and test badges; every `<!--fact:-->` and `AQ:*` block (`aq docs sync`, checked in CI), including the command reference in `docs/reference/cli.md`; the site's reference pages; release assets and the Scorecard run that follows a tag. Refresh the rest by hand when its trigger happens:
 
 | Item | Where | Trigger and how |
 |---|---|---|
@@ -144,7 +165,9 @@ Automatic: the PyPI, CI, CodeQL, Scorecard, coverage and test badges; every `<!-
 
 ## Wrap-up checklist
 
-After every code change, from [`development/verification.md`](development/verification.md) (`aq verify --list`): unit tests added; for a new invariant in a safety, admission or ledger path a Lean spec with its differential test (`formal/README.md`, `aq prove`) and a property test; for a new public function the `aether_quant` export (rule 14); `aq verify --quick` on the PC; `aq test --coverage --changed` and `python scripts/scorecard_pins.py`; `aq test` (a Codespace when the PC cannot finish it, #324), `aq test --coverage` at 100%, and ruff green; `aq docs sync`; vault regenerated. Before handing over a commit also run `scripts/clean_checkout_test.ps1` (CI has no gitignored files), or on the 4 GB dev PC `scripts/codespace_verify.ps1 -Start`, which runs every CI job except Windows, the webui image build and `npm audit` on a Codespace. A change to the live path adds Lean on a DinD Codespace and the parity test (rule 6). Install the pre-commit hook once: `python scripts/install_hooks.py`.
+`aq phase check` lists what of this is still open. After every code change, from [`development/verification.md`](development/verification.md) (`aq verify --list`): unit tests added; for a new invariant in a safety, admission or ledger path a Lean spec with its differential test (`formal/README.md`, `aq prove`) and a property test; for a new public function the `aether_quant` export (rule 14); `aq verify --quick` on the PC; `aq test --coverage --changed` and `python scripts/scorecard_pins.py`; `aq test` (a Codespace when the PC cannot finish it, #324), `aq test --coverage` at 100%, and ruff green; `aq docs sync`; vault regenerated. Before handing over a commit also run `scripts/clean_checkout_test.ps1` (CI has no gitignored files), or on the 4 GB dev PC `scripts/codespace_verify.ps1 -Start`, which runs every CI job except Windows, the webui image build and `npm audit` on a Codespace. A change to the live path adds Lean on a DinD Codespace and the parity test (rule 6). Install the pre-commit hook once: `python scripts/install_hooks.py`.
+
+`aq vault graph --summary "..." --files file1.py file2.py` runs both vault commands; by hand:
 
 ```powershell
 cd Aether-quant-Obsidian-Vault
