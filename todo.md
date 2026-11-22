@@ -8,7 +8,7 @@ The owner's live brief for what to do next; rewritten as objectives change (hist
 
 **State (2026-11-21): COMPLETE, pushed (e2ea0d8, 4c60664, 89bac54), CI green on both operating systems.** Plan: `C:\Users\Blackhead\.claude\plans\so-for-the-next-glittery-melody.md`. The agent commits and pushes, then watches CI until green (owner decision). Entries #413-#422 in `development/Problems.md`; the Changelog's "Phase V6.7.1".
 - **Done:** main green (#413, #414), every Dependabot PR applied on main and closed with grouped updates (#415, #416), the CLI audit with every command at 10/10 (`development/cli_audit.md`, enforced by `tests/test_cli_help_surface.py`), the new developer, owner and maintainer commands, the model lab with its data, signal and research commands (#422), the docs (guide, notebook, example, `docs/reference/cli.md`).
-- **Owner steps after the push:** a Docker image rebuild (the networks the live path imports moved to `lab/`, unchanged), a tag (it publishes the example models and proves `aq models install` and `aq release check` against a real release), and the next real `aq backtest --no-publish` to prove #419.
+- **Released 2026-11-22:** tag `v6.7.1` on ef29bab (PyPI 6.7.1, the engine and dashboard images on GHCR, the signed example models); the local engine and dashboard images were rebuilt and smoke-tested. Still open: the next real `aq backtest --no-publish` to prove #419.
 
 -----
 # Previous objective: V6.6.10 (complete, committed in 997c126)
@@ -64,7 +64,7 @@ Evidence lives in `ml/evaluation/v6610/` (gitignored): `alpha_behaviour.json`, `
 - **B7. The old zip is still in git history (#411).** It holds the production weights; removing it needs a history rewrite and a force-push (owner).
 - **B8. Unproven until their first real run:**
   - the `lowmem-proof` CI job (#398);
-  - the `example-models` release job and `aq models install` from a real release (#401, needs the tag);
+  - ~~the `example-models` release job and `aq models install` from a real release (#401)~~ *proved by the v6.7.1 release (2026-11-22)*;
   - `model-cycle.yml` (#402);
   - the proof backlog: 881, with the plan target at 0 (#403).
 - **B9. #321 can close.** g0007 was a real local retrain on the 4 GB PC (#406), which is what #321 waited for.

@@ -15,7 +15,7 @@ A command is 10 only when all six hold. A new command is built to it from the st
 | 5 | **Errors** | One line with the fix, no traceback, exit codes 0 ok / 1 failure / 2 usage / 3 gate failed or still running / 130 interrupted; degrades without Redis, Postgres, IB, Docker, gh or a network (rule 3) | `run_command` (`test_run_command_turns_ctrl_c_and_crashes_into_exit_codes`), `_AqParser` suggestions, each command's error-path tests |
 | 6 | **Fast** | `aq <cmd> --help` well under the old 5.7 s; no heavy import before the command runs | `test_help_is_fast`, `test_importing_aq_cli_loads_no_pandas_numpy_or_torch` (#421) |
 
-**What cannot be proven in an agent session.** Three paths are tested against fakes up to the external boundary and marked "10 (fake-proven)" below: `models install` from a real release (needs a tag), `backtest` against real Lean (owner-only, rule 4), and `live up` against a real broker (needs the keys).
+**What cannot be proven in an agent session.** Two paths are tested against fakes up to the external boundary and marked "10 (fake-proven)" below: `backtest` against real Lean (owner-only, rule 4) and `live up` against a real broker (needs the keys). `models install` was proved against the real v6.7.1 release.
 
 ## Global changes
 
@@ -39,7 +39,7 @@ A command is 10 only when all six hold. A new command is built to it from the st
 | `aq` (global) | 4 | 10 | See "Global changes" | `test_aq_cli_commands.py` (entry points), `test_cli_help_surface.py` |
 | `hello` | 9 | 10 | Epilog | `test_hello_world.py`, `test_aq_cli.py` |
 | `models list/info/score/remove` | 8 | 10 | `remove`; `list/info --json` | `test_aq_models_cli.py` |
-| `models install` | 8 | 10 (fake-proven) | Local zips (`--from`), checked against their own manifest | `test_aq_models_cli.py`, `test_model_catalog.py` |
+| `models install` | 8 | 10 | Local zips (`--from`), checked against their own manifest; proved against the real v6.7.1 release | `test_aq_models_cli.py`, `test_model_catalog.py` |
 | `init` | 8 | 10 | `--force`, `--dry-run` | `test_project_template.py` |
 | `pipeline run/status/validate/list` | 6 | 10 | Python 3.10 crash (#413); `validate`, `list`, `--json` | `test_project_template.py`, `test_pipeline.py` |
 | `train` | 6 | 10 | Companion flags (#417), `--dry-run`, `--list-runs --json` | `test_aq_cli.py`, `test_aq_train_resume.py`, `test_aq_cli_last_branches.py` |

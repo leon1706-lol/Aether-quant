@@ -2,7 +2,7 @@
 
 Every bug and infrastructure issue found in this codebase, oldest first, with how it was fixed or why it stayed open. Numbers never change, because code and docs cite them; #73-76 don't exist, #88's first entry is #88a, and #112 appears twice (the second is marked).
 
-**Entries:** <!--fact:problems.total-->419<!--/fact--> up to #<!--fact:problems.last-->422<!--/fact-->: <!--fact:problems.fixed-->381<!--/fact--> 🟢 `fixed` (changed and verified), <!--fact:problems.partial-->19<!--/fact--> 🟡 `partial` (shipped, verification pending), <!--fact:problems.closed-->20<!--/fact--> 🔴 `closed` (no code fix: declined, moot or superseded). Severity runs from 1 (cosmetic) to 10 (data loss or safety). Full text of older entries: [`backups/`](backups/README.md).
+**Entries:** <!--fact:problems.total-->419<!--/fact--> up to #<!--fact:problems.last-->422<!--/fact-->: <!--fact:problems.fixed-->382<!--/fact--> 🟢 `fixed` (changed and verified), <!--fact:problems.partial-->18<!--/fact--> 🟡 `partial` (shipped, verification pending), <!--fact:problems.closed-->20<!--/fact--> 🔴 `closed` (no code fix: declined, moot or superseded). Severity runs from 1 (cosmetic) to 10 (data loss or safety). Full text of older entries: [`backups/`](backups/README.md).
 
 **Open now** (each needs a broker key, a forward record, a Codespace or the laptop):
 
@@ -2319,13 +2319,13 @@ The model book alone (Lean run `2026-11-17_10-38-53`, same window) has Sharpe 0.
 **Verification:** `tests/test_aq_cli_coverage_changed.py`, `tests/test_aq_cli_last_branches.py`, `tests/test_ci_workflows.py`, `tests/test_coverage_scope.py`.
 
 ### 401. The public library had no models anyone could use (V6.6.10)
-🟡 `partial` · 4/10
+🟢 `fixed` · 4/10
 
 **Problem:** `aether_quant.inference` exposed the numpy forward pass but shipped no model to run it on, and the trading models must stay private.
 
 **Fix:** two example models trained on the bundled sample only (`scripts/build_example_models.py`, which refuses any file whose hash is an installed model's), zipped with a manifest of sha256, built and signed by the release's new `example-models` job; `aether_quant.models` and `aq models list | install | info | score` download them, check the release manifest and the zip's own manifest, and score with numpy. `load` also opens any folder with an exported model.
 
-**Verification:** `tests/test_model_catalog.py`, `tests/test_build_example_models.py`, `tests/test_aq_models_cli.py`, `tests/test_ci_workflows.py`; a local build installed and scored the real sample end to end. Partial until the next tag publishes the assets.
+**Verification:** `tests/test_model_catalog.py`, `tests/test_build_example_models.py`, `tests/test_aq_models_cli.py`, `tests/test_ci_workflows.py`; a local build installed and scored the real sample end to end. Partial until the next tag publishes the assets. The v6.7.1 release (2026-11-22) built, signed and attached both zips and their manifest, and `aq models install example-crypto-mlp --version 6.7.1` downloaded, verified and scored it.
 
 ### 402. Nothing helped a user start a pipeline of their own (V6.6.10)
 🟡 `partial` · 4/10
