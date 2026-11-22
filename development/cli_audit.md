@@ -15,7 +15,7 @@ A command is 10 only when all six hold. A new command is built to it from the st
 | 5 | **Errors** | One line with the fix, no traceback, exit codes 0 ok / 1 failure / 2 usage / 3 gate failed or still running / 130 interrupted; degrades without Redis, Postgres, IB, Docker, gh or a network (rule 3) | `run_command` (`test_run_command_turns_ctrl_c_and_crashes_into_exit_codes`), `_AqParser` suggestions, each command's error-path tests |
 | 6 | **Fast** | `aq <cmd> --help` well under the old 5.7 s; no heavy import before the command runs | `test_help_is_fast`, `test_importing_aq_cli_loads_no_pandas_numpy_or_torch` (#421) |
 
-**What cannot be proven in an agent session.** Two paths are tested against fakes up to the external boundary and marked "10 (fake-proven)" below: `backtest` against real Lean (owner-only, rule 4) and `live up` against a real broker (needs the keys). `models install` was proved against the real v6.7.1 release.
+**Proven against the real thing.** `models install` against the v6.7.1 release and `backtest --no-publish` against a real Lean run (2026-11-22). One path is still tested against fakes up to the external boundary and marked "10 (fake-proven)" below: `live up` against a real broker (needs the keys).
 
 ## Global changes
 
@@ -44,7 +44,7 @@ A command is 10 only when all six hold. A new command is built to it from the st
 | `pipeline run/status/validate/list` | 6 | 10 | Python 3.10 crash (#413); `validate`, `list`, `--json` | `test_project_template.py`, `test_pipeline.py` |
 | `train` | 6 | 10 | Companion flags (#417), `--dry-run`, `--list-runs --json` | `test_aq_cli.py`, `test_aq_train_resume.py`, `test_aq_cli_last_branches.py` |
 | `test` | 7 | 10 | Paths and verbs (`new`, `where`, `slowest`, `clean-checkout`, `mutation`, `fuzz`), `-k`, `--lf`, `--impacted`, `--watch`, `--repeat`, `--light-hypothesis` (#420), `--list-groups`, JUnit of every run | `test_aq_cli.py`, `test_aq_testtools.py` |
-| `backtest` | 5 | 10 (fake-proven) | `--no-publish`, `--dry-run`, the run's config frozen under its name (#419) | `test_aq_cli.py` (synthetic run folders, `_lean_run_names`) |
+| `backtest` | 5 | 10 | `--no-publish`, `--dry-run` (no image build), the run's config frozen under its name (#419); proved by a real run on 2026-11-22 | `test_aq_cli.py` (synthetic run folders, `_lean_run_names`) |
 | `profile` | 6 | 10 | Help cleaned; its output is the profiler's own table, and `aq bench run --json` gives the timings as JSON | `test_aq_cli.py` |
 | `report` | 5 | 10 | No arguments lists the newest runs; the result id is found when the folder holds one | `test_aq_cli.py` |
 | `research` | 7 | 10 | `aq signal check` runs first; `--json` | `test_aq_cli.py`, `test_signal_tools.py` |

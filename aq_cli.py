@@ -1439,19 +1439,16 @@ def cmd_backtest(args: argparse.Namespace) -> int:
     # create and Windows-bind-mount a generated requirements.txt file.
     # --image remains an escape hatch for deliberately selecting another
     # engine image without editing this file.
-    if args.image:
-        engine_image = args.image
-    else:
-        if not _ensure_local_lean_engine_image():
-            return 1
-        engine_image = LOCAL_LEAN_ENGINE_IMAGE
+    engine_image = args.image or LOCAL_LEAN_ENGINE_IMAGE
     lean_command = [lean_binary, "backtest", ".", "--image", engine_image]
     frozen_dir = ML_DIR / "evaluation" / "run_configs"
     pending = frozen_dir / "_pending.json"
-    if getattr(args, "dry_run", False):
+    if getattr(args, "dry_run", False):  # before the image check: a dry run builds and touches nothing
         print(" ".join(lean_command))
         print(f"config frozen to {pending} and renamed to <run>.json; publishing {'off' if getattr(args, 'no_publish', False) else 'on (README, reports)'}")
         return 0
+    if not args.image and not _ensure_local_lean_engine_image():
+        return 1
     frozen_dir.mkdir(parents=True, exist_ok=True)
     shutil.copy2(CONFIG_PATH, pending)
     before = _lean_run_names()

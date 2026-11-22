@@ -4005,10 +4005,10 @@ def _lean_ready():
 
 
 def test_backtest_dry_run_prints_the_command_and_freezes_nothing(capsys):
-    lean, image = _lean_ready()
     run_mock = MagicMock(return_value=0)
-    with lean, image:
+    with patch("aq_cli._find_quantconnect_lean_binary", return_value="lean"), patch("aq_cli._ensure_local_lean_engine_image") as ensure:
         assert _parse_and_dispatch(["backtest", "--dry-run", "--no-publish"], run_mock) == 0
+    ensure.assert_not_called()  # a dry run neither builds the Lean image nor needs Docker
     out = capsys.readouterr().out
     assert "backtest . --image" in out and "publishing off" in out
     run_mock.assert_not_called()

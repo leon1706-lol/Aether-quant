@@ -2,7 +2,7 @@
 
 Every bug and infrastructure issue found in this codebase, oldest first, with how it was fixed or why it stayed open. Numbers never change, because code and docs cite them; #73-76 don't exist, #88's first entry is #88a, and #112 appears twice (the second is marked).
 
-**Entries:** <!--fact:problems.total-->419<!--/fact--> up to #<!--fact:problems.last-->422<!--/fact-->: <!--fact:problems.fixed-->382<!--/fact--> 🟢 `fixed` (changed and verified), <!--fact:problems.partial-->18<!--/fact--> 🟡 `partial` (shipped, verification pending), <!--fact:problems.closed-->20<!--/fact--> 🔴 `closed` (no code fix: declined, moot or superseded). Severity runs from 1 (cosmetic) to 10 (data loss or safety). Full text of older entries: [`backups/`](backups/README.md).
+**Entries:** <!--fact:problems.total-->419<!--/fact--> up to #<!--fact:problems.last-->422<!--/fact-->: <!--fact:problems.fixed-->383<!--/fact--> 🟢 `fixed` (changed and verified), <!--fact:problems.partial-->17<!--/fact--> 🟡 `partial` (shipped, verification pending), <!--fact:problems.closed-->20<!--/fact--> 🔴 `closed` (no code fix: declined, moot or superseded). Severity runs from 1 (cosmetic) to 10 (data loss or safety). Full text of older entries: [`backups/`](backups/README.md).
 
 **Open now** (each needs a broker key, a forward record, a Codespace or the laptop):
 
@@ -2483,13 +2483,13 @@ R-INSTALL3 kept the installed models: on 2023-07-01..2026-11-02 g0007's ml_a1 ha
 **Verification:** `tests/test_aq_cli.py` covers both configs and the missing-config path.
 
 ### 419. A research backtest rewrote the README and left no frozen config (V6.7.1)
-🟡 `partial` · 5/10
+🟢 `fixed` · 5/10
 
 **Problem:** `aq backtest` always rewrote the README, `research_results.md`, the charts and the evaluation reports and moved the README pin, and it never kept the config it ran with, so tools fell back to the current `config.json` for an old run without saying so (todo B2, B3).
 
 **Fix:** `--no-publish` leaves the README, the pin, `research_results.md`, the charts and the reports as they were, and prints the `aq evaluate --lean-report` line that writes them when wanted. Every run freezes `config.json` to `ml/evaluation/run_configs/_pending.json` before it starts and renames it to `<run>.json` once the run folder exists; `--dry-run` prints the Lean command and the paths. The `aq evaluate` run tools say when a run has no frozen config and they use the current one.
 
-**Verification:** stub-tested on synthetic Lean run folders (`tests/test_aq_cli.py`); partial until the owner's next real run shows both on disk.
+**Verification:** stub-tested on synthetic Lean run folders (`tests/test_aq_cli.py`), then proved by a real run on the PC (2026-11-22, `backtests/2026-11-22_11-54-37`): the config is frozen as `run_configs/2026-11-22_11-54-37.json` (identical to `config.json`, no `_pending.json` left), and the README pin, the README, `research_results.md` and all 103 report hashes are unchanged. The run's own result: Sharpe 1.157, net +28.2%, drawdown 5.0%, 877 orders over 2023-07-01..2025-06-30 (the pin's first half was 1.17). `--dry-run` no longer builds the Lean image first.
 
 ### 420. Hypothesis health checks failed on the 4 GB PC (V6.7.1)
 🟢 `fixed` · 2/10

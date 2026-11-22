@@ -8,7 +8,7 @@ The owner's live brief for what to do next; rewritten as objectives change (hist
 
 **State (2026-11-21): COMPLETE, pushed (e2ea0d8, 4c60664, 89bac54), CI green on both operating systems.** Plan: `C:\Users\Blackhead\.claude\plans\so-for-the-next-glittery-melody.md`. The agent commits and pushes, then watches CI until green (owner decision). Entries #413-#422 in `development/Problems.md`; the Changelog's "Phase V6.7.1".
 - **Done:** main green (#413, #414), every Dependabot PR applied on main and closed with grouped updates (#415, #416), the CLI audit with every command at 10/10 (`development/cli_audit.md`, enforced by `tests/test_cli_help_surface.py`), the new developer, owner and maintainer commands, the model lab with its data, signal and research commands (#422), the docs (guide, notebook, example, `docs/reference/cli.md`).
-- **Released 2026-11-22:** tag `v6.7.1` on ef29bab (PyPI 6.7.1, the engine and dashboard images on GHCR, the signed example models); the local engine and dashboard images were rebuilt and smoke-tested. Still open: the next real `aq backtest --no-publish` to prove #419.
+- **Released 2026-11-22:** tag `v6.7.1` on ef29bab (PyPI 6.7.1, the engine and dashboard images on GHCR, the signed example models); the local engine and dashboard images were rebuilt and smoke-tested. #419 proved by a real `aq backtest --no-publish` on the PC (`backtests/2026-11-22_11-54-37`). Nothing from V6.7.1 is open.
 
 -----
 # Previous objective: V6.6.10 (complete, committed in 997c126)
