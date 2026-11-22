@@ -418,11 +418,17 @@ def test_release_check_and_the_version_bump(tmp_path, monkeypatch, capsys):
     assert cli.implied_bump(None, "v1") == "major"
     answers = {("git", "status"): (0, ""), ("git", "rev-parse"): (0, "main\n")}
 
-    def capture(command, timeout=None, **kwargs):
+    smoke_calls = []
+    install = {"code": 0}
+
+    def capture(command, timeout=None, cwd=None, env=None):
         if command[1:3] == ["-m", "build"]:
             Path(command[-1], "aether_quant-1-py3-none-any.whl").write_text("w", encoding="utf-8")
             return 0, "built"
-        if command[-1].endswith(".whl"):
+        if command[1:4] == ["-m", "pip", "install"]:
+            return install["code"], "" if install["code"] == 0 else "pip: no matching distribution"
+        if command[-1].endswith("wheel_smoke.py"):
+            smoke_calls.append((cwd, env["PYTHONPATH"]))
             return 0, "smoke ok"
         return answers.get(tuple(command[:2]), (0, ""))
 
@@ -434,6 +440,11 @@ def test_release_check_and_the_version_bump(tmp_path, monkeypatch, capsys):
     checks = {check["name"]: check for check in cli.release_checks("v6.7.1")}
     assert checks["clean tree"]["status"] == "ok" and checks["on main"]["status"] == "ok" and checks["wheel builds"]["status"] == "ok"
     assert checks["wheel smoke"]["status"] == "ok" and checks["version vs API"]["status"] == "ok" and checks["tag"]["status"] == "manual"
+    cwd, path = smoke_calls[-1]
+    assert Path(path).name == "site-packages" and Path(path).parent == cwd and cli.ROOT_DIR not in Path(cwd).parents, "the smoke runs outside the checkout, on the wheel alone"
+    install["code"] = 1
+    assert {c["name"]: c for c in cli.release_checks("v6.7.1")}["wheel smoke"]["detail"] == "pip: no matching distribution"
+    install["code"] = 0
     monkeypatch.setattr(cli, "api_surface_at", lambda ref: {"m": ["a", "b"]} if ref else {"m": ["a"]})
     assert {c["name"]: c for c in cli.release_checks("v6.6.9")}["version vs API"]["status"] == "fail"
     monkeypatch.setattr(cli, "release_checks", lambda version: [dev._check("x", "fail", "d"), dev._check("y", "manual", "m")])

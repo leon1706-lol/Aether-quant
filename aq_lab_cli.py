@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 from collections.abc import Mapping, Sequence
@@ -988,8 +989,13 @@ def release_checks(version: str) -> list[dict]:
         checks.append(dev._check("wheel builds", "ok" if code == 0 else "fail", out.strip().splitlines()[-1][:160] if out.strip() else "", "python -m pip install build"))
         wheels = sorted(Path(folder).glob("*.whl"))
         if code == 0 and wheels and (ROOT_DIR / "scripts" / "wheel_smoke.py").exists():
-            code, out = dev.run_capture([sys.executable, "scripts/wheel_smoke.py", str(wheels[0])], timeout=900)
-            checks.append(dev._check("wheel smoke", "ok" if code == 0 else "fail", (out.strip().splitlines() or [""])[-1][:160], "python scripts/wheel_smoke.py <wheel>"))
+            # as CI's wheel-smoke job: the wheel alone, imported from outside the checkout (an editable install would hide gaps)
+            site = Path(folder) / "site-packages"
+            code, out = dev.run_capture([sys.executable, "-m", "pip", "install", "--no-deps", "--quiet", "--target", str(site), str(wheels[0])], timeout=900)
+            if code == 0:
+                environment = {**os.environ, "PYTHONPATH": str(site)}
+                code, out = dev.run_capture([sys.executable, str(ROOT_DIR / "scripts" / "wheel_smoke.py")], cwd=Path(folder), env=environment, timeout=900)
+            checks.append(dev._check("wheel smoke", "ok" if code == 0 else "fail", (out.strip().splitlines() or [""])[-1][:160], "python scripts/wheel_smoke.py, outside the checkout"))
     checks.append(dev._check("SBOM and signing", "manual", "release.yml builds the SBOM, signs and attests on the tag"))
     checks.append(dev._check("tag", "manual", f"git tag {version} && git push origin {version}  (publishes PyPI, Docker, the example models)"))
     return checks
