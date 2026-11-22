@@ -102,6 +102,7 @@ aq lab train m1           # the model lab (aq lab --help, docs/guide/model-lab.m
 - **100% coverage of every tracked module, no pragma:** the next section.
 - **Numbers in docs are facts, not text.** A count, window or version goes through `<!--fact:key-->` (`docs_facts.py`) or a generated `AQ:*` block. `tests/test_docs_facts.py` also fails on a path, `phase_v2` key, `aq` command or problem number that no longer exists in a living doc.
 - **The README's Backtest Statistics shows the shipped book only.** The retired book's blocks live in `development/research_results.md`.
+- **A phase's commits carry a fourth number.** When a phase (say V6.7.1) lands as several commits, each message starts with the phase and its place in it: `V6.7.1.1: ...`, `V6.7.1.2: ...`, counted from the phase's first commit (`git log --oneline --grep "^V6.7.1"` shows how many there are). The fourth number is for commit messages only: tags, `pyproject` versions, the Changelog heading and Problems entries keep three (`v6.7.1`, `## Phase V6.7.1`, `(V6.7.1)`).
 - **Problems.md and Changelog.md entries are condensed.**
   - Problems: `### N. Title`, then a status and severity line, then **Problem:** / **Fix:** / **Verification:**, each 1-3 sentences.
   - Changelog: `## Phase N — Title`, then one bold-led bullet per fix, about 2 sentences: what changed and why.
