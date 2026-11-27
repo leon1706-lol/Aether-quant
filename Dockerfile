@@ -9,7 +9,7 @@ RUN npm run build
 # Stage 2 (V6.6.5, #344): the wheel, built from the source tree the engine copies. Only what the PyPI package ships
 # goes into it (pyproject.toml's packages and py-modules), so the dashboard image below carries the library and the API
 # and nothing of the trading system. .git is not in the context, so the version comes from AQ_VERSION.
-FROM python:3.11-slim@sha256:07d4824036af339fa1b6ef769cc99d9c10a141769538b52b3b597c84f7a7b535 AS wheel-builder
+FROM python:3.11-slim@sha256:61e01f72680f86a5279ad510818ab7b2ee9f049822589d4e34e33e044360356c AS wheel-builder
 WORKDIR /src
 COPY . .
 ARG AQ_VERSION=0.0.0
@@ -19,7 +19,7 @@ RUN SETUPTOOLS_SCM_PRETEND_VERSION=${AQ_VERSION} pip wheel --no-cache-dir --no-d
 #   docker run --rm -p 8080:8000 ghcr.io/leon1706-lol/aether-quant-dashboard:latest
 # FastAPI, the built web UI and the bundled demo (scripts/build_dashboard_demo.py), no torch, no Lean, no database. Point
 # AQ_DASHBOARD_ROOT at a mounted tree (and unset AQ_DASHBOARD_DEMO) to show a real run instead.
-FROM python:3.11-slim@sha256:07d4824036af339fa1b6ef769cc99d9c10a141769538b52b3b597c84f7a7b535 AS dashboard
+FROM python:3.11-slim@sha256:61e01f72680f86a5279ad510818ab7b2ee9f049822589d4e34e33e044360356c AS dashboard
 WORKDIR /app
 COPY --from=wheel-builder /wheels /wheels
 # V6.6.7 (#361): the dashboard extra from a hash lock, then the wheel without resolving. The test suites of pandas and
@@ -53,7 +53,7 @@ CMD ["uvicorn", "monitoring.api_server:app", "--host", "0.0.0.0", "--port", "800
 # class is structurally impossible now. Each service's actual entrypoint
 # is selected via docker-compose.yml's per-service `command:` override
 # (CMD below is just the default/app entrypoint).
-FROM python:3.11-slim@sha256:07d4824036af339fa1b6ef769cc99d9c10a141769538b52b3b597c84f7a7b535 AS engine
+FROM python:3.11-slim@sha256:61e01f72680f86a5279ad510818ab7b2ee9f049822589d4e34e33e044360356c AS engine
 WORKDIR /app
 COPY requirements/lock/runtime.txt ./requirements/lock/
 # V6.6.7 (#361): hash-locked, CPU torch included (the default Linux wheel pulls about 2 GB of CUDA libraries the engine
