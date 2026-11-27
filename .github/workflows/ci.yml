@@ -401,7 +401,7 @@ jobs:
 
       # V6.6.5 (#353): blocking on critical findings that have a fix, in the source tree and in the published image
       - name: Trivy scan of the source tree
-        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: fs
           scan-ref: .
@@ -411,7 +411,7 @@ jobs:
           skip-dirs: backtests,backtests_invalid,webui/node_modules
 
       - name: Trivy scan of the dashboard image
-        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: aq-dashboard-check
           severity: CRITICAL
