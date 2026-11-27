@@ -9,7 +9,7 @@
 # (the Docker image's own requirements file) now also lists it, so
 # retraining-worker's container has it too - kept here as well so a local
 # dev venv installed purely from this file still has it for `aq backtest`.
-lean>=1.0.233
+lean>=1.0.234
 
 # Dashboard / optional local exploration
 plotly>=5.17.0
@@ -24,7 +24,7 @@ black>=26.10.1
 pytest-xdist>=3.8.0
 
 # In-process Redis mock for tests (V2-13)
-fakeredis>=2.20.0
+fakeredis>=2.41.0
 
 # PostgreSQL driver for test imports — connection is mocked in tests (V2-14)
 psycopg[binary]>=3.3.8
@@ -64,7 +64,7 @@ pyarrow>=23.0.1
 # V5.3.9 - CI hardening: coverage gate (pytest --cov-fail-under in ci.yml)
 pytest-cov>=7.1.0
 # V6.6.6: pyproject's [tool.coverage.run] patch = ["subprocess"] needs coverage 7.10
-coverage>=7.10.0
+coverage>=7.17.5
 
 # V5.3.9 - Python lint job in ci.yml + local parity (ruff check .)
 # V5.5.0 - pinned to the SAME version ci.yml's python-lint job installs
@@ -73,4 +73,4 @@ coverage>=7.10.0
 ruff==0.16.4
 
 # Property-based tests (V6.6.4): tests/test_v664_properties.py, derandomized so a failure reproduces on every host
-hypothesis>=6.100
+hypothesis>=6.170.17
