@@ -6,5 +6,5 @@ vermin==1.9.2
 pyright==1.1.414
 bandit==1.9.4
 sigstore==4.5.1
-cyclonedx-bom==8.0.1
+cyclonedx-bom==9.0.0
 lxml>=6.1.0  # cyclonedx-python-lib's XML dependency: 5.4.0 has PYSEC-2026-87 (fixed in 6.1.0)
